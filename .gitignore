@@ -1,0 +1,9 @@
+*.swp
+*.pyc
+*.so
+*.cppimporthash
+.cache
+__pycache__
+build
+*.egg-info
+dist
