@@ -1,3 +1,7 @@
+def vec_inner(a, b):
+    dim = len(a)
+    return sum([a[i] * b[i] for i in range(dim)])
+
 def tensor_outer(a, b):
     dim = len(a)
     return [[a[i] * b[j] for j in range(dim)] for i in range(dim)]
@@ -6,13 +10,12 @@ def tensor_sum(a, b):
     dim = len(a)
     return [[a[i][j] + b[i][j] for j in range(dim)] for i in range(dim)]
 
-def tensor_negate(a):
-    dim = len(a)
-    return [[-a[i][j] for j in range(dim)] for i in range(dim)]
-
 def tensor_mult(a, factor):
     dim = len(a)
     return [[a[i][j] * factor for j in range(dim)] for i in range(dim)]
+
+def tensor_negate(a):
+    return tensor_mult(a, -1)
 
 def transpose(t):
     dim = len(t)

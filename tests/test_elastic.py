@@ -1,6 +1,15 @@
 from tectosaur.tensors import *
 from tectosaur.elastic import *
 import numpy as np
+import dill
+import sympy
+import pytest
+
+
+slow = pytest.mark.skipif(
+    not pytest.config.getoption("--runslow"),
+    reason="need --runslow option to run"
+)
 
 def test_tensors():
     t = [[0, -1], [1, 0]]
@@ -16,3 +25,28 @@ def test_sym_skw():
 
 def test_outer():
     np.testing.assert_almost_equal(tensor_outer([0, 1], [1, 2]), [[0, 0], [1, 2]])
+
+@slow
+def test_kernels():
+    with open('tests/3d_kernels.pkl', 'rb') as f:
+        all_kernels = dill.load(f)
+
+    kernel_builders = [U, T, A, H]
+
+    def kernel_tester(k_idx, i, j):
+        kernel = kernel_builders[k_idx](i, j)
+        kernel_lambda = sympy.utilities.lambdify(all_args, kernel, "numpy")
+
+        for t_idx in range(10):
+            params = np.random.rand(16, 1)
+            params[-3:] /= np.linalg.norm(params[-3:])
+            params[-6:-3] /= np.linalg.norm(params[-6:-3])
+            totest = kernel_lambda(*params)
+            exact = all_kernels[k_idx][i][j](*params)
+            error = np.abs((exact - totest) / totest)
+            assert(abs(error) < 1e-10)
+
+    for k_idx in range(4):
+        for i in range(3):
+            for j in range(3):
+                kernel_tester(k_idx, i, j)
