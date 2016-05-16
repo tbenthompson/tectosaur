@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     packages = ['tectosaur'],
-    install_requires = ['numpy', 'sympy'],
+    install_requires = ['numpy', 'sympy', 'scipy', 'dill'],
     zip_safe = False,
 
     name = 'tectosaur',
