@@ -79,3 +79,25 @@ def H(i, j):
     )
     term6 = Ident(i, j) * ((3 * d_dot_n * d_dot_l / r ** 2) + (l_dot_n * HC4))
     return outer_factor * (term1 + term2 + term3 + term4 + term5 + term6)
+
+def main():
+    import os
+    import mako.template
+    from tectosaur.sympy_to_cpp import to_cpp
+    filenames = ['farfield.tcpp', 'farfield.tcu']
+    out_filenames = []
+    for f in filenames:
+        t = mako.template.Template(filename = os.path.join('tectosaur', f))
+        p = dict()
+        p['kernel'] = [[to_cpp(H(i, j)) for j in range(3)] for i in range(3)]
+        root, ext = os.path.splitext(f)
+        out_file = root + '.' + ext[2:]
+        open(os.path.join('tectosaur', out_file), 'w').write(t.render(**p))
+        out_filenames.append(out_file)
+
+
+    gitignore = '\n'.join(out_filenames + ['.gitignore'])
+    open('tectosaur/.gitignore', 'w').write(gitignore)
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,73 @@
+// cppimport: C++14
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+#include <iostream>
+#include "arrays.hpp"
+
+namespace py = pybind11;
+
+using namespace tectosaur;
+
+using Real = float;
+
+typedef py::array_t<Real> NPArray;
+
+NPArray farfield(NPArray obs_pts, NPArray obs_ns, 
+        NPArray src_pts, NPArray src_ns, Real G, Real nu) 
+{
+    auto obs_pts_buf = obs_pts.request();
+    auto src_pts_buf = src_pts.request();
+    auto n_obs = obs_pts_buf.shape[0];
+    auto n_src = src_pts_buf.shape[0];
+    auto result = make_array<Real>({n_obs, n_src, 3, 3});
+
+    Real* obs_pts_d = reinterpret_cast<Real*>(obs_pts_buf.ptr);
+    Real* src_pts_d = reinterpret_cast<Real*>(src_pts_buf.ptr);
+    Real* obs_ns_d = reinterpret_cast<Real*>(obs_ns.request().ptr);
+    Real* src_ns_d = reinterpret_cast<Real*>(src_ns.request().ptr);
+    Real* result_d = reinterpret_cast<Real*>(result.request().ptr);
+
+    auto inp_index = [=] (size_t i, size_t d) {
+        return i * 3 + d;
+    };
+    auto res_index = [=] (size_t i, size_t j, size_t d1, size_t d2) {
+        return i * n_src * 9 + j * 9 + d1 * 3 + d2;
+    };
+
+#pragma omp parallel for
+    for (size_t i = 0; i < n_obs; i++) {
+        for (size_t j = 0; j < n_src; j++) {
+            auto xx = obs_pts_d[inp_index(i, 0)];
+            auto xy = obs_pts_d[inp_index(i, 1)];
+            auto xz = obs_pts_d[inp_index(i, 2)];
+            (void)xx;(void)xy;(void)xz;
+
+            auto nx = obs_ns_d[inp_index(i, 0)];
+            auto ny = obs_ns_d[inp_index(i, 1)];
+            auto nz = obs_ns_d[inp_index(i, 2)];
+            (void)nx;(void)ny;(void)nz;
+
+            auto yx = src_pts_d[inp_index(j, 0)];
+            auto yy = src_pts_d[inp_index(j, 1)];
+            auto yz = src_pts_d[inp_index(j, 2)];
+            (void)yx;(void)yy;(void)yz;
+
+            auto lx = src_ns_d[inp_index(j, 0)];
+            auto ly = src_ns_d[inp_index(j, 1)];
+            auto lz = src_ns_d[inp_index(j, 2)];
+            (void)lx;(void)ly;(void)lz;
+
+            % for d1 in range(3):
+            % for d2 in range(3):
+            result_d[res_index(i, j, ${d1}, ${d2})] = ${kernel[d1][d2]};
+            % endfor
+            % endfor
+        }
+    }
+
+    return result;
+}
+
+void pyexport(py::module& m) {
+    m.def("farfield", &farfield);
+}
