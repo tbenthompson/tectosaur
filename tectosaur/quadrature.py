@@ -81,3 +81,15 @@ def aimi_diligenti(quad_rule, p, q):
         ) - 1.0
         w[i] = quad_rule[1][i] * F * t ** (p - 1) * (1 - t) ** (q - 1)
     return x, w
+
+def poly_transform01(quad_rule):
+    n_q = len(quad_rule[0])
+    x = np.empty(n_q)
+    w = np.empty(n_q)
+    for i in range(n_q):
+        s = (quad_rule[0][i] + 1.0) / 2.0
+        x[i] = 2.0 * (-s**2 * (2 * s - 3)) - 1.0
+        J = -2 * s * (2 * s - 3) - 2 * s ** 2
+        w[i] = quad_rule[1][i] * J
+    return np.array(x), np.array(w)
+
