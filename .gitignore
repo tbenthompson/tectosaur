@@ -2,6 +2,7 @@
 *.pyc
 *.so
 *.cppimporthash
+.rendered.*
 .cache
 __pycache__
 build

@@ -3,13 +3,7 @@ from tectosaur.elastic import *
 import numpy as np
 import dill
 import sympy
-import pytest
-
-
-slow = pytest.mark.skipif(
-    not pytest.config.getoption("--runslow"),
-    reason="need --runslow option to run"
-)
+from slow_test import slow
 
 def test_tensors():
     t = [[0, -1], [1, 0]]

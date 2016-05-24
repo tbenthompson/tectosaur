@@ -1,10 +1,12 @@
 import cppimport
 import numpy as np
 import tectosaur.farfield
+from slow_test import slow
 
 def normalize(vs):
     return vs / np.linalg.norm(vs, axis = 1).reshape((vs.shape[0], 1))
 
+@slow
 def test_farfield():
     n = 8000
     obs_pts = np.random.rand(n, 3).astype(np.float32)

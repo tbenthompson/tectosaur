@@ -13,6 +13,16 @@ def test_richardson():
     est = richardson(hs, xs)
     np.testing.assert_almost_equal(est[-1][-1], 0.0)
 
+def test_richardson_quad():
+    gauss_q = gaussxw(11)
+    q = richardson_quad(
+        2 ** np.linspace(0, -5, 5),
+        lambda e: map_to(sinh_transform(gauss_q, -1, e), [0, 1])
+    )
+    f = lambda x: 2 * x[:, 1] / (x[:, 0] ** 2 + x[:, 1] ** 2)
+    res = quadrature(f, q)
+    np.testing.assert_almost_equal(np.pi, res, 4)
+
 def test_sinh():
     eps = 0.01
     q = map_to(sinh_transform(gaussxw(12), -1, eps), [0, 1])

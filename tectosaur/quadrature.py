@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.linalg
+import scipy.interpolate
 from math import factorial
 
 # Derives the n-point gauss quadrature rule
@@ -35,6 +36,33 @@ def richardson(h_vals, y_vals):
         next_rich = factor * (mult * prev_rich[1:] - prev_rich[:-1])
         rich.append(next_rich)
     return rich
+
+def richardson_quad(h_vals, quad_builder):
+    n = len(h_vals)
+    I = scipy.interpolate.BarycentricInterpolator(h_vals)
+    xs = None
+    ws = None
+    for i in range(n):
+        y = [0] * n
+        y[i] = 1.0
+        I.set_yi(np.array(y))
+        inner_xs, inner_ws = quad_builder(h_vals[i])
+
+        if len(inner_xs.shape) == 1:
+            inner_xs = inner_xs.reshape((inner_xs.shape[0], 1))
+        inner_xs = np.hstack((
+            inner_xs,
+            np.array([[h_vals[i]]] * inner_xs.shape[0])
+        ))
+
+        inner_ws *= I(0.0)
+        if xs is None:
+            xs = inner_xs
+            ws = inner_ws
+        else:
+            xs = np.vstack((xs, inner_xs))
+            ws = np.append(ws, inner_ws)
+    return xs, ws
 
 # Sinh transform for integrals of the form \int_{-1}^1 f(x)<F12>
 def sinh_transform(quad_rule, a, b, iterated = False):

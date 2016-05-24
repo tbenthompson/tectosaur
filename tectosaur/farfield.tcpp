@@ -1,19 +1,15 @@
-// cppimport: C++14
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-#include <iostream>
+/* cppimport
+compiler_args = ['-std=c++14', '-fopenmp']
+linker_args = ['-fopenmp']
+*/
 #include "arrays.hpp"
 
 namespace py = pybind11;
 
 using namespace tectosaur;
 
-using Real = float;
-
-typedef py::array_t<Real> NPArray;
-
-NPArray farfield(NPArray obs_pts, NPArray obs_ns, 
-        NPArray src_pts, NPArray src_ns, Real G, Real nu) 
+py::array_t<Real> farfield(py::array_t<Real> obs_pts, py::array_t<Real> obs_ns, 
+        py::array_t<Real> src_pts, py::array_t<Real> src_ns, Real G, Real nu) 
 {
     auto obs_pts_buf = obs_pts.request();
     auto src_pts_buf = src_pts.request();
@@ -68,6 +64,8 @@ NPArray farfield(NPArray obs_pts, NPArray obs_ns,
     return result;
 }
 
-void pyexport(py::module& m) {
+PYBIND11_PLUGIN(farfield) {
+    pybind11::module m("farfield", "");
     m.def("farfield", &farfield);
+    return m.ptr();
 }

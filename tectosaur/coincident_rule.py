@@ -96,6 +96,3 @@ def coincident_quad(eps, n_outer_sing, n_outer_smooth, n_theta, n_rho):
     I3()
 
     return np.array(pts), np.array(wts)
-
-def outer_integral():
-    pass

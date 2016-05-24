@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import okada_wrapper
+from slow_test import slow
 
 # Corners are ordered: lower left, lower right, upper right, upper left
 def rect_surface_points(nx, ny, corners):
@@ -42,6 +43,7 @@ def rect_surface_topology(nx, ny):
 def rect_surface(nx, ny, corners):
     return rect_surface_points(nx, ny, corners), rect_surface_topology(nx, ny)
 
+@slow
 def test_okada():
     sm = 30e9
     pr = 0.25

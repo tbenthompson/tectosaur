@@ -1,6 +1,10 @@
-from tectosaur.coincident import *
+from tectosaur.coincident_rule import *
 from tectosaur.quadrature import *
 from tectosaur.basis import *
+# import cppimport
+# cppimport.install()
+from tectosaur.coincident import *
+from slow_test import slow
 
 def test_simple():
     eps = 0.01
@@ -8,25 +12,23 @@ def test_simple():
     q = coincident_quad(0.01, 10, 10, 10, 10)
 
     result = quadrature(lambda x: x[:, 2], q)
-    np.testing.assert_almost_equal(result, 1.0 / 12.0, 4)
+    np.testing.assert_almost_equal(result, 1.0 / 12.0, 2)
 
     result = quadrature(lambda x: x[:, 3], q)
-    np.testing.assert_almost_equal(result, 1.0 / 12.0, 4)
+    np.testing.assert_almost_equal(result, 1.0 / 12.0, 2)
 
     result = quadrature(lambda x: x[:, 2] * x[:, 3], q)
-    np.testing.assert_almost_equal(result, 1.0 / 48.0, 4)
+    np.testing.assert_almost_equal(result, 1.0 / 48.0, 2)
 
+@slow
 def test_kernel():
     tri = [
         [0, 0, 0],
         [0, 0, 1],
         [1, 0, 0]
     ]
-    eps = 0.01
-    i = 0
-    j = 0
 
-    def K(pts):
+    def laplace(i, j, eps, pts):
         obsxhat = pts[:, 0]
         obsyhat = pts[:, 1]
         srcxhat = pts[:, 2]
@@ -48,13 +50,40 @@ def test_kernel():
         K = (1.0 / 4.0 / np.pi) * ((1 / R ** 3) - (3.0 * eps ** 2 / R ** 5))
         return obsbasis[i, :] * srcbasis[j, :] * K
 
-    exact = quadrature(K, coincident_quad(eps, 18, 15, 15, 18))
-    # exact = -0.33151084315265733
-    def tryit(n1,n2,n3,n4):
-        q = coincident_quad(eps, n1, n2, n3, n4)
-        result = quadrature(K, q)
-        print(np.abs((result - exact) / exact))
-        print(q[0].shape)
-    tryit(6,5,4,10)
-    tryit(9,7,5,10)
-    # np.testing.assert_almost_equal(result, exact, 4)
+    eps = 0.01
+    for i in range(3):
+        for j in range(i):
+            K = lambda pts: laplace(i, j, eps, pts)
+            exact = quadrature(K, coincident_quad(eps, 18, 15, 15, 18))
+            def tryit(n1,n2,n3,n4):
+                q = coincident_quad(eps, n1, n2, n3, n4)
+                result = quadrature(K, q)
+                return np.abs((result - exact) / exact)
+            assert(tryit(7,6,4,10) < 0.005)
+            assert(tryit(14,9,7,10) < 0.0005)
+            assert(tryit(13,12,11,13) < 0.00005)
+
+def test_cpp_module():
+    # q = coincident_quad(0.01, 14, 9, 7, 10)
+    # qhigh = coincident_quad(0.01, 20, 20, 20, 20)
+    pts = np.array([
+        [0, 0, 0],
+        [1, 0, 0],
+        [0, 1, 0]
+    ])
+    tris = [[0,1,2]] * 1
+
+    import time
+    # a1 = coincidentH(q[0], q[1], [0.01], pts, tris, 1.0, 0.25)
+    # a2 = coincidentH(qhigh[0], qhigh[1], [0.01], pts, tris, 1.0, 0.25)
+    # print(np.max(np.abs(a2 - a1)))
+
+    eps = 10 ** np.linspace(-3, -3, 1)
+    start = time.time()
+    qq = richardson_quad(eps, lambda e: coincident_quad(e, 15, 15, 8, int(5 - 3 * np.log(e))))
+    print(len(qq[0]))
+    print(time.time() - start)
+    start = time.time()
+    a1 = coincidentH(qq[0], qq[1], pts, tris, 1.0, 0.25)
+    print(time.time() - start)
+    print("result: " + str(a1[0][0][0][0][0]))

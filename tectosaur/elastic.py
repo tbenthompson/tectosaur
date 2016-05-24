@@ -1,4 +1,5 @@
 from tectosaur.tensors import vec_inner, tensor_outer, Ident, SYM, SKW
+from tectosaur.sympy_to_cpp import to_cpp
 import sympy as sp
 
 # The source for these kernels is Appendix 2 of Carini and Salvadori, 2002.
@@ -39,23 +40,32 @@ def U(i, j):
     d_o_n = tensor_outer(d, n)
     UC1 = 1 / (16 * sp.pi * G * (1 - nu))
     UC2 = 3 - 4 * nu
-    return UC1 * (1 / r) * ((d_o_d[i][j] / (r ** 2)) + UC2 * Ident(i, j))
+    result = dict()
+    result['symmetric'] = True
+    result['expr'] = UC1 * (1 / r) * ((d_o_d[i][j] / (r ** 2)) + UC2 * Ident(i, j))
+    return result
 
 def T(i, j):
     AC1 = -1 / (8 * sp.pi * (1 - nu))
     AC2 = 1 - 2 * nu
-    return AC1 * (1 / r ** 3) * (
+    result = dict()
+    result['symmetric'] = False
+    result['expr'] = AC1 * (1 / r ** 3) * (
         AC2 * (2 * SKW(d_o_l)[i][j] + d_dot_l * Ident(i, j)) +
         (3 * d_dot_l * d_o_d[i][j]) / (r ** 2)
     )
+    return result
 
 def A(i, j):
     AC1 = -1 / (8 * sp.pi * (1 - nu))
     AC2 = 1 - 2 * nu
-    return AC1 * (1 / r ** 3) * (
+    result = dict()
+    result['symmetric'] = False
+    result['expr'] = AC1 * (1 / r ** 3) * (
         AC2 * (2 * SKW(d_o_n)[i][j] - d_dot_n * Ident(i, j)) -
         (3 * d_dot_n * d_o_d[i][j]) / (r ** 2)
     )
+    return result
 
 def H(i, j):
     HC1 = G * nu / (4 * sp.pi * (1 - nu))
@@ -78,26 +88,19 @@ def H(i, j):
         (5 / nu) * (d_dot_n * d_dot_l) / (r ** 2)
     )
     term6 = Ident(i, j) * ((3 * d_dot_n * d_dot_l / r ** 2) + (l_dot_n * HC4))
-    return outer_factor * (term1 + term2 + term3 + term4 + term5 + term6)
+    result = dict()
+    result['symmetric'] = True
+    result['expr'] = outer_factor * (term1 + term2 + term3 + term4 + term5 + term6)
+    return result
 
-def main():
-    import os
-    import mako.template
-    from tectosaur.sympy_to_cpp import to_cpp
-    filenames = ['farfield.tcpp', 'farfield.tcu']
-    out_filenames = []
-    for f in filenames:
-        t = mako.template.Template(filename = os.path.join('tectosaur', f))
-        p = dict()
-        p['kernel'] = [[to_cpp(H(i, j)) for j in range(3)] for i in range(3)]
-        root, ext = os.path.splitext(f)
-        out_file = root + '.' + ext[2:]
-        open(os.path.join('tectosaur', out_file), 'w').write(t.render(**p))
-        out_filenames.append(out_file)
-
-
-    gitignore = '\n'.join(out_filenames + ['.gitignore'])
-    open('tectosaur/.gitignore', 'w').write(gitignore)
-
-if __name__ == '__main__':
-    main()
+def get_kernel(kernel_builder):
+    out = dict()
+    out['expr'] = []
+    for i in range(3):
+        out['expr'].append([])
+        for j in range(3):
+            result = kernel_builder(i, j)
+            result['expr'] = to_cpp(result['expr'])
+            out['symmetric'] = result['symmetric']
+            out['expr'][i].append(result['expr'])
+    return out
