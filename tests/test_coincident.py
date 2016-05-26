@@ -1,8 +1,8 @@
 from tectosaur.coincident_rule import *
 from tectosaur.quadrature import *
 from tectosaur.basis import *
-# import cppimport
-# cppimport.install()
+import cppimport
+cppimport.install()
 from tectosaur.coincident import *
 from slow_test import slow
 
@@ -63,13 +63,43 @@ def test_kernel():
             assert(tryit(14,9,7,10) < 0.0005)
             assert(tryit(13,12,11,13) < 0.00005)
 
+def func_star(args):
+    return coincident2H(*args)
+
+def test_coincident2():
+    pts = np.array([
+        [0, 0, 0],
+        [1, 0, 0],
+        [0.5, 0.5, 0]
+    ])
+    tris = [[0,1,2]] * 6 * 167
+
+    q = richardson_quad([0.01], lambda e: coincident_quad(e, 8, 8, 5, 10))
+    import time
+    import multiprocessing
+    pool = multiprocessing.Pool()
+    start = time.time()
+    step = len(tris) / 6
+    pool.map(func_star, [
+        (pts, tris[(step*i):(step*(i+1))], 1.0, 0.25)
+        for i in range(6)
+    ])
+    print(time.time() - start)
+    start = time.time()
+    result = coincidentH(q[0], q[1], pts, tris, 1.0, 0.25)
+    print(time.time() - start)
+    start = time.time()
+    result2 = coincident2H(pts, tris, 1.0, 0.25)
+    print(time.time() - start)
+
+
 def test_cpp_module():
     # q = coincident_quad(0.01, 14, 9, 7, 10)
     # qhigh = coincident_quad(0.01, 20, 20, 20, 20)
     pts = np.array([
         [0, 0, 0],
         [1, 0, 0],
-        [0, 1, 0]
+        [0.5, 0.5, 0]
     ])
     tris = [[0,1,2]] * 1
 
@@ -78,12 +108,43 @@ def test_cpp_module():
     # a2 = coincidentH(qhigh[0], qhigh[1], [0.01], pts, tris, 1.0, 0.25)
     # print(np.max(np.abs(a2 - a1)))
 
-    eps = 10 ** np.linspace(-3, -3, 1)
+    eps = 10 ** np.linspace(-2, -2, 1)
+
     start = time.time()
-    qq = richardson_quad(eps, lambda e: coincident_quad(e, 15, 15, 8, int(5 - 3 * np.log(e))))
-    print(len(qq[0]))
-    print(time.time() - start)
-    start = time.time()
-    a1 = coincidentH(qq[0], qq[1], pts, tris, 1.0, 0.25)
-    print(time.time() - start)
-    print("result: " + str(a1[0][0][0][0][0]))
+
+    # int(5 - 3 * np.log(e))
+    # qq = richardson_quad(eps, lambda e: coincident_quad(e, 7, 6, 4, 10))
+    # qq2 = richardson_quad(eps, lambda e: coincident_quad(e, 15, 15, 15, 15))
+    # relerr = []
+    # for i in range(1000):
+    #     logscale = np.random.uniform(0, 20)
+    #     scale = 2 ** logscale
+    #     x = np.random.uniform(0, 1)
+    #     y = np.random.uniform(0, 1)
+    #     leg1 = np.sqrt((x - 1) ** 2 + y ** 2)
+    #     leg2 = np.sqrt(x ** 2 + y ** 2)
+    #     if leg1 > 1.0 or leg2 > 1.0 or leg1 < 0.5 or leg2 < 0.5:
+    #         continue
+    #     pts = [
+    #         [0, 0, 0],
+    #         [scale, 0, 0],
+    #         [x * scale, y * scale, 0]
+    #     ]
+
+    #     a1 = coincidentH(qq[0], qq[1], pts, tris, 1.0, 0.25)[0][0][0][0][0]
+    #     a2 = coincidentH(qq2[0], qq2[1], pts, tris, 1.0, 0.25)[0][0][0][0][0]
+    #     print("GO")
+    #     print("points: " + str(pts))
+    #     print("abserr: " + str(np.abs(a1 - a2)))
+    #     relerr.append(np.abs(a1 - a2) / np.abs(a2))
+    #     print("relerr: " + str(relerr[-1]))
+    #     print("correcter: " + str(a2))
+    #     print('')
+    # import ipdb; ipdb.set_trace()
+
+    # print(len(qq[0]))
+    # print(time.time() - start)
+    # start = time.time()
+    # a1 = coincidentH(qq[0], qq[1], pts, tris, 1.0, 0.25)
+    # print(time.time() - start)
+    # print("result: " + str(a1[0][0][0][0][0]))

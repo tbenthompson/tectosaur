@@ -4,7 +4,7 @@
 
 namespace tectosaur {
 
-using Real = float;
+using Real = double;
 using Int = int;
 
 inline std::vector<size_t> calc_strides(

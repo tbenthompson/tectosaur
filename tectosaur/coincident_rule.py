@@ -56,14 +56,6 @@ def coincident_quad(eps, n_outer_sing, n_outer_smooth, n_theta, n_rho):
             lambda x, y: theta_lims[2](x, y) - 2 * np.pi,
             theta_lims[0]
         )
-        # obsxhat_integral((
-        #     rho_lims[0],
-        #     lambda x, y: theta_lims[2](x, y) - 2 * np.pi,
-        #     theta_lims[0],
-        #     quad.gaussxw(n_outer_smooth),
-        #     quad.gaussxw(n_outer_smooth)
-        # ))
-        # return
         q_beta = quad.map_to(outer_smooth_quad, [0, np.pi / 2])
         for b, wb in zip(*q_beta):
             alpha_max = 1.0 / (np.cos(b) + np.sin(b))
