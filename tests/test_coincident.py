@@ -63,8 +63,70 @@ def test_kernel():
             assert(tryit(14,9,7,10) < 0.0005)
             assert(tryit(13,12,11,13) < 0.00005)
 
+def test_coincident_gpu():
+    import pycuda.autoinit
+    import pycuda.driver as drv
+    from pycuda.compiler import SourceModule
+
+    import mako.template
+    import mako.runtime
+    import mako.exceptions
+    import mako.lookup
+    import os
+
+    N = 16 * 10000 * 6
+    print(N)
+    xs = np.linspace(0, 100, N + 1)
+    tris = []
+    pts = []
+    for i in range(N):
+        npts = len(pts)
+        tris.append([npts, npts + 1, npts + 2])
+        tris.append([npts + 2, npts + 1, npts + 3])
+        pts.append((xs[i], 0, 0))
+        pts.append((xs[i + 1], 0, 0))
+        pts.append((xs[i], 1, 0))
+        pts.append((xs[i + 1], 1, 0))
+
+    pts = np.array(pts).astype(np.float32)
+    tris = np.array(tris).astype(np.int32)
+    q = richardson_quad([0.01], lambda e: coincident_quad(e, 8, 8, 5, 10))
+    print(q[0].shape)
+    qx = q[0].astype(np.float32)
+    qw = q[1].astype(np.float32)
+
+    result = np.zeros((tris.shape[0], 3, 3, 3, 3)).astype(np.float32)
+
+    block = (128, 1, 1)
+    filepath = 'tectosaur/coincident.cu'
+    lookup = mako.lookup.TemplateLookup(directories=[os.path.dirname(filepath)])
+    tmpl = mako.template.Template(filename = filepath, lookup = lookup)
+    code = tmpl.render(block = block)
+    # print('\n'.join([str(i) + '   ' + line for i,line in enumerate(code.split('\n'))]))
+    mod = SourceModule(code, options = ['-std=c++11'], no_extern_c = True)
+    coincident = mod.get_function("coincident")
+
+    grid = (int(tris.shape[0]/block[0]),1)
+    print(coincident(
+        drv.Out(result),
+        np.int32(q[0].shape[0]),
+        drv.In(qx),
+        drv.In(qw),
+        drv.In(pts),
+        drv.In(tris),
+        np.float32(1.0),
+        np.float32(0.25),
+        block = block,
+        grid = grid,
+        time_kernel = True
+    ))
+    # result2 = coincidentH(q[0], q[1], pts, tris, 1.0, 0.25)
+    # print(np.max(np.abs(result - result2)))
+    # import ipdb; ipdb.set_trace()
+
 def func_star(args):
-    return coincident2H(*args)
+    return coincidentH(*args)
+
 
 def test_coincident2():
     pts = np.array([
@@ -76,20 +138,18 @@ def test_coincident2():
 
     q = richardson_quad([0.01], lambda e: coincident_quad(e, 8, 8, 5, 10))
     import time
-    import multiprocessing
-    pool = multiprocessing.Pool()
-    start = time.time()
-    step = len(tris) / 6
-    pool.map(func_star, [
-        (pts, tris[(step*i):(step*(i+1))], 1.0, 0.25)
-        for i in range(6)
-    ])
-    print(time.time() - start)
+    # import multiprocessing
+    # n_cores = 12
+    # pool = multiprocessing.Pool(n_cores)
+    # start = time.time()
+    # step = len(tris) / n_cores
+    # pool.map(func_star, [
+    #     (q[0], q[1], pts, tris[(step*i):(step*(i+1))], 1.0, 0.25)
+    #     for i in range(n_cores)
+    # ])
+    # print(time.time() - start)
     start = time.time()
     result = coincidentH(q[0], q[1], pts, tris, 1.0, 0.25)
-    print(time.time() - start)
-    start = time.time()
-    result2 = coincident2H(pts, tris, 1.0, 0.25)
     print(time.time() - start)
 
 

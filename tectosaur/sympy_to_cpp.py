@@ -28,6 +28,9 @@ def cpp_pow(expr):
     elif expr.args[1] == -0.5:
         a = to_cpp(expr.args[0])
         return '(1.0 / std::sqrt({a}))'.format(a = a)
+    elif expr.args[1] == -1.5:
+        a = to_cpp(expr.args[0])
+        return '(1.0 / std::sqrt({a} * {a} * {a}))'.format(a = a)
     elif expr.args[1] == 0.5:
         a = to_cpp(expr.args[0])
         return '(std::sqrt({a}))'.format(a = a)
