@@ -3,10 +3,8 @@ import numpy as np
 
 def coincident_quad(eps, n_outer_sing, n_outer_smooth, n_theta, n_rho):
     rho_quad = quad.sinh_transform(quad.gaussxw(n_rho), -1, eps)
-    # theta_quad = quad.aimi_diligenti(quad.gaussxw(n_theta), 2, 2)
     theta_quad = quad.gaussxw(n_theta)
     outer_smooth_quad = quad.aimi_diligenti(quad.gaussxw(n_outer_smooth), 3, 3)
-    # outer_smooth_quad = quad.gaussxw(n_outer_smooth)
     outer_sing_quad1 = quad.sinh_transform(quad.gaussxw(n_outer_sing), 1, eps)
     outer_sing_quad23 = quad.sinh_transform(quad.gaussxw(n_outer_sing), -1, eps)
 

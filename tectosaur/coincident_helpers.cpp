@@ -8,11 +8,11 @@ def dim_name(dim):
     return ['x', 'y', 'z'][dim]
 %>
 
-<%def name="pts_from_basis(pt_pfx,basis_pfx)">
+<%def name="pts_from_basis(pt_pfx,basis_pfx,tri_name)">
 % for dim in range(3):
 Real ${pt_pfx}${dim_name(dim)} = 0;
 % for basis in range(3):
-${pt_pfx}${dim_name(dim)} += ${basis_pfx}b${basis} * tri[${basis}][${dim}];
+${pt_pfx}${dim_name(dim)} += ${basis_pfx}b${basis} * ${tri_name}[${basis}][${dim}];
 % endfor
 % endfor
 </%def>
@@ -32,7 +32,8 @@ if kernels[k_name]['symmetric']:
 %>
 % for d_src in range(max_d_src):
 {
-    Real kernel_val = jacobian * quadw * ${kernels[k_name]['expr'][d_obs][d_src]};
+    Real kernel_val = jacobian * jacobian * quadw * 
+        ${kernels[k_name]['expr'][d_obs][d_src]};
     % for b_obs in range(3):
     % for b_src in range(3):
     result_d[res_index(it, ${b_obs}, ${b_src}, ${d_obs}, ${d_src})] += 

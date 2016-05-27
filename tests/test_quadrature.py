@@ -35,3 +35,9 @@ def test_aimi_diligenti():
     est = quadrature(lambda x: np.log(1 - x) * np.log(x + 1), q)
     exact = -1.10155082811
     np.testing.assert_almost_equal(est, exact, 6)
+
+def test_gauss4d():
+    q = gauss4d_tri(2)
+    result = quadrature(lambda x: 1, q)
+    np.testing.assert_almost_equal(result, 0.25)
+

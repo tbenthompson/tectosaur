@@ -5,6 +5,9 @@ import cppimport
 cppimport.install()
 from tectosaur.coincident import *
 from slow_test import slow
+from tectosaur.gpu import load_gpu
+import tectosaur.mesh as mesh
+import pycuda.driver as drv
 
 def test_simple():
     eps = 0.01
@@ -64,48 +67,20 @@ def test_kernel():
             assert(tryit(13,12,11,13) < 0.00005)
 
 def test_coincident_gpu():
-    import pycuda.autoinit
-    import pycuda.driver as drv
-    from pycuda.compiler import SourceModule
+    N = 16 * 2000
 
-    import mako.template
-    import mako.runtime
-    import mako.exceptions
-    import mako.lookup
-    import os
-
-    N = 16 * 10000 * 6
-    print(N)
-    xs = np.linspace(0, 100, N + 1)
-    tris = []
-    pts = []
-    for i in range(N):
-        npts = len(pts)
-        tris.append([npts, npts + 1, npts + 2])
-        tris.append([npts + 2, npts + 1, npts + 3])
-        pts.append((xs[i], 0, 0))
-        pts.append((xs[i + 1], 0, 0))
-        pts.append((xs[i], 1, 0))
-        pts.append((xs[i + 1], 1, 0))
-
+    pts, tris = mesh.make_strip(N)
     pts = np.array(pts).astype(np.float32)
     tris = np.array(tris).astype(np.int32)
-    q = richardson_quad([0.01], lambda e: coincident_quad(e, 8, 8, 5, 10))
-    print(q[0].shape)
+    q = richardson_quad([0.1, 0.01], lambda e: coincident_quad(e, 8, 8, 5, 10))
     qx = q[0].astype(np.float32)
     qw = q[1].astype(np.float32)
 
-    result = np.zeros((tris.shape[0], 3, 3, 3, 3)).astype(np.float32)
+    result = np.empty((tris.shape[0], 3, 3, 3, 3)).astype(np.float32)
 
-    block = (128, 1, 1)
-    filepath = 'tectosaur/coincident.cu'
-    lookup = mako.lookup.TemplateLookup(directories=[os.path.dirname(filepath)])
-    tmpl = mako.template.Template(filename = filepath, lookup = lookup)
-    code = tmpl.render(block = block)
-    # print('\n'.join([str(i) + '   ' + line for i,line in enumerate(code.split('\n'))]))
-    mod = SourceModule(code, options = ['-std=c++11'], no_extern_c = True)
-    coincident = mod.get_function("coincident")
+    coincident = load_gpu('tectosaur/coincident.cu').get_function('coincidentU')
 
+    block = (32, 1, 1)
     grid = (int(tris.shape[0]/block[0]),1)
     print(coincident(
         drv.Out(result),
@@ -120,6 +95,7 @@ def test_coincident_gpu():
         grid = grid,
         time_kernel = True
     ))
+    import ipdb; ipdb.set_trace()
     # result2 = coincidentH(q[0], q[1], pts, tris, 1.0, 0.25)
     # print(np.max(np.abs(result - result2)))
     # import ipdb; ipdb.set_trace()
