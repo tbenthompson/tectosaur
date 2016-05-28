@@ -20,7 +20,7 @@ def load_gpu(filepath, print_code = False):
         )
         print(numbered_lines)
     mod = SourceModule(
-        code, options = ['-std=c++11'], no_extern_c = True,
+        code, options = [],
         include_dirs = [os.getcwd() + '/' + os.path.dirname(filepath)]
     )
     return mod

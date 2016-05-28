@@ -41,3 +41,6 @@ def test_gauss4d():
     result = quadrature(lambda x: 1, q)
     np.testing.assert_almost_equal(result, 0.25)
 
+    result = quadrature(lambda x: x[:,0] * x[:,1] * x[:,2] * x[:,3], q)
+    np.testing.assert_almost_equal(result, 1.0 / 576.0)
+

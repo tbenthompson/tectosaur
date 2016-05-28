@@ -121,30 +121,23 @@ def poly_transform01(quad_rule):
         w[i] = quad_rule[1][i] * J
     return np.array(x), np.array(w)
 
-def tensor_product(quad_rule1, quad_rule2):
-    x = []
-    for i in range(quad_rule1[0].shape[0]):
-        for j in range(quad_rule2[0].shape[0]):
-            if len(quad_rule1[0].shape) == 1:
-                x1 = [quad_rule1[0][j]]
-            else:
-                x1 = quad_rule1[0][j, :].tolist()
-
-            if len(quad_rule2[0].shape) == 1:
-                x2 = [quad_rule2[0][j]]
-            else:
-                x2 = quad_rule2[0][j, :].tolist()
-
-            x.append(x1 + x2)
-    x = np.array(x)
-    w = np.outer(quad_rule1[1], quad_rule2[1]).flatten()
-    return x, w
-
 def gauss4d_tri(N):
     qg = gaussxw(N)
-    q_rect = tensor_product(qg, qg)
-    q_tri = [np.empty_like(q_rect[0]), np.empty_like(q_rect[1])]
-    q_tri[0][:,0] = (q_rect[0][:,0] + 1) / 2
-    q_tri[0][:,1] = (q_rect[0][:,1] + 1) / 2 * (1 - q_tri[0][:, 0])
-    q_tri[1] = q_rect[1] / 8.0
-    return tensor_product(q_tri, q_tri)
+
+    q_rect_x, q_rect_y = np.meshgrid(qg[0], qg[0])
+    q_rect_pts = np.array([q_rect_x.flatten(), q_rect_y.flatten()]).T
+    q_rect_w = np.outer(qg[1], qg[1]).flatten()
+
+    q_tri_pts = np.empty_like(q_rect_pts)
+    q_tri_pts[:,0] = (q_rect_pts[:,0] + 1) / 2
+    q_tri_pts[:,1] = (q_rect_pts[:,1] + 1) / 2 * (1 - q_tri_pts[:, 0])
+    q_tri_w = q_rect_w / 8.0
+
+    pts = []
+    w = []
+    for i in range(q_tri_pts.shape[0]):
+        for j in range(q_tri_pts.shape[0]):
+            pts.append((q_tri_pts[i,0], q_tri_pts[i,1], q_tri_pts[j,0], q_tri_pts[j,1]))
+            w.append(q_tri_w[i] * q_tri_w[j])
+
+    return np.array(pts), np.array(w)

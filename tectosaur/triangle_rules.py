@@ -86,3 +86,59 @@ def coincident_quad(eps, n_outer_sing, n_outer_smooth, n_theta, n_rho):
     I3()
 
     return np.array(pts), np.array(wts)
+
+def adjacent_quad(eps, n_x, n_theta, n_beta, n_alpha, basis_cancellation):
+    # alpha and beta here are capital lambda and captial psi in
+    # sutradhar et al
+    if basis_cancellation:
+        alpha_quad = quad.gaussxw(n_alpha)
+    else:
+        alpha_quad = quad.sinh_transform(quad.gaussxw(n_alpha), -1, eps)
+    beta_quad = quad.gaussxw(n_beta)
+    theta_quad = quad.gaussxw(n_theta)
+    x_quad = quad.aimi_diligenti(quad.gaussxw(n_x), 2, 2)
+
+    pts = []
+    wts = []
+
+    def alpha_integral(w, obsxhat, theta, beta, alpha_max):
+        q = quad.map_to(alpha_quad, [0, alpha_max])
+        for alpha, alphaw in zip(*q):
+            jacobian = alpha ** 2 * np.cos(beta)
+
+            rho = alpha * np.cos(beta)
+            obsyhat = alpha * np.sin(beta)
+
+            srcxhat = rho * np.cos(theta) + (1 - obsxhat)
+            srcyhat = rho * np.sin(theta)
+
+            pts.append((obsxhat, obsyhat, srcxhat, srcyhat))
+            wts.append(jacobian * alphaw * w)
+
+
+    def beta_integral(w, x, theta, beta_min, beta_max, alpha_max_fnc):
+        q = quad.map_to(beta_quad, [beta_min, beta_max])
+        for beta, betaw in zip(*q):
+            alpha_integral(betaw * w, x, theta, beta, alpha_max_fnc(beta))
+
+    def theta_integral(w, x, theta_min, theta_max, L_fnc):
+        q = quad.map_to(theta_quad, [theta_min, theta_max])
+        for theta, thetaw in zip(*q):
+            L_theta = L_fnc(theta)
+            beta1 = np.arctan((1 - x) / L_theta)
+            alpha_max_f1 = lambda b: L_theta / np.cos(b)
+            alpha_max_f2 = lambda b: (1 - x) / np.sin(b)
+            beta_integral(w * thetaw, x, theta, 0, beta1, alpha_max_f1)
+            beta_integral(w * thetaw, x, theta, beta1, np.pi / 2, alpha_max_f2)
+
+    def x_integral():
+        q = quad.map_to(x_quad, [0, 1])
+        for x, xw in zip(*q):
+            theta1 = np.pi - np.arctan(1 / (1 - x))
+            L_fnc1 = lambda t: x / (np.cos(t) + np.sin(t))
+            L_fnc2 = lambda t: -(1 - x) / np.cos(t)
+            theta_integral(xw, x, 0, theta1, L_fnc1)
+            theta_integral(xw, x, theta1, np.pi, L_fnc2)
+
+    x_integral()
+    return np.array(pts), np.array(wts)

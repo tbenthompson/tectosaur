@@ -19,7 +19,7 @@ def test_farfield():
     src_pts = np.random.rand(n, 3).astype(np.float32)
     src_ns = obs_ns
 
-    farfield = load_gpu('tectosaur/farfield.cu')\
+    farfield = load_gpu('tectosaur/integrals.cu', print_code = True)\
         .get_function("farfield_ptsH")
 
     result = np.zeros((n, n, 3, 3)).astype(np.float32)
@@ -49,7 +49,7 @@ def test_farfield():
 
 @slow
 def test_farfield_tris():
-    farfield = load_gpu('tectosaur/farfield.cu').get_function("farfield_trisH")
+    farfield = load_gpu('tectosaur/integrals.cu').get_function("farfield_trisH")
 
     N = 1024
     pts, tris = mesh.make_strip(N)
