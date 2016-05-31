@@ -8,6 +8,8 @@ def dim_name(dim):
     return ['x', 'y', 'z'][dim]
 %>
 
+#include <stdio.h>
+
 __device__
 void cross(float x[3], float y[3], float out[3]) {
     out[0] = x[1] * y[2] - x[2] * y[1];

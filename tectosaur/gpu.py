@@ -10,7 +10,7 @@ import mako.lookup
 gpu_module = dict()
 def load_gpu(filepath, print_code = False, no_caching = False):
     global gpu_module
-    if gpu_module[filepath] is not None and no_caching:
+    if filepath in gpu_module and no_caching and not print_code:
         return gpu_module[filepath]
     lookup = mako.lookup.TemplateLookup(directories=[os.path.dirname(filepath)])
     tmpl = mako.template.Template(filename = filepath, lookup = lookup)

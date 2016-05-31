@@ -1,19 +1,5 @@
 import numpy as np
 
-def make_strip(N, xmin = 0, xmax = 100):
-    xs = np.linspace(xmin, xmax, N + 1)
-    tris = []
-    pts = []
-    for i in range(N):
-        npts = len(pts)
-        tris.append([npts, npts + 1, npts + 2])
-        tris.append([npts + 2, npts + 1, npts + 3])
-        pts.append((xs[i], 0, 0))
-        pts.append((xs[i + 1], 0, 0))
-        pts.append((xs[i], 1, 0))
-        pts.append((xs[i + 1], 1, 0))
-    return pts, tris
-
 # Corners are ordered: lower left, lower right, upper right, upper left
 def rect_surface_points(nx, ny, corners):
     corners = np.array(corners)
@@ -38,7 +24,7 @@ def rect_surface_points(nx, ny, corners):
 
 def rect_surface_topology(nx, ny):
     def v_idx(i, j):
-        return i * ny + j
+        return j * nx + i
 
     tris = []
     for i in range(nx - 1):

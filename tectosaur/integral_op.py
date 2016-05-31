@@ -17,8 +17,6 @@ def pairs_quad(sm, pr, pts, obs_tris, src_tris, q, singular):
     if obs_tris.shape[0] == 0:
         return result
 
-    qx = q[0].astype(np.float32)
-    qw = q[1].astype(np.float32)
     #TODO: Separate into stuff that can blocked into 32,1,1 and the
     #remainder that is done separately.
     block = (1, 1, 1)
@@ -26,41 +24,45 @@ def pairs_quad(sm, pr, pts, obs_tris, src_tris, q, singular):
 
     integrator(
         drv.Out(result),
-        np.int32(qx.shape[0]), drv.In(qx), drv.In(qw),
+        np.int32(q[0].shape[0]),
+        drv.In(q[0].astype(np.float32)),
+        drv.In(q[1].astype(np.float32)),
         drv.In(pts.astype(np.float32)),
         drv.In(obs_tris.astype(np.int32)),
         drv.In(src_tris.astype(np.int32)),
-        np.float32(sm), np.float32(pr),
+        np.float32(sm),
+        np.float32(pr),
         block = block, grid = grid
     )
 
     return result
 
-def farfield(sm, pr, pts, tris, n_q):
+#TODO: This could be combined with single_pairsNH by simply enumerating the
+# pairs of farfield triangles.
+def farfield(sm, pr, pts, obs_tris, src_tris, n_q):
     integrator = gpu_module.get_function("farfield_trisH")
 
     q = gauss4d_tri(n_q)
-    qx = q[0].astype(np.float32)
-    qw = q[1].astype(np.float32)
 
-    result = np.empty((tris.shape[0], tris.shape[0], 3, 3, 3, 3)).astype(np.float32)
+    result = np.empty(
+        (obs_tris.shape[0], src_tris.shape[0], 3, 3, 3, 3)
+    ).astype(np.float32)
 
     #TODO: Separate into stuff that can blocked into 32,1,1 and the
     #remainder that is done separately.
-    n_tris = tris.shape[0]
     block = (1, 1, 1)
-    grid = (n_tris // block[0], n_tris // block[1])
+    grid = (obs_tris.shape[0] // block[0], src_tris.shape[0] // block[1])
 
     integrator(
         drv.Out(result),
-        np.int32(qx.shape[0]),
-        drv.In(qx),
-        drv.In(qw),
-        drv.In(pts),
-        np.int32(tris.shape[0]),
-        drv.In(tris),
-        np.int32(tris.shape[0]),
-        drv.In(tris),
+        np.int32(q[0].shape[0]),
+        drv.In(q[0].astype(np.float32)),
+        drv.In(q[1].astype(np.float32)),
+        drv.In(pts.astype(np.float32)),
+        np.int32(obs_tris.shape[0]),
+        drv.In(obs_tris.astype(np.int32)),
+        np.int32(src_tris.shape[0]),
+        drv.In(src_tris.astype(np.int32)),
         np.float32(sm),
         np.float32(pr),
         block = block,
