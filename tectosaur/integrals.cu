@@ -123,9 +123,14 @@ ${pt_pfx}${dim_name(dim)} += ${basis_pfx}b${basis} * ${tri_name}[${basis}][${dim
     }
 </%def>
 
-<%def name="adjacent(k_name)">
+<%def name="single_pairs(k_name, limit)">
+<%
+limit_label = 'N'
+if limit:
+    limit_label = 'S'
+%>
 __global__
-void adjacent${k_name}(float* result, 
+void single_pairs${limit_label}${k_name}(float* result, 
     int n_quad_pts, float* quad_pts, float* quad_wts,
     float* pts, int* obs_tris, int* src_tris, float G, float nu)
 {
@@ -133,24 +138,7 @@ void adjacent${k_name}(float* result,
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "i")}
-    ${integrate_pair(limit = True)}
-    
-    for (int iresult = 0; iresult < 81; iresult++) {
-        result[i * 81 + iresult] = result_temp[iresult];
-    }
-}
-</%def>
-
-<%def name="coincident(k_name)">
-__global__
-void coincident${k_name}(float* result, int n_quad_pts, float* quad_pts,
-    float* quad_wts, float* pts, int* tris, float G, float nu)
-{
-    const int i = blockIdx.x * blockDim.x + threadIdx.x;
-
-    ${get_triangle("obs_tri", "tris", "i")}
-    ${get_triangle("src_tri", "tris", "i")}
-    ${integrate_pair(limit = True)}
+    ${integrate_pair(limit)}
     
     for (int iresult = 0; iresult < 81; iresult++) {
         result[i * 81 + iresult] = result_temp[iresult];
@@ -227,6 +215,6 @@ void farfield_pts${k_name}(float* result, float3* obs_pts, float3* obs_ns,
 % for k_name in kernel_names:
 ${farfield_pts(k_name)}
 ${farfield_tris(k_name)}
-${coincident(k_name)}
-${adjacent(k_name)}
+${single_pairs(k_name, limit = True)}
+${single_pairs(k_name, limit = False)}
 % endfor

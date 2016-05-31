@@ -15,23 +15,22 @@ def test_weakly_singular_adjacent():
     # touch, the integral is no longer hypersingular, but instead is only weakly
     # singular.
     weakly_singular = [(2, 2), (2, 0), (2, 1), (0, 2), (1, 2)]
-    q1 = triangle_rules.adjacent_quad(0, 4, 4, 4, 4, True)
-    q2 = triangle_rules.adjacent_quad(0, 5, 5, 5, 5, True)
+    q1 = triangle_rules.edge_adj_quad(0, 4, 4, 4, 4, True)
+    q2 = triangle_rules.edge_adj_quad(0, 5, 5, 5, 5, True)
     for i, j in weakly_singular:
         K = lambda pts: laplace(tri_ref, tri_down, i, j, 0, pts)
         v = quad.quadrature(K, q1)
         v2 = quad.quadrature(K, q2)
-        print(i,j,v,v2)
         assert(np.abs((v - v2) / v2) < 0.012)
 
 @slow
-def test_adjacent_quad():
+def test_edge_adj_quad():
     # The complement of the nonsingular and weakly singular sets above.
     # These basis function pairs are both non-zero along the triangle boundary
     hypersingular = [(0, 0), (0, 1), (1, 0), (1, 1)]
     eps = 0.01
-    q1 = triangle_rules.adjacent_quad(eps, 8, 8, 8, 8, False)
-    q2 = triangle_rules.adjacent_quad(eps, 9, 9, 9, 9, False)
+    q1 = triangle_rules.edge_adj_quad(eps, 8, 8, 8, 8, False)
+    q2 = triangle_rules.edge_adj_quad(eps, 9, 9, 9, 9, False)
     for i, j in hypersingular:
         K = lambda pts: laplace(tri_ref, tri_down, i, j, eps, pts)
         v = quad.quadrature(K, q1)
@@ -49,7 +48,7 @@ def test_cancellation():
             eps, lambda e: triangle_rules.coincident_quad(e, 15, 15, 15, 20)
         )
         qa = quad.richardson_quad(
-            eps, lambda e: triangle_rules.adjacent_quad(e, 15, 15, 15, 20, False)
+            eps, lambda e: triangle_rules.edge_adj_quad(e, 15, 15, 15, 20, False)
         )
 
         Kco = lambda pts: laplace(tri_ref, tri_ref, 1, 1, pts[:,4], pts)
@@ -67,22 +66,41 @@ def test_cancellation():
     print(result)
     assert(abs(result[2] - result[1]) < 0.5 * abs(result[1] - result[0]))
 
+def test_adjacent_rule():
+    nq = 7
+    q = triangle_rules.vertex_adj_quad(nq, nq, nq)
+    est = quad.quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q)
+    correct = 1.0 / 576.0
+    np.testing.assert_almost_equal(est, correct)
+
 @slow
 def test_gpu_adjacent():
-    eps = [0.02]
-    q = quad.richardson_quad(
-        eps, lambda e: triangle_rules.adjacent_quad(e, 8, 8, 8, 8, False)
-    )
+    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
+
+    N = 32 * 1000
+
+    #Edge adjacent
+    # obs_tris = np.array([[0,1,2]] * N).astype(np.int32)
+    # src_tris = np.array([[1,0,3]] * N).astype(np.int32)
+    # eps = [0.02]
+    # q = quad.richardson_quad(
+    #     eps, lambda e: triangle_rules.edge_adj_quad(e, 8, 8, 8, 8, False)
+    # )
+    # adjacent = load_gpu('tectosaur/integrals.cu').get_function('single_pairsSH')
+
+    #Vertex adjacent
+    obs_tris = np.array([[1,2,0]] * N).astype(np.int32)
+    src_tris = np.array([[1,3,4]] * N).astype(np.int32)
+    nq = 3
+    q = triangle_rules.vertex_adj_quad(nq, nq, nq)
+    print(quad.quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q))
+    print(1.0 / 576.0)
+    adjacent = load_gpu('tectosaur/integrals.cu').get_function('single_pairsNH')
+
+
+
     qx = q[0].astype(np.float32)
     qw = q[1].astype(np.float32)
-
-    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0]]).astype(np.float32)
-    N = 32 * 1000
-    obs_tris = np.array([[0,1,2]] * N).astype(np.int32)
-    src_tris = np.array([[1,0,3]] * N).astype(np.int32)
-
-    adjacent = load_gpu('tectosaur/integrals.cu').get_function('adjacentH')
-
     result = np.empty((obs_tris.shape[0], 3, 3, 3, 3)).astype(np.float32)
 
     block = (32, 1, 1)
@@ -101,4 +119,5 @@ def test_gpu_adjacent():
         grid = grid,
         time_kernel = True
     ))
+    print(result[0][0][0][0][0])
 

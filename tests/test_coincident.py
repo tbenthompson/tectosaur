@@ -55,23 +55,25 @@ def test_coincident_gpu():
 
     result = np.empty((tris.shape[0], 3, 3, 3, 3)).astype(np.float32)
 
-    coincident = load_gpu('tectosaur/integrals.cu').get_function('coincidentH')
+    mod = load_gpu('tectosaur/integrals.cu')
+    coincident = mod.get_function('single_pairsSH')
 
     block = (32, 1, 1)
     grid = (int(tris.shape[0]/block[0]),1)
-    print(coincident(
+    runtime = coincident(
         drv.Out(result),
         np.int32(q[0].shape[0]),
         drv.In(qx),
         drv.In(qw),
         drv.In(pts),
         drv.In(tris),
+        drv.In(tris),
         np.float32(1.0),
         np.float32(0.25),
         block = block,
         grid = grid,
         time_kernel = True
-    ))
+    )
     # Simple golden master test
     result2 = np.load('tests/correct_coincident.npy')
     np.testing.assert_almost_equal(result, result2)

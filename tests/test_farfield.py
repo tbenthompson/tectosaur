@@ -1,6 +1,5 @@
 import cppimport
 import numpy as np
-import tectosaur.farfield
 from tectosaur.gpu import load_gpu
 import tectosaur.quadrature as quad
 import tectosaur.mesh as mesh
@@ -13,14 +12,13 @@ def normalize(vs):
 
 @slow
 def test_farfield():
-    n = 8000
+    n = 1000
     obs_pts = np.random.rand(n, 3).astype(np.float32)
     obs_ns = normalize(np.random.rand(n, 3).astype(np.float32))
     src_pts = np.random.rand(n, 3).astype(np.float32)
     src_ns = obs_ns
 
-    farfield = load_gpu('tectosaur/integrals.cu', print_code = True)\
-        .get_function("farfield_ptsH")
+    farfield = load_gpu('tectosaur/integrals.cu').get_function("farfield_ptsH")
 
     result = np.zeros((n, n, 3, 3)).astype(np.float32)
 
@@ -51,7 +49,7 @@ def test_farfield():
 def test_farfield_tris():
     farfield = load_gpu('tectosaur/integrals.cu').get_function("farfield_trisH")
 
-    N = 1024
+    N = 256
     pts, tris = mesh.make_strip(N)
     pts = np.array(pts).astype(np.float32)
     tris = np.array(tris).astype(np.int32)
@@ -65,7 +63,7 @@ def test_farfield_tris():
     block = (8, 8, 1)
     grid = (tris.shape[0] // block[0], tris.shape[0] // block[1])
     print(block, grid)
-    print(farfield(
+    runtime = farfield(
         drv.Out(result),
         np.int32(qx.shape[0]),
         drv.In(qx),
@@ -80,6 +78,5 @@ def test_farfield_tris():
         block = block,
         grid = grid,
         time_kernel = True
-    ))
-    import ipdb; ipdb.set_trace()
+    )
 

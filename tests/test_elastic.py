@@ -29,7 +29,7 @@ def test_kernels():
 
     def kernel_tester(k_idx, i, j):
         kernel = kernel_builders[k_idx](i, j)
-        kernel_lambda = sympy.utilities.lambdify(all_args, kernel, "numpy")
+        kernel_lambda = sympy.utilities.lambdify(all_args, kernel['expr'], "numpy")
 
         for t_idx in range(10):
             params = np.random.rand(16, 1)
