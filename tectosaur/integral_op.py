@@ -92,17 +92,28 @@ def vert_adj(sm, pr, pts, obs_tris, src_tris):
     return pairs_quad(sm, pr, pts, obs_tris, src_tris, q, False)
 
 def self_integral_operator(sm, pr, pts, tris):
-    # co_mat = coincident(sm, pr, pts, tris)
+    co_indices = np.arange(tris.shape[0])
+    co_mat = coincident(sm, pr, pts, tris)
 
-    # va, ea = find_adjacents(tris)
+    va, ea = find_adjacents(tris)
 
-    # ea_tri_indices, ea_obs_tris, ea_src_tris = edge_adj_prep(tris, ea)
-    # ea_mat = edge_adj(sm, pr, pts, ea_obs_tris, ea_src_tris)
+    ea_tri_indices, ea_obs_tris, ea_src_tris = edge_adj_prep(tris, ea)
+    ea_mat = edge_adj(sm, pr, pts, ea_obs_tris, ea_src_tris)
 
-    # va_tri_indices, va_obs_tris, va_src_tris = vert_adj_prep(tris, va)
-    # va_mat = vert_adj(sm, pr, pts, va_obs_tris, va_src_tris)
+    va_tri_indices, va_obs_tris, va_src_tris = vert_adj_prep(tris, va)
+    va_mat = vert_adj(sm, pr, pts, va_obs_tris, va_src_tris)
 
-    far_mat = farfield(sm, pr, pts, tris, 3)
+    far_mat = farfield(sm, pr, pts, tris, tris, 3)
+    far_mat[co_indices, co_indices] = co_mat
+    far_mat[ea_tri_indices[:,0], ea_tri_indices[:,1]] = ea_mat
+    far_mat[va_tri_indices[:,0], va_tri_indices[:,1]] = va_mat
+
+    import matplotlib.pyplot as plt
+    v = np.swapaxes(np.swapaxes(far_mat, 2, 1), 3, 2)\
+        .reshape(tris.shape[0] * 9, tris.shape[0] * 9)
+    plt.imshow(v)
+    plt.show()
+
     import ipdb; ipdb.set_trace()
 
     # Outline

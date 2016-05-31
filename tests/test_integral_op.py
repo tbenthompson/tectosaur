@@ -22,37 +22,34 @@ def test_farfield_two_tris():
     src_tris = np.array([[3, 4, 5]], dtype = np.int)
 
     result = integral_op.farfield(1.0, 0.25, pts, obs_tris, src_tris, 3)
+    # np.save('tests/correct_farfield.npy', result)
+    correct = np.load('tests/correct_farfield.npy')
+    np.testing.assert_almost_equal(result, correct)
 
-@slow
-def test_gpu_adjacent():
+def test_gpu_edge_adjacent():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
+    obs_tris = np.array([[0,1,2]]).astype(np.int32)
+    src_tris = np.array([[1,0,3]]).astype(np.int32)
+    result = integral_op.edge_adj(1.0, 0.25, pts, obs_tris, src_tris)
+    # np.save('tests/correct_edge_adjacent.npy', result)
+    correct = np.load('tests/correct_edge_adjacent.npy')
+    np.testing.assert_almost_equal(result, correct)
 
-    N = 32 * 10
-    obs_tris = np.array([[0,1,2]] * N).astype(np.int32)
-    src_tris = np.array([[1,0,3]] * N).astype(np.int32)
-    integral_op.edge_adj(1.0, 0.25, pts, obs_tris, src_tris)
-
-    obs_tris = np.array([[1,2,0]] * N).astype(np.int32)
-    src_tris = np.array([[1,3,4]] * N).astype(np.int32)
-    integral_op.vert_adj(1.0, 0.25, pts, obs_tris, src_tris)
+def test_gpu_vert_adjacent():
+    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
+    obs_tris = np.array([[1,2,0]]).astype(np.int32)
+    src_tris = np.array([[1,3,4]]).astype(np.int32)
+    result = integral_op.vert_adj(1.0, 0.25, pts, obs_tris, src_tris)
+    # np.save('tests/correct_vert_adjacent.npy', result)
+    correct = np.load('tests/correct_vert_adjacent.npy')
+    np.testing.assert_almost_equal(result, correct)
 
 def test_coincident_gpu():
-    N = 16
-
-    xs = np.linspace(0, 100, N + 1)
-    tris = []
-    pts = []
-    for i in range(N):
-        npts = len(pts)
-        tris.append([npts, npts + 1, npts + 2])
-        tris.append([npts + 2, npts + 1, npts + 3])
-        pts.append((xs[i], 0, 0))
-        pts.append((xs[i + 1], 0, 0))
-        pts.append((xs[i], 1, 0))
-        pts.append((xs[i + 1], 1, 0))
-    pts = np.array(pts)
-    tris = np.array(tris, dtype = np.int)
+    n = 4
+    w = 4
+    pts, tris = mesh.rect_surface(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
     result = integral_op.coincident(1.0, 0.25, pts, tris)
+    # np.save('tests/correct_coincident.npy', result)
     result2 = np.load('tests/correct_coincident.npy')
     np.testing.assert_almost_equal(result, result2)
 

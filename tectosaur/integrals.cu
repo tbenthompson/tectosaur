@@ -162,7 +162,7 @@ void farfield_tris${k_name}(float* result, int n_quad_pts, float* quad_pts,
     ${integrate_pair(limit = False)}
 
     for (int iresult = 0; iresult < 81; iresult++) {
-        result[i * n_src_tris + j * 81 + iresult] = result_temp[iresult];
+        result[i * n_src_tris * 81 + j * 81 + iresult] = result_temp[iresult];
     }
 }
 </%def>
