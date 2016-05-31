@@ -93,10 +93,7 @@ def test_gpu_adjacent():
     src_tris = np.array([[1,3,4]] * N).astype(np.int32)
     nq = 3
     q = triangle_rules.vertex_adj_quad(nq, nq, nq)
-    print(quad.quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q))
-    print(1.0 / 576.0)
     adjacent = load_gpu('tectosaur/integrals.cu').get_function('single_pairsNH')
-
 
 
     qx = q[0].astype(np.float32)

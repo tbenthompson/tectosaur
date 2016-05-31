@@ -1,14 +1,26 @@
-import cppimport
 import numpy as np
 from tectosaur.gpu import load_gpu
 import tectosaur.quadrature as quad
 import tectosaur.mesh as mesh
+from tectosaur.integral_op import farfield
 from slow_test import slow
 
 from pycuda import driver as drv
 
+gpu_module = load_gpu('tectosaur/integrals.cu')
+
 def normalize(vs):
     return vs / np.linalg.norm(vs, axis = 1).reshape((vs.shape[0], 1))
+
+def test_farfield_two_tris():
+    pts = np.array(
+        [[1, 0, 0], [2, 0, 0], [1, 1, 0],
+        [3, 0, 0], [4, 0, 0], [3, 1, 0]]
+    )
+    tris = [[0, 1, 2], [3, 4, 5]]]
+
+    result = farfield(1.0, 0.25, pts, tris, 3)
+
 
 @slow
 def test_farfield():
@@ -18,7 +30,7 @@ def test_farfield():
     src_pts = np.random.rand(n, 3).astype(np.float32)
     src_ns = obs_ns
 
-    farfield = load_gpu('tectosaur/integrals.cu').get_function("farfield_ptsH")
+    farfield = .get_function("farfield_ptsH")
 
     result = np.zeros((n, n, 3, 3)).astype(np.float32)
 
@@ -79,4 +91,5 @@ def test_farfield_tris():
         grid = grid,
         time_kernel = True
     )
+    import ipdb; ipdb.set_trace()
 

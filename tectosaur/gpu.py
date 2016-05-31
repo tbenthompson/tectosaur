@@ -7,7 +7,11 @@ import mako.runtime
 import mako.exceptions
 import mako.lookup
 
-def load_gpu(filepath, print_code = False):
+gpu_module = dict()
+def load_gpu(filepath, print_code = False, no_caching = False):
+    global gpu_module
+    if gpu_module[filepath] is not None and no_caching:
+        return gpu_module[filepath]
     lookup = mako.lookup.TemplateLookup(directories=[os.path.dirname(filepath)])
     tmpl = mako.template.Template(filename = filepath, lookup = lookup)
     try:
@@ -19,8 +23,8 @@ def load_gpu(filepath, print_code = False):
             [str(i) + '   ' + line for i,line in enumerate(code.split('\n'))]
         )
         print(numbered_lines)
-    mod = SourceModule(
+    gpu_module[filepath] = SourceModule(
         code, options = [],
         include_dirs = [os.getcwd() + '/' + os.path.dirname(filepath)]
     )
-    return mod
+    return gpu_module[filepath]
