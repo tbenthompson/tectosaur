@@ -1,12 +1,25 @@
-<%!
-import tectosaur.elastic as elastic
+<%
+import os
+import pickle
+
 kernel_names = ['U', 'T', 'A', 'H']
-kernels = dict()
-for k_name in kernel_names:
-    kernels[k_name] = elastic.get_kernel(getattr(elastic, k_name))
+filename = 'kernels.pkl'
+if os.path.exists(filename):
+    with open(filename, 'rb') as f:
+        kernels = pickle.load(f)
+else:
+    import tectosaur.elastic as elastic
+    kernels = dict()
+    for k_name in kernel_names:
+        ks[k[0]] = elastic.get_kernel(getattr(elastic, k_name))
+    with open(filename, 'wb') as f:
+        pickle.dump(ks, f)
+
 def dim_name(dim):
     return ['x', 'y', 'z'][dim]
 %>
+
+<%
 
 #include <stdio.h>
 
@@ -71,7 +84,7 @@ ${pt_pfx}${dim_name(dim)} += ${basis_pfx}b${basis} * ${tri_name}[${basis}][${dim
 % endfor
 </%def>
 
-<%def name="integrate_pair(limit)">
+<%def name="integrate_pair(k_name, limit)">
     ${tri_info("obs", "n")}
     ${tri_info("src", "l")}
 
@@ -140,7 +153,7 @@ void single_pairs${limit_label}${k_name}(float* result,
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "i")}
-    ${integrate_pair(limit)}
+    ${integrate_pair(k_name, limit)}
     
     for (int iresult = 0; iresult < 81; iresult++) {
         result[i * 81 + iresult] = result_temp[iresult];
@@ -151,15 +164,15 @@ void single_pairs${limit_label}${k_name}(float* result,
 <%def name="farfield_tris(k_name)">
 __global__
 void farfield_tris${k_name}(float* result, int n_quad_pts, float* quad_pts,
-    float* quad_wts, float* pts, int n_src_tris, int* src_tris, 
-    int n_obs_tris, int* obs_tris, float G, float nu)
+    float* quad_wts, float* pts, int n_obs_tris, int* obs_tris, 
+    int n_src_tris, int* src_tris, float G, float nu)
 {
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
     const int j = blockIdx.y * blockDim.y + threadIdx.y;
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "j")}
-    ${integrate_pair(limit = False)}
+    ${integrate_pair(k_name, limit = False)}
 
     for (int iresult = 0; iresult < 81; iresult++) {
         result[i * n_src_tris * 81 + j * 81 + iresult] = result_temp[iresult];

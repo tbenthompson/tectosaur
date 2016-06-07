@@ -1,12 +1,15 @@
 import numpy as np
 
-def find_adjacents(tris):
+def find_touching_pts(tris):
     max_pt_idx = np.max(tris)
-    touching_pt = [[] for i in range(max_pt_idx + 1)]
+    out = [[] for i in range(max_pt_idx + 1)]
     for i, t in enumerate(tris):
         for d in range(3):
-            touching_pt[t[d]].append((i, d))
+            out[t[d]].append((i, d))
+    return out
 
+def find_adjacents(tris):
+    touching_pt = find_touching_pts(tris)
     vert_adjacents = []
     edge_adjs = []
     for i, t in enumerate(tris):
@@ -37,21 +40,33 @@ def find_adjacents(tris):
 
     return vert_adjacents, edge_adjs
 
-def rotate_tri(tri, clicks):
-    return [tri[clicks % 3], tri[(1 + clicks) % 3], tri[(2 + clicks) % 3]]
+def rotate_tri(clicks):
+    return [clicks % 3, (1 + clicks) % 3, (2 + clicks) % 3]
 
-def vert_adj_prep(tris, va):
-    tri_indices = np.empty((len(va), 2), dtype = np.int)
-    obs_tris = np.zeros((len(va), 3), dtype = np.int)
-    src_tris = np.zeros((len(va), 3), dtype = np.int)
-    for i, pair in enumerate(va):
-        assert(len(pair[2]) == 1)
-        obs_tris[i, :] = rotate_tri(tris[pair[0]], pair[2][0][0])
-        src_tris[i, :] = rotate_tri(tris[pair[1]], pair[2][0][1])
+def adj_prep(tris, adj, clicks_fnc):
+    tri_indices = np.empty((len(adj), 2), dtype = np.int)
+    obs_clicks = np.empty(len(adj), dtype = np.int)
+    src_clicks = np.empty(len(adj), dtype = np.int)
+    obs_tris = np.zeros((len(adj), 3), dtype = np.int)
+    src_tris = np.zeros((len(adj), 3), dtype = np.int)
+    for i, pair in enumerate(adj):
+        obs_clicks[i], src_clicks[i] = clicks_fnc(pair)
+        obs_rot = rotate_tri(obs_clicks[i])
+        src_rot = rotate_tri(src_clicks[i])
+        obs_tris[i, :] = tris[pair[0]][obs_rot]
+        src_tris[i, :] = tris[pair[1]][src_rot]
         tri_indices[i, 0] = pair[0]
         tri_indices[i, 1] = pair[1]
-    assert(np.all(obs_tris[:, 0] == src_tris[:, 0]))
-    return tri_indices, obs_tris, src_tris
+    return tri_indices, obs_clicks, src_clicks, obs_tris, src_tris
+
+def vert_adj_clicks(pair):
+    assert(len(pair[2]) == 1)
+    return pair[2][0][0], pair[2][0][1]
+
+def vert_adj_prep(tris, va):
+    out = adj_prep(tris, va, vert_adj_clicks)
+    assert(np.all(out[3][:, 0] == out[4][:, 0]))
+    return out
 
 def edge_adj_orient(touching_verts):
     tv = sorted(touching_verts)
@@ -61,21 +76,13 @@ def edge_adj_orient(touching_verts):
         return 0
     return 1
 
+def edge_adj_clicks(pair):
+    obs_clicks = edge_adj_orient([pair[2][0][0], pair[2][1][0]])
+    src_clicks = edge_adj_orient([pair[2][0][1], pair[2][1][1]])
+    return obs_clicks, src_clicks
+
 def edge_adj_prep(tris, ea):
-    tri_indices = np.empty((len(ea), 2), dtype = np.int)
-    obs_tris = np.zeros((len(ea), 3), dtype = np.int)
-    src_tris = np.zeros((len(ea), 3), dtype = np.int)
-    for i, pair in enumerate(ea):
-        assert(len(pair[2]) == 2)
-
-        obs_clicks = edge_adj_orient([pair[2][0][0], pair[2][1][0]])
-        obs_tris[i, :] = rotate_tri(tris[pair[0]], obs_clicks)
-
-        src_clicks = edge_adj_orient([pair[2][0][1], pair[2][1][1]])
-        src_tris[i, :] = rotate_tri(tris[pair[1]], src_clicks)
-
-        tri_indices[i, 0] = pair[0]
-        tri_indices[i, 1] = pair[1]
-    assert(np.all(obs_tris[:, 0] == src_tris[:, 1]))
-    assert(np.all(obs_tris[:, 1] == src_tris[:, 0]))
-    return tri_indices, obs_tris, src_tris
+    out = adj_prep(tris, ea, edge_adj_clicks)
+    assert(np.all(out[3][:, 0] == out[4][:, 1]))
+    assert(np.all(out[3][:, 1] == out[4][:, 0]))
+    return out
