@@ -9,11 +9,16 @@ import tectosaur.triangle_rules as triangle_rules
 from tectosaur.timer import Timer
 
 gpu_module = load_gpu('tectosaur/integrals.cu')
-def pairs_quad(sm, pr, pts, obs_tris, src_tris, q, singular):
+def get_pairs_integrator(singular):
     if singular:
         integrator = gpu_module.get_function('single_pairsSH')
     else:
         integrator = gpu_module.get_function('single_pairsNH')
+    return integrator;
+
+
+def pairs_quad(sm, pr, pts, obs_tris, src_tris, q, singular):
+    integrator = get_pairs_integrator(singular)
 
     result = np.empty((obs_tris.shape[0], 3, 3, 3, 3)).astype(np.float32)
     if obs_tris.shape[0] == 0:
@@ -93,31 +98,30 @@ def farfield(sm, pr, pts, obs_tris, src_tris, n_q):
     result[-remaining:,:,:,:,:,:] = result_rem
     return result
 
-def coincident(sm, pr, pts, tris):
+def coincident(nq, sm, pr, pts, tris):
     timer = Timer(2)
     q = richardson_quad(
         [0.1, 0.01],
-        lambda e: triangle_rules.coincident_quad(e, 15, 15, 15, 15)
+        lambda e: triangle_rules.coincident_quad(e, nq, nq, nq, nq)
     )
+    from IPython import embed; embed(); import ipdb; ipdb.set_trace()
     timer.report("Generate quadrature rule")
     out = pairs_quad(sm, pr, pts, tris, tris, q, True)
     timer.report("Perform quadrature")
     return out
 
-def edge_adj(sm, pr, pts, obs_tris, src_tris):
-    nq = 8
+def edge_adj(nq, sm, pr, pts, obs_tris, src_tris):
     timer = Timer(2)
     q = richardson_quad(
         [0.1, 0.01],
-        lambda e: triangle_rules.edge_adj_quad(e, 15, 15, 15, 15, False)
+        lambda e: triangle_rules.edge_adj_quad(e, nq, nq, nq, nq, False)
     )
     timer.report("Generate quadrature rule")
     out = pairs_quad(sm, pr, pts, obs_tris, src_tris, q, True)
     timer.report("Perform quadrature")
     return out
 
-def vert_adj(sm, pr, pts, obs_tris, src_tris):
-    nq = 8
+def vert_adj(nq, sm, pr, pts, obs_tris, src_tris):
     timer = Timer(2)
     q = triangle_rules.vertex_adj_quad(nq, nq, nq)
     timer.report("Generate quadrature rule")
@@ -135,10 +139,11 @@ def set_adj_entries(mat, adj_mat, tri_idxs, obs_clicks, src_clicks):
                     adj_mat[i, obs_derot[b1], src_derot[b2], :, :]
     return mat
 
-def self_integral_operator(sm, pr, pts, tris):
-    timer = Timer(1)
+def self_integral_operator(nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
+                           sm, pr, pts, tris):
+    timer = Timer(tabs = 1)
     co_indices = np.arange(tris.shape[0])
-    co_mat = coincident(sm, pr, pts, tris)
+    co_mat = coincident(nq_coincident, sm, pr, pts, tris)
     timer.report("Coincident")
 
     va, ea = find_adjacents(tris)
@@ -147,13 +152,13 @@ def self_integral_operator(sm, pr, pts, tris):
     ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
         edge_adj_prep(tris, ea)
     timer.report("Edge adjacency prep")
-    ea_mat_rot = edge_adj(sm, pr, pts, ea_obs_tris, ea_src_tris)
+    ea_mat_rot = edge_adj(nq_edge_adjacent, sm, pr, pts, ea_obs_tris, ea_src_tris)
     timer.report("Edge adjacent")
 
     va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
         vert_adj_prep(tris, va)
     timer.report("Vert adjacency prep")
-    va_mat_rot = vert_adj(sm, pr, pts, va_obs_tris, va_src_tris)
+    va_mat_rot = vert_adj(nq_vert_adjacent, sm, pr, pts, va_obs_tris, va_src_tris)
     timer.report("Vert adjacent")
 
     far_mat = farfield(sm, pr, pts, tris, tris, 3)
@@ -168,20 +173,3 @@ def self_integral_operator(sm, pr, pts, tris):
     timer.report("Insert coincident adjacent")
 
     return far_mat
-
-
-    # Outline
-    # coincident
-    # edge adjacent
-    # -- determine from topology (CHECK)
-    # -- rotate triangles so that src vtx 0 = obs vtx 1 and src vtx 1 = obs vtx 0(CHECK)
-    # vertex adjacent
-    # -- determine from topology (CHECK)
-    # -- rotate triangles so that src vtx 0 = obs vtx 0(CHECK)
-    # nearfield
-    # -- sphere tree distances
-    # -- use 3 point gauss?
-    # subtract farfield correction
-    # -- same quadrature as for farfield
-    # farfield
-    # -- use 2 point gauss? or 3 point tri rule?

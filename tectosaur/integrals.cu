@@ -19,8 +19,6 @@ def dim_name(dim):
     return ['x', 'y', 'z'][dim]
 %>
 
-<%
-
 #include <stdio.h>
 
 __device__

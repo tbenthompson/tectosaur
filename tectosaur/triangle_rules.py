@@ -1,7 +1,9 @@
 import tectosaur.quadrature as quad
 import numpy as np
+import cppimport
 
 def coincident_quad(eps, n_outer_sing, n_outer_smooth, n_theta, n_rho):
+    cpp_fnc = cppimport.imp("tectosaur._triangle_rules")._triangle_rules.coincident_quad
     rho_quad = quad.sinh_transform(quad.gaussxw(n_rho), -1, eps)
     theta_quad = quad.gaussxw(n_theta)
     outer_smooth_quad = quad.aimi_diligenti(quad.gaussxw(n_outer_smooth), 3, 3)

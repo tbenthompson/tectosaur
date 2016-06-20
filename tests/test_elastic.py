@@ -3,7 +3,7 @@ from tectosaur.elastic import *
 import numpy as np
 import dill
 import sympy
-from slow_test import slow
+from test_decorators import slow
 
 def test_tensors():
     t = [[0, -1], [1, 0]]
@@ -38,7 +38,7 @@ def test_kernels():
             totest = kernel_lambda(*params)
             exact = all_kernels[k_idx][i][j](*params)
             error = np.abs((exact - totest) / totest)
-            assert(abs(error) < 1e-10)
+            assert(abs(error) < 1e-6)
 
     for k_idx in range(4):
         for i in range(3):

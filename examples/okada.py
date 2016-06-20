@@ -1,14 +1,14 @@
 import numpy as np
 import scipy.sparse as sparse
 import scipy.sparse.linalg
+import matplotlib.pyplot as plt
+import matplotlib.tri as tri
 import okada_wrapper
-from slow_test import slow
+
 from tectosaur.mesh import rect_surface, mesh_concat
 from tectosaur.integral_op import self_integral_operator
 from tectosaur.adjacency import find_touching_pts
 from tectosaur.timer import Timer
-import matplotlib.pyplot as plt
-import matplotlib.tri as tri
 
 def plot_matrix(v):
     offset = np.min(np.abs(v) > 0)
@@ -98,8 +98,8 @@ def solve(iop, cs):
     iter = [0]
     def mv(v):
         iter[0] += 1
-        print("Iteration: " + str(iter[0]))
-        mvtimer = Timer(1)
+        print("It: " + str(iter[0]))
+        mvtimer = Timer(tabs = 1, silent = True)
         out = np.empty(n)
         mvtimer.report("Make vec")
         out = lhs_cs_sparse.dot(v)
@@ -112,7 +112,7 @@ def solve(iop, cs):
         return out
 
     def print_resid(r):
-        print(r)
+        print("Er: " + str(r))
 
     A = sparse.linalg.LinearOperator((n, n), matvec = mv)
     soln = sparse.linalg.gmres(A, rhs, callback = print_resid)
@@ -150,9 +150,7 @@ def make_fault(top_depth):
     ])
 
 # TODO: Generate D*N*B * D*N*B matrix instead of reshaping
-@slow
 def test_okada():
-
     sm = 1.0
     pr = 0.25
 
@@ -164,7 +162,7 @@ def test_okada():
     fault_tris = all_mesh[1][surface[1].shape[0]:]
     timer.report("Mesh")
 
-    iop = self_integral_operator(sm, pr, all_mesh[0], all_mesh[1])
+    iop = self_integral_operator(15, 15, 8, sm, pr, all_mesh[0], all_mesh[1])
     iop = reshape_iop(iop)
     timer.report("Integrals")
     cs = constraints(surface_tris, fault_tris)
@@ -182,45 +180,47 @@ def test_okada():
     vals = np.array(vals)
     timer.report("Extract surface displacement")
 
-    triang = tri.Triangulation(surface[0][:,0], surface[0][:,1], surface[1])
-    for d in range(3):
-        plt.figure()
-        plt.tripcolor(triang, vals[:,d], shading = 'gouraud', cmap = 'PuOr', vmin = -0.02, vmax = 0.02)
-        plt.title("u " + ['x', 'y', 'z'][d])
-        plt.colorbar()
-
-
-    lam = 2 * sm * pr / (1 - 2 * pr)
-    alpha = (lam + sm) / (lam + 2 * sm)
-
-    timer.restart()
-    n_pts = surface[0].shape[0]
-    obs_pts = surface[0]
-    u = np.empty((n_pts, 3))
-    for i in range(n_pts):
-        pt = surface[0][i, :]
-        pt[2] = 0
-        [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
-            alpha, pt, 0, 90, [-0.5, 0.5], [top_depth - 1, top_depth], [1, 0, 0]
-        )
-        u[i, :] = uv
-    timer.report("Okada")
-
-
-    # plt.figure()
-    # plt.quiver(obs_pts[:, 0], obs_pts[:, 1], u[:, 0], u[:, 1])
-    # plt.figure()
-    # plt.streamplot(obs_pts[:, 0].reshape((n,n)), obs_pts[:, 1].reshape((n,n)), u[:, 0].reshape((n,n)), u[:, 1].reshape((n,n)))
-    for d in range(3):
-        plt.figure()
-        plt.tripcolor(
-            obs_pts[:, 0], obs_pts[:, 1], surface[1],
-            u[:, d], shading='gouraud', cmap = 'PuOr',
-            vmin = -0.02, vmax = 0.02
-        )
-        plt.title("Okada u " + ['x', 'y', 'z'][d])
-        plt.colorbar()
-    plt.show()
+    return vals
+#
+#     triang = tri.Triangulation(surface[0][:,0], surface[0][:,1], surface[1])
+#     for d in range(3):
+#         plt.figure()
+#         plt.tripcolor(triang, vals[:,d], shading = 'gouraud', cmap = 'PuOr', vmin = -0.02, vmax = 0.02)
+#         plt.title("u " + ['x', 'y', 'z'][d])
+#         plt.colorbar()
+#
+#
+#     lam = 2 * sm * pr / (1 - 2 * pr)
+#     alpha = (lam + sm) / (lam + 2 * sm)
+#
+#     timer.restart()
+#     n_pts = surface[0].shape[0]
+#     obs_pts = surface[0]
+#     u = np.empty((n_pts, 3))
+#     for i in range(n_pts):
+#         pt = surface[0][i, :]
+#         pt[2] = 0
+#         [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
+#             alpha, pt, 0, 90, [-0.5, 0.5], [top_depth - 1, top_depth], [1, 0, 0]
+#         )
+#         u[i, :] = uv
+#     timer.report("Okada")
+#
+#
+#     # plt.figure()
+#     # plt.quiver(obs_pts[:, 0], obs_pts[:, 1], u[:, 0], u[:, 1])
+#     # plt.figure()
+#     # plt.streamplot(obs_pts[:, 0].reshape((n,n)), obs_pts[:, 1].reshape((n,n)), u[:, 0].reshape((n,n)), u[:, 1].reshape((n,n)))
+#     for d in range(3):
+#         plt.figure()
+#         plt.tripcolor(
+#             obs_pts[:, 0], obs_pts[:, 1], surface[1],
+#             u[:, d], shading='gouraud', cmap = 'PuOr',
+#             vmin = -0.02, vmax = 0.02
+#         )
+#         plt.title("Okada u " + ['x', 'y', 'z'][d])
+#         plt.colorbar()
+#     plt.show()
 
 if __name__ == '__main__':
     test_okada()

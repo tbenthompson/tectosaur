@@ -13,21 +13,21 @@ def test_find_adjacents():
     assert(ea[1] == (1, 0, [(0, 2), (1, 1)]))
 
 def test_rotate_tri():
-    assert(rotate_tri([0,1,2], 1) == [1, 2, 0])
-    assert(rotate_tri([0,1,2], 2) == [2, 0, 1])
+    assert(rotate_tri(1) == [1, 2, 0])
+    assert(rotate_tri(2) == [2, 0, 1])
 
 def test_vert_adj_prep():
-    tris = [[0, 1, 2], [1, 3, 4], [6, 7, 2]]
+    tris = np.array([[0, 1, 2], [1, 3, 4], [6, 7, 2]])
     va, ea = find_adjacents(tris)
     result = vert_adj_prep(tris, va)
-    assert(np.all(result[1][:, 0] == result[2][:, 0]))
+    assert(np.all(result[3][:, 0] == result[4][:, 0]))
 
 def test_edge_adj_prep():
-    tris = [[0, 1, 2], [1, 3, 2]]
+    tris = np.array([[0, 1, 2], [1, 3, 2]])
     va, ea = find_adjacents(tris)
     result = edge_adj_prep(tris, ea)
 
-    tris = [[0, 1, 2], [2, 1, 3]]
+    tris = np.array([[0, 1, 2], [2, 1, 3]])
     va, ea = find_adjacents(tris)
     result = edge_adj_prep(tris, ea)
 
