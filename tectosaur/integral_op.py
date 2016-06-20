@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pycuda.driver as drv
 
@@ -98,32 +99,53 @@ def farfield(sm, pr, pts, obs_tris, src_tris, n_q):
     result[-remaining:,:,:,:,:,:] = result_rem
     return result
 
+def cached_in(name, creator):
+    filename = os.path.join('cache_tectosaur', name + '.npy')
+    if not os.path.exists(filename):
+        dirname = os.path.dirname(filename)
+        print(dirname)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+        np.save(filename, *creator())
+    return np.load(filename)
+
+from tectosaur.caching import cache
+
+@cache
+def cached_coincident_quad(nq, eps):
+    return richardson_quad(
+        eps, lambda e: triangle_rules.coincident_quad(e, nq, nq, nq, nq)
+    )
+
 def coincident(nq, sm, pr, pts, tris):
     timer = Timer(2)
-    q = richardson_quad(
-        [0.1, 0.01],
-        lambda e: triangle_rules.coincident_quad(e, nq, nq, nq, nq)
-    )
-    from IPython import embed; embed(); import ipdb; ipdb.set_trace()
+    q = cached_coincident_quad(nq, [0.1, 0.01])
     timer.report("Generate quadrature rule")
     out = pairs_quad(sm, pr, pts, tris, tris, q, True)
     timer.report("Perform quadrature")
     return out
 
+@cache
+def cached_edge_adj_quad(nq, eps):
+    return richardson_quad(
+        eps, lambda e: triangle_rules.edge_adj_quad(e, nq, nq, nq, nq, False)
+    )
+
 def edge_adj(nq, sm, pr, pts, obs_tris, src_tris):
     timer = Timer(2)
-    q = richardson_quad(
-        [0.1, 0.01],
-        lambda e: triangle_rules.edge_adj_quad(e, nq, nq, nq, nq, False)
-    )
+    q = cached_edge_adj_quad(nq, [0.1, 0.01])
     timer.report("Generate quadrature rule")
     out = pairs_quad(sm, pr, pts, obs_tris, src_tris, q, True)
     timer.report("Perform quadrature")
     return out
 
+@cache
+def cached_vert_adj_quad(nq):
+    return triangle_rules.vertex_adj_quad(nq, nq, nq)
+
 def vert_adj(nq, sm, pr, pts, obs_tris, src_tris):
     timer = Timer(2)
-    q = triangle_rules.vertex_adj_quad(nq, nq, nq)
+    q = cached_vert_adj_quad(nq)
     timer.report("Generate quadrature rule")
     out = pairs_quad(sm, pr, pts, obs_tris, src_tris, q, False)
     timer.report("Perform quadrature")
