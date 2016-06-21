@@ -41,7 +41,7 @@ def find_adjacents(tris):
     return vert_adjacents, edge_adjs
 
 def rotate_tri(clicks):
-    return [clicks % 3, (1 + clicks) % 3, (2 + clicks) % 3]
+    return [np.mod(clicks, 3), np.mod((1 + clicks), 3), np.mod((2 + clicks), 3)]
 
 def adj_prep(tris, adj, clicks_fnc):
     tri_indices = np.empty((len(adj), 2), dtype = np.int)

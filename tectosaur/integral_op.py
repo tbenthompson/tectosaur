@@ -56,24 +56,10 @@ def pairs_quad(sm, pr, pts, obs_tris, src_tris, q, singular):
     return result
 
 def farfield(sm, pr, pts, obs_tris, src_tris, n_q):
-    integrator = gpu_module.get_function("farfield_trisH")
     q = gauss4d_tri(n_q)
 
-    result = np.empty(
-        (obs_tris.shape[0], 3, 3, src_tris.shape[0], 3, 3)
-    ).astype(np.float32)
-
-    block_main = (32, 1, 1)
-    remaining = obs_tris.shape[0] % block_main[0]
-
-    result_rem = np.empty(
-        (remaining, 3, 3, src_tris.shape[0], 3, 3)
-    ).astype(np.float32)
-
-    grid_main = (obs_tris.shape[0] // block_main[0], src_tris.shape[0])
-    grid_rem = (remaining, src_tris.shape[0])
-
     def call_integrator(block, grid, result_buf, tri_start, tri_end):
+        integrator = gpu_module.get_function("farfield_trisH")
         if grid[0] == 0:
             return
         integrator(
@@ -91,13 +77,34 @@ def farfield(sm, pr, pts, obs_tris, src_tris, n_q):
             block = block,
             grid = grid
         )
-    call_integrator(block_main, grid_main, result, 0, obs_tris.shape[0] - remaining)
-    call_integrator(
-        (1,1,1), grid_rem, result_rem,
-        obs_tris.shape[0] - remaining, obs_tris.shape[0]
-    )
-    result[-remaining:,:,:,:,:,:] = result_rem
-    return result
+
+    max_block = 32
+    max_grid = 20
+    cur_result_buf = np.empty(
+        (max_block * max_grid, 3, 3, src_tris.shape[0], 3, 3)
+    ).astype(np.float32)
+
+    full_result = np.empty(
+        (obs_tris.shape[0], 3, 3, src_tris.shape[0], 3, 3)
+    ).astype(np.float32)
+
+    def next_integral(next_tri = 0):
+        remaining = obs_tris.shape[0] - next_tri
+        if remaining == 0:
+            return
+        elif remaining > max_block:
+            block = (max_block, 1, 1)
+        else:
+            block = (remaining, 1, 1)
+        grid = (min(remaining // block[0], max_grid), src_tris.shape[0])
+        n_tris = grid[0] * block[0]
+        past_end_tri = next_tri + n_tris
+        call_integrator(block, grid, cur_result_buf, next_tri, past_end_tri)
+        full_result[next_tri:past_end_tri] = cur_result_buf[:n_tris]
+        next_integral(past_end_tri)
+
+    next_integral()
+    return full_result
 
 def cached_in(name, creator):
     filename = os.path.join('cache_tectosaur', name + '.npy')
@@ -157,13 +164,14 @@ def set_co_entries(mat, co_mat, co_indices):
     return mat
 
 def set_adj_entries(mat, adj_mat, tri_idxs, obs_clicks, src_clicks):
-    for i in range(adj_mat.shape[0]):
-        obs_derot = rotate_tri(obs_clicks[i])
-        src_derot = rotate_tri(src_clicks[i])
-        for b1 in range(3):
-            for b2 in range(3):
-                mat[tri_idxs[i,0], :, b1, tri_idxs[i,1], :, b2] =\
-                    adj_mat[i, obs_derot[b1], src_derot[b2], :, :]
+    obs_derot = rotate_tri(obs_clicks)
+    src_derot = rotate_tri(src_clicks)
+
+    placeholder = np.arange(adj_mat.shape[0])
+    for b1 in range(3):
+        for b2 in range(3):
+            mat[tri_idxs[:,0], :, b1,tri_idxs[:,1], :, b2] = \
+                adj_mat[placeholder, obs_derot[b1], src_derot[b2], :, :]
     return mat
 
 def self_integral_operator(nq_coincident, nq_edge_adjacent, nq_vert_adjacent,

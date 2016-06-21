@@ -43,7 +43,7 @@ def test_coincident_gpu():
 
 @golden_master
 def test_full_integral_op():
-    m = mesh.rect_surface(3, 3, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    m = mesh.rect_surface(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     return integral_op.self_integral_operator(5, 5, 5, 1.0, 0.25, m[0], m[1])
 
 tri_ref = [[0,0,0],[1,0,0],[0,1,0]]
