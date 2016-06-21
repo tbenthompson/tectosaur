@@ -60,14 +60,14 @@ def farfield(sm, pr, pts, obs_tris, src_tris, n_q):
     q = gauss4d_tri(n_q)
 
     result = np.empty(
-        (obs_tris.shape[0], src_tris.shape[0], 3, 3, 3, 3)
+        (obs_tris.shape[0], 3, 3, src_tris.shape[0], 3, 3)
     ).astype(np.float32)
 
     block_main = (32, 1, 1)
     remaining = obs_tris.shape[0] % block_main[0]
 
     result_rem = np.empty(
-        (remaining, src_tris.shape[0], 3, 3, 3, 3)
+        (remaining, 3, 3, src_tris.shape[0], 3, 3)
     ).astype(np.float32)
 
     grid_main = (obs_tris.shape[0] // block_main[0], src_tris.shape[0])
@@ -151,13 +151,18 @@ def vert_adj(nq, sm, pr, pts, obs_tris, src_tris):
     timer.report("Perform quadrature")
     return out
 
+def set_co_entries(mat, co_mat, co_indices):
+    mat[co_indices, :, :, co_indices, :, :] =\
+        np.swapaxes(np.swapaxes(np.swapaxes(co_mat, 1, 3), 2, 3), 3, 4)
+    return mat
+
 def set_adj_entries(mat, adj_mat, tri_idxs, obs_clicks, src_clicks):
     for i in range(adj_mat.shape[0]):
         obs_derot = rotate_tri(obs_clicks[i])
         src_derot = rotate_tri(src_clicks[i])
         for b1 in range(3):
             for b2 in range(3):
-                mat[tri_idxs[i,0], tri_idxs[i,1], b1, b2, :, :] =\
+                mat[tri_idxs[i,0], :, b1, tri_idxs[i,1], :, b2] =\
                     adj_mat[i, obs_derot[b1], src_derot[b2], :, :]
     return mat
 
@@ -183,15 +188,19 @@ def self_integral_operator(nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
     va_mat_rot = vert_adj(nq_vert_adjacent, sm, pr, pts, va_obs_tris, va_src_tris)
     timer.report("Vert adjacent")
 
-    far_mat = farfield(sm, pr, pts, tris, tris, 3)
+    out = farfield(sm, pr, pts, tris, tris, 3)
     timer.report("Farfield")
-    far_mat[co_indices, co_indices] = co_mat
-    far_mat = set_adj_entries(
-        far_mat, ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks
+    out = set_co_entries(out, co_mat, co_indices)
+    out = set_adj_entries(
+        out, ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks
     )
-    far_mat = set_adj_entries(
-        far_mat, va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks
+    out = set_adj_entries(
+        out, va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks
     )
     timer.report("Insert coincident adjacent")
 
-    return far_mat
+    out.shape = (
+        out.shape[0] * out.shape[1] * out.shape[2],
+        out.shape[3] * out.shape[4] * out.shape[5]
+    )
+    return out

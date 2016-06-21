@@ -82,6 +82,10 @@ ${pt_pfx}${dim_name(dim)} += ${basis_pfx}b${basis} * ${tri_name}[${basis}][${dim
 % endfor
 </%def>
 
+<%def name="temp_result_idx(d_obs, d_src, b_obs, b_src)">
+${b_obs} * 27 + ${b_src} * 9 + ${d_obs} * 3 + ${d_src}
+</%def>
+
 <%def name="integrate_pair(k_name, limit)">
     ${tri_info("obs", "n")}
     ${tri_info("src", "l")}
@@ -126,7 +130,7 @@ ${pt_pfx}${dim_name(dim)} += ${basis_pfx}b${basis} * ${tri_name}[${basis}][${dim
                 ${kernels[k_name]['expr'][d_obs][d_src]};
             % for b_obs in range(3):
             % for b_src in range(3):
-            result_temp[${b_obs} * 27 + ${b_src} * 9 + ${d_obs} * 3 + ${d_src}] += 
+            result_temp[${temp_result_idx(d_obs, d_src, b_obs, b_src)}] += 
                 obsb${b_obs} * srcb${b_src} * kernel_val;
             % endfor
             % endfor
@@ -172,9 +176,18 @@ void farfield_tris${k_name}(float* result, int n_quad_pts, float* quad_pts,
     ${get_triangle("src_tri", "src_tris", "j")}
     ${integrate_pair(k_name, limit = False)}
 
-    for (int iresult = 0; iresult < 81; iresult++) {
-        result[i * n_src_tris * 81 + j * 81 + iresult] = result_temp[iresult];
-    }
+    % for d_obs in range(3):
+    % for d_src in range(3):
+    % for b_obs in range(3):
+    % for b_src in range(3):
+    result[
+        (i * 9 + ${d_obs} * 3 + ${b_obs}) * n_src_tris * 9 +
+        (j * 9 + ${d_src} * 3 + ${b_src})
+        ] = result_temp[${temp_result_idx(d_obs, d_src, b_obs, b_src)}];
+    % endfor
+    % endfor
+    % endfor
+    % endfor
 }
 </%def>
 

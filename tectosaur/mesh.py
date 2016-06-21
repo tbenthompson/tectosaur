@@ -26,7 +26,7 @@ def remove_duplicate_pts(m):
 
     return out_pts, out_tris
 
-def mesh_concat(m1, m2):
+def concat(m1, m2):
     newm = np.vstack((m1[0], m2[0])), np.vstack((m1[1], m2[1] + m1[0].shape[0]))
     return remove_duplicate_pts(newm)
 

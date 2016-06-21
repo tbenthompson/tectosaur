@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.tri as tri
 import okada_wrapper
 
-from tectosaur.mesh import rect_surface, mesh_concat
+import tectosaur.mesh as mesh
 from tectosaur.integral_op import self_integral_operator
 from tectosaur.adjacency import find_touching_pts
 from tectosaur.timer import Timer
@@ -15,59 +15,34 @@ def plot_matrix(v):
     plt.imshow(np.log10(np.abs(v + offset)), interpolation = 'none')
     plt.show()
 
-def test_remove_duplicates():
-    surface1 = rect_surface(2, 2, [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]])
-    surface2 = rect_surface(2, 2, [[0, 0, 0], [-1, 0, 0], [-1, 1, 0], [0, 1, 0]])
-    m_f = mesh_concat(surface1, surface2)
-    assert(m_f[0].shape[0] == 6)
-    assert(m_f[1].shape[0] == 4)
-
 def constraints(surface_tris, fault_tris):
-    n_surf_dofs = surface_tris.size
-    n_fault_dofs = fault_tris.size
-    total_dofs_per_dim = n_surf_dofs + n_fault_dofs
-    print(total_dofs_per_dim)
+    n_surf_tris = surface_tris.shape[0]
+    n_fault_tris = fault_tris.shape[0]
 
     touching_pt = find_touching_pts(surface_tris)
     constraints = []
     for tpt in touching_pt:
-        indepedent_dof = tpt[0][0] * 3 + tpt[0][1]
-        for dependent in tpt[1:]:
-            dependent_dof = dependent[0] * 3 + dependent[1]
-            if dependent_dof <= indepedent_dof:
-                continue
-            for d in range(3):
-                dof1 = d * total_dofs_per_dim + indepedent_dof
-                dof2 = d * total_dofs_per_dim + dependent_dof
+        for d in range(3):
+            indepedent_dof = tpt[0][0] * 9 + d * 3 + tpt[0][1]
+            for dependent in tpt[1:]:
+                dependent_dof = dependent[0] * 9 + d * 3 + dependent[1]
+                if dependent_dof <= indepedent_dof:
+                    continue
                 constraints.append((
-                    [(1.0, dof1), (-1.0, dof2)], 0.0
+                    [(1.0, dependent_dof), (-1.0, indepedent_dof)], 0.0
                 ))
     assert(len(touching_pt) == surface_tris.size - len(constraints) / 3)
 
     # X component = 1
     # Y comp = Z comp = 0
     slip = [-1, 0, 0]
-    for d in range(3):
-        first_dof = total_dofs_per_dim * d + n_surf_dofs
-        last_dof = total_dofs_per_dim * (d + 1)
-        for i in range(first_dof, last_dof):
-            constraints.append(([(1.0, i)], slip[d]))
+    for i in range(n_surf_tris, n_surf_tris + n_fault_tris):
+        for d in range(3):
+            for b in range(3):
+                dof = i * 9 + d * 3 + b
+                constraints.append(([(1.0, dof)], slip[d]))
     constraints = sorted(constraints, key = lambda x: x[0][0][1])
     return constraints
-
-def reshape_iop(iop):
-    def swaps(a, swap_lst):
-        out = a
-        for s in swap_lst:
-            out = np.swapaxes(out, s[0], s[1])
-        return out
-
-    # Currently o, s, b1, b2, d1, d2
-    # Want d1, o, b1, d2, s, b2
-    iop = swaps(iop, [(0, 4), (4, 1), (5, 3)])
-    n2 = iop.shape[1]
-    iop = iop.reshape((n2 * 9, n2 * 9))
-    return iop
 
 def insert_constraints(lhs, rhs, cs):
     c_start = lhs.shape[0] - len(cs)
@@ -136,7 +111,7 @@ def solve(iop, cs):
 def make_free_surface():
     n = 35
     w = 5
-    surface = rect_surface(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
+    surface = mesh.rect_surface(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
     for i in range(surface[0].shape[0]):
         x = surface[0][i,0]
         y = surface[0][i,1]
@@ -144,12 +119,11 @@ def make_free_surface():
     return surface
 
 def make_fault(top_depth):
-    return rect_surface(6, 6, [
+    return mesh.rect_surface(6, 6, [
         [-0.5, 0, top_depth], [-0.5, 0, top_depth - 1],
         [0.5, 0, top_depth - 1], [0.5, 0, top_depth]
     ])
 
-# TODO: Generate D*N*B * D*N*B matrix instead of reshaping
 def test_okada():
     sm = 1.0
     pr = 0.25
@@ -157,13 +131,12 @@ def test_okada():
     timer = Timer()
     top_depth = -0.25
     surface = make_free_surface()
-    all_mesh = mesh_concat(surface, make_fault(top_depth))
+    all_mesh = mesh.concat(surface, make_fault(top_depth))
     surface_tris = all_mesh[1][:surface[1].shape[0]]
     fault_tris = all_mesh[1][surface[1].shape[0]:]
     timer.report("Mesh")
 
     iop = self_integral_operator(15, 15, 8, sm, pr, all_mesh[0], all_mesh[1])
-    iop = reshape_iop(iop)
     timer.report("Integrals")
     cs = constraints(surface_tris, fault_tris)
     timer.report("Constraints")
@@ -171,7 +144,7 @@ def test_okada():
     soln = solve(iop, cs)
     timer.report("Solve")
 
-    disp = soln[:iop.shape[0]].reshape((3, int(iop.shape[0]/3))).T[:-6]
+    disp = soln[:iop.shape[0]].reshape((int(iop.shape[0]/3), 3))[:-6,:]
     vals = [None] * surface[0].shape[0]
     for i in range(surface[1].shape[0]):
         for d in range(3):
@@ -180,47 +153,47 @@ def test_okada():
     vals = np.array(vals)
     timer.report("Extract surface displacement")
 
-    return vals
-#
-#     triang = tri.Triangulation(surface[0][:,0], surface[0][:,1], surface[1])
-#     for d in range(3):
-#         plt.figure()
-#         plt.tripcolor(triang, vals[:,d], shading = 'gouraud', cmap = 'PuOr', vmin = -0.02, vmax = 0.02)
-#         plt.title("u " + ['x', 'y', 'z'][d])
-#         plt.colorbar()
-#
-#
-#     lam = 2 * sm * pr / (1 - 2 * pr)
-#     alpha = (lam + sm) / (lam + 2 * sm)
-#
-#     timer.restart()
-#     n_pts = surface[0].shape[0]
-#     obs_pts = surface[0]
-#     u = np.empty((n_pts, 3))
-#     for i in range(n_pts):
-#         pt = surface[0][i, :]
-#         pt[2] = 0
-#         [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
-#             alpha, pt, 0, 90, [-0.5, 0.5], [top_depth - 1, top_depth], [1, 0, 0]
-#         )
-#         u[i, :] = uv
-#     timer.report("Okada")
-#
-#
-#     # plt.figure()
-#     # plt.quiver(obs_pts[:, 0], obs_pts[:, 1], u[:, 0], u[:, 1])
-#     # plt.figure()
-#     # plt.streamplot(obs_pts[:, 0].reshape((n,n)), obs_pts[:, 1].reshape((n,n)), u[:, 0].reshape((n,n)), u[:, 1].reshape((n,n)))
-#     for d in range(3):
-#         plt.figure()
-#         plt.tripcolor(
-#             obs_pts[:, 0], obs_pts[:, 1], surface[1],
-#             u[:, d], shading='gouraud', cmap = 'PuOr',
-#             vmin = -0.02, vmax = 0.02
-#         )
-#         plt.title("Okada u " + ['x', 'y', 'z'][d])
-#         plt.colorbar()
-#     plt.show()
+    # return vals
+
+    triang = tri.Triangulation(surface[0][:,0], surface[0][:,1], surface[1])
+    for d in range(3):
+        plt.figure()
+        plt.tripcolor(triang, vals[:,d], shading = 'gouraud', cmap = 'PuOr', vmin = -0.02, vmax = 0.02)
+        plt.title("u " + ['x', 'y', 'z'][d])
+        plt.colorbar()
+
+
+    lam = 2 * sm * pr / (1 - 2 * pr)
+    alpha = (lam + sm) / (lam + 2 * sm)
+
+    timer.restart()
+    n_pts = surface[0].shape[0]
+    obs_pts = surface[0]
+    u = np.empty((n_pts, 3))
+    for i in range(n_pts):
+        pt = surface[0][i, :]
+        pt[2] = 0
+        [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
+            alpha, pt, 0, 90, [-0.5, 0.5], [top_depth - 1, top_depth], [1, 0, 0]
+        )
+        u[i, :] = uv
+    timer.report("Okada")
+
+
+    # plt.figure()
+    # plt.quiver(obs_pts[:, 0], obs_pts[:, 1], u[:, 0], u[:, 1])
+    # plt.figure()
+    # plt.streamplot(obs_pts[:, 0].reshape((n,n)), obs_pts[:, 1].reshape((n,n)), u[:, 0].reshape((n,n)), u[:, 1].reshape((n,n)))
+    for d in range(3):
+        plt.figure()
+        plt.tripcolor(
+            obs_pts[:, 0], obs_pts[:, 1], surface[1],
+            u[:, d], shading='gouraud', cmap = 'PuOr',
+            vmin = -0.02, vmax = 0.02
+        )
+        plt.title("Okada u " + ['x', 'y', 'z'][d])
+        plt.colorbar()
+    plt.show()
 
 if __name__ == '__main__':
     test_okada()
