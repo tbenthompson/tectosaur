@@ -1,6 +1,6 @@
 <% 
 setup_pybind11(cfg)
-cfg['compiler_args'].extend(['-std=c++14', '-O3', '-g', '-Wall', '-Werror', '-DTASKLOAF_DEBUG'])
+cfg['compiler_args'].extend(['-std=c++14', '-O3', '-g', '-Wall', '-Werror'])
 cfg['sources'] = ['fmm_impl.cpp', 'cpp_tester.cpp']
 cfg['dependencies'] = ['fmm_impl.hpp']
 cfg['parallel'] = True
@@ -55,7 +55,10 @@ PYBIND11_PLUGIN(fmm) {
         .def_readonly("center", &Box::center);
 
     py::class_<OctreeNode>(m, "OctreeNode")
-        .def_readonly("bounds", &OctreeNode::bounds);
+        .def_readonly("bounds", &OctreeNode::bounds)
+        .def("get_child", [] (OctreeNode& n, int i) -> OctreeNode& {
+            return n.children[i]->get(); 
+        });
 
     py::class_<Octree>(m, "Octree")
         .def("__init__", 
@@ -66,7 +69,9 @@ PYBIND11_PLUGIN(fmm) {
                 std::vector<Vec3> pts(first, last);
                 new (&oct) Octree(max_pts_per_cell, pts);
             })
-        .def_property_readonly("root", [] (Octree& o) -> OctreeNode& { return o.root.get(); });
+        .def_property_readonly("root", [] (Octree& o) -> OctreeNode& {
+            return o.root.get(); 
+        });
 
     m.def("run_tests", [] (std::vector<std::string> str_args) { 
         char** argv = new char*[str_args.size()];

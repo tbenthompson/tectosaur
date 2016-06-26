@@ -2,7 +2,7 @@ import pycuda.autoinit
 import numpy as np
 import skcuda.linalg as culg
 
-from tectosaur.linalg import gpu_mvp, block_gpu_mvp
+from tectosaur.linalg import gpu_mvp
 from tectosaur.timer import Timer
 import tectosaur.gpu
 

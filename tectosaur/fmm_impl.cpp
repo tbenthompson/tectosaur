@@ -5,6 +5,8 @@
 #include <cereal/types/array.hpp>
 #include "doctest.h"
 
+#include <random>
+
 namespace tectosaur {
 
 inline std::ostream& operator<<(std::ostream& os, const Vec3& v) {
@@ -40,6 +42,10 @@ TEST_CASE("bounding_box") {
     }
 }
 
+TEST_CASE("bounding box no pts") {
+    auto b = bounding_box({}); (void)b;
+}
+
 int find_containing_subcell(const Box& b, const Vec3& pt) {
     int child_idx = 0;
     for (size_t d = 0; d < 3; d++) {
@@ -60,38 +66,80 @@ TEST_CASE("subcell") {
     CHECK(find_containing_subcell({{0,0,0},{1,1,1}}, {0.5,0.5,0.5}) == 7);
 }
 
-OctreeNode::OctreeNode(size_t max_pts_per_cell, std::vector<Vec3> pts) {
-    bounds = bounding_box(pts);
+Box get_subcell(const Box& parent, int idx) {
+    auto new_halfwidth = parent.half_width;
+    auto new_center = parent.center;
+    for (int d = 2; d >= 0; d--) {
+        new_halfwidth[d] /= 2.0;
+        auto which_side = idx % 2;
+        idx = idx >> 1;
+        new_center[d] += ((static_cast<double>(which_side) * 2) - 1) * new_halfwidth[d];
+    }
+    return {new_center, new_halfwidth};
+}
 
-    if (pts.size() < max_pts_per_cell) {
-        this->pts = std::move(pts);
+bool in_box(const Box& b, const Vec3& pt)
+{
+    bool in = true;
+    for (size_t d = 0; d < 3; d++) {
+        auto sep = std::fabs(pt[d] - b.center[d]);
+        in = in && (sep <= b.half_width[d]);
+    }
+    return in;
+}
+
+TEST_CASE("get subcell") {
+    thread_local std::random_device rd;
+    thread_local std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(-1, 1);
+    Box parent{{0,0,0},{1,1,1}};
+    for (int i = 0; i < 100; i++) {
+        Vec3 pt = {dis(gen), dis(gen), dis(gen)};
+        auto idx = find_containing_subcell(parent, pt);
+        auto subcell = get_subcell(parent, idx);
+        REQUIRE(in_box(subcell, pt));
+    }
+}
+
+OctreeNode::OctreeNode(Box in_bounds, size_t max_pts_per_cell, std::vector<Vec3> in_pts) {
+
+    bounds = in_bounds;
+
+    if (in_pts.size() < max_pts_per_cell) {
+
+        pts = std::move(in_pts);
         return;
     }
 
-    std::array<std::vector<Vec3>,8> child_pts;
-    for (size_t i = 0; i < pts.size(); i++) {
-        auto child_idx = find_containing_subcell(bounds, pts[i]);
-        child_pts[child_idx].push_back(pts[i]);
+    std::array<std::vector<Vec3>,8> child_pts{};
+    for (size_t i = 0; i < in_pts.size(); i++) {
+        auto child_idx = find_containing_subcell(bounds, in_pts[i]);
+        child_pts[child_idx].push_back(std::move(in_pts[i]));
     }
+
     
     for (int child_idx = 0; child_idx < 8; child_idx++) {
-        children[child_idx] = std::make_unique<tl::future<OctreeNode>>(
-            make_node(max_pts_per_cell, std::move(child_pts[child_idx]))
+        auto child_bounds = get_subcell(bounds, child_idx);
+        children[child_idx] = std::make_shared<tl::future<OctreeNode>>(
+            make_node(child_bounds, max_pts_per_cell, std::move(child_pts[child_idx]))
         );
     }
 }
 
-tl::future<OctreeNode> make_node(size_t max_pts_per_cell, std::vector<Vec3> pts) {
+tl::future<OctreeNode> make_node(
+    Box bounds, size_t max_pts_per_cell, std::vector<Vec3> pts) 
+{
     return tl::task(
         [=] (std::vector<Vec3>& pts) {
-            return OctreeNode(max_pts_per_cell, std::move(pts)); 
+            return OctreeNode(bounds, max_pts_per_cell, std::move(pts)); 
         },
         std::move(pts)
     );  
 }
 
-Octree::Octree(size_t max_pts_per_cell, std::vector<Vec3> pts):
-    root(make_node(max_pts_per_cell, std::move(pts)))
-{}
+Octree::Octree(size_t max_pts_per_cell, std::vector<Vec3> pts) {
+    auto bounds = bounding_box(pts);
+    root = make_node(bounds, max_pts_per_cell, std::move(pts));
+}
 
 } //end namespace tectosaur

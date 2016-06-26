@@ -21,13 +21,13 @@ struct OctreeNode {
     std::array<std::shared_ptr<tl::future<OctreeNode>>,8> children;
 
     OctreeNode() = default;
-    OctreeNode(size_t max_pts_per_cell, std::vector<Vec3> pts);
+    OctreeNode(Box bounds, size_t max_pts_per_cell, std::vector<Vec3> pts);
 
     template <typename Archive>
     void serialize(Archive& ar) {}
 };
 
-tl::future<OctreeNode> make_node(size_t max_pts_per_cell, std::vector<Vec3> pts);
+tl::future<OctreeNode> make_node(Box bounds, size_t max_pts_per_cell, std::vector<Vec3> pts);
 
 struct Octree {
     tl::future<OctreeNode> root;
