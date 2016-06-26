@@ -12,12 +12,24 @@ from tectosaur.timer import Timer
 
 def make_free_surface():
     n = 36
-    w = 5
-    surface = mesh.rect_surface(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
-    return surface
+    inner_n = 7
+    outer_n = 13
+    one_side = (
+        np.linspace(0, 3, inner_n)[1:].tolist() +
+        (3.0 * 1.1 ** np.arange(1, outer_n)).tolist()
+    )
+    xs = np.array((-np.array(one_side[::-1])).tolist() + [0] + one_side)
+    minxs = np.min(xs)
+    maxxs = np.max(xs)
+    xs = (xs - minxs) / (maxxs - minxs)
 
-def make_fault(top_depth):
-    L = 1.0 / 3.0
+    w = maxxs
+    corners = [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]]
+    pts = mesh.rect_surface_points(corners, xs, xs)
+    topology = mesh.rect_surface_topology(xs.shape[0], xs.shape[0])
+    return (pts, topology)
+
+def make_fault(L, top_depth):
     return mesh.rect_surface(7, 7, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
@@ -28,9 +40,11 @@ def test_okada():
     pr = 0.25
 
     timer = Timer()
+    fault_L = 1.0 / 3.0
     top_depth = -0.5
     surface = make_free_surface()
-    all_mesh = mesh.concat(surface, make_fault(top_depth))
+    fault = make_fault(fault_L, top_depth)
+    all_mesh = mesh.concat(surface, fault)
     surface_tris = all_mesh[1][:surface[1].shape[0]]
     fault_tris = all_mesh[1][surface[1].shape[0]:]
     timer.report("Mesh")
@@ -53,15 +67,6 @@ def test_okada():
     vals = np.array(vals)
     timer.report("Extract surface displacement")
 
-    # return vals
-
-    triang = tri.Triangulation(surface[0][:,0], surface[0][:,1], surface[1])
-    for d in range(3):
-        plt.figure()
-        plt.tripcolor(triang, vals[:,d], shading = 'gouraud', cmap = 'PuOr')
-        plt.title("u " + ['x', 'y', 'z'][d])
-        plt.colorbar()
-
 
     lam = 2 * sm * pr / (1 - 2 * pr)
     alpha = (lam + sm) / (lam + 2 * sm)
@@ -74,11 +79,20 @@ def test_okada():
         pt = surface[0][i, :]
         pt[2] = 0
         [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
-            alpha, pt, 0, 90, [-0.5, 0.5], [top_depth - 1, top_depth], [1, 0, 0]
+            alpha, pt, 0, 90, [-fault_L, fault_L], [top_depth - 1, top_depth], [1, 0, 0]
         )
         u[i, :] = uv
     timer.report("Okada")
 
+    vmax = np.max(u)
+
+    triang = tri.Triangulation(surface[0][:,0], surface[0][:,1], surface[1])
+    for d in range(3):
+        plt.figure()
+        plt.tripcolor(triang, 2 * vals[:,d], shading = 'gouraud', cmap = 'PuOr',
+            vmin = -vmax, vmax = vmax)
+        plt.title("u " + ['x', 'y', 'z'][d])
+        plt.colorbar()
 
     # plt.figure()
     # plt.quiver(obs_pts[:, 0], obs_pts[:, 1], u[:, 0], u[:, 1])
@@ -88,7 +102,7 @@ def test_okada():
         plt.figure()
         plt.tripcolor(
             obs_pts[:, 0], obs_pts[:, 1], surface[1],
-            u[:, d], shading='gouraud', cmap = 'PuOr'
+            u[:, d], shading='gouraud', cmap = 'PuOr', vmin = -vmax, vmax = vmax
         )
         plt.title("Okada u " + ['x', 'y', 'z'][d])
         plt.colorbar()

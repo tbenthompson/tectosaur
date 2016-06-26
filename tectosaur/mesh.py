@@ -31,7 +31,9 @@ def concat(m1, m2):
     return remove_duplicate_pts(newm)
 
 # Corners are ordered: lower left, lower right, upper right, upper left
-def rect_surface_points(nx, ny, corners):
+def rect_surface_points(corners, xhat_vals, yhat_vals):
+    nx = xhat_vals.shape[0]
+    ny = yhat_vals.shape[0]
     corners = np.array(corners)
 
     rect_basis = [
@@ -41,9 +43,7 @@ def rect_surface_points(nx, ny, corners):
         lambda x, y: x * (1 - y)
     ]
 
-    x = np.linspace(0, 1, nx)
-    y = np.linspace(0, 1, ny)
-    X, Y = np.meshgrid(x, y)
+    X, Y = np.meshgrid(xhat_vals, yhat_vals)
     vertices = np.vstack((X.reshape(nx * ny), Y.reshape(nx * ny))).T
 
     pts = np.sum([
@@ -68,4 +68,6 @@ def rect_surface_topology(nx, ny):
     return np.array(tris, dtype = np.int)
 
 def rect_surface(nx, ny, corners):
-    return rect_surface_points(nx, ny, corners), rect_surface_topology(nx, ny)
+    x = np.linspace(0, 1, nx)
+    y = np.linspace(0, 1, ny)
+    return rect_surface_points(corners, x, y), rect_surface_topology(nx, ny)
