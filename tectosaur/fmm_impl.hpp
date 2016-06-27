@@ -1,38 +1,28 @@
 #pragma once
-#include <memory>
-#include <array>
 
-#include "taskloaf/future.hpp"
+#include "octree.hpp"
 
 namespace tectosaur {
 
-namespace tl = taskloaf;
+struct upward_traversal_node {
+    using ptr = std::shared_ptr<upward_traversal_node>;
 
-using Vec3 = std::array<double,3>;
+    OctreeNode::Ptr node;
+    std::vector<double> p2m_op;
+    std::array<tl::future<std::vector<double>>,8> m2m_ops;
+    std::array<tl::future<upward_traversal_node::ptr>,8> children; 
 
-struct Box {
-    Vec3 center;
-    Vec3 half_width;
-};
-
-struct OctreeNode {
-    Box bounds;
-    std::vector<Vec3> pts;
-    std::array<std::shared_ptr<tl::future<OctreeNode>>,8> children;
-
-    OctreeNode() = default;
-    OctreeNode(Box bounds, size_t max_pts_per_cell, std::vector<Vec3> pts);
+    upward_traversal_node() = default;
+    upward_traversal_node(OctreeNode::Ptr& n);
 
     template <typename Archive>
     void serialize(Archive& ar) {}
 };
 
-tl::future<OctreeNode> make_node(Box bounds, size_t max_pts_per_cell, std::vector<Vec3> pts);
-
-struct Octree {
-    tl::future<OctreeNode> root;
-
-    Octree(size_t max_pts_per_cell, std::vector<Vec3> pts);
+struct upward_traversal {
+    tl::future<upward_traversal_node> root;
 };
 
-} // end namespace tectosaur
+upward_traversal up_up_up(Octree o);
+
+} //end namespace tectosaur
