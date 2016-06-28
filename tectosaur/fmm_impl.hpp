@@ -4,25 +4,36 @@
 
 namespace tectosaur {
 
-struct upward_traversal_node {
-    using ptr = std::shared_ptr<upward_traversal_node>;
+using FMMSurf = std::shared_ptr<std::vector<Vec3>>;
+
+struct UpwardNode {
+    using Ptr = std::shared_ptr<UpwardNode>;
 
     OctreeNode::Ptr node;
+    std::vector<Vec3> equiv_surf;
     std::vector<double> p2m_op;
     std::array<tl::future<std::vector<double>>,8> m2m_ops;
-    std::array<tl::future<upward_traversal_node::ptr>,8> children; 
+    std::array<tl::future<UpwardNode::Ptr>,8> children; 
 
-    upward_traversal_node() = default;
-    upward_traversal_node(OctreeNode::Ptr& n);
+    UpwardNode() = default;
+    UpwardNode(OctreeNode::Ptr& n, FMMSurf fmm_surf);
 
     template <typename Archive>
     void serialize(Archive& ar) {}
 };
 
-struct upward_traversal {
-    tl::future<upward_traversal_node> root;
+struct Upward {
+    tl::future<UpwardNode::Ptr> root;
 };
 
-upward_traversal up_up_up(Octree o);
+Upward up_up_up(Octree o, FMMSurf fmm_surf);
+
+struct SparseMat {
+    std::vector<int> rows;
+    std::vector<int> cols;
+    std::vector<double> vals;
+};
+
+SparseMat go_go_go(Upward src_tree, Octree obs_tree);
 
 } //end namespace tectosaur

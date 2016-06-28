@@ -17,27 +17,34 @@ struct Box {
     Vec3 half_width;
 };
 
+struct NodeData {
+    std::vector<size_t> original_indices;
+    std::vector<Vec3> pts;
+    std::vector<Vec3> normals;
+
+    template <typename Archive>
+    void serialize(Archive& ar) { throw std::runtime_error("undefined"); }
+};
+
 struct OctreeNode {
     using Ptr = std::shared_ptr<OctreeNode>;
 
     Box bounds;
-    std::vector<Vec3> pts;
-    std::vector<size_t> original_indices;
+    NodeData data;
     bool is_leaf = false;
     std::array<tl::future<OctreeNode::Ptr>,8> children;
 
     OctreeNode() = default;
-    OctreeNode(size_t max_pts_per_cell, std::vector<size_t> in_orig_idxs,
-        std::vector<Vec3> pts);
+    OctreeNode(size_t max_pts_per_cell, NodeData in_data);
 
     template <typename Archive>
-    void serialize(Archive& ar) {}
+    void serialize(Archive& ar) { throw std::runtime_error("undefined"); }
 };
 
 struct Octree {
     tl::future<std::shared_ptr<OctreeNode>> root;
 
-    Octree(size_t max_pts_per_cell, std::vector<Vec3> pts);
+    Octree(size_t max_pts_per_cell, NodeData in_data);
 };
 
 int n_total_children(Octree& o);

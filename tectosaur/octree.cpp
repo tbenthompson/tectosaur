@@ -101,59 +101,53 @@ TEST_CASE("get subcell") {
     }
 }
 
-tl::future<OctreeNode::Ptr> make_node(size_t max_pts_per_cell,
-    std::vector<size_t> in_orig_idxs, std::vector<Vec3> pts) 
+tl::future<OctreeNode::Ptr> make_node(size_t max_pts_per_cell, NodeData data) 
 {
     return tl::task(
-        [=] (std::vector<size_t>& in_orig_idxs, std::vector<Vec3>& pts) {
-            return std::make_shared<OctreeNode>(
-                max_pts_per_cell, std::move(in_orig_idxs), std::move(pts)
-            ); 
+        [=] (NodeData& data) {
+            return std::make_shared<OctreeNode>(max_pts_per_cell, std::move(data)); 
         },
-        std::move(in_orig_idxs),
-        std::move(pts)
+        std::move(data)
     );  
 }
 
-OctreeNode::OctreeNode(size_t max_pts_per_cell,
-    std::vector<size_t> in_orig_idxs, std::vector<Vec3> in_pts) 
-{
+OctreeNode::OctreeNode(size_t max_pts_per_cell, NodeData in_data) {
 
-    bounds = bounding_box(in_pts);
-    original_indices = std::move(in_orig_idxs);
+    //This is probably the bottleneck if any future performance is needed
+    //Parallelizing the bounding box construction for the near-root nodes
+    //would be useful.
+    bounds = bounding_box(in_data.pts);
 
-    if (in_pts.size() <= max_pts_per_cell) {
+    if (in_data.pts.size() <= max_pts_per_cell) {
         is_leaf = true;
-        pts = std::move(in_pts);
+        data = std::move(in_data);
         return;
     }
 
-    std::array<std::vector<Vec3>,8> child_pts{};
-    std::array<std::vector<size_t>,8> child_orig_idxs{};
-    for (size_t i = 0; i < in_pts.size(); i++) {
-        auto child_idx = find_containing_subcell(bounds, in_pts[i]);
-        child_pts[child_idx].push_back(std::move(in_pts[i]));
-        child_orig_idxs[child_idx].push_back(original_indices[i]);
+    data.original_indices = std::move(in_data.original_indices);
+
+    std::array<NodeData,8> child_data{};
+    for (size_t i = 0; i < in_data.pts.size(); i++) {
+        auto child_idx = find_containing_subcell(bounds, in_data.pts[i]);
+        child_data[child_idx].pts.push_back(std::move(in_data.pts[i]));
+        child_data[child_idx].normals.push_back(std::move(in_data.normals[i]));
+        child_data[child_idx].original_indices.push_back(data.original_indices[i]);
     }
 
     for (int child_idx = 0; child_idx < 8; child_idx++) {
         children[child_idx] = make_node(
-            max_pts_per_cell, std::move(child_orig_idxs[child_idx]),
-            std::move(child_pts[child_idx])
+            max_pts_per_cell, std::move(child_data[child_idx])
         );
     }
 }
 
-Octree::Octree(size_t max_pts_per_cell, std::vector<Vec3> pts)
-{
-    std::vector<size_t> all_idxs(pts.size());
-    std::iota(all_idxs.begin(), all_idxs.end(), 0);
-    root = make_node(max_pts_per_cell, all_idxs, std::move(pts));
+Octree::Octree(size_t max_pts_per_cell, NodeData data) {
+    root = make_node(max_pts_per_cell, std::move(data));
 }
 
 tl::future<int> total_children_helper(OctreeNode::Ptr& n) {
     if (n->is_leaf) {
-        return tl::ready(int(n->pts.size()));
+        return tl::ready(int(n->data.pts.size()));
     }
     tl::future<int> sum = tl::ready(0);
     for (int i = 0; i < 8; i++) {
