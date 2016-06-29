@@ -103,24 +103,134 @@ Upward up_up_up(Octree o, FMMSurf fmm_surf) {
         .then([] (FMMSurf fmm_surf, OctreeNode::Ptr& n) {
             return std::make_shared<UpwardNode>(n, fmm_surf); 
         }, fmm_surf);
-    std::vector<UpwardNode::Ptr> ns{result.get()};
-    int n_nodes = 0;
-    while (ns.size() > 0) {
-        auto n = ns.back();
-        ns.pop_back();
-        n_nodes++;
-        if (!n->node->is_leaf) {
-            for (int i = 0; i < 8; i++) {
-                ns.push_back(n->children[i].get());
-            }
-        }
-    }
-    std::cout << "n_nodes: " << n_nodes << std::endl;
     return {result};
 }
 
-SparseMat go_go_go(Upward src_tree, Octree obs_tree) {
-    return SparseMat{{},{},{}};
+double hypot(const Vec3& v) {
+    return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+}
+
+Vec3 sub(const Vec3& a, const Vec3& b) {
+    return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
+}
+
+template <typename ObsF, typename SrcF>
+void insert(SparseMat& result, size_t n_src, 
+    std::vector<double> K, ObsF obs_idx_fnc, SrcF src_idx_fnc) 
+{
+    if (n_src == 0) {
+        return;
+    }
+    for (size_t i = 0; i < K.size() / n_src; i++) {
+        for (size_t j = 0; j < n_src; j++) {
+            result.rows.push_back(obs_idx_fnc(i));
+            result.cols.push_back(src_idx_fnc(j));
+            result.vals.push_back(K[i * n_src + j]);
+        }
+    }
+}
+
+template <typename ObsF, typename SrcF>
+void interact(SparseMat& result, const std::vector<Vec3>& obs_pts, 
+    const std::vector<Vec3>& src_pts, ObsF obs_idx_fnc, SrcF src_idx_fnc)
+{
+    auto K = kernel(obs_pts, src_pts);
+    insert(result, src_pts.size(), K, obs_idx_fnc, src_idx_fnc);
+}
+
+void m2p(SparseMat& result, UpwardNode::Ptr& src_node, OctreeNode::Ptr& obs_node) {
+    interact(
+        result, obs_node->data.pts, src_node->equiv_surf, 
+        [&] (size_t i) { return obs_node->data.original_indices[i]; },
+        [&] (size_t j) { return src_node->m_dof + j; }
+    );
+}
+
+void p2p(SparseMat& result, UpwardNode::Ptr& src_node, OctreeNode::Ptr& obs_node) {
+    interact(
+        result, obs_node->data.pts, src_node->node->data.pts, 
+        [&] (size_t i) { return obs_node->data.original_indices[i]; },
+        [&] (size_t j) { return src_node->node->data.original_indices[j]; }
+    );
+}
+
+void p2m(SparseMat& result, UpwardNode::Ptr& src_node) {
+    insert(
+        result, src_node->node->data.pts.size(), src_node->p2m_op, 
+        [&] (size_t i) { return src_node->m_dof + i; },
+        [&] (size_t j) { return src_node->node->data.original_indices[j]; }
+    );
+}
+
+void m2m(SparseMat& result, UpwardNode::Ptr& parent_node, 
+        UpwardNode::Ptr& child_node, int child_idx) 
+{
+    insert(
+        result, parent_node->equiv_surf.size(),
+        parent_node->m2m_ops[child_idx].get(),
+        [&] (size_t i) { return parent_node->m_dof + i; },
+        [&] (size_t j) { return child_node->m_dof + j; }
+    );
+}
+
+void m2m_identity(SparseMat& result, UpwardNode::Ptr& src_node) {
+    for (size_t i = 0; i < src_node->equiv_surf.size(); i++) {
+        result.rows.push_back(src_node->m_dof + i);
+        result.cols.push_back(src_node->m_dof + i);
+        result.vals.push_back(1.0);
+    }
+}
+
+void traverse(FMMMat& result, UpwardNode::Ptr& src_node, OctreeNode::Ptr& obs_node) { 
+    auto r_src = hypot(src_node->node->bounds.half_width);
+    auto r_obs = hypot(obs_node->bounds.half_width);
+    double r_max = std::max(r_src, r_obs);
+    double r_min = std::min(r_src, r_obs);
+    auto sep = hypot(sub(obs_node->bounds.center, src_node->node->bounds.center));
+    const double MAC = 0.3;
+    if (r_max + MAC * r_min <= MAC * sep) {
+        m2p(result.m2p, src_node, obs_node);
+        return;
+    }
+
+    if (src_node->node->is_leaf && obs_node->is_leaf) {
+        p2p(result.p2p, src_node, obs_node);
+        return;
+    }
+    
+    bool split_src = ((r_src < r_obs) && !src_node->node->is_leaf) || obs_node->is_leaf;
+    if (split_src) {
+        for (int i = 0; i < 8; i++) {
+            traverse(result, src_node->children[i].get(), obs_node);
+        }
+    } else {
+        for (int i = 0; i < 8; i++) {
+            traverse(result, src_node, obs_node->children[i].get());
+        }
+    }
+}
+
+void up_collect(FMMMat& result, UpwardNode::Ptr& src_node) {
+    src_node->m_dof = result.n_m_dofs;
+    result.n_m_dofs += src_node->equiv_surf.size();
+    m2m_identity(result.m2m, src_node);
+
+    if (src_node->node->is_leaf) {
+        p2m(result.p2m, src_node);
+    } else {
+        for (int i = 0; i < 8; i++) {
+            auto child = src_node->children[i].get();
+            up_collect(result, child);
+            m2m(result.m2m, src_node, child, i);
+        }
+    }
+}
+
+FMMMat go_go_go(Upward src_tree, Octree obs_tree) {
+    FMMMat result;
+    up_collect(result, src_tree.root.get());
+    traverse(result, src_tree.root.get(), obs_tree.root.get());
+    return result;
 }
 
 }

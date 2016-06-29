@@ -33,7 +33,9 @@ namespace py = pybind11;
 
 int main(int,char**);
 
-std::vector<Vec3> get_vectors(py::array_t<double>& np_arr) {
+using NPArray = py::array_t<double,py::array::c_style>;
+
+std::vector<Vec3> get_vectors(NPArray& np_arr) {
     auto buf = np_arr.request();
     if (buf.ndim != 2 || buf.shape[1] != 3) {
         throw std::runtime_error("parameter requires n x 3 array.");
@@ -69,8 +71,7 @@ PYBIND11_PLUGIN(fmm) {
             return *o.root.get(); 
         });
 
-    m.def("make_octree", [] (size_t max_pts_per_cell, py::array_t<double> np_pts,
-            py::array_t<double> np_normals) 
+    m.def("make_octree", [] (size_t max_pts_per_cell, NPArray np_pts, NPArray np_normals) 
         {
             if (max_pts_per_cell < 1) {
                 throw std::runtime_error("Need at least one point per cell.");
@@ -99,7 +100,7 @@ PYBIND11_PLUGIN(fmm) {
 
     py::class_<Upward>(m, "Upward");
     m.def("up_up_up",
-        [] (Octree o, py::array_t<double> np_fmm_surf) {
+        [] (Octree o, NPArray np_fmm_surf) {
             auto fmm_surf = get_vectors(np_fmm_surf); 
             return up_up_up(
                 o, 
@@ -107,6 +108,18 @@ PYBIND11_PLUGIN(fmm) {
             );
         }
     );
+
+    py::class_<SparseMat>(m, "SparseMat")
+        .def_readonly("rows", &SparseMat::rows)
+        .def_readonly("cols", &SparseMat::cols)
+        .def_readonly("vals", &SparseMat::vals);
+
+    py::class_<FMMMat>(m, "FMMMat")
+        .def_readonly("p2p", &FMMMat::p2p)
+        .def_readonly("p2m", &FMMMat::p2m)
+        .def_readonly("m2p", &FMMMat::m2p)
+        .def_readonly("m2m", &FMMMat::m2m)
+        .def_readonly("n_m_dofs", &FMMMat::n_m_dofs);
 
     m.def("go_go_go", &go_go_go);
 

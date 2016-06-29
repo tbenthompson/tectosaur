@@ -10,7 +10,7 @@
 namespace tectosaur {
 
 inline std::ostream& operator<<(std::ostream& os, const Vec3& v) {
-    os << "(" << v[0] << ", " << v[1] << ", " << v[2] << ")" << "\n";
+    os << "(" << v[0] << ", " << v[1] << ", " << v[2] << ")";
     return os;
 }
 
@@ -33,6 +33,12 @@ Box bounding_box(const std::vector<Vec3>& pts) {
         half_width[d] = (max_corner[d] - min_corner[d]) / 2.0;
     }
     return {center, half_width};
+}
+
+Box bounding_cube(const std::vector<Vec3>& pts) {
+    auto box = bounding_box(pts);
+    auto r = std::max(std::max(box.half_width[0], box.half_width[1]), box.half_width[2]);
+    return {box.center, {r,r,r}};
 }
 
 TEST_CASE("bounding_box") {
@@ -112,11 +118,10 @@ tl::future<OctreeNode::Ptr> make_node(size_t max_pts_per_cell, NodeData data)
 }
 
 OctreeNode::OctreeNode(size_t max_pts_per_cell, NodeData in_data) {
-
     //This is probably the bottleneck if any future performance is needed
     //Parallelizing the bounding box construction for the near-root nodes
     //would be useful.
-    bounds = bounding_box(in_data.pts);
+    bounds = bounding_cube(in_data.pts);
 
     if (in_data.pts.size() <= max_pts_per_cell) {
         is_leaf = true;

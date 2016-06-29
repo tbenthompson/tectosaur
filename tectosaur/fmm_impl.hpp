@@ -10,8 +10,9 @@ struct UpwardNode {
     using Ptr = std::shared_ptr<UpwardNode>;
 
     OctreeNode::Ptr node;
-    std::vector<Vec3> equiv_surf;
-    std::vector<double> p2m_op;
+    size_t m_dof;
+    std::vector<Vec3> equiv_surf; // can be calced on the fly
+    std::vector<double> p2m_op; 
     std::array<tl::future<std::vector<double>>,8> m2m_ops;
     std::array<tl::future<UpwardNode::Ptr>,8> children; 
 
@@ -34,6 +35,14 @@ struct SparseMat {
     std::vector<double> vals;
 };
 
-SparseMat go_go_go(Upward src_tree, Octree obs_tree);
+struct FMMMat {
+    SparseMat p2p;
+    SparseMat p2m;
+    SparseMat m2m;
+    SparseMat m2p;
+    size_t n_m_dofs = 0;
+};
+
+FMMMat go_go_go(Upward src_tree, Octree obs_tree);
 
 } //end namespace tectosaur
