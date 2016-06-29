@@ -9,8 +9,9 @@
 
 namespace tectosaur {
 
-std::vector<double> kernel(std::vector<Vec3> obs_pts, std::vector<Vec3> src_pts) {
-    std::vector<double> out(obs_pts.size() * src_pts.size());
+void kernel(const std::vector<Vec3>& obs_pts,
+    const std::vector<Vec3>& src_pts, double* out) 
+{
     for (size_t i = 0; i < obs_pts.size(); i++) {
         for (size_t j = 0; j < src_pts.size(); j++) {
             auto dx = obs_pts[i][0] - src_pts[j][0];
@@ -19,7 +20,6 @@ std::vector<double> kernel(std::vector<Vec3> obs_pts, std::vector<Vec3> src_pts)
             out[i * src_pts.size() + j] = 1.0 / std::sqrt(dx * dx + dy * dy + dz * dz);
         }
     }
-    return out;
 }
 
 std::vector<Vec3> inscribe_surf(Box b, double scaling, 
@@ -45,11 +45,12 @@ TEST_CASE("inscribe") {
 UpwardNode::UpwardNode(OctreeNode::Ptr& n, FMMSurf fmm_surf):
     node(n)
 {
-    auto check_surf = inscribe_surf(n->bounds, std::sqrt(2), *fmm_surf);
+    auto check_surf = inscribe_surf(n->bounds, 2.9 * std::sqrt(3), *fmm_surf);
 
     // equiv surface to check surface
-    equiv_surf = inscribe_surf(n->bounds, 0.3, *fmm_surf);
-    auto equiv_to_check = kernel(equiv_surf, check_surf);
+    equiv_surf = inscribe_surf(n->bounds, 1.1 * std::sqrt(3), *fmm_surf);
+    std::vector<double> equiv_to_check(equiv_surf.size() * check_surf.size());
+    kernel(equiv_surf, check_surf, equiv_to_check.data());
 
     // invert equiv to check operator
     // In some cases, the equivalent surface to check surface operator
@@ -62,16 +63,18 @@ UpwardNode::UpwardNode(OctreeNode::Ptr& n, FMMSurf fmm_surf):
 
     // make this the constructor
     if (n->is_leaf) {
-        if (n->data.pts.size() > 0) {
-            // points to check surface
-            auto pts_to_check = kernel(n->data.pts, check_surf);
-
-            // multiply with points to check operator
-            p2m_op = mat_mult(
-                n->data.pts.size(), fmm_surf->size(),
-                false, pts_to_check, false, check_to_equiv
-            );
+        if (n->data.pts.size() == 0) {
+            return;
         }
+        // points to check surface
+        std::vector<double> pts_to_check(n->data.pts.size() * check_surf.size());
+        kernel(n->data.pts, check_surf, pts_to_check.data());
+
+        // multiply with points to check operator
+        p2m_op = mat_mult(
+            n->data.pts.size(), fmm_surf->size(),
+            false, pts_to_check, false, check_to_equiv
+        );
     } else {
         for (size_t i = 0; i < 8; i++) {
             children[i] = n->children[i].then([] (FMMSurf fmm_surf, 
@@ -79,20 +82,23 @@ UpwardNode::UpwardNode(OctreeNode::Ptr& n, FMMSurf fmm_surf):
             {
                 return std::make_shared<UpwardNode>(child, fmm_surf);
             }, fmm_surf);
+
             m2m_ops[i] = children[i].then(
                 [] (std::vector<Vec3>& check_surf,
                     std::vector<double>& check_to_equiv, UpwardNode::Ptr& child) 
                 {
                     // child equiv surf to parent check surface
-                    auto child_to_check = kernel(child->equiv_surf, check_surf);
+                    std::vector<double> child_to_check(
+                        child->equiv_surf.size() * check_surf.size()
+                    );
+                    kernel(child->equiv_surf, check_surf, child_to_check.data());
 
                     return mat_mult(
                         child->equiv_surf.size(), check_surf.size(),
                         false, child_to_check, false, check_to_equiv
                     );
                 },
-                std::move(check_surf),
-                std::move(check_to_equiv)
+                check_surf, check_to_equiv
             );
         }
     }
@@ -116,7 +122,7 @@ Vec3 sub(const Vec3& a, const Vec3& b) {
 
 template <typename ObsF, typename SrcF>
 void insert(SparseMat& result, size_t n_src, 
-    std::vector<double> K, ObsF obs_idx_fnc, SrcF src_idx_fnc) 
+    const std::vector<double>& K, const ObsF& obs_idx_fnc, const SrcF& src_idx_fnc) 
 {
     if (n_src == 0) {
         return;
@@ -132,10 +138,19 @@ void insert(SparseMat& result, size_t n_src,
 
 template <typename ObsF, typename SrcF>
 void interact(SparseMat& result, const std::vector<Vec3>& obs_pts, 
-    const std::vector<Vec3>& src_pts, ObsF obs_idx_fnc, SrcF src_idx_fnc)
+    const std::vector<Vec3>& src_pts, const ObsF& obs_idx_fnc, const SrcF& src_idx_fnc)
 {
-    auto K = kernel(obs_pts, src_pts);
-    insert(result, src_pts.size(), K, obs_idx_fnc, src_idx_fnc);
+    auto orig_size = result.vals.size();
+    result.vals.resize(orig_size + obs_pts.size() * src_pts.size());
+    auto* K_ptr = &result.vals[orig_size];
+    kernel(obs_pts, src_pts, K_ptr);
+    for (size_t i = 0; i < obs_pts.size(); i++) {
+        for (size_t j = 0; j < src_pts.size(); j++) {
+            result.rows.push_back(obs_idx_fnc(i));
+            result.cols.push_back(src_idx_fnc(j));
+        }
+    }
+    // insert(result, src_pts.size(), K, obs_idx_fnc, src_idx_fnc);
 }
 
 void m2p(SparseMat& result, UpwardNode::Ptr& src_node, OctreeNode::Ptr& obs_node) {
@@ -177,7 +192,7 @@ void m2m_identity(SparseMat& result, UpwardNode::Ptr& src_node) {
     for (size_t i = 0; i < src_node->equiv_surf.size(); i++) {
         result.rows.push_back(src_node->m_dof + i);
         result.cols.push_back(src_node->m_dof + i);
-        result.vals.push_back(1.0);
+        result.vals.push_back(-1.0);
     }
 }
 

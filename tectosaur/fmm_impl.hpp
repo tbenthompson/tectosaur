@@ -12,7 +12,7 @@ struct UpwardNode {
     OctreeNode::Ptr node;
     size_t m_dof;
     std::vector<Vec3> equiv_surf; // can be calced on the fly
-    std::vector<double> p2m_op; 
+    std::vector<double> p2m_op;
     std::array<tl::future<std::vector<double>>,8> m2m_ops;
     std::array<tl::future<UpwardNode::Ptr>,8> children; 
 
@@ -25,6 +25,11 @@ struct UpwardNode {
 
 struct Upward {
     tl::future<UpwardNode::Ptr> root;
+};
+
+struct FMMConfig {
+    double MAC;
+    FMMSurf surf;
 };
 
 Upward up_up_up(Octree o, FMMSurf fmm_surf);

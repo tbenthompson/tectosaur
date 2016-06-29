@@ -107,21 +107,33 @@ TEST_CASE("get subcell") {
     }
 }
 
-tl::future<OctreeNode::Ptr> make_node(size_t max_pts_per_cell, NodeData data) 
+tl::future<OctreeNode::Ptr> make_node(size_t max_pts_per_cell, 
+    Box parent_bounds, NodeData data) 
 {
     return tl::task(
         [=] (NodeData& data) {
-            return std::make_shared<OctreeNode>(max_pts_per_cell, std::move(data)); 
+            return std::make_shared<OctreeNode>(
+                max_pts_per_cell, parent_bounds, std::move(data)
+            ); 
         },
         std::move(data)
     );  
 }
 
-OctreeNode::OctreeNode(size_t max_pts_per_cell, NodeData in_data) {
+OctreeNode::OctreeNode(size_t max_pts_per_cell, Box parent_bounds, NodeData in_data) {
     //This is probably the bottleneck if any future performance is needed
     //Parallelizing the bounding box construction for the near-root nodes
     //would be useful.
-    bounds = bounding_cube(in_data.pts);
+    if (in_data.pts.size() <= 1) {
+        auto hw = parent_bounds.half_width;
+        for (int d = 0; d < 3; d++) {
+            hw[d] /= 100; 
+        }
+        auto center = (in_data.pts.size() == 0) ? parent_bounds.center: in_data.pts[0];
+        bounds = {center, hw};
+    } else {
+        bounds = bounding_cube(in_data.pts);
+    }
 
     if (in_data.pts.size() <= max_pts_per_cell) {
         is_leaf = true;
@@ -141,13 +153,13 @@ OctreeNode::OctreeNode(size_t max_pts_per_cell, NodeData in_data) {
 
     for (int child_idx = 0; child_idx < 8; child_idx++) {
         children[child_idx] = make_node(
-            max_pts_per_cell, std::move(child_data[child_idx])
+            max_pts_per_cell, bounds, std::move(child_data[child_idx])
         );
     }
 }
 
 Octree::Octree(size_t max_pts_per_cell, NodeData data) {
-    root = make_node(max_pts_per_cell, std::move(data));
+    root = make_node(max_pts_per_cell, {{0, 0, 0}, {1, 1, 1}}, std::move(data));
 }
 
 tl::future<int> total_children_helper(OctreeNode::Ptr& n) {

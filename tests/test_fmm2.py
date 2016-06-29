@@ -67,6 +67,13 @@ def count_nodes(o):
     foreach_node(o, increment)
     return increment.i
 
+def count_pts(o):
+    def increment(node):
+        increment.i += len(node.data.pts)
+    increment.i = 0
+    foreach_node(o, increment)
+    return increment.i
+
 def test_tree_traversal():
     ctx = taskloaf.launch_local(1, taskloaf.Config())
     pts = np.random.rand(10, 3)
@@ -102,7 +109,7 @@ def surrounding_surface_sphere(order):
 
 
 def to_scipy(m, shape):
-    return scipy.sparse.coo_matrix((m.vals, (m.rows, m.cols)), shape)
+    return scipy.sparse.coo_matrix((m.get_vals(), (m.get_rows(), m.get_cols())), shape)
 
 def get_nnz(fmm_mat):
     total_nnz = 0
@@ -115,42 +122,48 @@ def get_nnz(fmm_mat):
 
 def test_upward_traversal():
     ctx = taskloaf.launch_local(1)
-    pts = np.random.rand(20000, 3)
-    pts2 = np.random.rand(20000, 3)
-    # pts = make_line_pts(1000)
-    # pts2 = make_line_pts(999)
+    # pts = np.random.rand(5000, 3)
+    # pts2 = np.random.rand(5000, 3)
+    pts = make_line_pts(30000)
+    pts2 = make_line_pts(29999)
 
     import time
     start = time.time()
-    o = fmm.make_octree(50, pts, pts)
+    o = fmm.make_octree(100, pts, pts)
     print(count_nodes(o))
+    print(count_pts(o))
 
-    o2 = fmm.make_octree(50, pts2, pts2)
+    o2 = fmm.make_octree(100, pts2, pts2)
     surf = surrounding_surface_sphere(5)
+    print(surf.shape)
     up = fmm.up_up_up(o, surf)
     fmm_mat = fmm.go_go_go(up, o2)
+    print("Evaluate: " + str(time.time() - start))
+    start = time.time()
 
     n_src = pts.shape[0]
     n_obs = pts2.shape[0]
     n_multipoles = fmm_mat.n_m_dofs;
 
-    p2p = to_scipy(fmm_mat.p2p, (n_obs, n_src)).tocsr()
-    p2m = to_scipy(fmm_mat.p2m, (n_multipoles, n_src)).tocsr()
-    m2p = to_scipy(fmm_mat.m2p, (n_obs, n_multipoles)).tocsr()
-    m2m = to_scipy(fmm_mat.m2m, (n_multipoles, n_multipoles)).tocsc()
-    print("TOOK: " + str(time.time() - start))
+    p2p = to_scipy(fmm_mat.p2p, (n_obs, n_src))
+    p2m = to_scipy(fmm_mat.p2m, (n_multipoles, n_src))
+    m2p = to_scipy(fmm_mat.m2p, (n_obs, n_multipoles))
+    m2m = to_scipy(fmm_mat.m2m, (n_multipoles, n_multipoles))
+    print("copy to scipy: " + str(time.time() - start))
 
     input_vals = np.ones(pts.shape[0])
 
     start = time.time()
     m_lowest = p2m.dot(input_vals)
-    m_all = scipy.sparse.linalg.spsolve(m2m, m_lowest)
-    est = p2p.dot(input_vals) + m2p.dot(m_all)
+    m_all = scipy.sparse.linalg.spsolve(m2m, -m_lowest)
+    m2p_comp = m2p.dot(m_all)
+    p2p_comp = p2p.dot(input_vals)
+    est = p2p_comp + m2p_comp
     print("Eval took: " + str(time.time() - start))
-    import ipdb; ipdb.set_trace()
 
     correct = (1.0 / scipy.spatial.distance.cdist(pts2, pts)).dot(np.ones(pts.shape[0]))
-    error = np.mean(np.abs((est - correct) / correct))
+    error = np.mean((est - correct) ** 2)
+    import ipdb; ipdb.set_trace()
     print(error)
     np.testing.assert_almost_equal(est, correct)
 

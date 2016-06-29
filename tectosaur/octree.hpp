@@ -35,7 +35,7 @@ struct OctreeNode {
     std::array<tl::future<OctreeNode::Ptr>,8> children;
 
     OctreeNode() = default;
-    OctreeNode(size_t max_pts_per_cell, NodeData in_data);
+    OctreeNode(size_t max_pts_per_cell, Box parent_bounds, NodeData in_data);
 
     template <typename Archive>
     void serialize(Archive& ar) { throw std::runtime_error("undefined"); }

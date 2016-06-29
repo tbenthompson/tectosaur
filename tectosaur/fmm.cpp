@@ -35,6 +35,34 @@ int main(int,char**);
 
 using NPArray = py::array_t<double,py::array::c_style>;
 
+std::vector<size_t> calc_strides(const std::vector<size_t>& shape, size_t unit_size) {
+    std::vector<size_t> strides(shape.size());
+    strides[shape.size() - 1] = unit_size;
+    for (int i = shape.size() - 2; i >= 0; i--) {
+        strides[i] = strides[i + 1] * shape[i + 1];
+    }
+    return strides;
+}
+
+template <typename T>
+pybind11::array_t<T> make_array(const std::vector<size_t>& shape) {
+    return pybind11::array(pybind11::buffer_info(
+        nullptr, sizeof(T), pybind11::format_descriptor<T>::value,
+        shape.size(), shape, calc_strides(shape, sizeof(T))
+    ));
+}
+
+template <typename T>
+pybind11::array_t<T> array_from_vector(const std::vector<T>& in) {
+    auto out = make_array<T>({in.size()});
+    T* ptr = reinterpret_cast<T*>(out.request().ptr);
+    for (size_t i = 0; i < in.size(); i++) {
+        ptr[i] = in[i];
+    }
+    return out;
+}
+
+
 std::vector<Vec3> get_vectors(NPArray& np_arr) {
     auto buf = np_arr.request();
     if (buf.ndim != 2 || buf.shape[1] != 3) {
@@ -110,9 +138,9 @@ PYBIND11_PLUGIN(fmm) {
     );
 
     py::class_<SparseMat>(m, "SparseMat")
-        .def_readonly("rows", &SparseMat::rows)
-        .def_readonly("cols", &SparseMat::cols)
-        .def_readonly("vals", &SparseMat::vals);
+        .def("get_rows", [] (SparseMat& s) { return array_from_vector(s.rows); })
+        .def("get_cols", [] (SparseMat& s) { return array_from_vector(s.cols); })
+        .def("get_vals", [] (SparseMat& s) { return array_from_vector(s.vals); });
 
     py::class_<FMMMat>(m, "FMMMat")
         .def_readonly("p2p", &FMMMat::p2p)
