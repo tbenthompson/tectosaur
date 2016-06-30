@@ -1,10 +1,8 @@
 #include "blas_wrapper.hpp"
-#include "doctest.h"
+#include "lib/doctest.h"
 #include "test_helpers.hpp"
 #include <cmath>
 #include <cassert>
-
-#include <iostream> //TODO:REMOVE
 
 extern "C" void dgetrf_(int* dim1, int* dim2, double* a, int* lda, int* ipiv,
     int* info);

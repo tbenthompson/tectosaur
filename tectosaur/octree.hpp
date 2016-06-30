@@ -1,14 +1,8 @@
 #pragma once
-#include <memory>
 #include <array>
-
-#include <cereal/types/memory.hpp>
-
-#include "taskloaf/future.hpp"
+#include <vector>
 
 namespace tectosaur {
-
-namespace tl = taskloaf;
 
 using Vec3 = std::array<double,3>;
 
@@ -17,36 +11,28 @@ struct Box {
     Vec3 half_width;
 };
 
-struct NodeData {
-    std::vector<size_t> original_indices;
-    std::vector<Vec3> pts;
-    std::vector<Vec3> normals;
-
-    template <typename Archive>
-    void serialize(Archive& ar) { throw std::runtime_error("undefined"); }
-};
-
-struct OctreeNode {
-    using Ptr = std::shared_ptr<OctreeNode>;
-
+struct KDNode {
+    size_t start;
+    size_t end;
     Box bounds;
-    NodeData data;
-    bool is_leaf = false;
-    std::array<tl::future<OctreeNode::Ptr>,8> children;
-
-    OctreeNode() = default;
-    OctreeNode(size_t max_pts_per_cell, Box parent_bounds, NodeData in_data);
-
-    template <typename Archive>
-    void serialize(Archive& ar) { throw std::runtime_error("undefined"); }
+    bool is_leaf;
+    size_t idx;
+    std::array<size_t,2> children;
 };
 
-struct Octree {
-    tl::future<std::shared_ptr<OctreeNode>> root;
+struct KDTree {
+    Vec3* pts; // not owned, make sure lifetime exceeds kdtree lifetime
+    Vec3* normals; // not owned, make sure lifetime exceeds kdtree lifetime
+    size_t n_pts;
+    std::vector<KDNode> nodes;
 
-    Octree(size_t max_pts_per_cell, NodeData in_data);
+    const KDNode& root() const { return nodes.front(); }
+
+    size_t add_node(
+        size_t start, size_t end, int split_dim,
+        size_t n_per_cell, double parent_size
+    );
+    KDTree(Vec3* pts, Vec3* normals, size_t n_pts, size_t n_per_cell);
 };
-
-int n_total_children(Octree& o);
 
 } // end namespace tectosaur
