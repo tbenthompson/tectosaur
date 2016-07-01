@@ -19,8 +19,8 @@ Box bounding_box(Vec3* pts, size_t n_pts) {
     Vec3 center;
     Vec3 half_width;
     for (size_t d = 0; d < 3; d++) {
-        center[d] = (max_corner[d] + min_corner[d]) / 2.0;
-        half_width[d] = (max_corner[d] - min_corner[d]) / 2.0;
+        center[d] = (max_corner[d] + min_corner[d]) * 0.5;
+        half_width[d] = (max_corner[d] - min_corner[d]) * 0.5;
     }
     return {center, half_width};
 }
@@ -29,9 +29,10 @@ Box kd_bounds(Vec3* pts, size_t n_pts, double parent_size) {
     auto box = bounding_box(pts, n_pts);
 
     // Limit sides to being 1 / 50 times the side length of the parent cell
+    const static double side_ratio = 1.0 / 50.0;
     Vec3 hw;
     for (int d = 0; d < 3; d++) {
-        hw[d] = std::max(parent_size / 50, box.half_width[d]);
+        hw[d] = std::max(parent_size * side_ratio, box.half_width[d]);
     }
     return {box.center, hw};
 }
@@ -41,6 +42,8 @@ KDTree::KDTree(Vec3* in_pts, Vec3* in_normals, size_t in_n_pts, size_t n_per_cel
     normals(in_normals),
     n_pts(in_n_pts)
 {
+    size_t n_leaves = in_n_pts / n_per_cell;
+    nodes.reserve(2 * n_leaves);
     add_node(0, in_n_pts, 0, n_per_cell, 1.0);
 }
 

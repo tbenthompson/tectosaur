@@ -185,7 +185,9 @@ def test_inv_r():
     correct = (1.0 / (scipy.spatial.distance.cdist(pts, pts2))).dot(np.ones(pts2.shape[0]))
     error = np.sqrt(np.mean((est - correct) ** 2))
     print("relerr: " + str(error / np.mean(correct)))
-    # np.testing.assert_almost_equal(est / np.mean(correct), correct / np.mean(correct), 3)
+    np.testing.assert_almost_equal(
+        est / np.mean(correct), correct / np.mean(correct), 3
+    )
 
 def ellipse_pts(n, source):
     a = 4.0
@@ -204,18 +206,17 @@ def test_irregular():
     correct = (1.0 / (scipy.spatial.distance.cdist(pts, pts2))).dot(np.ones(pts2.shape[0]))
     error = np.sqrt(np.mean((est - correct) ** 2))
     print("relerr: " + str(error / np.mean(correct)))
-    # np.testing.assert_almost_equal(est / np.mean(correct), correct / np.mean(correct), 3)
-
+    np.testing.assert_almost_equal(
+        est / np.mean(correct), correct / np.mean(correct), 3
+    )
 
 @slow
 def test_build_big():
-    pts = np.random.rand(1000000, 3)
+    pts = np.random.rand(10000000, 3)
     import time
     start = time.time()
     kdtree = fmm.KDTree(pts, pts, 1)
     print("KDTree took: " + str(time.time() - start))
 
 if __name__ == '__main__':
-    # test_evaluate()
     test_build_big()
-    test_upward_traversal()
