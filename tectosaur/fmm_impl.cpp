@@ -3,8 +3,8 @@
 #include "lib/doctest.h"
 #include "test_helpers.hpp"
 #include <cmath>
-#include <iostream>
 #include <limits>
+#include <iostream>
 
 namespace tectosaur {
 
@@ -36,7 +36,6 @@ struct Workspace {
 
     std::vector<std::vector<Vec3>> equiv_surfs;
     std::vector<bool> multipoles_needed;
-    std::vector<size_t> multipole_starts;
     size_t next_m_idx = 0;
     const static size_t max_m_idx = std::numeric_limits<size_t>::max();
 
@@ -44,16 +43,19 @@ struct Workspace {
         const KDTree& src_tree, const FMMConfig& cfg):
         result(result), obs_tree(obs_tree), src_tree(src_tree), cfg(cfg),
         equiv_surfs(src_tree.nodes.size()),
-        multipoles_needed(src_tree.nodes.size(), false),
-        multipole_starts(src_tree.nodes.size(), max_m_idx)
-    {}
+        multipoles_needed(src_tree.nodes.size(), false)
+    {
+        result.multipole_starts.resize(src_tree.nodes.size());
+        for (auto& ms: result.multipole_starts) { ms = max_m_idx; }
+    }
 
     size_t get_multipole_start(const KDNode& n) {
-        if (multipole_starts[n.idx] == max_m_idx) {
-            multipole_starts[n.idx] = next_m_idx;
+        auto& start = result.multipole_starts[n.idx];
+        if (start == max_m_idx) {
+            start = next_m_idx;
             next_m_idx += cfg.surf.size();
         }
-        return multipole_starts[n.idx];
+        return start;
     }
 
     void need_multipoles(const KDNode& n) {
@@ -244,51 +246,40 @@ void traverse(Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     }
 }
 
-// void up_collect(Workspace& ws, const KDNode& src_n) {
-//     m2m_identity(ws, src_n);
-// 
-//     auto c2e = check_to_equiv(ws, src_n);
-// 
-//     if (src_n.is_leaf) {
-//         p2m(ws, src_n, c2e);
-//     } else {
-//         for (int i = 0; i < 2; i++) {
-//             auto child = ws.src_tree.nodes[src_n.children[i]];
-//             up_collect(ws, child);
-//             m2m(ws, src_n, child, c2e);
-//         }
-//     }
-// }
+void leaf_multipoles(Workspace& ws, const KDNode& src_n) {
+    m2m_identity(ws, src_n);
+    auto c2e = check_to_equiv(ws, src_n);
+    p2m(ws, src_n, c2e);
+}
+
 bool up_collect(Workspace& ws, const KDNode& src_n) {
     if (src_n.is_leaf) {
         if (ws.multipoles_needed[src_n.idx]) {
-            m2m_identity(ws, src_n);
-            auto c2e = check_to_equiv(ws, src_n);
-            p2m(ws, src_n, c2e);
+            leaf_multipoles(ws, src_n);
             return true;
         }
         return false;
     } else {
-        bool need = ws.multipoles_needed[src_n.idx];
         std::array<bool,2> child_has_ms;
         for (int i = 0; i < 2; i++) {
             child_has_ms[i] = up_collect(ws, ws.src_tree.nodes[src_n.children[i]]);
-            need = need || child_has_ms[i];
         }
-        if (!need) {
+        if (child_has_ms[0] || child_has_ms[1]) {
+            m2m_identity(ws, src_n);
+            auto c2e = check_to_equiv(ws, src_n);
+            for (int i = 0; i < 2; i++) {
+                auto child = ws.src_tree.nodes[src_n.children[i]];
+                if (!child_has_ms[i]) {
+                    leaf_multipoles(ws, child);
+                }
+                m2m(ws, src_n, child, c2e);
+            }
+            return true;
+        }
+        if (!ws.multipoles_needed[src_n.idx]) {
             return false;
         }
-        m2m_identity(ws, src_n);
-        auto c2e = check_to_equiv(ws, src_n);
-        for (int i = 0; i < 2; i++) {
-            auto child = ws.src_tree.nodes[src_n.children[i]];
-            if (!child_has_ms[i]) {
-                m2m_identity(ws, child);
-                auto c2e = check_to_equiv(ws, child);
-                p2m(ws, child, c2e);
-            }
-            m2m(ws, src_n, child, c2e);
-        }
+        leaf_multipoles(ws, src_n);
         return true;
     }
 }

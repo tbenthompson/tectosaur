@@ -1,10 +1,13 @@
 #pragma once
 #include <array>
 #include <vector>
+#include <iosfwd>
 
 namespace tectosaur {
 
 using Vec3 = std::array<double,3>;
+
+std::ostream& operator<<(std::ostream& os, const Vec3&);
 
 struct Box {
     Vec3 center;
@@ -21,8 +24,8 @@ struct KDNode {
 };
 
 struct KDTree {
-    Vec3* pts; // not owned, make sure lifetime exceeds kdtree lifetime
-    Vec3* normals; // not owned, make sure lifetime exceeds kdtree lifetime
+    std::vector<Vec3> pts;
+    std::vector<Vec3> normals;
     size_t n_pts;
     std::vector<KDNode> nodes;
 
@@ -32,7 +35,8 @@ struct KDTree {
         size_t start, size_t end, int split_dim,
         size_t n_per_cell, double parent_size
     );
-    KDTree(Vec3* pts, Vec3* normals, size_t n_pts, size_t n_per_cell);
+    KDTree(std::vector<Vec3> pts, std::vector<Vec3> normals,
+        size_t n_pts, size_t n_per_cell);
 };
 
 } // end namespace tectosaur

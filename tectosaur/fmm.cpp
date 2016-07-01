@@ -81,6 +81,7 @@ PYBIND11_PLUGIN(fmm) {
         .def_readonly("end", &KDNode::end)
         .def_readonly("bounds", &KDNode::bounds)
         .def_readonly("is_leaf", &KDNode::is_leaf)
+        .def_readonly("idx", &KDNode::idx)
         .def_readonly("children", &KDNode::children);
 
     py::class_<KDTree>(m, "KDTree")
@@ -89,13 +90,12 @@ PYBIND11_PLUGIN(fmm) {
             check_shape(np_pts);
             check_shape(np_normals);
             new (&kd) KDTree(
-                reinterpret_cast<Vec3*>(np_pts.request().ptr),
-                reinterpret_cast<Vec3*>(np_normals.request().ptr),
-                np_pts.request().shape[0],
-                n_per_cell
+                get_vectors(np_pts), get_vectors(np_normals),
+                np_pts.request().shape[0], n_per_cell
             );
         })
-        .def_readonly("nodes", &KDTree::nodes);
+        .def_readonly("nodes", &KDTree::nodes)
+        .def_readonly("pts", &KDTree::pts);
 
     py::class_<SparseMat>(m, "SparseMat")
         .def("get_rows", [] (SparseMat& s) { return array_from_vector(s.rows); })
@@ -106,7 +106,8 @@ PYBIND11_PLUGIN(fmm) {
         .def_readonly("p2p", &FMMMat::p2p)
         .def_readonly("p2m", &FMMMat::p2m)
         .def_readonly("m2p", &FMMMat::m2p)
-        .def_readonly("m2m", &FMMMat::m2m);
+        .def_readonly("m2m", &FMMMat::m2m)
+        .def_readonly("multipole_starts", &FMMMat::multipole_starts);
 
     py::class_<FMMConfig>(m, "FMMConfig")
         .def("__init__", 

@@ -54,6 +54,7 @@ def get_nnz(fmm_mat):
 def test_kdtree_bisects():
     pts = np.random.rand(100,3)
     kdtree = fmm.KDTree(pts, pts, 1)
+    pts = np.array(kdtree.pts)
     for n in kdtree.nodes:
         if n.is_leaf:
             continue
@@ -66,6 +67,7 @@ def test_kdtree_bisects():
 def test_kdtree_contains_pts():
     pts = np.random.rand(100,3)
     kdtree = fmm.KDTree(pts, pts, 1)
+    pts = np.array(kdtree.pts)
     for n in kdtree.nodes:
         for d in range(3):
             assert(np.all(pts[n.start:n.end,d] <=
@@ -76,51 +78,66 @@ def test_kdtree_contains_pts():
 def test_p2m():
     pts1 = np.random.rand(100,3)
     pts2 = np.random.rand(100,3)
-    pts2[:,0] += 20
-    kd1 = fmm.KDTree(pts1, pts1, 101)
+    pts2[:,0] += 2
+    kd1 = fmm.KDTree(pts1, pts1, 1)
     kd2 = fmm.KDTree(pts2, pts2, 1)
-    surf = surrounding_surface_sphere(10)
+    surf = surrounding_surface_sphere(1)
     fmm_mat = fmm.fmmmmmmm(kd1, kd2, fmm.FMMConfig(0.3, surf, "one"))
-    m_lowest = to_scipy(fmm_mat.p2m).dot(np.ones(100))
+    p2m = to_scipy(fmm_mat.p2m)
+    m_lowest = p2m.dot(np.ones(p2m.shape[1]))
     for n in kd2.nodes:
-        if not n.is_leaf:
+        start_mdof = fmm_mat.multipole_starts[n.idx]
+        end_mdof = start_mdof + surf.shape[0]
+        if start_mdof >= m_lowest.shape[0]:
             continue
-        start_mdof = n.idx * surf.shape[0]
-        end_mdof = (n.idx + 1) * surf.shape[0]
-        assert(int(np.sum(m_lowest[start_mdof:end_mdof])) == (n.end - n.start))
+        if m_lowest[start_mdof] == 0:
+            continue
+        assert(int(np.round(np.sum(m_lowest[start_mdof:end_mdof]))) == (n.end - n.start))
 
 def test_m2m_m2p():
     pts1 = np.random.rand(100,3)
     pts2 = np.random.rand(105,3)
-    pts2[:,0] += 1.7
+    pts2[:,0] += 2.9
     kd1 = fmm.KDTree(pts1, pts1, 2)
     kd2 = fmm.KDTree(pts2, pts2, 2)
     surf = surrounding_surface_sphere(10)
     fmm_mat = fmm.fmmmmmmm(kd1, kd2, fmm.FMMConfig(0.3, surf, "one"))
 
-    assert(to_scipy(fmm_mat.p2p).nnz == 0)
-
-    m_lowest = to_scipy(fmm_mat.p2m).dot(np.ones(pts2.shape[0]))
-    m_all = scipy.sparse.linalg.spsolve(to_scipy(fmm_mat.m2m), -m_lowest)
-    assert(m_all.shape[0] == len(kd2.nodes) * surf.shape[0])
+    m2m = to_scipy(fmm_mat.m2m)
+    m_lowest = to_scipy(fmm_mat.p2m, (m2m.shape[1], pts2.shape[0]))\
+        .dot(np.ones(pts2.shape[0]))
+    m_all = scipy.sparse.linalg.spsolve(m2m, -m_lowest)
     n_surf = surf.shape[0]
     for n in kd2.nodes:
-        start_mdof = n.idx * surf.shape[0]
-        end_mdof = (n.idx + 1) * surf.shape[0]
+        start_mdof = fmm_mat.multipole_starts[n.idx]
+        end_mdof = start_mdof + surf.shape[0]
+        if start_mdof >= m_all.shape[0]:
+            continue
         m_strength = int(np.round(np.sum(m_all[start_mdof:end_mdof])))
         n_pts = n.end - n.start
         assert(m_strength == n_pts)
 
     m2p = to_scipy(fmm_mat.m2p, (pts1.shape[0], m_all.shape[0]))
     result = m2p.dot(m_all)
+    import ipdb; ipdb.set_trace()
     assert(np.all(np.abs(result - pts2.shape[0]) < 1e-3))
 
+
+def plot_matrix():
+    pass
+    # dense = np.empty((pts.shape[0] + m2m.shape[0], pts2.shape[0] + m2m.shape[1]))
+    # dense[:pts.shape[0],:pts2.shape[0]] = p2p.todense()
+    # dense[pts.shape[0]:,:pts.shape[0]] = p2m.todense()
+    # dense[:pts.shape[0],pts2.shape[0]:] = m2p.todense()
+    # dense[pts.shape[0]:,pts2.shape[0]:] = m2m.todense()
+    # import matplotlib.pyplot as plt
+    # plt.spy(dense)
+    # plt.show()
+    # import ipdb; ipdb.set_trace()
 
 def run_full(n, make_pts, order, kernel):
     pts = make_pts(n, False)
     pts2 = make_pts(n + 1, True)
-    # pts = make_line_pts(5000)
-    # pts2 = make_line_pts(4999)
 
     t = Timer()
     kd = fmm.KDTree(pts, pts, order)
@@ -132,7 +149,7 @@ def run_full(n, make_pts, order, kernel):
     n_src = pts.shape[0]
     n_obs = pts2.shape[0]
 
-    p2p = to_scipy(fmm_mat.p2p)
+    p2p = to_scipy(fmm_mat.p2p, (pts.shape[0], pts2.shape[0]))
     m2m = to_scipy(fmm_mat.m2m).tocsr()
     p2m = to_scipy(fmm_mat.p2m, (m2m.shape[1], pts2.shape[0]))
     m2p = to_scipy(fmm_mat.m2p, (pts.shape[0], m2m.shape[0]))
@@ -143,16 +160,6 @@ def run_full(n, make_pts, order, kernel):
     print("m2m shape: " + str(m2m.shape))
     print("total: " + str((p2p.nnz + p2m.nnz + m2m.nnz + m2p.nnz) / (n ** 2)))
     t.report("copy to scipy")
-
-    # dense = np.empty((pts.shape[0] + m2m.shape[0], pts2.shape[0] + m2m.shape[1]))
-    # dense[:pts.shape[0],:pts2.shape[0]] = p2p.todense()
-    # dense[pts.shape[0]:,:pts.shape[0]] = p2m.todense()
-    # dense[:pts.shape[0],pts2.shape[0]:] = m2p.todense()
-    # dense[pts.shape[0]:,pts2.shape[0]:] = m2m.todense()
-    # import matplotlib.pyplot as plt
-    # plt.spy(dense)
-    # plt.show()
-    # import ipdb; ipdb.set_trace()
 
     input_vals = np.ones(pts2.shape[0])
     t.report("make input")
@@ -171,17 +178,17 @@ def run_full(n, make_pts, order, kernel):
         est += m2p_comp
         t.report("sum")
     t2.report("matvec")
-    return pts, pts2, est
+    return np.array(kd.pts), np.array(kd2.pts), est
 
 def rand_pts(n, source):
     return np.random.rand(n, 3)
 
 def test_ones():
     pts, pts2, est = run_full(5000, rand_pts, 1, "one")
-    assert(np.all(np.abs(est - 5000) < 1e-3))
+    assert(np.all(np.abs(est - 5001) < 1e-3))
 
 def test_inv_r():
-    pts, pts2, est = run_full(5000, rand_pts, 4, "invr")
+    pts, pts2, est = run_full(5000, rand_pts, 30, "invr")
     correct = (1.0 / (scipy.spatial.distance.cdist(pts, pts2))).dot(np.ones(pts2.shape[0]))
     error = np.sqrt(np.mean((est - correct) ** 2))
     print("relerr: " + str(error / np.mean(correct)))
@@ -202,7 +209,7 @@ def ellipse_pts(n, source):
     return np.array([x, y, z]).T
 
 def test_irregular():
-    pts, pts2, est = run_full(5000, ellipse_pts, 4, "invr")
+    pts, pts2, est = run_full(5000, ellipse_pts, 35, "invr")
     correct = (1.0 / (scipy.spatial.distance.cdist(pts, pts2))).dot(np.ones(pts2.shape[0]))
     error = np.sqrt(np.mean((est - correct) ** 2))
     print("relerr: " + str(error / np.mean(correct)))
@@ -219,4 +226,5 @@ def test_build_big():
     print("KDTree took: " + str(time.time() - start))
 
 if __name__ == '__main__':
-    test_build_big()
+    # test_build_big()
+    test_irregular()

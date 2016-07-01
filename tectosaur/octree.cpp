@@ -1,8 +1,14 @@
 #include "octree.hpp"
 
 #include <algorithm>
+#include <iostream>
 
 namespace tectosaur {
+
+std::ostream& operator<<(std::ostream& os, const Vec3& v) {
+    os << "(" << v[0] << ", " << v[1] << ", " << v[2] << ")";
+    return os;
+}
 
 Box bounding_box(Vec3* pts, size_t n_pts) {
     if (n_pts == 0) {
@@ -37,37 +43,40 @@ Box kd_bounds(Vec3* pts, size_t n_pts, double parent_size) {
     return {box.center, hw};
 }
 
-KDTree::KDTree(Vec3* in_pts, Vec3* in_normals, size_t in_n_pts, size_t n_per_cell):
-    pts(in_pts),
-    normals(in_normals),
+KDTree::KDTree(std::vector<Vec3> in_pts, std::vector<Vec3> in_normals,
+        size_t in_n_pts, size_t n_per_cell):
+    pts(std::move(in_pts)),
+    normals(std::move(in_normals)),
     n_pts(in_n_pts)
 {
     size_t n_leaves = in_n_pts / n_per_cell;
-    nodes.reserve(2 * n_leaves);
+    // For n leaves in a binary tree, there should be 2*n total nodes. Since
+    // n_leaves is just an estimate, overallocate by 50% with 3*n total nodes.
+    nodes.reserve(3 * n_leaves);
     add_node(0, in_n_pts, 0, n_per_cell, 1.0);
 }
 
 size_t KDTree::add_node(size_t start, size_t end, int split_dim,
     size_t n_per_cell, double parent_size) 
 {
-    auto bounds = kd_bounds(pts + start, end - start, parent_size);
+    auto bounds = kd_bounds(pts.data() + start, end - start, parent_size);
 
     if (end - start <= n_per_cell) {
         nodes.push_back({start, end, bounds, true, nodes.size(), {0, 0}});
         return nodes.back().idx;
     } else {
         auto split = std::partition(
-            pts + start, pts + end,
+            pts.data() + start, pts.data() + end,
             [&] (const Vec3& v) { return v[split_dim] < bounds.center[split_dim]; }
         );
         auto n_idx = nodes.size();
         nodes.push_back({start, end, bounds, false, n_idx, {0, 0}});
         auto l = add_node(
-            start, split - pts, (split_dim + 1) % 3,
+            start, split - pts.data(), (split_dim + 1) % 3,
             n_per_cell, bounds.half_width[0]
         );
         auto r = add_node(
-            split - pts, end, (split_dim + 1) % 3,
+            split - pts.data(), end, (split_dim + 1) % 3,
             n_per_cell, bounds.half_width[0]
         );
         nodes[n_idx].children = {l, r};
