@@ -81,7 +81,6 @@ PYBIND11_PLUGIN(fmm) {
         .def_readonly("end", &KDNode::end)
         .def_readonly("bounds", &KDNode::bounds)
         .def_readonly("is_leaf", &KDNode::is_leaf)
-        .def_readonly("idx", &KDNode::idx)
         .def_readonly("children", &KDNode::children);
 
     py::class_<KDTree>(m, "KDTree")

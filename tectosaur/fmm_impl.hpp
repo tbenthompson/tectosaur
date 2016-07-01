@@ -22,7 +22,7 @@ struct FMMConfig {
     double mac;
     std::vector<Vec3> surf;
     Kernel kernel;
-    double equiv_r = 1.1 * std::sqrt(3);
+    double equiv_r = 0.3 * std::sqrt(3);
     double check_r = 2.9 * std::sqrt(3);
 };
 
