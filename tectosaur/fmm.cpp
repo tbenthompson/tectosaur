@@ -1,9 +1,10 @@
 <% 
 setup_pybind11(cfg)
-cfg['compiler_args'].extend(['-std=c++14', '-O3', '-g', '-Wall', '-Werror'])
+cfg['compiler_args'].extend(['-std=c++14', '-O3', '-g', '-Wall', '-Werror', '-fopenmp', '-mavx'])
 cfg['sources'] = ['fmm_impl.cpp', 'octree.cpp', 'blas_wrapper.cpp', 'cpp_tester.cpp']
 cfg['dependencies'] = ['fmm_impl.hpp', 'octree.hpp', 'blas_wrapper.hpp']
 cfg['parallel'] = True
+cfg['linker_args'] = ['-fopenmp']
 
 import numpy as np
 blas = np.__config__.blas_opt_info
@@ -72,9 +73,9 @@ std::vector<Vec3> get_vectors(NPArray& np_arr) {
 PYBIND11_PLUGIN(fmm) {
     py::module m("fmm");
 
-    py::class_<Box>(m, "Box")
-        .def_readonly("half_width", &Box::half_width)
-        .def_readonly("center", &Box::center);
+    py::class_<Sphere>(m, "Sphere")
+        .def_readonly("r", &Sphere::r)
+        .def_readonly("center", &Sphere::center);
 
     py::class_<KDNode>(m, "KDNode")
         .def_readonly("start", &KDNode::start)
@@ -100,20 +101,28 @@ PYBIND11_PLUGIN(fmm) {
     py::class_<SparseMat>(m, "SparseMat")
         .def("get_rows", [] (SparseMat& s) { return array_from_vector(s.rows); })
         .def("get_cols", [] (SparseMat& s) { return array_from_vector(s.cols); })
-        .def("get_vals", [] (SparseMat& s) { return array_from_vector(s.vals); });
+        .def("get_vals", [] (SparseMat& s) { return array_from_vector(s.vals); })
+        .def("get_nnz", &SparseMat::get_nnz)
+        .def("matvec", [] (SparseMat& s, NPArray v, size_t n_rows) {
+            auto out = s.matvec(reinterpret_cast<double*>(v.request().ptr), n_rows);
+            return array_from_vector(out);
+        });
 
     py::class_<FMMMat>(m, "FMMMat")
         .def_readonly("p2p", &FMMMat::p2p)
         .def_readonly("p2m", &FMMMat::p2m)
         .def_readonly("m2p", &FMMMat::m2p)
-        .def_readonly("m2m", &FMMMat::m2m)
-        .def_readonly("multipole_starts", &FMMMat::multipole_starts);
+        .def_readonly("m2m", &FMMMat::m2m);
 
     py::class_<FMMConfig>(m, "FMMConfig")
         .def("__init__", 
-            [] (FMMConfig& cfg, double mac, NPArray surf, std::string k_name) {
+            [] (FMMConfig& cfg, double mac, double equiv_r,
+                double check_r, NPArray surf, std::string k_name) 
+            {
                 Kernel k{(k_name == "one") ? one : inv_r};
-                new (&cfg) FMMConfig{mac, get_vectors(surf), std::move(k)};
+                new (&cfg) FMMConfig{
+                    mac, equiv_r, check_r, get_vectors(surf), std::move(k)
+                };
             }
         );
 

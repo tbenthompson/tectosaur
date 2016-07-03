@@ -20,7 +20,7 @@ struct SVDDeleter {
 };
 typedef std::unique_ptr<SVD,SVDDeleter> SVDPtr;
 
-SVDPtr svd_decompose(const std::vector<double>& matrix);
+SVDPtr svd_decompose(double* matrix, int n);
 void set_threshold(const SVDPtr& svd, double threshold);
 std::vector<double> svd_pseudoinverse(const SVDPtr& svd);
 std::vector<double> svd_solve(const SVDPtr& svd, const std::vector<double>& b);

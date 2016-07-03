@@ -5,23 +5,24 @@
 #include <cmath>
 #include <limits>
 #include <iostream>
+#include <cassert>
 
 namespace tectosaur {
 
-std::vector<Vec3> inscribe_surf(Box b, double scaling, 
+std::vector<Vec3> inscribe_surf(const Sphere& b, double scaling, 
     const std::vector<Vec3>& fmm_surf) 
 {
     std::vector<Vec3> out(fmm_surf.size());
     for (size_t i = 0; i < fmm_surf.size(); i++) {
         for (size_t d = 0; d < 3; d++) {
-            out[i][d] = fmm_surf[i][d] * b.half_width[d] * scaling + b.center[d];
+            out[i][d] = fmm_surf[i][d] * b.r * scaling + b.center[d];
         }
     }
     return out;
 }
 
 TEST_CASE("inscribe") {
-    auto s = inscribe_surf({{1,1,1},{2,2,2}}, 0.5, {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}});
+    auto s = inscribe_surf({{1,1,1},2}, 0.5, {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}});
     REQUIRE(s.size() == size_t(3));
     REQUIRE_ARRAY_EQUAL(s[0], Vec3{2,1,1}, 3);
     REQUIRE_ARRAY_EQUAL(s[1], Vec3{1,2,1}, 3);
@@ -35,32 +36,12 @@ struct Workspace {
     const FMMConfig& cfg;
 
     std::vector<std::vector<Vec3>> equiv_surfs;
-    std::vector<bool> multipoles_needed;
-    size_t next_m_idx = 0;
-    const static size_t max_m_idx = std::numeric_limits<size_t>::max();
 
     Workspace(FMMMat& result, const KDTree& obs_tree,
         const KDTree& src_tree, const FMMConfig& cfg):
         result(result), obs_tree(obs_tree), src_tree(src_tree), cfg(cfg),
-        equiv_surfs(src_tree.nodes.size()),
-        multipoles_needed(src_tree.nodes.size(), false)
-    {
-        result.multipole_starts.resize(src_tree.nodes.size());
-        for (auto& ms: result.multipole_starts) { ms = max_m_idx; }
-    }
-
-    size_t get_multipole_start(const KDNode& n) {
-        auto& start = result.multipole_starts[n.idx];
-        if (start == max_m_idx) {
-            start = next_m_idx;
-            next_m_idx += cfg.surf.size();
-        }
-        return start;
-    }
-
-    void need_multipoles(const KDNode& n) {
-        multipoles_needed[n.idx] = true;
-    }
+        equiv_surfs(src_tree.nodes.size())
+    {}
 
     const std::vector<Vec3>& get_equiv_surf(const KDNode& src_n) {
         if (equiv_surfs[src_n.idx].size() == 0) {
@@ -70,20 +51,28 @@ struct Workspace {
     }
 };
 
-double hypot(const Vec3& v) {
-    return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-}
-
-Vec3 sub(const Vec3& a, const Vec3& b) {
-    return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
-}
-
 double one(const Vec3& obs, const Vec3& src) { return 1.0; }
 
 double inv_r(const Vec3& obs, const Vec3& src) {
     auto d = sub(obs, src);
     auto r2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
     return 1.0 / std::sqrt(r2);
+}
+
+std::vector<double> SparseMat::matvec(double* vec, size_t out_size) {
+    std::vector<double> out(out_size, 0.0);
+    for (size_t i = 0; i < rows.size(); i++) {
+        out[rows[i]] += vals[i] * vec[cols[i]]; 
+    }
+    return out;
+}
+
+TEST_CASE("matvec") {
+    SparseMat m{{0,1,1}, {1,0,1}, {2.0, 1.0, 3.0}};
+    std::vector<double> in = {-1, 1};
+    auto out = m.matvec(in.data(), 2);
+    REQUIRE(out[0] == 2.0);
+    REQUIRE(out[1] == 2.0);
 }
 
 void Kernel::direct_nbody(const Vec3* obs_pts, const Vec3* src_pts,
@@ -120,7 +109,7 @@ void m2p(Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     for (size_t i = 0; i < n_obs; i++) {
         for (size_t j = 0; j < n_src; j++) {
             ws.result.m2p.rows.push_back(obs_n.start + i);
-            ws.result.m2p.cols.push_back(ws.get_multipole_start(src_n) + j);
+            ws.result.m2p.cols.push_back(src_n.idx * n_src + j);
         }
     }
     auto old_n_vals = ws.result.m2p.vals.size(); 
@@ -153,8 +142,8 @@ C2E check_to_equiv(Workspace& ws, const KDNode& src_n) {
     // In some cases, the equivalent surface to check surface operator
     // is poorly conditioned. In this case, truncate the singular values 
     // to solve a regularized least squares version of the problem.
-    auto svd = svd_decompose(equiv_to_check);
-    const double truncation_threshold = 1e-13;
+    auto svd = svd_decompose(equiv_to_check.data(), n_surf);
+    const double truncation_threshold = 1e-15;
     set_threshold(svd, truncation_threshold);
     return {check_surf, svd_pseudoinverse(svd)};
 }
@@ -176,7 +165,7 @@ void p2m(Workspace& ws, const KDNode& src_n, C2E& c2e) {
     
     for (size_t i = 0; i < n_surf; i++) {
         for (size_t j = 0; j < n_pts; j++) {
-            ws.result.p2m.rows.push_back(ws.get_multipole_start(src_n) + i);
+            ws.result.p2m.rows.push_back(src_n.idx * n_surf + i);
             ws.result.p2m.cols.push_back(src_n.start + j);
             ws.result.p2m.vals.push_back(p2m_op[i * n_pts + j]); 
         }
@@ -196,16 +185,17 @@ void m2m(Workspace& ws, const KDNode& parent_n, const KDNode& child_n, C2E& c2e)
 
     for (size_t i = 0; i < n_surf; i++) {
         for (size_t j = 0; j < n_surf; j++) {
-            ws.result.m2m.rows.push_back(ws.get_multipole_start(parent_n) + i);
-            ws.result.m2m.cols.push_back(ws.get_multipole_start(child_n) + j);
+            ws.result.m2m.rows.push_back(parent_n.idx * n_surf + i);
+            ws.result.m2m.cols.push_back(child_n.idx * n_surf + j);
             ws.result.m2m.vals.push_back(m2m_op[i * n_surf + j]);
         }
     }
 }
 
 void m2m_identity(Workspace& ws, const KDNode& src_n) {
-    for (size_t i = 0; i < ws.cfg.surf.size(); i++) {
-        auto idx = ws.get_multipole_start(src_n) + i;
+    auto n_surf = ws.cfg.surf.size();
+    for (size_t i = 0; i < n_surf; i++) {
+        auto idx = src_n.idx * n_surf + i;
         ws.result.m2m.rows.push_back(idx);
         ws.result.m2m.cols.push_back(idx);
         ws.result.m2m.vals.push_back(-1.0);
@@ -213,17 +203,16 @@ void m2m_identity(Workspace& ws, const KDNode& src_n) {
 }
 
 void traverse(Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
-    auto r_src = hypot(src_n.bounds.half_width);
-    auto r_obs = hypot(obs_n.bounds.half_width);
-    double r_max = std::max(r_src, r_obs);
-    double r_min = std::min(r_src, r_obs);
+    auto r_src = src_n.bounds.r;
+    auto r_obs = obs_n.bounds.r;
     auto sep = hypot(sub(obs_n.bounds.center, src_n.bounds.center));
 
-    if (r_max + ws.cfg.mac * r_min <= ws.cfg.mac * sep) {
-        if (src_n.end - src_n.start < ws.cfg.surf.size()) {
+    if (r_src + r_obs < ws.cfg.mac * sep) {
+        bool small_src = src_n.end - src_n.start < ws.cfg.surf.size();
+        // bool small_obs = obs_n.end - obs_n.start < ws.cfg.surf.size();
+        if (small_src) {
             p2p(ws, obs_n, src_n);
         } else {
-            ws.need_multipoles(src_n);
             m2p(ws, obs_n, src_n);
         }
         return;
@@ -246,41 +235,19 @@ void traverse(Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     }
 }
 
-void leaf_multipoles(Workspace& ws, const KDNode& src_n) {
+void up_collect(Workspace& ws, const KDNode& src_n) {
     m2m_identity(ws, src_n);
-    auto c2e = check_to_equiv(ws, src_n);
-    p2m(ws, src_n, c2e);
-}
 
-bool up_collect(Workspace& ws, const KDNode& src_n) {
+    auto c2e = check_to_equiv(ws, src_n);
+
     if (src_n.is_leaf) {
-        if (ws.multipoles_needed[src_n.idx]) {
-            leaf_multipoles(ws, src_n);
-            return true;
-        }
-        return false;
+        p2m(ws, src_n, c2e);
     } else {
-        std::array<bool,2> child_has_ms;
         for (int i = 0; i < 2; i++) {
-            child_has_ms[i] = up_collect(ws, ws.src_tree.nodes[src_n.children[i]]);
+            auto child = ws.src_tree.nodes[src_n.children[i]];
+            up_collect(ws, child);
+            m2m(ws, src_n, child, c2e);
         }
-        if (child_has_ms[0] || child_has_ms[1]) {
-            m2m_identity(ws, src_n);
-            auto c2e = check_to_equiv(ws, src_n);
-            for (int i = 0; i < 2; i++) {
-                auto child = ws.src_tree.nodes[src_n.children[i]];
-                if (!child_has_ms[i]) {
-                    leaf_multipoles(ws, child);
-                }
-                m2m(ws, src_n, child, c2e);
-            }
-            return true;
-        }
-        if (!ws.multipoles_needed[src_n.idx]) {
-            return false;
-        }
-        leaf_multipoles(ws, src_n);
-        return true;
     }
 }
 

@@ -19,25 +19,34 @@ double one(const Vec3&,const Vec3&);
 double inv_r(const Vec3&,const Vec3&);
 
 struct FMMConfig {
+    // I think the MAC needs to < (1.0 / (check_r - 1)) so that farfield
+    // approximations aren't used when the check surface intersects the 
+    // target box.
     double mac;
+    double equiv_r;
+    double check_r;
     std::vector<Vec3> surf;
     Kernel kernel;
-    double equiv_r = 1.1 * std::sqrt(3);
-    double check_r = 2.9 * std::sqrt(3);
 };
 
 struct SparseMat {
     std::vector<int> rows;
     std::vector<int> cols;
     std::vector<double> vals;
+
+    std::vector<double> matvec(double* vec, size_t out_size);
+    size_t get_nnz() { return rows.size(); }
 };
 
 struct FMMMat {
     SparseMat p2p;
     SparseMat p2m;
+    // SparseMat p2l;
     SparseMat m2m;
     SparseMat m2p;
-    std::vector<size_t> multipole_starts; 
+    // SparseMat m2l;
+    // SparseMat l2l;
+    // SparseMat l2p;
 };
 
 FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree, const FMMConfig& cfg);

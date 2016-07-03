@@ -10,37 +10,35 @@ std::ostream& operator<<(std::ostream& os, const Vec3& v) {
     return os;
 }
 
-Box bounding_box(Vec3* pts, size_t n_pts) {
-    if (n_pts == 0) {
-        return {{0,0,0}, {0,0,0}};
-    }
-    auto min_corner = pts[0];
-    auto max_corner = pts[0];
-    for (size_t i = 1; i < n_pts; i++) {
-        for (size_t d = 0; d < 3; d++) {
-            min_corner[d] = std::min(min_corner[d], pts[i][d]);
-            max_corner[d] = std::max(max_corner[d], pts[i][d]);
-        }
-    }
-    Vec3 center;
-    Vec3 half_width;
-    for (size_t d = 0; d < 3; d++) {
-        center[d] = (max_corner[d] + min_corner[d]) * 0.5;
-        half_width[d] = (max_corner[d] - min_corner[d]) * 0.5;
-    }
-    return {center, half_width};
+Vec3 sub(const Vec3& a, const Vec3& b) {
+    return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
 }
 
-Box kd_bounds(Vec3* pts, size_t n_pts, double parent_size) {
-    auto box = bounding_box(pts, n_pts);
+double hypot(const Vec3& v) {
+    return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+}
+
+Sphere kd_bounds(Vec3* pts, size_t n_pts, double parent_size) {
+    Vec3 center_of_mass = {0.0, 0.0, 0.0};
+    for (size_t i = 0; i < n_pts; i++) {
+        for (size_t d = 0; d < 3; d++) {
+            center_of_mass[d] += pts[i][d];
+        }
+    }
+    for (size_t d = 0; d < 3; d++) {
+        center_of_mass[d] /= n_pts;
+    }
+
+    double max_r = 0.0;
+    for (size_t i = 0; i < n_pts; i++) {
+        for (size_t d = 0; d < 3; d++) {
+            max_r = std::max(max_r, hypot(sub(pts[i], center_of_mass)));
+        }
+    }
 
     // Limit sides to being 1 / 50 times the side length of the parent cell
     const static double side_ratio = 1.0 / 50.0;
-    Vec3 hw;
-    for (int d = 0; d < 3; d++) {
-        hw[d] = std::max(parent_size * side_ratio, box.half_width[d]);
-    }
-    return {box.center, hw};
+    return {center_of_mass, std::max(parent_size * side_ratio, max_r)};
 }
 
 KDTree::KDTree(std::vector<Vec3> in_pts, std::vector<Vec3> in_normals,
@@ -73,11 +71,11 @@ size_t KDTree::add_node(size_t start, size_t end, int split_dim,
         nodes.push_back({start, end, bounds, false, n_idx, {0, 0}});
         auto l = add_node(
             start, split - pts.data(), (split_dim + 1) % 3,
-            n_per_cell, bounds.half_width[0]
+            n_per_cell, bounds.r
         );
         auto r = add_node(
             split - pts.data(), end, (split_dim + 1) % 3,
-            n_per_cell, bounds.half_width[0]
+            n_per_cell, bounds.r
         );
         nodes[n_idx].children = {l, r};
         return n_idx;

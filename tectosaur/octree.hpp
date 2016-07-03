@@ -9,15 +9,19 @@ using Vec3 = std::array<double,3>;
 
 std::ostream& operator<<(std::ostream& os, const Vec3&);
 
-struct Box {
+Vec3 sub(const Vec3& a, const Vec3& b);
+double hypot(const Vec3& v);
+
+struct Sphere {
     Vec3 center;
-    Vec3 half_width;
+    double r;
 };
+
 
 struct KDNode {
     size_t start;
     size_t end;
-    Box bounds;
+    Sphere bounds;
     bool is_leaf;
     size_t idx;
     std::array<size_t,2> children;
