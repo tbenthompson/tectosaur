@@ -116,12 +116,12 @@ PYBIND11_PLUGIN(fmm) {
 
     py::class_<FMMConfig>(m, "FMMConfig")
         .def("__init__", 
-            [] (FMMConfig& cfg, double mac, double equiv_r,
+            [] (FMMConfig& cfg, double equiv_r,
                 double check_r, NPArray surf, std::string k_name) 
             {
                 Kernel k{(k_name == "one") ? one : inv_r};
                 new (&cfg) FMMConfig{
-                    mac, equiv_r, check_r, get_vectors(surf), std::move(k)
+                    equiv_r, check_r, get_vectors(surf), std::move(k)
                 };
             }
         );

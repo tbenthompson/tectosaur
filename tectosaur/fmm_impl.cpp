@@ -202,17 +202,24 @@ void m2m_identity(Workspace& ws, const KDNode& src_n) {
     }
 }
 
+static size_t bad = 0;
 void traverse(Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     auto r_src = src_n.bounds.r;
     auto r_obs = obs_n.bounds.r;
     auto sep = hypot(sub(obs_n.bounds.center, src_n.bounds.center));
 
-    if (r_src + r_obs < ws.cfg.mac * sep) {
+    if (r_src + r_obs < (1.0 / (ws.cfg.check_r - 1.0)) * sep) {
         bool small_src = src_n.end - src_n.start < ws.cfg.surf.size();
-        // bool small_obs = obs_n.end - obs_n.start < ws.cfg.surf.size();
+        bool small_obs = obs_n.end - obs_n.start < ws.cfg.surf.size();
         if (small_src) {
+            if (!small_obs) {
+                bad += (obs_n.end - obs_n.start - ws.cfg.surf.size()) * (src_n.end - src_n.start);
+            }
             p2p(ws, obs_n, src_n);
         } else {
+            if (!small_obs) {
+                bad += (obs_n.end - obs_n.start - ws.cfg.surf.size()) * ws.cfg.surf.size();
+            }
             m2p(ws, obs_n, src_n);
         }
         return;
@@ -254,8 +261,14 @@ void up_collect(Workspace& ws, const KDNode& src_n) {
 FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree, const FMMConfig& cfg) {
     FMMMat result;
     Workspace ws(result, obs_tree, src_tree, cfg);
+    bad = 0;
     traverse(ws, obs_tree.root(), src_tree.root());
     up_collect(ws, src_tree.root());
+    std::cout << bad << std::endl;
+    std::cout << bad << std::endl;
+    std::cout << bad << std::endl;
+    std::cout << bad << std::endl;
+    std::cout << bad << std::endl;
     return result;
 }
 

@@ -144,7 +144,7 @@ def run_full(n, make_pts, mac, order, kernel):
     kd = fmm.KDTree(pts, pts, order)
     kd2 = fmm.KDTree(pts2, pts2, order)
     surf = surrounding_surface_sphere(order)
-    fmm_mat = fmm.fmmmmmmm(kd, kd2, fmm.FMMConfig(mac, 1.1, mac, surf, kernel))
+    fmm_mat = fmm.fmmmmmmm(kd, kd2, fmm.FMMConfig(1.1, mac, surf, kernel))
     t.report("build matrices")
 
     n_src = pts.shape[0]
@@ -159,6 +159,7 @@ def run_full(n, make_pts, mac, order, kernel):
     print("m2m: " + str(m2m.nnz / (n ** 2)))
     print("m2p: " + str(fmm_mat.m2p.get_nnz() / (n ** 2)))
     nnz = (fmm_mat.p2p.get_nnz() + p2m.nnz + m2m.nnz + fmm_mat.m2p.get_nnz())
+    print(nnz)
     print("compression ratio: " + str(nnz / (n ** 2)))
     t.report("copy to scipy")
 
@@ -210,7 +211,8 @@ def ellipse_pts(n, source):
     return np.array([x, y, z]).T
 
 def test_irregular():
-    pts, pts2, est = run_full(5000, ellipse_pts, 0.9, 170, "invr")
+    pts, pts2, est = run_full(100000, ellipse_pts, 2.3, 25, "invr")
+    return
     correct = (1.0 / (scipy.spatial.distance.cdist(pts, pts2))).dot(np.ones(pts2.shape[0]))
     error = np.sqrt(np.mean((est - correct) ** 2))
     print("L2ERR: " + str(error / np.mean(correct)))
@@ -234,32 +236,51 @@ def test_invr_multipole_accuracy():
     # plt.show()
     obs_pts = np.random.rand(10000, 3) * 20.0 - 10.0
 
+    # Gauss quadrature based check and equiv surfaces are dramatically inferior
+    # to the uniform nystrom discretization of the sphere.
+    # def basis_fnc(p):
+    #     rt_p = int(np.ceil(np.sqrt(p)))
+    #     uniform_theta = np.linspace(0, 2 * np.pi, rt_p + 1)[:-1]
+    #     import tectosaur.quadrature
+    #     # gauss_phi = (tectosaur.quadrature.gaussxw(rt_p)[0] + 1) * (np.pi / 2.0)
+    #     gauss_phi = np.linspace(0, np.pi, rt_p)
+    #     T, P = np.meshgrid(uniform_theta, gauss_phi)
+    #     x = (np.cos(T) * np.sin(P)).flatten()
+    #     y = (np.sin(T) * np.sin(P)).flatten()
+    #     z = np.cos(P).flatten()
+    #     pts = np.array([x, y, z]).T
+    #     return pts
+
+    basis_fnc = surrounding_surface_sphere
+
     for pC in np.arange(5, 100, 5):
     # for C in np.linspace(2.0, 6.0, 20):
         # pC = 200
         # pE = 225
+        # TRIED USING p_check > p_equiv and it's distinctly NOT useful. Perhaps
+        # a change in spherical basis could be useful.
         pE = pC
         C = 2.0
         E = 1.1
         print(C, pC)
-        check_surf = C * surrounding_surface_sphere(pC)
-        equiv_surf = E * surrounding_surface_sphere(pE)
+        check_surf = C * basis_fnc(pC)
+        equiv_surf = E * basis_fnc(pE)
 
         src_to_check = invr_direct_mat(check_surf, src_pts)
         equiv_to_check = invr_direct_mat(check_surf, equiv_surf)
-        # check_to_equiv = np.linalg.pinv(equiv_to_check, rcond = 1e-15)
+        equiv_to_obs = invr_direct_mat(obs_pts, equiv_surf)
         # SHOULD USE THE ORIGINAL FACTORS FROM THE SVD RATHER THAN COMPUTING
         # A PSEUDOINVERSE SINCE THIS MAINTAINS NUMERICAL PRECISION.
+        # check_to_equiv = np.linalg.pinv(equiv_to_check, rcond = 1e-15)
+        # src_to_equiv = check_to_equiv.dot(src_to_check)
+        # src_to_obs = equiv_to_obs.dot(src_to_equiv)
+        # obs_vals = src_to_obs.dot(np.ones(src_pts.shape[0]))
         c2e_svd = list(np.linalg.svd(equiv_to_check))
         c2e_svd[1] = c2e_svd[1] ** -1
-        # src_to_equiv = check_to_equiv.dot(src_to_check)
-        equiv_to_obs = invr_direct_mat(obs_pts, equiv_surf)
-        # src_to_obs = equiv_to_obs.dot(src_to_equiv)
         obs_vals = equiv_to_obs.dot(
             c2e_svd[2].T.dot(
                 np.diag(c2e_svd[1]).dot(
                     c2e_svd[0].T.dot(src_to_check.dot(np.ones(src_pts.shape[0]))))))
-        # obs_vals = src_to_obs.dot(np.ones(src_pts.shape[0]))
 
         correct = invr_direct_mat(obs_pts, src_pts).dot(np.ones(src_pts.shape[0]))
 

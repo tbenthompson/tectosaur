@@ -19,10 +19,10 @@ double one(const Vec3&,const Vec3&);
 double inv_r(const Vec3&,const Vec3&);
 
 struct FMMConfig {
-    // I think the MAC needs to < (1.0 / (check_r - 1)) so that farfield
+    // The MAC needs to < (1.0 / (check_r - 1)) so that farfield
     // approximations aren't used when the check surface intersects the 
-    // target box.
-    double mac;
+    // target box. How about we just use that as our MAC, since errors 
+    // further from the check surface should flatten out!
     double equiv_r;
     double check_r;
     std::vector<Vec3> surf;
