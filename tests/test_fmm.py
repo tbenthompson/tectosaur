@@ -157,7 +157,6 @@ def run_full(n, make_pts, mac, order, kernel):
     total_nnz = sum(nnz.values())
     print("total nnz: " + str(total_nnz))
     print("compression ratio: " + str(total_nnz / (n ** 2)))
-    t.report("copy to scipy")
 
     # plot_matrix( pts, pts2, p2p p2m, m2p m2m)
 
@@ -224,7 +223,7 @@ def ellipse_pts(n, source):
     return np.array([x, y, z]).T
 
 def test_irregular():
-    pts, pts2, est = run_full(50000, ellipse_pts, 2.6, 35, "invr")
+    pts, pts2, est = run_full(27000, ellipse_pts, 2.6, 35, "invr")
     correct = (1.0 / (scipy.spatial.distance.cdist(pts, pts2))).dot(np.ones(pts2.shape[0]))
     error = np.sqrt(np.mean((est - correct) ** 2))
     print("L2ERR: " + str(error / np.mean(correct)))
