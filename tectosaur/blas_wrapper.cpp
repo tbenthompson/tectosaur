@@ -200,25 +200,21 @@ double condition_number(const SVDPtr& svd)
     return first / last;
 }
 
-std::vector<double> matrix_vector_product(const std::vector<double>& matrix,
-    const std::vector<double>& vector)
+std::vector<double> matrix_vector_product(double* matrix, int n_rows,
+    int n_cols, double* vector)
 {
-    char TRANS = 'T';
-    int n_cols = static_cast<int>(vector.size());
     if (n_cols == 0) {
         return {};
     }
-    int n_matrix_els = static_cast<int>(matrix.size());
-    int n_rows = n_matrix_els / n_cols;
+    char TRANS = 'T';
     double alpha = 1;
     double beta = 0;
     int inc = 1;
-    assert(n_rows * n_cols == n_matrix_els);
     std::vector<double> out(n_rows);
     //IMPORTANT that n_cols and n_rows are switched because the 3bem internal
     //matrix is in row-major order and BLAS expects column major
-    dgemv_(&TRANS, &n_cols, &n_rows, &alpha, (double*)matrix.data(),
-        &n_cols, (double*)vector.data(), &inc, &beta, out.data(), &inc);
+    dgemv_(&TRANS, &n_cols, &n_rows, &alpha, matrix,
+        &n_cols, vector, &inc, &beta, out.data(), &inc);
     return out;
 }
 
@@ -317,7 +313,8 @@ TEST_CASE("matrix vector product")
     std::vector<double> matrix{
         2, 1, -1, 0.5
     };
-    auto result = matrix_vector_product({2, 1, -1, 0.5}, {4, -2});
+    std::vector<double> vec{4, -2};
+    auto result = matrix_vector_product(matrix.data(), 2, 2, vec.data());
     REQUIRE_ARRAY_CLOSE(result, std::vector<double>{6, -5}, 2, 1e-15);
 }
 
@@ -326,13 +323,14 @@ TEST_CASE("matrix vector non-square")
     std::vector<double> matrix{
         2, 1, 1, -1, 0.5, 10
     };
-    auto result = matrix_vector_product(matrix, {4, -2, 0.5});
+    std::vector<double> vec{4,-2,0.5};
+    auto result = matrix_vector_product(matrix.data(), 2, 3, vec.data());
     REQUIRE_ARRAY_CLOSE(result, std::vector<double>{6.5, 0}, 2, 1e-15);
 }
 
 TEST_CASE("matrix vector 0 columns")
 {
-    auto result = matrix_vector_product({}, {});
+    auto result = matrix_vector_product(nullptr, 0, 0, nullptr);
     REQUIRE(result.size() == size_t(0));
 }
 

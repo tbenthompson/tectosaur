@@ -68,56 +68,6 @@ def test_kdtree_contains_pts():
             )
             assert(np.all(dist < n.bounds.r * 1.0001))
 
-def test_p2m():
-    pts1 = np.random.rand(100,3)
-    pts2 = np.random.rand(100,3)
-    pts2[:,0] += 2
-    kd1 = fmm.KDTree(pts1, pts1, 1)
-    kd2 = fmm.KDTree(pts2, pts2, 1)
-    surf = surrounding_surface_sphere(1)
-    fmm_mat = fmm.fmmmmmmm(kd1, kd2, fmm.FMMConfig(1.1, 1.9, surf, "one"))
-    m_lowest = fmm_mat.p2m.matvec(np.ones(100), surf.shape[0] * len(kd2.nodes))
-    for n in kd2.nodes:
-        if not n.is_leaf:
-            continue
-        start_mdof = n.idx * surf.shape[0]
-        end_mdof = start_mdof + surf.shape[0]
-        assert(int(np.round(np.sum(m_lowest[start_mdof:end_mdof]))) == (n.end - n.start))
-
-def test_m2m_m2p():
-    while True:
-        pts1 = np.random.rand(100,3)
-        pts2 = np.random.rand(105,3)
-        pts2[:,0] += 2.0
-        kd1 = fmm.KDTree(pts1, pts1, 2)
-        kd2 = fmm.KDTree(pts2, pts2, 2)
-        surf = surrounding_surface_sphere(10)
-        fmm_mat = fmm.fmmmmmmm(kd1, kd2, fmm.FMMConfig(1.1, 2.9, surf, "one"))
-
-        result = fmm_mat.p2p.matvec(np.ones(pts2.shape[0]), pts1.shape[0])
-        if np.any(np.abs(result) > 1e-5):
-            continue
-
-        n_multipoles = surf.shape[0] * len(kd2.nodes)
-        multipoles = fmm_mat.p2m.matvec(
-            np.ones(pts2.shape[0]), n_multipoles
-        )
-        for mat in fmm_mat.m2m[::-1]:
-            multipoles += mat.matvec(multipoles, n_multipoles)
-
-        n_surf = surf.shape[0]
-        for n in kd2.nodes:
-            start_mdof = n.idx * n_surf
-            end_mdof = start_mdof + surf.shape[0]
-            m_strength = int(np.round(np.sum(multipoles[start_mdof:end_mdof])))
-            n_pts = n.end - n.start
-            assert(m_strength == n_pts)
-
-        result = fmm_mat.m2p.matvec(multipoles, pts1.shape[0])
-        assert(np.all(np.abs(result - pts2.shape[0]) < 1e-3))
-        break
-
-
 def plot_matrix(pts, pts2, p2p, p2m, m2p, m2m):
     dense = np.empty((pts.shape[0] + m2m.shape[0], pts2.shape[0] + m2m.shape[1]))
     dense[:pts.shape[0],:pts2.shape[0]] = p2p.todense()
@@ -150,7 +100,9 @@ def run_full(n, make_pts, mac, order, kernel):
         m2m = sum([m.get_nnz() for m in fmm_mat.m2m]),
         m2l = fmm_mat.m2l.get_nnz(),
         l2p = fmm_mat.l2p.get_nnz(),
-        l2l = sum([m.get_nnz() for m in fmm_mat.l2l])
+        l2l = sum([m.get_nnz() for m in fmm_mat.l2l]),
+        uc2e = sum([m.get_nnz() for m in fmm_mat.uc2e]),
+        dc2e = sum([m.get_nnz() for m in fmm_mat.dc2e])
     )
     for k,v in sorted(nnz.items(), key = lambda k: k[0])[::-1]:
         print(k + " nnz fraction: " + str(v / (n ** 2)))
@@ -227,7 +179,8 @@ def ellipse_pts(n, source):
     return np.array([x, y, z]).T
 
 def test_irregular():
-    pts, pts2, est = run_full(25000, ellipse_pts, 2.6, 35, "invr")
+    pts, pts2, est = run_full(87000, ellipse_pts, 2.6, 35, "invr")
+    return
     correct = (1.0 / (scipy.spatial.distance.cdist(pts, pts2))).dot(np.ones(pts2.shape[0]))
     error = np.sqrt(np.mean((est - correct) ** 2))
     print("L2ERR: " + str(error / np.mean(correct)))

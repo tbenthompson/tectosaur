@@ -53,20 +53,43 @@ double inv_r(const Vec3& obs, const Vec3& src) {
     return 1.0 / std::sqrt(r2);
 }
 
+extern "C" void dgemv_(char* TRANS, int* M, int* N, double* ALPHA, double* A,
+    int* LDA, double* X, int* INCX, double* BETA, double* Y, int* INCY);
 std::vector<double> BlockSparseMat::matvec(double* vec, size_t out_size) {
+    char transpose = 'T';
+    double alpha = 1;
+    double beta = 1;
+    int inc = 1;
     std::vector<double> out(out_size, 0.0);
-    for (size_t i = 0; i < rows.size(); i++) {
-        out[rows[i]] += vals[i] * vec[cols[i]]; 
+    // #pragma omp parallel if(vals.size() > 10000000)
+    // {
+    //     std::vector<double> thread_out(out_size, 0.0);
+    //     #pragma omp for nowait
+    //     for (size_t b_idx = 0; b_idx < blocks.size(); b_idx++) {
+    //         auto& b = blocks[b_idx];
+    //         dgemv_(&transpose, &b.n_cols, &b.n_rows, &alpha, &vals[b.data_start],
+    //             &b.n_cols, &vec[b.col_start], &inc, &beta, &out[b.row_start], &inc);
+    //     }
+    //     #pragma omp critical
+    //     for (size_t i = 0; i < thread_out.size(); i++) {
+    //         out[i] += thread_out[i];
+    //     }
+    // }
+    for (size_t b_idx = 0; b_idx < blocks.size(); b_idx++) {
+        auto& b = blocks[b_idx];
+        dgemv_(&transpose, &b.n_cols, &b.n_rows, &alpha, &vals[b.data_start],
+            &b.n_cols, &vec[b.col_start], &inc, &beta, &out[b.row_start], &inc);
     }
     return out;
 }
 
 TEST_CASE("matvec") {
-    BlockSparseMat m{{0,1,1}, {1,0,1}, {2.0, 1.0, 3.0}};
-    std::vector<double> in = {-1, 1};
-    auto out = m.matvec(in.data(), 2);
-    REQUIRE(out[0] == 2.0);
+    BlockSparseMat m{{{1,1,2,2,0}}, {0, 2, 1, 3}};
+    std::vector<double> in = {0, -1, 1};
+    auto out = m.matvec(in.data(), 3);
+    REQUIRE(out[0] == 0.0);
     REQUIRE(out[1] == 2.0);
+    REQUIRE(out[2] == 2.0);
 }
 
 void Kernel::direct_nbody(const Vec3* obs_pts, const Vec3* src_pts,
@@ -83,13 +106,10 @@ void to_pts(const Workspace& ws, BlockSparseMat& mat,
     const Vec3* obs_pts, size_t n_obs, size_t obs_dof_start,
     const Vec3* src_pts, size_t n_src, size_t src_dof_start)
 {
-    for (size_t i = 0; i < n_obs; i++) {
-        for (size_t j = 0; j < n_src; j++) {
-            mat.rows.push_back(obs_dof_start + i);
-            mat.cols.push_back(src_dof_start + j);
-        }
-    }
-    auto old_n_vals = mat.vals.size(); 
+    mat.blocks.push_back({
+        obs_dof_start, src_dof_start, int(n_obs), int(n_src), mat.vals.size()
+    });
+    auto old_n_vals = mat.vals.size();
     mat.vals.resize(old_n_vals + n_obs * n_src);
     ws.cfg.kernel.direct_nbody(
         obs_pts, src_pts,
@@ -216,6 +236,30 @@ void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     }
 }
 
+extern "C" void dgelsy_(int* M, int* N, int* NRHS, double* A, int* LDA, double* B,
+    int* LDB, int* JPVT, double* RCOND, int* RANK, double* WORK, int* LWORK,
+    int* INFO);
+
+static int count = 0;
+std::vector<double> qr_pseudoinverse(double* matrix, int n) {
+    count++;
+    std::cout << count << std::endl;
+    std::vector<double> rhs(n * n, 0.0);
+    for (int i = 0; i < n; i++) {
+        rhs[i * n + i] = 1.0; 
+    }
+
+    std::vector<int> jpvt(n, 0);
+    int lwork = 4 * n + 1;
+    std::vector<double> work(lwork);
+    int rank;
+    int info;
+    double rcond = 1e-15;
+    dgelsy_(&n, &n, &n, matrix, &n, rhs.data(), &n, jpvt.data(), 
+        &rcond, &rank, work.data(), &lwork, &info);
+    return rhs;
+}
+
 // invert equiv to check operator
 // In some cases, the equivalent surface to check surface operator
 // is poorly conditioned. In this case, truncate the singular values 
@@ -256,18 +300,17 @@ void c2e(const Workspace& ws, BlockSparseMat& mat,
     //2) Figure out a way to do less of them. Prune tree nodes?
     //   May get about 25-50% faster.
     //3) A faster alternative? QR? <--- This seems like the first step.
-    auto svd = svd_decompose(equiv_to_check.data(), n_surf);
-    const double truncation_threshold = 1e-15;
-    set_threshold(svd, truncation_threshold);
-    auto pinv = svd_pseudoinverse(svd);
     
-    for (size_t i = 0; i < n_surf; i++) {
-        for (size_t j = 0; j < n_surf; j++) {
-            mat.rows.push_back(node.idx * n_surf + i);
-            mat.cols.push_back(node.idx * n_surf + j);
-            mat.vals.push_back(pinv[i * n_surf + j]);
-        }
-    }
+    // auto svd = svd_decompose(equiv_to_check.data(), n_surf);
+    // const double truncation_threshold = 1e-15;
+    // set_threshold(svd, truncation_threshold);
+    // auto pinv = svd_pseudoinverse(svd);
+    auto pinv = qr_pseudoinverse(equiv_to_check.data(), n_surf);
+    
+    mat.blocks.push_back({
+        node.idx * n_surf, node.idx * n_surf, int(n_surf), int(n_surf), mat.vals.size()
+    });
+    mat.vals.insert(mat.vals.end(), pinv.begin(), pinv.end());
 }
 
 void up_collect(const Workspace& ws, const KDNode& src_n) {

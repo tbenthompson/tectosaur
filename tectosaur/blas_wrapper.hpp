@@ -20,6 +20,7 @@ struct SVDDeleter {
 };
 typedef std::unique_ptr<SVD,SVDDeleter> SVDPtr;
 
+std::vector<double> qr_pseudoinverse(double* matrix, int m, int n);
 SVDPtr svd_decompose(double* matrix, int n);
 void set_threshold(const SVDPtr& svd, double threshold);
 std::vector<double> svd_pseudoinverse(const SVDPtr& svd);
@@ -29,7 +30,7 @@ double condition_number(const SVDPtr& svd);
 std::vector<double> mat_mult(int n_out_rows, int n_out_cols,
     bool transposeA, std::vector<double>& A,
     bool transposeB, std::vector<double>& B);
-std::vector<double> matrix_vector_product(const std::vector<double>& matrix,
-    const std::vector<double>& vector);
+std::vector<double> matrix_vector_product(double* matrix, int n_rows,
+    int n_cols, double* vector);
 
 } // end namespace tectosaur
