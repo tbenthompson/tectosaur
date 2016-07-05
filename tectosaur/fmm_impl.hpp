@@ -23,13 +23,13 @@ struct FMMConfig {
     // approximations aren't used when the check surface intersects the 
     // target box. How about we just use that as our MAC, since errors 
     // further from the check surface should flatten out!
-    double equiv_r;
-    double check_r;
+    double inner_r;
+    double outer_r;
     std::vector<Vec3> surf;
     Kernel kernel;
 };
 
-struct SparseMat {
+struct BlockSparseMat {
     std::vector<int> rows;
     std::vector<int> cols;
     std::vector<double> vals;
@@ -69,15 +69,10 @@ struct SparseMat {
 // };
 
 struct FMMMat {
-
-    SparseMat p2p;
-    SparseMat p2m;
-    // SparseMat p2l;
-    std::vector<SparseMat> m2m;
-    SparseMat m2p;
-    // SparseMat m2l;
-    // SparseMat l2l;
-    // SparseMat l2p;
+    BlockSparseMat p2p;
+    BlockSparseMat p2m;
+    std::vector<BlockSparseMat> m2m;
+    BlockSparseMat m2p;
 };
 
 FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree, const FMMConfig& cfg);

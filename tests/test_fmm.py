@@ -36,17 +36,11 @@ def surrounding_surface_sphere(order):
             pts.append((x, y, z))
     return np.array(pts)
 
-def to_scipy(m, shape = None):
-    if len(m.get_vals()) == 0:
-        return scipy.sparse.coo_matrix((0,0))
-    return scipy.sparse.coo_matrix((m.get_vals(), (m.get_rows(), m.get_cols())), shape)
-
 def get_nnz(fmm_mat):
     total_nnz = 0
     mats = []
     for mat in [fmm_mat.p2p, fmm_mat.p2m, fmm_mat.m2p, fmm_mat.m2m]:
-        mat = to_scipy(mat)
-        total_nnz += mat.nnz
+        total_nnz += mat.get_nnz()
         print(mat.nnz)
     print("total nnz: " + str(total_nnz))
 
@@ -81,9 +75,8 @@ def test_p2m():
     kd1 = fmm.KDTree(pts1, pts1, 1)
     kd2 = fmm.KDTree(pts2, pts2, 1)
     surf = surrounding_surface_sphere(1)
-    fmm_mat = fmm.fmmmmmmm(kd1, kd2, fmm.FMMConfig(0.3, 1.1, 2.9, surf, "one"))
-    p2m = to_scipy(fmm_mat.p2m)
-    m_lowest = p2m.dot(np.ones(p2m.shape[1]))
+    fmm_mat = fmm.fmmmmmmm(kd1, kd2, fmm.FMMConfig(1.1, 1.9, surf, "one"))
+    m_lowest = fmm_mat.p2m.matvec(np.ones(100), surf.shape[0] * len(kd2.nodes))
     for n in kd2.nodes:
         if not n.is_leaf:
             continue
@@ -99,25 +92,28 @@ def test_m2m_m2p():
         kd1 = fmm.KDTree(pts1, pts1, 2)
         kd2 = fmm.KDTree(pts2, pts2, 2)
         surf = surrounding_surface_sphere(10)
-        fmm_mat = fmm.fmmmmmmm(kd1, kd2, fmm.FMMConfig(0.4, 1.1, 2.9, surf, "one"))
+        fmm_mat = fmm.fmmmmmmm(kd1, kd2, fmm.FMMConfig(1.1, 2.9, surf, "one"))
 
-        if len(fmm_mat.p2p.get_vals()) > 0:
+        result = fmm_mat.p2p.matvec(np.ones(pts2.shape[0]), pts1.shape[0])
+        if np.any(np.abs(result) > 1e-5):
             continue
 
-        m2m = to_scipy(fmm_mat.m2m)
-        m_lowest = to_scipy(fmm_mat.p2m, (m2m.shape[1], pts2.shape[0]))\
-            .dot(np.ones(pts2.shape[0]))
-        m_all = scipy.sparse.linalg.spsolve(m2m, -m_lowest)
+        n_multipoles = surf.shape[0] * len(kd2.nodes)
+        multipoles = fmm_mat.p2m.matvec(
+            np.ones(pts2.shape[0]), n_multipoles
+        )
+        for mat in fmm_mat.m2m[::-1]:
+            multipoles += mat.matvec(multipoles, n_multipoles)
+
         n_surf = surf.shape[0]
         for n in kd2.nodes:
             start_mdof = n.idx * n_surf
             end_mdof = start_mdof + surf.shape[0]
-            m_strength = int(np.round(np.sum(m_all[start_mdof:end_mdof])))
+            m_strength = int(np.round(np.sum(multipoles[start_mdof:end_mdof])))
             n_pts = n.end - n.start
             assert(m_strength == n_pts)
 
-        m2p = to_scipy(fmm_mat.m2p, (pts1.shape[0], m_all.shape[0]))
-        result = m2p.dot(m_all)
+        result = fmm_mat.m2p.matvec(multipoles, pts1.shape[0])
         assert(np.all(np.abs(result - pts2.shape[0]) < 1e-3))
         break
 
@@ -146,40 +142,40 @@ def run_full(n, make_pts, mac, order, kernel):
     n_src = pts.shape[0]
     n_obs = pts2.shape[0]
 
-    m2m = to_scipy(fmm_mat.m2m)
-    p2m = to_scipy(fmm_mat.p2m, (m2m.shape[1], pts2.shape[0]))
+    m2m_nnz = sum([m.get_nnz() for m in fmm_mat.m2m])
     print("p2p: " + str(fmm_mat.p2p.get_nnz() / (n ** 2)))
-    print("p2m: " + str(p2m.nnz / (n ** 2)))
-    print("m2m: " + str(m2m.nnz / (n ** 2)))
+    print("p2m: " + str(fmm_mat.p2m.get_nnz() / (n ** 2)))
+    print("m2m: " + str(m2m_nnz / (n ** 2)))
     print("m2p: " + str(fmm_mat.m2p.get_nnz() / (n ** 2)))
-    nnz = (fmm_mat.p2p.get_nnz() + p2m.nnz + m2m.nnz + fmm_mat.m2p.get_nnz())
+    nnz = (
+        fmm_mat.p2p.get_nnz() + fmm_mat.p2m.get_nnz() +
+        m2m_nnz + fmm_mat.m2p.get_nnz()
+    )
     print(nnz)
     print("compression ratio: " + str(nnz / (n ** 2)))
     t.report("copy to scipy")
 
-
-    p2p = to_scipy(fmm_mat.p2p, (pts.shape[0], pts2.shape[0]))
-    m2p = to_scipy(fmm_mat.m2p, (pts.shape[0], m2m.shape[0]))
     # plot_matrix( pts, pts2, p2p p2m, m2p m2m)
-
 
     input_vals = np.ones(pts2.shape[0])
     t.report("make input")
 
-    t2 = Timer()
     p2p_comp = fmm_mat.p2p.matvec(input_vals, pts.shape[0])
     est = p2p_comp
     t.report("p2p")
-    if p2m.shape[1] > 0:
-        m_lowest = p2m.dot(input_vals)
-        t.report("p2m")
-        m_all = scipy.sparse.linalg.spsolve(m2m, -m_lowest)
-        t.report("m2m")
-        m2p_comp = fmm_mat.m2p.matvec(m_all, pts.shape[0])
-        t.report("m2p")
-        est += m2p_comp
-        t.report("sum")
-    t2.report("matvec")
+
+    n_multipoles = surf.shape[0] * len(kd2.nodes)
+    multipoles = fmm_mat.p2m.matvec(
+        np.ones(pts2.shape[0]), n_multipoles
+    )
+    for mat in fmm_mat.m2m[::-1]:
+        multipoles += mat.matvec(multipoles, n_multipoles)
+
+    t.report("p2m/m2m")
+
+    est += fmm_mat.m2p.matvec(multipoles, pts.shape[0])
+    t.report("m2p")
+
     return np.array(kd.pts), np.array(kd2.pts), est
 
 def rand_pts(n, source):
@@ -211,7 +207,7 @@ def ellipse_pts(n, source):
     return np.array([x, y, z]).T
 
 def test_irregular():
-    pts, pts2, est = run_full(40000, ellipse_pts, 2.7, 135, "invr")
+    pts, pts2, est = run_full(50000, ellipse_pts, 2.6, 35, "invr")
     correct = (1.0 / (scipy.spatial.distance.cdist(pts, pts2))).dot(np.ones(pts2.shape[0]))
     error = np.sqrt(np.mean((est - correct) ** 2))
     print("L2ERR: " + str(error / np.mean(correct)))

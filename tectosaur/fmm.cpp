@@ -98,12 +98,9 @@ PYBIND11_PLUGIN(fmm) {
         .def_readonly("nodes", &KDTree::nodes)
         .def_readonly("pts", &KDTree::pts);
 
-    py::class_<SparseMat>(m, "SparseMat")
-        .def("get_rows", [] (SparseMat& s) { return array_from_vector(s.rows); })
-        .def("get_cols", [] (SparseMat& s) { return array_from_vector(s.cols); })
-        .def("get_vals", [] (SparseMat& s) { return array_from_vector(s.vals); })
-        .def("get_nnz", &SparseMat::get_nnz)
-        .def("matvec", [] (SparseMat& s, NPArray v, size_t n_rows) {
+    py::class_<BlockSparseMat>(m, "BlockSparseMat")
+        .def("get_nnz", &BlockSparseMat::get_nnz)
+        .def("matvec", [] (BlockSparseMat& s, NPArray v, size_t n_rows) {
             auto out = s.matvec(reinterpret_cast<double*>(v.request().ptr), n_rows);
             return array_from_vector(out);
         });

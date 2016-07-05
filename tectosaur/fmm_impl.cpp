@@ -40,8 +40,8 @@ struct Workspace {
         result(result), obs_tree(obs_tree), src_tree(src_tree), cfg(cfg)
     {}
 
-    std::vector<Vec3> get_equiv_surf(const KDNode& src_n) const {
-        return inscribe_surf(src_n.bounds, cfg.equiv_r, cfg.surf);
+    std::vector<Vec3> get_surf(const KDNode& src_n, double r) const {
+        return inscribe_surf(src_n.bounds, r, cfg.surf);
     }
 };
 
@@ -53,7 +53,7 @@ double inv_r(const Vec3& obs, const Vec3& src) {
     return 1.0 / std::sqrt(r2);
 }
 
-std::vector<double> SparseMat::matvec(double* vec, size_t out_size) {
+std::vector<double> BlockSparseMat::matvec(double* vec, size_t out_size) {
     std::vector<double> out(out_size, 0.0);
     for (size_t i = 0; i < rows.size(); i++) {
         out[rows[i]] += vals[i] * vec[cols[i]]; 
@@ -62,7 +62,7 @@ std::vector<double> SparseMat::matvec(double* vec, size_t out_size) {
 }
 
 TEST_CASE("matvec") {
-    SparseMat m{{0,1,1}, {1,0,1}, {2.0, 1.0, 3.0}};
+    BlockSparseMat m{{0,1,1}, {1,0,1}, {2.0, 1.0, 3.0}};
     std::vector<double> in = {-1, 1};
     auto out = m.matvec(in.data(), 2);
     REQUIRE(out[0] == 2.0);
@@ -108,9 +108,9 @@ void m2p(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     }
     auto old_n_vals = ws.result.m2p.vals.size(); 
     ws.result.m2p.vals.resize(old_n_vals + n_obs * n_src);
+    auto equiv_surf = ws.get_surf(src_n, ws.cfg.inner_r);
     ws.cfg.kernel.direct_nbody(
-        &ws.obs_tree.pts[obs_n.start],
-        ws.get_equiv_surf(src_n).data(),
+        &ws.obs_tree.pts[obs_n.start], equiv_surf.data(),
         n_obs, n_src, &ws.result.m2p.vals[old_n_vals]
     );
 }
@@ -122,8 +122,8 @@ struct C2E {
 
 C2E check_to_equiv(const Workspace& ws, const KDNode& src_n) {
     // equiv surface to check surface
-    auto equiv_surf = ws.get_equiv_surf(src_n);
-    auto check_surf = inscribe_surf(src_n.bounds, ws.cfg.check_r, ws.cfg.surf);
+    auto equiv_surf = ws.get_surf(src_n, ws.cfg.inner_r);
+    auto check_surf = ws.get_surf(src_n, ws.cfg.outer_r);
     auto n_surf = ws.cfg.surf.size();
 
     std::vector<double> equiv_to_check(n_surf * n_surf);
@@ -142,7 +142,8 @@ C2E check_to_equiv(const Workspace& ws, const KDNode& src_n) {
     return {check_surf, svd_pseudoinverse(svd)};
 }
 
-void p2m(const Workspace& ws, const KDNode& src_n, C2E& c2e) {
+void p2m(const Workspace& ws, const KDNode& src_n) {
+    auto c2e = check_to_equiv(ws, src_n);
 
     auto n_surf = ws.cfg.surf.size();
     auto n_pts = src_n.end - src_n.start;
@@ -166,33 +167,31 @@ void p2m(const Workspace& ws, const KDNode& src_n, C2E& c2e) {
     }
 }
 
-void m2m(const Workspace& ws, const KDNode& parent_n, const KDNode& child_n, C2E& c2e) {
+void m2m(const Workspace& ws, const KDNode& parent_n, const KDNode& child_n) {
+    auto c2e = check_to_equiv(ws, parent_n);
     auto n_surf = c2e.check_surf.size();
 
     std::vector<double> child_to_check(n_surf * n_surf);
+    auto equiv_surf = ws.get_surf(child_n, ws.cfg.inner_r);
     ws.cfg.kernel.direct_nbody(
-        c2e.check_surf.data(), ws.get_equiv_surf(child_n).data(), n_surf,
+        c2e.check_surf.data(), equiv_surf.data(), n_surf,
         n_surf, child_to_check.data()
     );
 
     auto m2m_op = mat_mult(n_surf, n_surf, false, c2e.op, false, child_to_check);
 
+    auto depth = parent_n.depth;
+    if (ws.result.m2m.size() <= size_t(depth)) {
+        ws.result.m2m.resize(depth + 1);
+    }
+    assert(depth < ws.result.m2m.size());
+    auto& mat = ws.result.m2m[depth];
     for (size_t i = 0; i < n_surf; i++) {
         for (size_t j = 0; j < n_surf; j++) {
-            ws.result.m2m.rows.push_back(parent_n.idx * n_surf + i);
-            ws.result.m2m.cols.push_back(child_n.idx * n_surf + j);
-            ws.result.m2m.vals.push_back(m2m_op[i * n_surf + j]);
+            mat.rows.push_back(parent_n.idx * n_surf + i);
+            mat.cols.push_back(child_n.idx * n_surf + j);
+            mat.vals.push_back(m2m_op[i * n_surf + j]);
         }
-    }
-}
-
-void m2m_identity(const Workspace& ws, const KDNode& src_n) {
-    auto n_surf = ws.cfg.surf.size();
-    for (size_t i = 0; i < n_surf; i++) {
-        auto idx = src_n.idx * n_surf + i;
-        ws.result.m2m.rows.push_back(idx);
-        ws.result.m2m.cols.push_back(idx);
-        ws.result.m2m.vals.push_back(-1.0);
     }
 }
 
@@ -202,7 +201,12 @@ void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     auto r_obs = obs_n.bounds.r;
     auto sep = hypot(sub(obs_n.bounds.center, src_n.bounds.center));
 
-    if (r_src + r_obs < (1.0 / (ws.cfg.check_r - 1.0)) * sep) {
+    // If outer_r * r_src + inner_r * r_obs is less than the separation, then
+    // the relevant check surfaces for the two interacting cells don't intersect.
+    // That means it should be safe to perform approximate interactions. I add
+    // a small safety factor just in case!
+    double safety_factor = 0.98;
+    if (ws.cfg.outer_r * r_src + ws.cfg.inner_r * r_obs < safety_factor * sep) {
         bool small_src = src_n.end - src_n.start < ws.cfg.surf.size();
         bool small_obs = obs_n.end - obs_n.start < ws.cfg.surf.size();
         if (small_src) {
@@ -237,16 +241,33 @@ void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
 }
 
 void up_collect(const Workspace& ws, const KDNode& src_n) {
-    m2m_identity(ws, src_n);
-    auto c2e = check_to_equiv(ws, src_n);
-
     if (src_n.is_leaf) {
-        p2m(ws, src_n, c2e);
+        p2m(ws, src_n);
     } else {
         for (int i = 0; i < 2; i++) {
             auto child = ws.src_tree.nodes[src_n.children[i]];
             up_collect(ws, child);
-            m2m(ws, src_n, child, c2e);
+            m2m(ws, src_n, child);
+        }
+    }
+}
+
+void l2p(const Workspace& ws, const KDNode& obs_n) {
+
+}
+
+void l2l(const Workspace& ws, const KDNode& obs_n, const KDNode& child) {
+
+}
+
+void down_collect(const Workspace& ws, const KDNode& obs_n) {
+    if (obs_n.is_leaf) {
+        l2p(ws, obs_n);
+    } else {
+        for (int i = 0; i < 2; i++) {
+            auto child = ws.obs_tree.nodes[obs_n.children[i]];
+            down_collect(ws, child);
+            l2l(ws, obs_n, child);
         }
     }
 }
