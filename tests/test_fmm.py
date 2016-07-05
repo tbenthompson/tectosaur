@@ -169,21 +169,25 @@ def run_full(n, make_pts, mac, order, kernel):
     est = fmm_mat.p2p.matvec(input_vals, pts.shape[0])
     t.report("p2p")
 
-    multipoles = fmm_mat.p2m.matvec(input_vals, n_multipoles)
+    m_check = fmm_mat.p2m.matvec(input_vals, n_multipoles)
+    multipoles = fmm_mat.uc2e[0].matvec(m_check, n_multipoles)
+
     t.report("p2m")
-    for mat in fmm_mat.m2m[::-1]:
-        multipoles += mat.matvec(multipoles, n_multipoles)
+    for m2m, uc2e in zip(fmm_mat.m2m[1:], fmm_mat.uc2e[1:]):
+        m_check = m2m.matvec(multipoles, n_multipoles)
+        multipoles += uc2e.matvec(m_check, n_multipoles)
     t.report("m2m")
 
-    locals = fmm_mat.p2l.matvec(input_vals, n_locals)
+    l_check = fmm_mat.p2l.matvec(input_vals, n_locals)
     t.report("p2l")
-    locals += fmm_mat.m2l.matvec(multipoles, n_locals)
+    l_check += fmm_mat.m2l.matvec(multipoles, n_locals)
     t.report("m2l")
 
-    for mat in fmm_mat.l2l:
-        locals += mat.matvec(locals, n_locals)
+    locals = np.zeros(n_locals)
+    for l2l, dc2e in zip(fmm_mat.l2l, fmm_mat.dc2e):
+        l_check += l2l.matvec(locals, n_locals)
+        locals += dc2e.matvec(l_check, n_locals)
     t.report("l2l")
-
 
     est += fmm_mat.m2p.matvec(multipoles, pts.shape[0])
     t.report("m2p")
@@ -223,7 +227,7 @@ def ellipse_pts(n, source):
     return np.array([x, y, z]).T
 
 def test_irregular():
-    pts, pts2, est = run_full(27000, ellipse_pts, 2.6, 35, "invr")
+    pts, pts2, est = run_full(5000, ellipse_pts, 2.6, 35, "invr")
     correct = (1.0 / (scipy.spatial.distance.cdist(pts, pts2))).dot(np.ones(pts2.shape[0]))
     error = np.sqrt(np.mean((est - correct) ** 2))
     print("L2ERR: " + str(error / np.mean(correct)))

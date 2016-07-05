@@ -22,6 +22,7 @@ struct KDNode {
     size_t end;
     Sphere bounds;
     bool is_leaf;
+    int height;
     int depth;
     size_t idx;
     std::array<size_t,2> children;
@@ -31,6 +32,7 @@ struct KDTree {
     std::vector<Vec3> pts;
     std::vector<Vec3> normals;
     size_t n_pts;
+    int max_height;
     int max_depth;
     std::vector<KDNode> nodes;
 

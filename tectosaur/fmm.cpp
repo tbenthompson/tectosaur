@@ -113,7 +113,9 @@ PYBIND11_PLUGIN(fmm) {
         .def_readonly("m2m", &FMMMat::m2m)
         .def_readonly("m2l", &FMMMat::m2l)
         .def_readonly("l2p", &FMMMat::l2p)
-        .def_readonly("l2l", &FMMMat::l2l);
+        .def_readonly("l2l", &FMMMat::l2l)
+        .def_readonly("uc2e", &FMMMat::uc2e)
+        .def_readonly("dc2e", &FMMMat::dc2e);
 
     py::class_<FMMConfig>(m, "FMMConfig")
         .def("__init__", 

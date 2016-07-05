@@ -77,6 +77,9 @@ struct FMMMat {
     BlockSparseMat m2l;
     BlockSparseMat l2p;
     std::vector<BlockSparseMat> l2l;
+
+    std::vector<BlockSparseMat> uc2e;
+    std::vector<BlockSparseMat> dc2e;
 };
 
 FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree, const FMMConfig& cfg);

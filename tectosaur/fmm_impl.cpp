@@ -29,17 +29,6 @@ TEST_CASE("inscribe") {
     REQUIRE_ARRAY_EQUAL(s[2], Vec3{1,1,2}, 3);
 }
 
-struct C2E {
-    std::vector<Vec3> check_surf; 
-    std::vector<double> op;
-};
-
-struct Workspace;
-
-C2E check_to_equiv(const Workspace& ws, const KDNode& node,
-    double equiv_r, double check_r);
-
-
 struct Workspace {
     FMMMat& result;
     const KDTree& obs_tree;
@@ -55,44 +44,6 @@ struct Workspace {
         return inscribe_surf(src_n.bounds, r, cfg.surf);
     }
 };
-
-C2E check_to_equiv(const Workspace& ws, const KDNode& node,
-    double equiv_r, double check_r) 
-{
-    // equiv surface to check surface
-    auto equiv_surf = ws.get_surf(node, equiv_r);
-    auto check_surf = ws.get_surf(node, check_r);
-    auto n_surf = ws.cfg.surf.size();
-
-    std::vector<double> equiv_to_check(n_surf * n_surf);
-    ws.cfg.kernel.direct_nbody(
-        check_surf.data(), equiv_surf.data(),
-        n_surf, n_surf, equiv_to_check.data()
-    );
-
-    // invert equiv to check operator
-    // In some cases, the equivalent surface to check surface operator
-    // is poorly conditioned. In this case, truncate the singular values 
-    // to solve a regularized least squares version of the problem.
-    // TODO: There is quite a bit of numerical error incurred by storing this
-    // fully inverted and truncated. 
-    // Can I just store it in factored form? Increases complexity.
-    // Without doing this, the error is can't be any lower than ~10^-10. Including
-    // this, the error can get down to 10^-15.
-    // I don't expect to need anything better than 10^-10. But in single precision,
-    // the number may be much lower. In which case, I may need to go to double
-    // precision sooner than I'd prefer. 
-    // So, I see two ways to design this. I can store the check to equiv matrix
-    // along with each block that needs it. Or, I can separate the P2M, M2M, M2L,
-    // P2L, L2L into two steps each: P2M, M2M, M2L, P2L, L2L and UC2E and DC2E
-    // (Up check to equiv and down check to equiv)
-    // The latter approach seems better, since less needs to be stored. The
-    // U2M and D2L matrices should be separated by level like M2M and L2L.
-    auto svd = svd_decompose(equiv_to_check.data(), n_surf);
-    const double truncation_threshold = 1e-15;
-    set_threshold(svd, truncation_threshold);
-    return {check_surf, svd_pseudoinverse(svd)};
-}
 
 double one(const Vec3& obs, const Vec3& src) { return 1.0; }
 
@@ -172,70 +123,50 @@ void l2p(const Workspace& ws, const KDNode& obs_n) {
     );
 }
 
-void to_appx(const Workspace& ws, const KDNode& obs_n,
-    const Vec3* src_pts, size_t n_src, size_t src_start_dof,
-    BlockSparseMat& mat, double check_r, double equiv_r) 
-{
-    auto c2e = check_to_equiv(ws, obs_n, equiv_r, check_r);
-
-    auto n_surf = ws.cfg.surf.size();
-
-    // points to check surface
-    std::vector<double> pts_to_check(n_src * n_surf);
-    ws.cfg.kernel.direct_nbody(
-         c2e.check_surf.data(), src_pts, n_surf, n_src, pts_to_check.data()
-    );
-
-    // multiply with points to check operator
-    auto op = mat_mult(n_surf, n_src, false, c2e.op, false, pts_to_check);
-    
-    for (size_t i = 0; i < n_surf; i++) {
-        for (size_t j = 0; j < n_src; j++) {
-            mat.rows.push_back(obs_n.idx * n_surf + i);
-            mat.cols.push_back(src_start_dof + j);
-            mat.vals.push_back(op[i * n_src + j]); 
-        }
-    }
-}
-
 void p2m(const Workspace& ws, const KDNode& src_n) {
-    to_appx(ws, src_n,
-        &ws.src_tree.pts[src_n.start], src_n.end - src_n.start, src_n.start,
-        ws.result.p2m, ws.cfg.outer_r, ws.cfg.inner_r
+    auto check = ws.get_surf(src_n, ws.cfg.outer_r);
+    to_pts(
+        ws, ws.result.p2m,
+        check.data(), ws.cfg.surf.size(), src_n.idx * ws.cfg.surf.size(),
+        &ws.src_tree.pts[src_n.start], src_n.end - src_n.start, src_n.start
     );
 }
 
 void m2m(const Workspace& ws, const KDNode& parent_n, const KDNode& child_n) {
+    auto check = ws.get_surf(parent_n, ws.cfg.outer_r);
     auto equiv = ws.get_surf(child_n, ws.cfg.inner_r);
-    to_appx(
-        ws, parent_n,
-        equiv.data(), ws.cfg.surf.size(), child_n.idx * ws.cfg.surf.size(),
-        ws.result.m2m[parent_n.depth], ws.cfg.outer_r, ws.cfg.inner_r
+    to_pts(
+        ws, ws.result.m2m[parent_n.height],
+        check.data(), ws.cfg.surf.size(), parent_n.idx * ws.cfg.surf.size(),
+        equiv.data(), ws.cfg.surf.size(), child_n.idx * ws.cfg.surf.size()
     );
 }
 
 void l2l(const Workspace& ws, const KDNode& parent_n, const KDNode& child_n) {
+    auto check = ws.get_surf(child_n, ws.cfg.inner_r);
     auto equiv = ws.get_surf(parent_n, ws.cfg.outer_r);
-    to_appx(
-        ws, child_n,
-        equiv.data(), ws.cfg.surf.size(), parent_n.idx * ws.cfg.surf.size(),
-        ws.result.l2l[child_n.depth], ws.cfg.inner_r, ws.cfg.outer_r
+    to_pts(
+        ws, ws.result.l2l[child_n.depth],
+        check.data(), ws.cfg.surf.size(), child_n.idx * ws.cfg.surf.size(),
+        equiv.data(), ws.cfg.surf.size(), parent_n.idx * ws.cfg.surf.size()
     );
 }
 
 void p2l(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
-    to_appx(ws, obs_n,
-        &ws.src_tree.pts[src_n.start], src_n.end - src_n.start, src_n.start,
-        ws.result.p2l, ws.cfg.inner_r, ws.cfg.outer_r
+    auto check = ws.get_surf(obs_n, ws.cfg.inner_r);
+    to_pts(ws, ws.result.p2l,
+        check.data(), ws.cfg.surf.size(), obs_n.idx * ws.cfg.surf.size(),
+        &ws.src_tree.pts[src_n.start], src_n.end - src_n.start, src_n.start
     );
 }
 
 void m2l(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
+    auto check = ws.get_surf(obs_n, ws.cfg.inner_r);
     auto equiv = ws.get_surf(src_n, ws.cfg.inner_r);
-    to_appx(
-        ws, obs_n,
-        equiv.data(), ws.cfg.surf.size(), src_n.idx * ws.cfg.surf.size(),
-        ws.result.m2l, ws.cfg.inner_r, ws.cfg.outer_r
+    to_pts(
+        ws, ws.result.m2l,
+        check.data(), ws.cfg.surf.size(), obs_n.idx * ws.cfg.surf.size(),
+        equiv.data(), ws.cfg.surf.size(), src_n.idx * ws.cfg.surf.size()
     );
 }
 
@@ -259,6 +190,7 @@ void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
         } else if (small_src) {
             p2l(ws, obs_n, src_n);
         } else {
+            // m2p(ws, obs_n, src_n);
             m2l(ws, obs_n, src_n);
         }
         return;
@@ -281,7 +213,52 @@ void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     }
 }
 
+// invert equiv to check operator
+// In some cases, the equivalent surface to check surface operator
+// is poorly conditioned. In this case, truncate the singular values 
+// to solve a regularized least squares version of the problem.
+// TODO: There is quite a bit of numerical error incurred by storing this
+// fully inverted and truncated. 
+// Can I just store it in factored form? Increases complexity.
+// Without doing this, the error is can't be any lower than ~10^-10. Including
+// this, the error can get down to 10^-15.
+// I don't expect to need anything better than 10^-10. But in single precision,
+// the number may be much lower. In which case, I may need to go to double
+// precision sooner than I'd prefer. 
+// So, I see two ways to design this. I can store the check to equiv matrix
+// along with each block that needs it. Or, I can separate the P2M, M2M, M2L,
+// P2L, L2L into two steps each: P2M, M2M, M2L, P2L, L2L and UC2E and DC2E
+// (Up check to equiv and down check to equiv)
+// The latter approach seems better, since less needs to be stored. The
+// U2M and D2L matrices should be separated by level like M2M and L2L.
+void c2e(const Workspace& ws, BlockSparseMat& mat,
+    const KDNode& node, double check_r, double equiv_r) 
+{
+    auto equiv_surf = ws.get_surf(node, equiv_r);
+    auto check_surf = ws.get_surf(node, check_r);
+    auto n_surf = ws.cfg.surf.size();
+
+    std::vector<double> equiv_to_check(n_surf * n_surf);
+    ws.cfg.kernel.direct_nbody(
+        check_surf.data(), equiv_surf.data(),
+        n_surf, n_surf, equiv_to_check.data()
+    );
+    auto svd = svd_decompose(equiv_to_check.data(), n_surf);
+    const double truncation_threshold = 1e-15;
+    set_threshold(svd, truncation_threshold);
+    auto pinv = svd_pseudoinverse(svd);
+    
+    for (size_t i = 0; i < n_surf; i++) {
+        for (size_t j = 0; j < n_surf; j++) {
+            mat.rows.push_back(node.idx * n_surf + i);
+            mat.cols.push_back(node.idx * n_surf + j);
+            mat.vals.push_back(pinv[i * n_surf + j]);
+        }
+    }
+}
+
 void up_collect(const Workspace& ws, const KDNode& src_n) {
+    c2e(ws, ws.result.uc2e[src_n.height], src_n, ws.cfg.outer_r, ws.cfg.inner_r);
     if (src_n.is_leaf) {
         p2m(ws, src_n);
     } else {
@@ -294,7 +271,7 @@ void up_collect(const Workspace& ws, const KDNode& src_n) {
 }
 
 void down_collect(const Workspace& ws, const KDNode& obs_n) {
-    // c2e(ws, obs_n, ws.cfg.);
+    c2e(ws, ws.result.dc2e[obs_n.depth], obs_n, ws.cfg.inner_r, ws.cfg.outer_r);
     if (obs_n.is_leaf) {
         l2p(ws, obs_n);
     } else {
@@ -307,14 +284,18 @@ void down_collect(const Workspace& ws, const KDNode& obs_n) {
 }
 
 FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree, const FMMConfig& cfg) {
+
     FMMMat result;
-    result.m2m.resize(src_tree.max_depth + 1);
+    result.m2m.resize(src_tree.max_height + 1);
     result.l2l.resize(obs_tree.max_depth + 1);
+    result.uc2e.resize(src_tree.max_height + 1);
+    result.dc2e.resize(obs_tree.max_depth + 1);
+
     Workspace ws(result, obs_tree, src_tree, cfg);
     up_collect(ws, src_tree.root());
     down_collect(ws, obs_tree.root());
     traverse(ws, obs_tree.root(), src_tree.root());
-    std::cout << result.m2m.size() << std::endl;
+
     return result;
 }
 
