@@ -35,19 +35,13 @@ struct Workspace {
     const KDTree& src_tree;
     const FMMConfig& cfg;
 
-    std::vector<std::vector<Vec3>> equiv_surfs;
-
     Workspace(FMMMat& result, const KDTree& obs_tree,
         const KDTree& src_tree, const FMMConfig& cfg):
-        result(result), obs_tree(obs_tree), src_tree(src_tree), cfg(cfg),
-        equiv_surfs(src_tree.nodes.size())
+        result(result), obs_tree(obs_tree), src_tree(src_tree), cfg(cfg)
     {}
 
-    const std::vector<Vec3>& get_equiv_surf(const KDNode& src_n) {
-        if (equiv_surfs[src_n.idx].size() == 0) {
-            equiv_surfs[src_n.idx] = inscribe_surf(src_n.bounds, cfg.equiv_r, cfg.surf);
-        }
-        return equiv_surfs[src_n.idx];
+    std::vector<Vec3> get_equiv_surf(const KDNode& src_n) const {
+        return inscribe_surf(src_n.bounds, cfg.equiv_r, cfg.surf);
     }
 };
 
@@ -103,7 +97,7 @@ void p2p(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     );
 }
 
-void m2p(Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
+void m2p(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     size_t n_src = ws.cfg.surf.size();
     size_t n_obs = obs_n.end - obs_n.start;
     for (size_t i = 0; i < n_obs; i++) {
@@ -126,9 +120,9 @@ struct C2E {
     std::vector<double> op;
 };
 
-C2E check_to_equiv(Workspace& ws, const KDNode& src_n) {
+C2E check_to_equiv(const Workspace& ws, const KDNode& src_n) {
     // equiv surface to check surface
-    auto& equiv_surf = ws.get_equiv_surf(src_n);
+    auto equiv_surf = ws.get_equiv_surf(src_n);
     auto check_surf = inscribe_surf(src_n.bounds, ws.cfg.check_r, ws.cfg.surf);
     auto n_surf = ws.cfg.surf.size();
 
@@ -148,7 +142,7 @@ C2E check_to_equiv(Workspace& ws, const KDNode& src_n) {
     return {check_surf, svd_pseudoinverse(svd)};
 }
 
-void p2m(Workspace& ws, const KDNode& src_n, C2E& c2e) {
+void p2m(const Workspace& ws, const KDNode& src_n, C2E& c2e) {
 
     auto n_surf = ws.cfg.surf.size();
     auto n_pts = src_n.end - src_n.start;
@@ -172,7 +166,7 @@ void p2m(Workspace& ws, const KDNode& src_n, C2E& c2e) {
     }
 }
 
-void m2m(Workspace& ws, const KDNode& parent_n, const KDNode& child_n, C2E& c2e) {
+void m2m(const Workspace& ws, const KDNode& parent_n, const KDNode& child_n, C2E& c2e) {
     auto n_surf = c2e.check_surf.size();
 
     std::vector<double> child_to_check(n_surf * n_surf);
@@ -192,7 +186,7 @@ void m2m(Workspace& ws, const KDNode& parent_n, const KDNode& child_n, C2E& c2e)
     }
 }
 
-void m2m_identity(Workspace& ws, const KDNode& src_n) {
+void m2m_identity(const Workspace& ws, const KDNode& src_n) {
     auto n_surf = ws.cfg.surf.size();
     for (size_t i = 0; i < n_surf; i++) {
         auto idx = src_n.idx * n_surf + i;
@@ -203,7 +197,7 @@ void m2m_identity(Workspace& ws, const KDNode& src_n) {
 }
 
 static size_t bad = 0;
-void traverse(Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
+void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     auto r_src = src_n.bounds.r;
     auto r_obs = obs_n.bounds.r;
     auto sep = hypot(sub(obs_n.bounds.center, src_n.bounds.center));
@@ -242,9 +236,8 @@ void traverse(Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     }
 }
 
-void up_collect(Workspace& ws, const KDNode& src_n) {
+void up_collect(const Workspace& ws, const KDNode& src_n) {
     m2m_identity(ws, src_n);
-
     auto c2e = check_to_equiv(ws, src_n);
 
     if (src_n.is_leaf) {
@@ -262,8 +255,8 @@ FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree, const FMMConfig&
     FMMMat result;
     Workspace ws(result, obs_tree, src_tree, cfg);
     bad = 0;
-    traverse(ws, obs_tree.root(), src_tree.root());
     up_collect(ws, src_tree.root());
+    traverse(ws, obs_tree.root(), src_tree.root());
     std::cout << bad << std::endl;
     std::cout << bad << std::endl;
     std::cout << bad << std::endl;

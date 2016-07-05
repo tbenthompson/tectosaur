@@ -38,11 +38,42 @@ struct SparseMat {
     size_t get_nnz() { return rows.size(); }
 };
 
+// There are several approaches to building an FMM Matrix.
+//
+// I should use phases of each depth of the upward tree, with blocks
+// inside the matrices. Then, the m2p,m2l,p2l kernels can be computed
+// in parallel.
+//
+// Don't try to pipeline upward traversal with downward traversal. The
+// upward traversal is such a small portion of the cost and can be run
+// concurrently with the P2P kernels, so there is more than sufficient
+// parallelism.
+//
+// Domain decomposition at the top levels to have multi-gpu/multi-cpu
+// parallelism. Data parallelism at the low levels by flattening the tree
+// or using a triangular solve?
+//
+// A: Build several.
+// struct Block {
+//     size_t row_start;
+//     size_t col_start;
+//     int n_rows;
+//     int n_cols;
+//     size_t data_start;
+// };
+// 
+// struct BlockedMat {
+//     std::vector<size_t> row_ptrs;
+//     std::vector<Block> blocks;
+//     std::vector<double> entries;
+// };
+
 struct FMMMat {
+
     SparseMat p2p;
     SparseMat p2m;
     // SparseMat p2l;
-    SparseMat m2m;
+    std::vector<SparseMat> m2m;
     SparseMat m2p;
     // SparseMat m2l;
     // SparseMat l2l;

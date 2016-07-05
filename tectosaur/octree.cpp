@@ -51,16 +51,16 @@ KDTree::KDTree(std::vector<Vec3> in_pts, std::vector<Vec3> in_normals,
     // For n leaves in a binary tree, there should be 2*n total nodes. Since
     // n_leaves is just an estimate, overallocate by 50% with 3*n total nodes.
     nodes.reserve(3 * n_leaves);
-    add_node(0, in_n_pts, 0, n_per_cell, 1.0);
+    add_node(0, in_n_pts, 0, n_per_cell, 1.0, 0);
 }
 
 size_t KDTree::add_node(size_t start, size_t end, int split_dim,
-    size_t n_per_cell, double parent_size) 
+    size_t n_per_cell, double parent_size, int depth) 
 {
     auto bounds = kd_bounds(pts.data() + start, end - start, parent_size);
 
     if (end - start <= n_per_cell) {
-        nodes.push_back({start, end, bounds, true, nodes.size(), {0, 0}});
+        nodes.push_back({start, end, bounds, true, depth, nodes.size(), {0, 0}});
         return nodes.back().idx;
     } else {
         auto split = std::partition(
@@ -68,14 +68,14 @@ size_t KDTree::add_node(size_t start, size_t end, int split_dim,
             [&] (const Vec3& v) { return v[split_dim] < bounds.center[split_dim]; }
         );
         auto n_idx = nodes.size();
-        nodes.push_back({start, end, bounds, false, n_idx, {0, 0}});
+        nodes.push_back({start, end, bounds, false, depth, n_idx, {0, 0}});
         auto l = add_node(
             start, split - pts.data(), (split_dim + 1) % 3,
-            n_per_cell, bounds.r
+            n_per_cell, bounds.r, depth + 1
         );
         auto r = add_node(
             split - pts.data(), end, (split_dim + 1) % 3,
-            n_per_cell, bounds.r
+            n_per_cell, bounds.r, depth + 1
         );
         nodes[n_idx].children = {l, r};
         return n_idx;

@@ -17,12 +17,12 @@ struct Sphere {
     double r;
 };
 
-
 struct KDNode {
     size_t start;
     size_t end;
     Sphere bounds;
     bool is_leaf;
+    int depth;
     size_t idx;
     std::array<size_t,2> children;
 };
@@ -37,7 +37,7 @@ struct KDTree {
 
     size_t add_node(
         size_t start, size_t end, int split_dim,
-        size_t n_per_cell, double parent_size
+        size_t n_per_cell, double parent_size, int depth
     );
     KDTree(std::vector<Vec3> pts, std::vector<Vec3> normals,
         size_t n_pts, size_t n_per_cell);
