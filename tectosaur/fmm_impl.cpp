@@ -181,6 +181,9 @@ void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     // a small safety factor just in case!
     double safety_factor = 0.98;
     if (ws.cfg.outer_r * r_src + ws.cfg.inner_r * r_obs < safety_factor * sep) {
+        
+        // If there aren't enough src or obs to justify using the approximation,
+        // then just do a p2p direct calculation between the nodes. 
         bool small_src = src_n.end - src_n.start < ws.cfg.surf.size();
         bool small_obs = obs_n.end - obs_n.start < ws.cfg.surf.size();
         if (small_src && small_obs) {
@@ -217,8 +220,10 @@ void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
 // In some cases, the equivalent surface to check surface operator
 // is poorly conditioned. In this case, truncate the singular values 
 // to solve a regularized least squares version of the problem.
+//
 // TODO: There is quite a bit of numerical error incurred by storing this
 // fully inverted and truncated. 
+//
 // Can I just store it in factored form? Increases complexity.
 // Without doing this, the error is can't be any lower than ~10^-10. Including
 // this, the error can get down to 10^-15.
@@ -231,6 +236,7 @@ void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
 // (Up check to equiv and down check to equiv)
 // The latter approach seems better, since less needs to be stored. The
 // U2M and D2L matrices should be separated by level like M2M and L2L.
+// <-- (later note) I did this.
 void c2e(const Workspace& ws, BlockSparseMat& mat,
     const KDNode& node, double check_r, double equiv_r) 
 {
@@ -243,6 +249,13 @@ void c2e(const Workspace& ws, BlockSparseMat& mat,
         check_surf.data(), equiv_surf.data(),
         n_surf, n_surf, equiv_to_check.data()
     );
+
+    //TODO: Currently, svd decomposition is the most time consuming part of 
+    //assembly. How to optimize this? 
+    //1) Batch a bunch of SVDs to the gpu.
+    //2) Figure out a way to do less of them. Prune tree nodes?
+    //   May get about 25-50% faster.
+    //3) A faster alternative? QR? <--- This seems like the first step.
     auto svd = svd_decompose(equiv_to_check.data(), n_surf);
     const double truncation_threshold = 1e-15;
     set_threshold(svd, truncation_threshold);
@@ -292,9 +305,16 @@ FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree, const FMMConfig&
     result.dc2e.resize(obs_tree.max_depth + 1);
 
     Workspace ws(result, obs_tree, src_tree, cfg);
-    up_collect(ws, src_tree.root());
-    down_collect(ws, obs_tree.root());
-    traverse(ws, obs_tree.root(), src_tree.root());
+    #pragma omp parallel
+    #pragma omp single nowait
+    {
+        #pragma omp task
+        up_collect(ws, src_tree.root());
+        #pragma omp task
+        down_collect(ws, obs_tree.root());
+        #pragma omp task
+        traverse(ws, obs_tree.root(), src_tree.root());
+    }
 
     return result;
 }

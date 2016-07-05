@@ -1,6 +1,6 @@
 <% 
 setup_pybind11(cfg)
-cfg['compiler_args'].extend(['-std=c++14', '-O3', '-g', '-Wall', '-Werror', '-fopenmp', '-mavx'])
+cfg['compiler_args'].extend(['-std=c++14', '-O3', '-g', '-Wall', '-Werror', '-fopenmp'])
 cfg['sources'] = ['fmm_impl.cpp', 'octree.cpp', 'blas_wrapper.cpp', 'cpp_tester.cpp']
 cfg['dependencies'] = ['fmm_impl.hpp', 'octree.hpp', 'blas_wrapper.hpp']
 cfg['parallel'] = True

@@ -227,7 +227,7 @@ def ellipse_pts(n, source):
     return np.array([x, y, z]).T
 
 def test_irregular():
-    pts, pts2, est = run_full(5000, ellipse_pts, 2.6, 35, "invr")
+    pts, pts2, est = run_full(25000, ellipse_pts, 2.6, 35, "invr")
     correct = (1.0 / (scipy.spatial.distance.cdist(pts, pts2))).dot(np.ones(pts2.shape[0]))
     error = np.sqrt(np.mean((est - correct) ** 2))
     print("L2ERR: " + str(error / np.mean(correct)))
