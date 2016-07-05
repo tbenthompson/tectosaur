@@ -45,7 +45,8 @@ KDTree::KDTree(std::vector<Vec3> in_pts, std::vector<Vec3> in_normals,
         size_t in_n_pts, size_t n_per_cell):
     pts(std::move(in_pts)),
     normals(std::move(in_normals)),
-    n_pts(in_n_pts)
+    n_pts(in_n_pts),
+    max_depth(0)
 {
     size_t n_leaves = in_n_pts / n_per_cell;
     // For n leaves in a binary tree, there should be 2*n total nodes. Since
@@ -57,6 +58,7 @@ KDTree::KDTree(std::vector<Vec3> in_pts, std::vector<Vec3> in_normals,
 size_t KDTree::add_node(size_t start, size_t end, int split_dim,
     size_t n_per_cell, double parent_size, int depth) 
 {
+    max_depth = std::max(max_depth, depth);
     auto bounds = kd_bounds(pts.data() + start, end - start, parent_size);
 
     if (end - start <= n_per_cell) {

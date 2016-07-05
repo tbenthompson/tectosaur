@@ -31,6 +31,7 @@ struct KDTree {
     std::vector<Vec3> pts;
     std::vector<Vec3> normals;
     size_t n_pts;
+    int max_depth;
     std::vector<KDNode> nodes;
 
     const KDNode& root() const { return nodes.front(); }

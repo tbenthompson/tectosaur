@@ -142,39 +142,56 @@ def run_full(n, make_pts, mac, order, kernel):
     n_src = pts.shape[0]
     n_obs = pts2.shape[0]
 
-    m2m_nnz = sum([m.get_nnz() for m in fmm_mat.m2m])
-    print("p2p: " + str(fmm_mat.p2p.get_nnz() / (n ** 2)))
-    print("p2m: " + str(fmm_mat.p2m.get_nnz() / (n ** 2)))
-    print("m2m: " + str(m2m_nnz / (n ** 2)))
-    print("m2p: " + str(fmm_mat.m2p.get_nnz() / (n ** 2)))
-    nnz = (
-        fmm_mat.p2p.get_nnz() + fmm_mat.p2m.get_nnz() +
-        m2m_nnz + fmm_mat.m2p.get_nnz()
+    nnz = dict(
+        p2p = fmm_mat.p2p.get_nnz(),
+        p2m = fmm_mat.p2m.get_nnz(),
+        p2l = fmm_mat.p2l.get_nnz(),
+        m2p = fmm_mat.m2p.get_nnz(),
+        m2m = sum([m.get_nnz() for m in fmm_mat.m2m]),
+        m2l = fmm_mat.m2l.get_nnz(),
+        l2p = fmm_mat.l2p.get_nnz(),
+        l2l = sum([m.get_nnz() for m in fmm_mat.l2l])
     )
-    print(nnz)
-    print("compression ratio: " + str(nnz / (n ** 2)))
+    for k,v in sorted(nnz.items(), key = lambda k: k[0])[::-1]:
+        print(k + " nnz fraction: " + str(v / (n ** 2)))
+    total_nnz = sum(nnz.values())
+    print("total nnz: " + str(total_nnz))
+    print("compression ratio: " + str(total_nnz / (n ** 2)))
     t.report("copy to scipy")
 
     # plot_matrix( pts, pts2, p2p p2m, m2p m2m)
 
     input_vals = np.ones(pts2.shape[0])
+    n_multipoles = surf.shape[0] * len(kd2.nodes)
+    n_locals = surf.shape[0] * len(kd.nodes)
     t.report("make input")
 
-    p2p_comp = fmm_mat.p2p.matvec(input_vals, pts.shape[0])
-    est = p2p_comp
+    t2 = Timer()
+    est = fmm_mat.p2p.matvec(input_vals, pts.shape[0])
     t.report("p2p")
 
-    n_multipoles = surf.shape[0] * len(kd2.nodes)
-    multipoles = fmm_mat.p2m.matvec(
-        np.ones(pts2.shape[0]), n_multipoles
-    )
+    multipoles = fmm_mat.p2m.matvec(input_vals, n_multipoles)
+    t.report("p2m")
     for mat in fmm_mat.m2m[::-1]:
         multipoles += mat.matvec(multipoles, n_multipoles)
+    t.report("m2m")
 
-    t.report("p2m/m2m")
+    locals = fmm_mat.p2l.matvec(input_vals, n_locals)
+    t.report("p2l")
+    locals += fmm_mat.m2l.matvec(multipoles, n_locals)
+    t.report("m2l")
+
+    for mat in fmm_mat.l2l:
+        locals += mat.matvec(locals, n_locals)
+    t.report("l2l")
+
 
     est += fmm_mat.m2p.matvec(multipoles, pts.shape[0])
     t.report("m2p")
+
+    est += fmm_mat.l2p.matvec(locals, pts.shape[0])
+    t.report("l2p")
+    t2.report("matvec")
 
     return np.array(kd.pts), np.array(kd2.pts), est
 

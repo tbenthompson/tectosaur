@@ -1,7 +1,7 @@
 <% 
 setup_pybind11(cfg)
 cfg['compiler_args'].extend(['-std=c++14', '-O3', '-g', '-Wall', '-Werror', '-fopenmp', '-mavx'])
-cfg['sources'] = ['sparse_mat.cpp', 'fmm_impl.cpp', 'octree.cpp', 'blas_wrapper.cpp', 'cpp_tester.cpp']
+cfg['sources'] = ['fmm_impl.cpp', 'octree.cpp', 'blas_wrapper.cpp', 'cpp_tester.cpp']
 cfg['dependencies'] = ['fmm_impl.hpp', 'octree.hpp', 'blas_wrapper.hpp']
 cfg['parallel'] = True
 cfg['linker_args'] = ['-fopenmp']
@@ -108,8 +108,12 @@ PYBIND11_PLUGIN(fmm) {
     py::class_<FMMMat>(m, "FMMMat")
         .def_readonly("p2p", &FMMMat::p2p)
         .def_readonly("p2m", &FMMMat::p2m)
+        .def_readonly("p2l", &FMMMat::p2l)
         .def_readonly("m2p", &FMMMat::m2p)
-        .def_readonly("m2m", &FMMMat::m2m);
+        .def_readonly("m2m", &FMMMat::m2m)
+        .def_readonly("m2l", &FMMMat::m2l)
+        .def_readonly("l2p", &FMMMat::l2p)
+        .def_readonly("l2l", &FMMMat::l2l);
 
     py::class_<FMMConfig>(m, "FMMConfig")
         .def("__init__", 

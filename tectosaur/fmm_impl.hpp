@@ -71,8 +71,12 @@ struct BlockSparseMat {
 struct FMMMat {
     BlockSparseMat p2p;
     BlockSparseMat p2m;
-    std::vector<BlockSparseMat> m2m;
+    BlockSparseMat p2l;
     BlockSparseMat m2p;
+    std::vector<BlockSparseMat> m2m;
+    BlockSparseMat m2l;
+    BlockSparseMat l2p;
+    std::vector<BlockSparseMat> l2l;
 };
 
 FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree, const FMMConfig& cfg);
