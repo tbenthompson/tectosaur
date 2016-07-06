@@ -1,28 +1,17 @@
 #pragma once
 
-#include "kdtree.hpp"
 #include <cmath>
 #include <functional>
 #include <memory>
+#include "fmm_kernels.hpp"
+#include "kdtree.hpp"
 
 namespace tectosaur {
 
-using Kernel = 
-    std::function<void(const Vec3*,const Vec3*,size_t,size_t,double*)>;
-
-void one(
-    const Vec3* obs_pts,const Vec3* src_pts,
-    size_t n_obs, size_t n_src, double* out
-);
-void inv_r(
-    const Vec3* obs_pts,const Vec3* src_pts,
-    size_t n_obs, size_t n_src, double* out
-);
-
 struct FMMConfig {
     // The MAC needs to < (1.0 / (check_r - 1)) so that farfield
-    // approximations aren't used when the check surface intersects the 
-    // target box. How about we just use that as our MAC, since errors 
+    // approximations aren't used when the check surface intersects the
+    // target box. How about we just use that as our MAC, since errors
     // further from the check surface should flatten out!
     double inner_r;
     double outer_r;
@@ -47,6 +36,8 @@ struct BlockSparseMat {
 };
 
 struct FMMMat {
+    int tensor_dim;
+
     BlockSparseMat p2p;
     BlockSparseMat p2m;
     BlockSparseMat p2l;
@@ -60,6 +51,7 @@ struct FMMMat {
     std::vector<BlockSparseMat> dc2e;
 };
 
-FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree, const FMMConfig& cfg);
+FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree,
+                const FMMConfig& cfg);
 
-} //end namespace tectosaur
+}  // end namespace tectosaur

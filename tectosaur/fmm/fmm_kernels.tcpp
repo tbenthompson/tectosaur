@@ -1,0 +1,53 @@
+#include <cmath>
+#include <iostream>
+#include "fmm_kernels.hpp"
+
+namespace tectosaur {
+
+Kernel get_by_name(std::string name) {
+    if (name == "one") {
+        return {one, 1};
+    } else if (name == "invr") {
+        return {invr, 1};
+    } else if (name == "tensor_invr") {
+        return {tensor_invr, 3};
+    } else {
+        throw std::runtime_error("invalid kernel name");
+    }
+}
+
+template <typename F>
+void direct_nbody(const NBodyProblem& p, double* out, const F& f) {
+    for (size_t i = 0; i < p.n_obs; i++) {
+        for (size_t j = 0; j < p.n_src; j++) {
+            out[i * p.n_src + j] = f(p.obs_pts[i], p.src_pts[j]);
+        }
+    }
+}
+
+void one(const NBodyProblem& p, double* out) {
+    direct_nbody(p, out, [](const Vec3&, const Vec3&) { return 1.0; });
+}
+
+void invr(const NBodyProblem& p, double* out) {
+    direct_nbody(p, out, [](const Vec3& obs, const Vec3& src) {
+        return 1.0 / hypot(sub(obs, src));
+    });
+}
+
+void tensor_invr(const NBodyProblem& p, double* out) {
+    for (size_t i = 0; i < p.n_obs; i++) {
+        for (size_t j = 0; j < p.n_src; j++) {
+            auto inv_r = 1.0 / hypot(sub(p.obs_pts[i], p.src_pts[j]));
+            for (int d1 = 0; d1 < 3; d1++) {
+                for (int d2 = 0; d2 < 3; d2++) {
+                    auto row = i * 3 + d1;
+                    auto col = j * 3 + d2;
+                    out[row * (p.n_src * 3) + col] = (d1 == d2) ? inv_r : 0.0;
+                }
+            }
+        }
+    }
+}
+
+}  // end namespace tectosaur

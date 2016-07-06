@@ -1,7 +1,7 @@
 <% 
 setup_pybind11(cfg)
 cfg['compiler_args'].extend(['-std=c++14', '-O3', '-g', '-Wall', '-Werror', '-fopenmp'])
-cfg['sources'] = ['fmm_impl.cpp', 'kdtree.cpp', 'blas_wrapper.cpp', 'cpp_tester.cpp']
+cfg['sources'] = ['fmm_impl.cpp', 'kdtree.cpp', 'blas_wrapper.cpp', 'cpp_tester.cpp', 'fmm_kernels.cpp']
 cfg['dependencies'] = ['fmm_impl.hpp', 'kdtree.hpp', 'blas_wrapper.hpp']
 cfg['parallel'] = True
 cfg['linker_args'] = ['-fopenmp']
@@ -11,17 +11,27 @@ import numpy as np
 blas = np.__config__.blas_opt_info
 cfg['library_dirs'] = blas['library_dirs']
 cfg['libraries'] = blas['libraries']
+
+import os
+import mako.template
+import mako.exceptions
+templates = ['fmm_kernels.thpp', 'fmm_kernels.tcpp']
+for t in templates:
+    cfg['dependencies'].append(t)
+    filepath = os.path.join(filedirname, t)
+    tmpl = mako.template.Template(filename = filepath)
+    try:
+        code = tmpl.render()
+    except:
+        print(mako.exceptions.text_error_template().render())
+    dirname = os.path.dirname(t)
+    filename,ext = os.path.splitext(t)
+    out_filename = os.path.join(filedirname, filename + '.' + ext[2:])
+    print(out_filename)
+    with open(out_filename, 'w') as f:
+        f.write(code)
 %>
 
-// I want to template the kernel functions in both C++ and CUDA, but
-// I don't want to have a whole bunch of different mako-based templating
-// solutions for each different type of file. But, the templating for
-// the kernel functions is serving a fundamentally different purpose
-// than the templating for cppimport-able modules. So, it does seem 
-// reasonable to keep them separate. What if I want templating in the
-// same file that does cppimport? Don't do that! Separate the files and
-// in the cppimport module file, run the templating for the relevant
-// files.
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
@@ -121,6 +131,7 @@ PYBIND11_PLUGIN(fmm) {
         });
 
     py::class_<FMMMat>(m, "FMMMat")
+        .def_readonly("tensor_dim", &FMMMat::tensor_dim)
         .def_readonly("p2p", &FMMMat::p2p)
         .def_readonly("p2m", &FMMMat::p2m)
         .def_readonly("p2l", &FMMMat::p2l)
@@ -139,7 +150,7 @@ PYBIND11_PLUGIN(fmm) {
             {
                 new (&cfg) FMMConfig{
                     equiv_r, check_r, get_vectors(surf), 
-                    (k_name == "one") ? one : inv_r
+                    get_by_name(k_name)
                 };
             }
         );

@@ -123,6 +123,7 @@ def run_full(n, make_pts, mac, order, kernel):
     n_src = pts.shape[0]
     n_obs = pts2.shape[0]
 
+    tdim = fmm_mat.tensor_dim
     nnz = dict(
         p2p = fmm_mat.p2p.get_nnz(),
         p2m = fmm_mat.p2m.get_nnz(),
@@ -136,18 +137,20 @@ def run_full(n, make_pts, mac, order, kernel):
         dc2e = sum([m.get_nnz() for m in fmm_mat.dc2e])
     )
     for k,v in sorted(nnz.items(), key = lambda k: k[0])[::-1]:
-        print(k + " nnz fraction: " + str(v / (n ** 2)))
+        print(k + " nnz fraction: " + str(v / ((tdim * n) ** 2)))
     total_nnz = sum(nnz.values())
     print("total nnz: " + str(total_nnz))
-    print("compression ratio: " + str(total_nnz / (n ** 2)))
+    print("compression ratio: " + str(total_nnz / ((tdim * n) ** 2)))
 
-    input_vals = np.ones(pts2.shape[0])
-    n_multipoles = surf.shape[0] * len(kd2.nodes)
-    n_locals = surf.shape[0] * len(kd.nodes)
+    n_inputs = pts2.shape[0] * tdim
+    n_outputs = pts.shape[0] * tdim
+    n_multipoles = surf.shape[0] * len(kd2.nodes) * tdim
+    n_locals = surf.shape[0] * len(kd.nodes) * tdim
+    input_vals = np.ones(n_inputs)
     t.report("make input")
 
     t2 = Timer()
-    est = fmm_mat.p2p.matvec(input_vals, pts.shape[0])
+    est = fmm_mat.p2p.matvec(input_vals, n_outputs)
     t.report("p2p")
 
     m_check = fmm_mat.p2m.matvec(input_vals, n_multipoles)
@@ -170,10 +173,10 @@ def run_full(n, make_pts, mac, order, kernel):
         locals += dc2e.matvec(l_check, n_locals)
     t.report("l2l")
 
-    est += fmm_mat.m2p.matvec(multipoles, pts.shape[0])
+    est += fmm_mat.m2p.matvec(multipoles, n_outputs)
     t.report("m2p")
 
-    est += fmm_mat.l2p.matvec(locals, pts.shape[0])
+    est += fmm_mat.l2p.matvec(locals, n_outputs)
     t.report("l2p")
     t2.report("matvec")
 
@@ -195,7 +198,7 @@ def check_invr(pts, pts2, est, accuracy = 3):
     )
 
 def test_invr():
-    check_invr(*run_full(5000, rand_pts, 2.6, 30, "invr"), accuracy = 3)
+    check_invr(*run_full(5000, rand_pts, 2.6, 30, "invr"))
 
 @slow
 def test_high_accuracy():
@@ -204,8 +207,11 @@ def test_high_accuracy():
 def test_irregular():
     check_invr(*run_full(10000, ellipse_pts, 2.6, 35, "invr"))
 
-
+def test_tensor():
+    pts, pts2, est = run_full(5000, rand_pts, 2.6, 35, "tensor_invr")
+    for d in range(3):
+        check_invr(pts, pts2, est[d::3])
 
 if __name__ == '__main__':
     # test_build_big()
-    test_irregular()
+    test_tensor()
