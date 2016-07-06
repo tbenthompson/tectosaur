@@ -240,10 +240,7 @@ extern "C" void dgelsy_(int* M, int* N, int* NRHS, double* A, int* LDA, double* 
     int* LDB, int* JPVT, double* RCOND, int* RANK, double* WORK, int* LWORK,
     int* INFO);
 
-static int count = 0;
 std::vector<double> qr_pseudoinverse(double* matrix, int n) {
-    count++;
-    std::cout << count << std::endl;
     std::vector<double> rhs(n * n, 0.0);
     for (int i = 0; i < n; i++) {
         rhs[i * n + i] = 1.0; 

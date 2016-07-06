@@ -21,7 +21,7 @@ def solve(iop, constraints):
     lhs_cs_csr = sparse.csr_matrix(lhs_cs_dok)
     timer.report("Build constraints matrix")
 
-    # iop = gpuarray.to_gpu(iop.astype(np.float32))
+    iop = gpuarray.to_gpu(iop.astype(np.float32))
 
     iter = [0]
     def mv(v):

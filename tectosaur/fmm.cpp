@@ -83,6 +83,8 @@ PYBIND11_PLUGIN(fmm) {
         .def_readonly("bounds", &KDNode::bounds)
         .def_readonly("is_leaf", &KDNode::is_leaf)
         .def_readonly("idx", &KDNode::idx)
+        .def_readonly("height", &KDNode::height)
+        .def_readonly("depth", &KDNode::depth)
         .def_readonly("children", &KDNode::children);
 
     py::class_<KDTree>(m, "KDTree")
@@ -96,7 +98,9 @@ PYBIND11_PLUGIN(fmm) {
             );
         })
         .def_readonly("nodes", &KDTree::nodes)
-        .def_readonly("pts", &KDTree::pts);
+        .def_readonly("pts", &KDTree::pts)
+        .def_readonly("max_height", &KDTree::max_height)
+        .def_readonly("max_depth", &KDTree::max_depth);
 
     py::class_<BlockSparseMat>(m, "BlockSparseMat")
         .def("get_nnz", &BlockSparseMat::get_nnz)
