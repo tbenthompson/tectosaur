@@ -4,35 +4,28 @@
 
 namespace tectosaur {
 
-Kernel get_by_name(std::string name) {
-    if (name == "one") {
-        return {one, 1};
-    } else if (name == "invr") {
-        return {invr, 1};
-    } else if (name == "tensor_invr") {
-        return {tensor_invr, 3};
-    } else {
-        throw std::runtime_error("invalid kernel name");
-    }
-}
-
 template <typename F>
 void direct_nbody(const NBodyProblem& p, double* out, const F& f) {
     for (size_t i = 0; i < p.n_obs; i++) {
         for (size_t j = 0; j < p.n_src; j++) {
-            out[i * p.n_src + j] = f(p.obs_pts[i], p.src_pts[j]);
+            out[i * p.n_src + j] = f(
+                p.obs_pts[i], p.obs_ns[i], p.src_pts[j], p.src_ns[j]
+            );
         }
     }
 }
 
 void one(const NBodyProblem& p, double* out) {
-    direct_nbody(p, out, [](const Vec3&, const Vec3&) { return 1.0; });
+    direct_nbody(p, out, [](const Vec3&, const Vec3&, const Vec3&, const Vec3&) {
+        return 1.0; 
+    });
 }
 
 void invr(const NBodyProblem& p, double* out) {
-    direct_nbody(p, out, [](const Vec3& obs, const Vec3& src) {
-        return 1.0 / hypot(sub(obs, src));
-    });
+    direct_nbody(p, out,
+        [](const Vec3& obs, const Vec3& nobs, const Vec3& src, const Vec3& nsrc) {
+            return 1.0 / hypot(sub(obs, src));
+        });
 }
 
 void tensor_invr(const NBodyProblem& p, double* out) {
@@ -47,6 +40,30 @@ void tensor_invr(const NBodyProblem& p, double* out) {
                 }
             }
         }
+    }
+}
+
+void laplace_double(const NBodyProblem& p, double* out) {
+    direct_nbody(p, out,
+        [](const Vec3& obs, const Vec3& nobs, const Vec3& src, const Vec3& nsrc) {
+            auto delta = sub(obs, src);
+            auto r = hypot(delta);
+            return dot(delta, nsrc) / (4 * M_PI * r * r * r);
+        }
+    );
+}
+
+Kernel get_by_name(std::string name) {
+    if (name == "one") {
+        return {one, 1};
+    } else if (name == "invr") {
+        return {invr, 1};
+    } else if (name == "tensor_invr") {
+        return {tensor_invr, 3};
+    } else if (name == "laplace_double") {
+        return {laplace_double, 1};   
+    } else {
+        throw std::runtime_error("invalid kernel name");
     }
 }
 

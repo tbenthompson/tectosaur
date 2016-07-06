@@ -3,7 +3,6 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
-#include "blas_wrapper.hpp"
 #include "lib/doctest.h"
 #include "test_helpers.hpp"
 
@@ -20,6 +19,31 @@ std::vector<Vec3> inscribe_surf(const Sphere& b, double scaling,
     return out;
 }
 
+std::vector<Vec3> surrounding_surface_sphere(size_t order)
+{
+    std::vector<Vec3> pts;
+    double a = 4 * M_PI / order;
+    double d = std::sqrt(a);
+    auto M_theta = static_cast<size_t>(std::round(M_PI / d));
+    double d_theta = M_PI / M_theta;
+    double d_phi = a / d_theta;
+    for (size_t m = 0; m < M_theta; m++) {
+        double theta = M_PI * (m + 0.5) / M_theta;
+        auto M_phi = static_cast<size_t>(
+            std::round(2 * M_PI * std::sin(theta) / d_phi)
+        );
+        for (size_t n = 0; n < M_phi; n++) {
+            double phi = 2 * M_PI * n / M_phi;
+            double x = std::sin(theta) * std::cos(phi);
+            double y = std::sin(theta) * std::sin(phi);
+            double z = std::cos(theta);
+            pts.push_back({x, y, z});
+        }
+    }
+
+    return pts;
+}
+
 TEST_CASE("inscribe") {
     auto s =
         inscribe_surf({{1, 1, 1}, 2}, 0.5, {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}});
@@ -33,14 +57,11 @@ struct Workspace {
     FMMMat& result;
     const KDTree& obs_tree;
     const KDTree& src_tree;
+    std::vector<Vec3> surf;
     const FMMConfig& cfg;
 
-    Workspace(FMMMat& result, const KDTree& obs_tree, const KDTree& src_tree,
-              const FMMConfig& cfg)
-        : result(result), obs_tree(obs_tree), src_tree(src_tree), cfg(cfg) {}
-
     std::vector<Vec3> get_surf(const KDNode& src_n, double r) const {
-        return inscribe_surf(src_n.bounds, r, cfg.surf);
+        return inscribe_surf(src_n.bounds, r, surf);
     }
 };
 
@@ -87,8 +108,10 @@ TEST_CASE("matvec") {
     REQUIRE(out[2] == 2.0);
 }
 
-void to_pts(const Workspace& ws, BlockSparseMat& mat, const Vec3* obs_pts,
-            size_t n_obs, size_t obs_pt_start, const Vec3* src_pts,
+void to_pts(const Workspace& ws, BlockSparseMat& mat,
+            const Vec3* obs_pts, const Vec3* obs_ns,
+            size_t n_obs, size_t obs_pt_start,
+            const Vec3* src_pts, const Vec3* src_ns,
             size_t n_src, size_t src_pt_start) {
     auto tdim = ws.cfg.kernel.tensor_dim;
     auto n_rows = n_obs * tdim;
@@ -97,68 +120,82 @@ void to_pts(const Workspace& ws, BlockSparseMat& mat, const Vec3* obs_pts,
                           int(n_cols), mat.vals.size()});
     auto old_n_vals = mat.vals.size();
     mat.vals.resize(old_n_vals + n_rows * n_cols);
-    Vec3* obs_ns = nullptr;
-    Vec3* src_ns = nullptr;
     ws.cfg.kernel.f({obs_pts, obs_ns, src_pts, src_ns, n_obs, n_src},
                     &mat.vals[old_n_vals]);
 }
 
 void p2p(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
-    to_pts(ws, ws.result.p2p, &ws.obs_tree.pts[obs_n.start],
-           obs_n.end - obs_n.start, obs_n.start, &ws.src_tree.pts[src_n.start],
-           src_n.end - src_n.start, src_n.start);
+    to_pts(ws, ws.result.p2p, 
+        &ws.obs_tree.pts[obs_n.start], &ws.obs_tree.normals[obs_n.start],
+        obs_n.end - obs_n.start, obs_n.start,
+        &ws.src_tree.pts[src_n.start], &ws.src_tree.normals[src_n.start],
+        src_n.end - src_n.start, src_n.start);
 }
 
 void m2p(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     auto equiv = ws.get_surf(src_n, ws.cfg.inner_r);
-    to_pts(ws, ws.result.m2p, &ws.obs_tree.pts[obs_n.start],
-           obs_n.end - obs_n.start, obs_n.start, equiv.data(),
-           ws.cfg.surf.size(), src_n.idx * ws.cfg.surf.size());
+    to_pts(ws, ws.result.m2p,
+        &ws.obs_tree.pts[obs_n.start], &ws.obs_tree.normals[obs_n.start],
+        obs_n.end - obs_n.start, obs_n.start,
+        equiv.data(), ws.surf.data(),
+        ws.surf.size(), src_n.idx * ws.surf.size());
 }
 
 void l2p(const Workspace& ws, const KDNode& obs_n) {
     auto equiv = ws.get_surf(obs_n, ws.cfg.outer_r);
-    to_pts(ws, ws.result.l2p, &ws.obs_tree.pts[obs_n.start],
-           obs_n.end - obs_n.start, obs_n.start, equiv.data(),
-           ws.cfg.surf.size(), obs_n.idx * ws.cfg.surf.size());
+    to_pts(ws, ws.result.l2p, 
+        &ws.obs_tree.pts[obs_n.start], &ws.obs_tree.normals[obs_n.start],
+        obs_n.end - obs_n.start, obs_n.start,
+        equiv.data(), ws.surf.data(),
+        ws.surf.size(), obs_n.idx * ws.surf.size());
 }
 
 void p2m(const Workspace& ws, const KDNode& src_n) {
     auto check = ws.get_surf(src_n, ws.cfg.outer_r);
-    to_pts(ws, ws.result.p2m, check.data(), ws.cfg.surf.size(),
-           src_n.idx * ws.cfg.surf.size(), &ws.src_tree.pts[src_n.start],
-           src_n.end - src_n.start, src_n.start);
+    to_pts(ws, ws.result.p2m, 
+        check.data(), ws.surf.data(), 
+        ws.surf.size(), src_n.idx * ws.surf.size(),
+        &ws.src_tree.pts[src_n.start], &ws.src_tree.normals[src_n.start],
+        src_n.end - src_n.start, src_n.start);
 }
 
 void m2m(const Workspace& ws, const KDNode& parent_n, const KDNode& child_n) {
     auto check = ws.get_surf(parent_n, ws.cfg.outer_r);
     auto equiv = ws.get_surf(child_n, ws.cfg.inner_r);
-    to_pts(ws, ws.result.m2m[parent_n.height], check.data(), ws.cfg.surf.size(),
-           parent_n.idx * ws.cfg.surf.size(), equiv.data(), ws.cfg.surf.size(),
-           child_n.idx * ws.cfg.surf.size());
+    to_pts(ws, ws.result.m2m[parent_n.height], 
+        check.data(), ws.surf.data(), 
+        ws.surf.size(), parent_n.idx * ws.surf.size(),
+        equiv.data(), ws.surf.data(), 
+        ws.surf.size(), child_n.idx * ws.surf.size());
 }
 
 void l2l(const Workspace& ws, const KDNode& parent_n, const KDNode& child_n) {
     auto check = ws.get_surf(child_n, ws.cfg.inner_r);
     auto equiv = ws.get_surf(parent_n, ws.cfg.outer_r);
-    to_pts(ws, ws.result.l2l[child_n.depth], check.data(), ws.cfg.surf.size(),
-           child_n.idx * ws.cfg.surf.size(), equiv.data(), ws.cfg.surf.size(),
-           parent_n.idx * ws.cfg.surf.size());
+    to_pts(ws, ws.result.l2l[child_n.depth],
+        check.data(), ws.surf.data(), 
+        ws.surf.size(), child_n.idx * ws.surf.size(),
+        equiv.data(), ws.surf.data(), 
+        ws.surf.size(), parent_n.idx * ws.surf.size());
 }
 
 void p2l(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     auto check = ws.get_surf(obs_n, ws.cfg.inner_r);
-    to_pts(ws, ws.result.p2l, check.data(), ws.cfg.surf.size(),
-           obs_n.idx * ws.cfg.surf.size(), &ws.src_tree.pts[src_n.start],
-           src_n.end - src_n.start, src_n.start);
+    to_pts(ws, ws.result.p2l, 
+        check.data(), ws.surf.data(), 
+        ws.surf.size(), obs_n.idx * ws.surf.size(),
+        &ws.src_tree.pts[src_n.start], &ws.src_tree.normals[src_n.start],
+        src_n.end - src_n.start, src_n.start);
 }
 
 void m2l(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     auto check = ws.get_surf(obs_n, ws.cfg.inner_r);
     auto equiv = ws.get_surf(src_n, ws.cfg.inner_r);
-    to_pts(ws, ws.result.m2l, check.data(), ws.cfg.surf.size(),
-           obs_n.idx * ws.cfg.surf.size(), equiv.data(), ws.cfg.surf.size(),
-           src_n.idx * ws.cfg.surf.size());
+    to_pts(ws, ws.result.m2l,
+        check.data(), ws.surf.data(), 
+        ws.surf.size(), obs_n.idx * ws.surf.size(),
+        equiv.data(), ws.surf.data(), 
+        ws.surf.size(), src_n.idx * ws.surf.size());
 }
 
 void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
@@ -175,8 +212,8 @@ void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
     if (ws.cfg.outer_r * r_src + ws.cfg.inner_r * r_obs < safety_factor * sep) {
         // If there aren't enough src or obs to justify using the approximation,
         // then just do a p2p direct calculation between the nodes.
-        bool small_src = src_n.end - src_n.start < ws.cfg.surf.size();
-        bool small_obs = obs_n.end - obs_n.start < ws.cfg.surf.size();
+        bool small_src = src_n.end - src_n.start < ws.surf.size();
+        bool small_obs = obs_n.end - obs_n.start < ws.surf.size();
         if (small_src && small_obs) {
             p2p(ws, obs_n, src_n);
         } else if (small_obs) {
@@ -253,15 +290,17 @@ void c2e(const Workspace& ws, BlockSparseMat& mat, const KDNode& node,
          double check_r, double equiv_r) {
     auto equiv_surf = ws.get_surf(node, equiv_r);
     auto check_surf = ws.get_surf(node, check_r);
-    auto n_surf = ws.cfg.surf.size();
+    auto n_surf = ws.surf.size();
 
     auto n_rows = n_surf * ws.cfg.kernel.tensor_dim;
 
     std::vector<double> equiv_to_check(n_rows * n_rows);
-    Vec3* obs_ns = nullptr;
-    Vec3* src_ns = nullptr;
     ws.cfg.kernel.f(
-        {check_surf.data(), obs_ns, equiv_surf.data(), src_ns, n_surf, n_surf},
+        {
+            check_surf.data(), ws.surf.data(), 
+            equiv_surf.data(), ws.surf.data(),
+            n_surf, n_surf
+        },
         equiv_to_check.data());
 
     // TODO: Currently, svd decomposition is the most time consuming part of
@@ -311,15 +350,19 @@ void down_collect(const Workspace& ws, const KDNode& obs_n) {
 
 FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree,
                 const FMMConfig& cfg) {
+
+    auto translation_surf = surrounding_surface_sphere(cfg.order);
+
     FMMMat result;
     result.tensor_dim = cfg.kernel.tensor_dim;
+    result.translation_surface_order = translation_surf.size();
 
     result.m2m.resize(src_tree.max_height + 1);
-    result.l2l.resize(obs_tree.max_depth + 1);
+    result.l2l.resize(obs_tree.max_height + 1);
     result.uc2e.resize(src_tree.max_height + 1);
-    result.dc2e.resize(obs_tree.max_depth + 1);
+    result.dc2e.resize(obs_tree.max_height + 1);
 
-    Workspace ws(result, obs_tree, src_tree, cfg);
+    Workspace ws{result, obs_tree, src_tree, translation_surf, cfg};
 #pragma omp parallel
 #pragma omp single nowait
     {

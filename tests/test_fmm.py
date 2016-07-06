@@ -31,24 +31,6 @@ def ellipse_pts(n, source):
 def test_fmm_cpp():
     fmm.run_tests([])
 
-def surrounding_surface_sphere(order):
-    pts = []
-    a = 4 * np.pi / order;
-    d = np.sqrt(a);
-    M_theta = int(np.round(np.pi / d))
-    d_theta = np.pi / M_theta;
-    d_phi = a / d_theta;
-    for m in range(M_theta):
-        theta = np.pi * (m + 0.5) / M_theta;
-        M_phi = int(np.round(2 * np.pi * np.sin(theta) / d_phi))
-        for n in range(M_phi):
-            phi = 2 * np.pi * n / M_phi;
-            x = np.sin(theta) * np.cos(phi);
-            y = np.sin(theta) * np.sin(phi);
-            z = np.cos(theta);
-            pts.append((x, y, z))
-    return np.array(pts)
-
 def test_kdtree_bisects():
     pts = np.random.rand(100,3)
     kdtree = fmm.KDTree(pts, pts, 1)
@@ -76,7 +58,6 @@ def test_kdtree_contains_pts():
 def test_kdtree_height_depth():
     pts = np.random.rand(100,3)
     kdtree = fmm.KDTree(pts, pts, 1)
-    assert(kdtree.max_depth == kdtree.max_height)
     for n in kdtree.nodes:
         if n.is_leaf:
             continue
@@ -84,6 +65,12 @@ def test_kdtree_height_depth():
             assert(n.depth == kdtree.nodes[n.children[c]].depth - 1)
         assert(n.height ==
             max([kdtree.nodes[n.children[c]].height for c in range(2)]) + 1)
+
+def test_kdtree_orig_idx():
+    pts = np.random.rand(100,3)
+    kdtree = fmm.KDTree(pts, pts, 1)
+    for i, orig_i in enumerate(kdtree.orig_idxs):
+        np.testing.assert_almost_equal(kdtree.pts[i], pts[orig_i, :], 10)
 
 def test_kdtree_idx():
     pts = np.random.rand(100,3)
@@ -99,29 +86,25 @@ def test_build_big():
     kdtree = fmm.KDTree(pts, pts, 1)
     print("KDTree took: " + str(time.time() - start))
 
-# def plot_matrix(pts, pts2, p2p, p2m, m2p, m2m):
-#     dense = np.empty((pts.shape[0] + m2m.shape[0], pts2.shape[0] + m2m.shape[1]))
-#     dense[:pts.shape[0],:pts2.shape[0]] = p2p.todense()
-#     dense[pts.shape[0]:,:pts2.shape[0]] = p2m.todense()
-#     dense[:pts.shape[0],pts2.shape[0]:] = m2p.todense()
-#     dense[pts.shape[0]:,pts2.shape[0]:] = m2m.todense()
+# def plot_matrix(pts, src_pts, p2p, p2m, m2p, m2m):
+#     dense = np.empty((pts.shape[0] + m2m.shape[0], src_pts.shape[0] + m2m.shape[1]))
+#     dense[:pts.shape[0],:src_pts.shape[0]] = p2p.todense()
+#     dense[pts.shape[0]:,:src_pts.shape[0]] = p2m.todense()
+#     dense[:pts.shape[0],src_pts.shape[0]:] = m2p.todense()
+#     dense[pts.shape[0]:,src_pts.shape[0]:] = m2m.todense()
 #     import matplotlib.pyplot as plt
 #     plt.spy(dense)
 #     plt.show()
 
 def run_full(n, make_pts, mac, order, kernel):
-    pts = make_pts(n, False)
-    pts2 = make_pts(n + 1, True)
+    obs_pts = make_pts(n, False)
+    src_pts = make_pts(n + 1, True)
 
     t = Timer()
-    kd = fmm.KDTree(pts, pts, order)
-    kd2 = fmm.KDTree(pts2, pts2, order)
-    surf = surrounding_surface_sphere(order)
-    fmm_mat = fmm.fmmmmmmm(kd, kd2, fmm.FMMConfig(1.1, mac, surf, kernel))
+    obs_kd = fmm.KDTree(obs_pts, obs_pts, order)
+    src_kd = fmm.KDTree(src_pts, src_pts, order)
+    fmm_mat = fmm.fmmmmmmm(obs_kd, src_kd, fmm.FMMConfig(1.1, mac, order, kernel))
     t.report("build matrices")
-
-    n_src = pts.shape[0]
-    n_obs = pts2.shape[0]
 
     tdim = fmm_mat.tensor_dim
     nnz = dict(
@@ -142,10 +125,11 @@ def run_full(n, make_pts, mac, order, kernel):
     print("total nnz: " + str(total_nnz))
     print("compression ratio: " + str(total_nnz / ((tdim * n) ** 2)))
 
-    n_inputs = pts2.shape[0] * tdim
-    n_outputs = pts.shape[0] * tdim
-    n_multipoles = surf.shape[0] * len(kd2.nodes) * tdim
-    n_locals = surf.shape[0] * len(kd.nodes) * tdim
+    n_surf = fmm_mat.translation_surface_order
+    n_inputs = src_pts.shape[0] * tdim
+    n_outputs = obs_pts.shape[0] * tdim
+    n_multipoles = n_surf * len(src_kd.nodes) * tdim
+    n_locals = n_surf * len(obs_kd.nodes) * tdim
     input_vals = np.ones(n_inputs)
     t.report("make input")
 
@@ -180,22 +164,24 @@ def run_full(n, make_pts, mac, order, kernel):
     t.report("l2p")
     t2.report("matvec")
 
-    return np.array(kd.pts), np.array(kd2.pts), est
+    return np.array(obs_kd.pts), np.array(src_kd.pts), est
 
 def test_ones():
-    pts, pts2, est = run_full(5000, rand_pts, 0.5, 1, "one")
+    obs_pts, src_pts, est = run_full(5000, rand_pts, 0.5, 1, "one")
     assert(np.all(np.abs(est - 5001) < 1e-3))
 
-def check_invr(pts, pts2, est, accuracy = 3):
-    correct_matrix = 1.0 / (scipy.spatial.distance.cdist(pts, pts2))
-    correct = correct_matrix.dot(np.ones(pts2.shape[0]))
-    error = np.sqrt(np.mean((est - correct) ** 2))
-    print("L2ERR: " + str(error / np.mean(correct)))
-    print("MEANERR: " + str(np.mean(np.abs(est - correct)) / np.mean(correct)))
-    print("MAXERR: " + str(np.max(np.abs(est - correct) / correct)))
-    np.testing.assert_almost_equal(
-        est / np.mean(correct), correct / np.mean(correct), accuracy
-    )
+def check(est, correct, accuracy):
+    rmse = np.sqrt(np.mean((est - correct) ** 2))
+    rms_c = np.sqrt(np.mean(correct ** 2))
+    print("L2ERR: " + str(rmse / rms_c))
+    print("MEANERR: " + str(np.mean(np.abs(est - correct)) / rms_c))
+    print("MAXERR: " + str(np.max(np.abs(est - correct)) / rms_c))
+    np.testing.assert_almost_equal(est / rms_c, correct / rms_c, accuracy)
+
+def check_invr(obs_pts, src_pts, est, accuracy = 3):
+    correct_matrix = 1.0 / (scipy.spatial.distance.cdist(obs_pts, src_pts))
+    correct = correct_matrix.dot(np.ones(src_pts.shape[0]))
+    check(est, correct, accuracy)
 
 def test_invr():
     check_invr(*run_full(5000, rand_pts, 2.6, 30, "invr"))
@@ -208,9 +194,20 @@ def test_irregular():
     check_invr(*run_full(10000, ellipse_pts, 2.6, 35, "invr"))
 
 def test_tensor():
-    pts, pts2, est = run_full(5000, rand_pts, 2.6, 35, "tensor_invr")
+    obs_pts, src_pts, est = run_full(5000, rand_pts, 2.6, 35, "tensor_invr")
     for d in range(3):
-        check_invr(pts, pts2, est[d::3])
+        check_invr(obs_pts, src_pts, est[d::3])
+
+def test_double_layer():
+    obs_pts, src_pts, est = run_full(6000, rand_pts, 3.0, 45, "laplace_double")
+    correct_mat = np.zeros((obs_pts.shape[0], src_pts.shape[0]))
+    for i in range(obs_pts.shape[0]):
+        sep = obs_pts[i, :] - src_pts
+        r = np.sqrt(np.sum(sep ** 2, axis = 1))
+        sep_d_n = np.einsum('ij,ij->i', sep, src_pts)
+        correct_mat[i,:] = sep_d_n / (4 * np.pi * r * r * r)
+    correct = correct_mat.dot(np.ones(src_pts.shape[0]))
+    check(est, correct, 3)
 
 if __name__ == '__main__':
     # test_build_big()

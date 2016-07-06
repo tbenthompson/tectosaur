@@ -24,10 +24,6 @@ struct Kernel {
 
 Kernel get_by_name(std::string name);
 
-void one(const NBodyProblem& p, double* out);
-void invr(const NBodyProblem& p, double* out);
-void tensor_invr(const NBodyProblem& p, double* out);
-
 <%def name="kernel_fnc(k_name)">\
 </%def>
 

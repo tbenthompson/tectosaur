@@ -15,7 +15,7 @@ struct FMMConfig {
     // further from the check surface should flatten out!
     double inner_r;
     double outer_r;
-    std::vector<Vec3> surf;
+    size_t order;
     Kernel kernel;
 };
 
@@ -37,6 +37,7 @@ struct BlockSparseMat {
 
 struct FMMMat {
     int tensor_dim;
+    int translation_surface_order;
 
     BlockSparseMat p2p;
     BlockSparseMat p2m;
