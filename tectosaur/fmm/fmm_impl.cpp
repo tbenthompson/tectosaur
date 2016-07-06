@@ -45,12 +45,39 @@ struct Workspace {
     }
 };
 
-double one(const Vec3& obs, const Vec3& src) { return 1.0; }
+template <typename F>
+void direct_nbody(const Vec3* obs_pts, const Vec3* src_pts,
+        size_t n_obs, size_t n_src, double* out, const F& f)
+{
+    for (size_t i = 0; i < n_obs; i++) {
+        for (size_t j = 0; j < n_src; j++) {
+            out[i * n_src + j] = f(obs_pts[i], src_pts[j]);
+        }
+    }
+}
 
-double inv_r(const Vec3& obs, const Vec3& src) {
-    auto d = sub(obs, src);
-    auto r2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
-    return 1.0 / std::sqrt(r2);
+void one(
+    const Vec3* obs_pts, const Vec3* src_pts,
+    size_t n_obs, size_t n_src, double* out) 
+{
+    direct_nbody(
+        obs_pts, src_pts, n_obs, n_src, out,
+        [] (const Vec3&,const Vec3&) { return 1.0; }
+    );
+}
+
+void inv_r(
+    const Vec3* obs_pts,const Vec3* src_pts,
+    size_t n_obs, size_t n_src, double* out)
+{
+    direct_nbody(
+        obs_pts, src_pts, n_obs, n_src, out,
+        [] (const Vec3& obs, const Vec3& src) {
+            auto d = sub(obs, src);
+            auto r2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+            return 1.0 / std::sqrt(r2);
+        }
+    );
 }
 
 extern "C" void dgemv_(char* TRANS, int* M, int* N, double* ALPHA, double* A,
@@ -92,16 +119,6 @@ TEST_CASE("matvec") {
     REQUIRE(out[2] == 2.0);
 }
 
-void Kernel::direct_nbody(const Vec3* obs_pts, const Vec3* src_pts,
-        size_t n_obs, size_t n_src, double* out) const
-{
-    for (size_t i = 0; i < n_obs; i++) {
-        for (size_t j = 0; j < n_src; j++) {
-            out[i * n_src + j] = f(obs_pts[i], src_pts[j]);
-        }
-    }
-}
-
 void to_pts(const Workspace& ws, BlockSparseMat& mat,
     const Vec3* obs_pts, size_t n_obs, size_t obs_dof_start,
     const Vec3* src_pts, size_t n_src, size_t src_dof_start)
@@ -111,7 +128,7 @@ void to_pts(const Workspace& ws, BlockSparseMat& mat,
     });
     auto old_n_vals = mat.vals.size();
     mat.vals.resize(old_n_vals + n_obs * n_src);
-    ws.cfg.kernel.direct_nbody(
+    ws.cfg.kernel(
         obs_pts, src_pts,
         n_obs, n_src, &mat.vals[old_n_vals]
     );
@@ -286,7 +303,7 @@ void c2e(const Workspace& ws, BlockSparseMat& mat,
     auto n_surf = ws.cfg.surf.size();
 
     std::vector<double> equiv_to_check(n_surf * n_surf);
-    ws.cfg.kernel.direct_nbody(
+    ws.cfg.kernel(
         check_surf.data(), equiv_surf.data(),
         n_surf, n_surf, equiv_to_check.data()
     );

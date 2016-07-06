@@ -7,11 +7,11 @@ import mako.runtime
 import mako.exceptions
 import mako.lookup
 
-from tectosaur.timer import Timer
+from tectosaur.util.timer import Timer
 
 gpu_module = dict()
 def load_gpu(filepath, print_code = False, no_caching = False):
-    timer = Timer()
+    timer = Timer(silent = True)
     global gpu_module
     if filepath in gpu_module and no_caching and not print_code:
         return gpu_module[filepath]

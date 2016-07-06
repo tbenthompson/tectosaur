@@ -1,22 +1,23 @@
 #pragma once
 
-#include "octree.hpp"
+#include "kdtree.hpp"
 #include <cmath>
 #include <functional>
 #include <memory>
 
 namespace tectosaur {
 
-struct Kernel {
-    using FType = std::function<double(const Vec3&,const Vec3&)>;
-    FType f;
+using Kernel = 
+    std::function<void(const Vec3*,const Vec3*,size_t,size_t,double*)>;
 
-    void direct_nbody(const Vec3* obs_pts, const Vec3* src_pts,
-        size_t n_obs, size_t n_src, double* out) const;
-};
-
-double one(const Vec3&,const Vec3&);
-double inv_r(const Vec3&,const Vec3&);
+void one(
+    const Vec3* obs_pts,const Vec3* src_pts,
+    size_t n_obs, size_t n_src, double* out
+);
+void inv_r(
+    const Vec3* obs_pts,const Vec3* src_pts,
+    size_t n_obs, size_t n_src, double* out
+);
 
 struct FMMConfig {
     // The MAC needs to < (1.0 / (check_r - 1)) so that farfield

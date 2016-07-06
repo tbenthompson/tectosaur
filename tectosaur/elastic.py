@@ -3,7 +3,7 @@ import pickle
 import sympy as sp
 
 from tectosaur.tensors import vec_inner, tensor_outer, Ident, SYM, SKW
-from tectosaur.sympy_to_cpp import to_cpp
+from tectosaur.util.sympy_to_cpp import to_cpp
 
 # The source for these kernels is Appendix 2 of Carini and Salvadori, 2002.
 # The variables are given identical names

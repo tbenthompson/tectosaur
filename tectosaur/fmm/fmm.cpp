@@ -1,23 +1,34 @@
 <% 
 setup_pybind11(cfg)
 cfg['compiler_args'].extend(['-std=c++14', '-O3', '-g', '-Wall', '-Werror', '-fopenmp'])
-cfg['sources'] = ['fmm_impl.cpp', 'octree.cpp', 'blas_wrapper.cpp', 'cpp_tester.cpp']
-cfg['dependencies'] = ['fmm_impl.hpp', 'octree.hpp', 'blas_wrapper.hpp']
+cfg['sources'] = ['fmm_impl.cpp', 'kdtree.cpp', 'blas_wrapper.cpp', 'cpp_tester.cpp']
+cfg['dependencies'] = ['fmm_impl.hpp', 'kdtree.hpp', 'blas_wrapper.hpp']
 cfg['parallel'] = True
 cfg['linker_args'] = ['-fopenmp']
+cfg['include_dirs'].append('../')
 
 import numpy as np
 blas = np.__config__.blas_opt_info
 cfg['library_dirs'] = blas['library_dirs']
 cfg['libraries'] = blas['libraries']
 %>
+
+// I want to template the kernel functions in both C++ and CUDA, but
+// I don't want to have a whole bunch of different mako-based templating
+// solutions for each different type of file. But, the templating for
+// the kernel functions is serving a fundamentally different purpose
+// than the templating for cppimport-able modules. So, it does seem 
+// reasonable to keep them separate. What if I want templating in the
+// same file that does cppimport? Don't do that! Separate the files and
+// in the cppimport module file, run the templating for the relevant
+// files.
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <pybind11/functional.h>
 
 #include "fmm_impl.hpp"
-#include "octree.hpp"
+#include "kdtree.hpp"
 
 using namespace tectosaur;
 namespace py = pybind11;
@@ -126,9 +137,9 @@ PYBIND11_PLUGIN(fmm) {
             [] (FMMConfig& cfg, double equiv_r,
                 double check_r, NPArray surf, std::string k_name) 
             {
-                Kernel k{(k_name == "one") ? one : inv_r};
                 new (&cfg) FMMConfig{
-                    equiv_r, check_r, get_vectors(surf), std::move(k)
+                    equiv_r, check_r, get_vectors(surf), 
+                    (k_name == "one") ? one : inv_r
                 };
             }
         );

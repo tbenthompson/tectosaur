@@ -5,12 +5,13 @@ import scipy.sparse.linalg
 import numpy as np
 
 import tectosaur.mesh as mesh
-from tectosaur.timer import Timer
+from tectosaur.util.timer import Timer
 
 from test_decorators import slow
 
 import cppimport
-fmm = cppimport.imp("tectosaur.fmm").fmm
+cppimport.set_quiet(False)
+fmm = cppimport.imp("tectosaur.fmm.fmm").fmm.fmm
 
 def rand_pts(n, source):
     return np.random.rand(n, 3)
@@ -92,7 +93,7 @@ def test_kdtree_idx():
 
 @slow
 def test_build_big():
-    pts = np.random.rand(10000000, 3)
+    pts = np.random.rand(1000000, 3)
     import time
     start = time.time()
     kdtree = fmm.KDTree(pts, pts, 1)
@@ -202,6 +203,8 @@ def test_high_accuracy():
 
 def test_irregular():
     check_invr(*run_full(10000, ellipse_pts, 2.6, 35, "invr"))
+
+
 
 if __name__ == '__main__':
     # test_build_big()

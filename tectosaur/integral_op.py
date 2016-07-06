@@ -5,9 +5,11 @@ import pycuda.driver as drv
 from tectosaur.quadrature import richardson_quad, gauss4d_tri
 from tectosaur.adjacency import find_adjacents, vert_adj_prep,\
     edge_adj_prep, rotate_tri
-from tectosaur.gpu import load_gpu
 import tectosaur.triangle_rules as triangle_rules
-from tectosaur.timer import Timer
+from tectosaur.util.gpu import load_gpu
+from tectosaur.util.timer import Timer
+from tectosaur.util.caching import cache
+
 
 gpu_module = load_gpu('tectosaur/integrals.cu')
 def get_pairs_integrator(singular):
@@ -115,8 +117,6 @@ def cached_in(name, creator):
             os.makedirs(dirname)
         np.save(filename, *creator())
     return np.load(filename)
-
-from tectosaur.caching import cache
 
 @cache
 def cached_coincident_quad(nq, eps):
