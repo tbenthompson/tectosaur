@@ -10,7 +10,6 @@ from tectosaur.util.timer import Timer
 from test_decorators import slow
 
 import cppimport
-cppimport.set_quiet(False)
 fmm = cppimport.imp("tectosaur.fmm.fmm").fmm.fmm
 
 def rand_pts(n, source):
@@ -96,14 +95,20 @@ def test_build_big():
 #     plt.spy(dense)
 #     plt.show()
 
-def run_full(n, make_pts, mac, order, kernel):
+def run_full(n, make_pts, mac, order, kernel, params):
     obs_pts = make_pts(n, False)
+    obs_ns = make_pts(n, False)
+    obs_ns /= np.linalg.norm(obs_ns, axis = 1)[:,np.newaxis]
     src_pts = make_pts(n + 1, True)
+    src_ns = make_pts(n + 1, True)
+    src_ns /= np.linalg.norm(src_ns, axis = 1)[:,np.newaxis]
 
     t = Timer()
-    obs_kd = fmm.KDTree(obs_pts, obs_pts, order)
-    src_kd = fmm.KDTree(src_pts, src_pts, order)
-    fmm_mat = fmm.fmmmmmmm(obs_kd, src_kd, fmm.FMMConfig(1.1, mac, order, kernel))
+    obs_kd = fmm.KDTree(obs_pts, obs_ns, order)
+    src_kd = fmm.KDTree(src_pts, src_ns, order)
+    fmm_mat = fmm.fmmmmmmm(
+        obs_kd, src_kd, fmm.FMMConfig(1.1, mac, order, kernel, params)
+    )
     t.report("build matrices")
 
     tdim = fmm_mat.tensor_dim
@@ -164,10 +169,13 @@ def run_full(n, make_pts, mac, order, kernel):
     t.report("l2p")
     t2.report("matvec")
 
-    return np.array(obs_kd.pts), np.array(src_kd.pts), est
+    return (
+        np.array(obs_kd.pts), np.array(obs_kd.normals),
+        np.array(src_kd.pts), np.array(src_kd.normals), est
+    )
 
 def test_ones():
-    obs_pts, src_pts, est = run_full(5000, rand_pts, 0.5, 1, "one")
+    obs_pts, _, src_pts, _, est = run_full(5000, rand_pts, 0.5, 1, "one",[])
     assert(np.all(np.abs(est - 5001) < 1e-3))
 
 def check(est, correct, accuracy):
@@ -176,6 +184,8 @@ def check(est, correct, accuracy):
     print("L2ERR: " + str(rmse / rms_c))
     print("MEANERR: " + str(np.mean(np.abs(est - correct)) / rms_c))
     print("MAXERR: " + str(np.max(np.abs(est - correct)) / rms_c))
+    print("MEANRELERR: " + str(np.mean(np.abs((est - correct) / correct))))
+    print("MAXRELERR: " + str(np.max(np.abs((est - correct) / correct))))
     np.testing.assert_almost_equal(est / rms_c, correct / rms_c, accuracy)
 
 def check_invr(obs_pts, src_pts, est, accuracy = 3):
@@ -184,31 +194,43 @@ def check_invr(obs_pts, src_pts, est, accuracy = 3):
     check(est, correct, accuracy)
 
 def test_invr():
-    check_invr(*run_full(5000, rand_pts, 2.6, 30, "invr"))
+    check_invr(*run_full(5000, rand_pts, 2.6, 30, "invr", []))
 
 @slow
 def test_high_accuracy():
-    check_invr(*run_full(15000, rand_pts, 2.6, 200, "invr"), accuracy = 8)
+    check_invr(*run_full(15000, rand_pts, 2.6, 200, "invr", []), accuracy = 8)
 
 def test_irregular():
-    check_invr(*run_full(10000, ellipse_pts, 2.6, 35, "invr"))
+    check_invr(*run_full(10000, ellipse_pts, 2.6, 35, "invr", []))
 
 def test_tensor():
-    obs_pts, src_pts, est = run_full(5000, rand_pts, 2.6, 35, "tensor_invr")
+    obs_pts, _, src_pts, _, est = run_full(5000, rand_pts, 2.6, 35, "tensor_invr", [])
     for d in range(3):
-        check_invr(obs_pts, src_pts, est[d::3])
+        check_invr(obs_pts, src_pts, est[d::3] / 3.0)
 
 def test_double_layer():
-    obs_pts, src_pts, est = run_full(6000, rand_pts, 3.0, 45, "laplace_double")
-    correct_mat = np.zeros((obs_pts.shape[0], src_pts.shape[0]))
-    for i in range(obs_pts.shape[0]):
-        sep = obs_pts[i, :] - src_pts
-        r = np.sqrt(np.sum(sep ** 2, axis = 1))
-        sep_d_n = np.einsum('ij,ij->i', sep, src_pts)
-        correct_mat[i,:] = sep_d_n / (4 * np.pi * r * r * r)
+    obs_pts, obs_ns, src_pts, src_ns, est = run_full(
+        6000, rand_pts, 3.0, 45, "laplace_double", []
+    )
+    correct_mat = fmm.direct_eval(
+        "laplace_double", obs_pts, obs_ns, src_pts, src_ns, []
+    ).reshape((obs_pts.shape[0], src_pts.shape[0]))
     correct = correct_mat.dot(np.ones(src_pts.shape[0]))
     check(est, correct, 3)
 
+def test_elasticH():
+    params = [1.0, 0.25]
+    K = "elasticT"
+    obs_pts, obs_ns, src_pts, src_ns, est = run_full(
+        5000, rand_pts, 2.8, 60, K, params
+    )
+    correct_mat = fmm.direct_eval(
+        K, obs_pts, obs_ns, src_pts, src_ns, params
+    ).reshape((3 * obs_pts.shape[0], 3 * src_pts.shape[0]))
+    correct = correct_mat.dot(np.ones(3 * src_pts.shape[0]))
+    check(est, correct, 3)
+
+
 if __name__ == '__main__':
     # test_build_big()
-    test_tensor()
+    test_elasticH()

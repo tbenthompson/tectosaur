@@ -17,6 +17,7 @@ struct FMMConfig {
     double outer_r;
     size_t order;
     Kernel kernel;
+    std::vector<double> params;
 };
 
 struct Block {

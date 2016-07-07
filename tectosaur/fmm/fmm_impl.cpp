@@ -4,6 +4,7 @@
 #include <iostream>
 #include <limits>
 #include "lib/doctest.h"
+#include "blas_wrapper.hpp"
 #include "test_helpers.hpp"
 
 namespace tectosaur {
@@ -120,8 +121,9 @@ void to_pts(const Workspace& ws, BlockSparseMat& mat,
                           int(n_cols), mat.vals.size()});
     auto old_n_vals = mat.vals.size();
     mat.vals.resize(old_n_vals + n_rows * n_cols);
-    ws.cfg.kernel.f({obs_pts, obs_ns, src_pts, src_ns, n_obs, n_src},
-                    &mat.vals[old_n_vals]);
+    ws.cfg.kernel.f(
+        NBodyProblem{obs_pts, obs_ns, src_pts, src_ns, n_obs, n_src, ws.cfg.params.data()},
+        &mat.vals[old_n_vals]);
 }
 
 void p2p(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
@@ -130,6 +132,12 @@ void p2p(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
         obs_n.end - obs_n.start, obs_n.start,
         &ws.src_tree.pts[src_n.start], &ws.src_tree.normals[src_n.start],
         src_n.end - src_n.start, src_n.start);
+// 
+//     auto* vals_end = ws.result.p2p.vals.back();
+//     auto n_vals = (obs_n.end - obs_n.start) * (src_n.end - src_n.start);
+//     auto svd = svd_decompose(matrix, n_rows);     
+//     auto rank = svd_rank(svd, 1e-5);
+//     std::cout << rank << " " << n_rows << std::endl;
 }
 
 void m2p(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
@@ -214,6 +222,7 @@ void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
         // then just do a p2p direct calculation between the nodes.
         bool small_src = src_n.end - src_n.start < ws.surf.size();
         bool small_obs = obs_n.end - obs_n.start < ws.surf.size();
+
         if (small_src && small_obs) {
             p2p(ws, obs_n, src_n);
         } else if (small_obs) {
@@ -221,7 +230,6 @@ void traverse(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
         } else if (small_src) {
             p2l(ws, obs_n, src_n);
         } else {
-            // m2p(ws, obs_n, src_n);
             m2l(ws, obs_n, src_n);
         }
         return;
@@ -299,7 +307,8 @@ void c2e(const Workspace& ws, BlockSparseMat& mat, const KDNode& node,
         {
             check_surf.data(), ws.surf.data(), 
             equiv_surf.data(), ws.surf.data(),
-            n_surf, n_surf
+            n_surf, n_surf,
+            ws.cfg.params.data()
         },
         equiv_to_check.data());
 
@@ -309,8 +318,7 @@ void c2e(const Workspace& ws, BlockSparseMat& mat, const KDNode& node,
     // 2) Figure out a way to do less of them. Prune tree nodes?
     //   May get about 25-50% faster.
     // 3) A faster alternative? QR? <--- This seems like the first step.
-
-    // auto svd = svd_decompose(equiv_to_check.data(), n_surf);
+    // auto svd = svd_decompose(equiv_to_check.data(), n_rows);
     // const double truncation_threshold = 1e-15;
     // set_threshold(svd, truncation_threshold);
     // auto pinv = svd_pseudoinverse(svd);
@@ -322,8 +330,7 @@ void c2e(const Workspace& ws, BlockSparseMat& mat, const KDNode& node,
 }
 
 void up_collect(const Workspace& ws, const KDNode& src_n) {
-    c2e(ws, ws.result.uc2e[src_n.height], src_n, ws.cfg.outer_r,
-        ws.cfg.inner_r);
+    c2e(ws, ws.result.uc2e[src_n.height], src_n, ws.cfg.outer_r, ws.cfg.inner_r);
     if (src_n.is_leaf) {
         p2m(ws, src_n);
     } else {

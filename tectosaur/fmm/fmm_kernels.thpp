@@ -1,8 +1,3 @@
-<%
-import tectosaur.util.kernel_exprs
-kernel_names = ['U', 'T', 'A', 'H']
-kernels = tectosaur.util.kernel_exprs.get_kernels()
-%>
 #include "kdtree.hpp"
 #include <functional>
 
@@ -15,6 +10,7 @@ struct NBodyProblem {
     const Vec3* src_ns;
     size_t n_obs;
     size_t n_src;
+    const double* kernel_args;
 };
 
 struct Kernel {
@@ -23,12 +19,5 @@ struct Kernel {
 };
 
 Kernel get_by_name(std::string name);
-
-<%def name="kernel_fnc(k_name)">\
-</%def>
-
-% for k_name in kernel_names:
-${kernel_fnc(k_name)}
-% endfor
 
 } //end namespace tectosaur

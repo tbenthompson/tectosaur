@@ -1,3 +1,8 @@
+<%
+import tectosaur.util.kernel_exprs
+kernel_names = ['U', 'T', 'A', 'H']
+kernels = tectosaur.util.kernel_exprs.get_kernels()
+%>
 #include <cmath>
 #include <iostream>
 #include "fmm_kernels.hpp"
@@ -36,7 +41,7 @@ void tensor_invr(const NBodyProblem& p, double* out) {
                 for (int d2 = 0; d2 < 3; d2++) {
                     auto row = i * 3 + d1;
                     auto col = j * 3 + d2;
-                    out[row * (p.n_src * 3) + col] = (d1 == d2) ? inv_r : 0.0;
+                    out[row * (p.n_src * 3) + col] = inv_r;
                 }
             }
         }
@@ -53,6 +58,47 @@ void laplace_double(const NBodyProblem& p, double* out) {
     );
 }
 
+<%def name="kernel_fnc(k_name)">\
+void elastic${k_name}(const NBodyProblem& p, double* out) {
+    auto G = p.kernel_args[0];
+    auto nu = p.kernel_args[1];
+    (void)G;(void)nu;
+    for (size_t i = 0; i < p.n_obs; i++) {
+        auto xx = p.obs_pts[i][0];
+        auto xy = p.obs_pts[i][1];
+        auto xz = p.obs_pts[i][2];
+        (void)xx;(void)xy;(void)xz;
+
+        auto nx = p.obs_ns[i][0];
+        auto ny = p.obs_ns[i][1];
+        auto nz = p.obs_ns[i][2];
+        (void)nx;(void)ny;(void)nz;
+        for (size_t j = 0; j < p.n_src; j++) {
+
+            auto yx = p.src_pts[j][0];
+            auto yy = p.src_pts[j][1];
+            auto yz = p.src_pts[j][2];
+            (void)yx;(void)yy;(void)yz;
+
+            auto lx = p.src_ns[j][0];
+            auto ly = p.src_ns[j][1];
+            auto lz = p.src_ns[j][2];
+            (void)lx;(void)ly;(void)lz;
+            % for d1 in range(3):
+            % for d2 in range(3):
+            out[i * p.n_src * 9 + ${d1} * 3 * p.n_src + j * 3 + ${d2}] = 
+                ${kernels[k_name]['expr'][d1][d2]};
+            % endfor
+            % endfor
+        }
+    }
+}
+</%def>
+
+% for k_name in kernel_names:
+${kernel_fnc(k_name)}
+% endfor
+
 Kernel get_by_name(std::string name) {
     if (name == "one") {
         return {one, 1};
@@ -62,6 +108,10 @@ Kernel get_by_name(std::string name) {
         return {tensor_invr, 3};
     } else if (name == "laplace_double") {
         return {laplace_double, 1};   
+    % for k_name in kernel_names:
+    } else if (name == "elastic${k_name}") {
+        return {elastic${k_name}, 3};
+    % endfor
     } else {
         throw std::runtime_error("invalid kernel name");
     }

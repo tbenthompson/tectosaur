@@ -92,6 +92,16 @@ void set_threshold(const SVDPtr& svd, double threshold) {
     svd->threshold = threshold;
 }
 
+int svd_rank(const SVDPtr& svd, double threshold) {
+    int rank = 0;
+    for (size_t i = 0; i < svd->singular_values.size(); i++) {
+        if (svd->singular_values[i] > threshold) {
+            rank++;
+        }
+    }
+    return rank;
+}
+
 std::vector<double> mat_mult(int n_out_rows, int n_out_cols,
     bool transposeA, std::vector<double>& A,
     bool transposeB, std::vector<double>& B)

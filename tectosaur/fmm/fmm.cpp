@@ -22,11 +22,12 @@ for t in templates:
     tmpl = mako.template.Template(filename = filepath)
     try:
         code = tmpl.render()
-    except:
-        print(mako.exceptions.text_error_template().render())
+    except Exception as e:
+        raise e
     dirname = os.path.dirname(t)
     filename,ext = os.path.splitext(t)
     out_filename = os.path.join(filedirname, filename + '.' + ext[2:])
+    print(out_filename)
     with open(out_filename, 'w') as f:
         f.write(code)
 
@@ -88,12 +89,17 @@ void check_shape(NPArray& arr) {
     }
 }
 
-std::vector<Vec3> get_vectors(NPArray& np_arr) {
-    check_shape(np_arr);
+template <typename T>
+T* as_ptr(NPArray& np_arr) {
+    return reinterpret_cast<T*>(np_arr.request().ptr);
+}
+
+template <typename T>
+std::vector<T> get_vector(NPArray& np_arr) {
     auto buf = np_arr.request();
-    auto* first = reinterpret_cast<Vec3*>(buf.ptr);
+    auto* first = reinterpret_cast<T*>(buf.ptr);
     auto* last = first + buf.shape[0];
-    return std::vector<Vec3>(first, last);
+    return std::vector<T>(first, last);
 }
 
 
@@ -155,13 +161,35 @@ PYBIND11_PLUGIN(fmm) {
     py::class_<FMMConfig>(m, "FMMConfig")
         .def("__init__", 
             [] (FMMConfig& cfg, double equiv_r,
-                double check_r, size_t order, std::string k_name) 
+                double check_r, size_t order, std::string k_name,
+                NPArray params) 
             {
-                new (&cfg) FMMConfig{equiv_r, check_r, order, get_by_name(k_name)};
+                new (&cfg) FMMConfig{
+                    equiv_r, check_r, order, get_by_name(k_name),
+                    get_vector<double>(params)                                    
+                };
             }
         );
 
     m.def("fmmmmmmm", &fmmmmmmm);
+
+    m.def("direct_eval", [](std::string k_name, NPArray obs_pts, NPArray obs_ns,
+                            NPArray src_pts, NPArray src_ns, NPArray params) {
+        check_shape(obs_pts);
+        check_shape(obs_ns);
+        check_shape(src_pts);
+        check_shape(src_ns);
+        auto K = get_by_name(k_name);
+        std::vector<double> out(K.tensor_dim * K.tensor_dim *
+                                obs_pts.request().shape[0] *
+                                src_pts.request().shape[0]);
+        K.f({as_ptr<Vec3>(obs_pts), as_ptr<Vec3>(obs_ns),
+           as_ptr<Vec3>(src_pts), as_ptr<Vec3>(src_ns),
+           obs_pts.request().shape[0], src_pts.request().shape[0],
+           as_ptr<double>(params)},
+          out.data());
+        return array_from_vector(out);
+    });
 
     m.def("run_tests", [] (std::vector<std::string> str_args) { 
         char** argv = new char*[str_args.size()];
