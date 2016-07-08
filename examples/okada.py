@@ -8,7 +8,7 @@ from tectosaur.integral_op import self_integral_operator
 
 from okada_solve import solve
 from okada_constraints import constraints
-from tectosaur.timer import Timer
+from tectosaur.util.timer import Timer
 
 def make_free_surface():
     n = 36

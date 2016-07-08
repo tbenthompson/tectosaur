@@ -9,8 +9,9 @@ def get_kernels():
     else:
         import tectosaur.elastic as elastic
         kernels = dict()
-        for k_name in kernel_names:
-            ks[k[0]] = elastic.get_kernel(getattr(elastic, k_name))
+        for k_name in ['U','T','A','H']:
+            print(k_name)
+            kernels[k_name] = elastic.get_kernel(getattr(elastic, k_name))
         with open(filename, 'wb') as f:
-            pickle.dump(ks, f)
+            pickle.dump(kernels, f)
     return kernels

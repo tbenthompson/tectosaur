@@ -43,7 +43,7 @@ to_cpp_map[sympy.Add] = cpp_binop('+')
 to_cpp_map[sympy.Symbol] = lambda e: str(e)
 to_cpp_map[sympy.Number] = lambda e: mpmath.nstr(float(e), 17)
 to_cpp_map[sympy.numbers.Pi] = lambda e: 'M_PI'
-to_cpp_map[sympy.NumberSymbol] = lambda e: str(e)
+to_cpp_map[sympy.NumberSymbol] = lambda e: 'float(' + str(e) + ')'
 to_cpp_map[sympy.Function] = lambda e: cpp_func(str(e.func))(e)
 to_cpp_map[sympy.Pow] = cpp_pow
 

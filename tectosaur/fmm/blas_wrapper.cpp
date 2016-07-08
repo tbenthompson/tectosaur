@@ -67,25 +67,45 @@ void SVDDeleter::operator()(SVD* thing) {
     delete thing;
 }
 
-SVDPtr svd_decompose(double* matrix, int n) {
+SVDPtr svd_decompose(double* matrix, int m, int n) {
     char jobu = 'A';
     char jobvt = 'A';
+    auto k = std::min(m, n);
     auto svd = SVDPtr(new SVD{
-        std::vector<double>(n),
-        std::vector<double>(n * n),
+        std::vector<double>(k),
+        std::vector<double>(m * m),
         std::vector<double>(n * n),
         1e-16
     });
-    int lwork = 5 * n * n;
+    int lwork = std::max(
+        std::max(1, 3 * std::min(m, n) + std::max(m, n)),
+        5 * std::min(m, n)
+    );
     std::vector<double> work_space(lwork);
     int info;
     dgesvd_(
-        &jobu, &jobvt, &n, &n, matrix, &n, svd->singular_values.data(),
-        svd->left_singular_vectors.data(), &n, svd->right_singular_vectors.data(),
+        &jobu, &jobvt, &m, &n, matrix, &m, svd->singular_values.data(),
+        svd->left_singular_vectors.data(), &m, svd->right_singular_vectors.data(),
         &n, work_space.data(), &lwork, &info
     );
     assert(info == 0);
     return std::move(svd);
+}
+
+TEST_CASE("non square psuedoinverse") {
+// >>> A = np.array([[1,2,0],[1,1,1]])
+// >>> np.linalg.pinv(A)
+// array([[  8.32667268e-17,   3.33333333e-01],
+//        [  5.00000000e-01,  -1.66666667e-01],
+//        [ -5.00000000e-01,   8.33333333e-01]])
+    std::vector<double> matrix{1,2,0,1,1,1};
+    auto svd = svd_decompose(matrix.data(), 2, 3);
+    auto pseudoinv = svd_pseudoinverse(svd);
+    for (int i = 0 ;i < 6; i++) {
+        std::cout << pseudoinv[i] << std::endl;
+    }
+    std::vector<double> correct{0, 1.0 / 3.0, 0.5, -5.0 / 3.0, -0.5, 5.0 / 6.0};
+    REQUIRE_ARRAY_CLOSE(pseudoinv, correct, 6, 1e-14); 
 }
 
 void set_threshold(const SVDPtr& svd, double threshold) {
@@ -247,7 +267,7 @@ TEST_CASE("SVD solve")
     std::vector<double> matrix{
         2, 1, -1, 0.5
     };
-    auto svd = svd_decompose(matrix.data(), 2);
+    auto svd = svd_decompose(matrix.data(), 2, 2);
     auto soln = svd_solve(svd, {1,1});
     std::vector<double> correct{
         -0.25, 1.5
@@ -260,29 +280,13 @@ TEST_CASE("Pseudoinverse")
     std::vector<double> matrix{
         2, 1, -1, 0.5
     };
-    auto svd = svd_decompose(matrix.data(), 2);
+    auto svd = svd_decompose(matrix.data(), 2, 2);
     auto pseudoinv = svd_pseudoinverse(svd);
     std::vector<double> inv{
         0.25, -0.5, 0.5, 1.0
     };
     REQUIRE_ARRAY_CLOSE(pseudoinv, inv, 4, 1e-14);
 }
-
-// TEST_CASE("non square psuedoinverse") {
-// // >>> A = np.array([[1,2,0],[1,1,1]])
-// // >>> np.linalg.pinv(A)
-// // array([[  8.32667268e-17,   3.33333333e-01],
-// //        [  5.00000000e-01,  -1.66666667e-01],
-// //        [ -5.00000000e-01,   8.33333333e-01]])
-//     std::vector<double> matrix{1,2,0,1,1,1};
-//     auto svd = svd_decompose(matrix);
-//     auto pseudoinv = svd_pseudoinverse(svd);
-//     for (int i = 0 ;i < 6; i++) {
-//         std::cout << pseudoinv[i] << std::endl;
-//     }
-//     std::vector<double> correct{0, 1.0 / 3.0, 0.5, -5.0 / 3.0, -0.5, 5.0 / 6.0};
-//     REQUIRE_ARRAY_CLOSE(pseudoinv, correct, 6, 1e-14); 
-// }
 
 TEST_CASE("Thresholded pseudoinverse") 
 {
@@ -291,7 +295,7 @@ TEST_CASE("Thresholded pseudoinverse")
         0.0238032718573239, 0.1524037864980028,
         0.1524037864980028, 0.9762067281426762
     };
-    auto svd = svd_decompose(matrix.data(), 2);
+    auto svd = svd_decompose(matrix.data(), 2, 2);
     auto no_threshold_pseudoinv = svd_pseudoinverse(svd);
     std::vector<double> correct_no_threshold{
         97620.6728142285282956, -15240.3786497941800917,
@@ -312,7 +316,7 @@ TEST_CASE("Condition number")
     std::vector<double> matrix{
         2, 1, -1, 0.5
     };
-    auto svd = svd_decompose(matrix.data(), 2);
+    auto svd = svd_decompose(matrix.data(), 2, 2);
     double cond = condition_number(svd);
     REQUIRE(cond == doctest::Approx(2.7630857945186595).epsilon(1e-12));
 }

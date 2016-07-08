@@ -4,7 +4,7 @@ import scipy.sparse.linalg
 import pycuda.gpuarray as gpuarray
 import skcuda.linalg as culg
 
-from tectosaur.timer import Timer
+from tectosaur.util.timer import Timer
 from tectosaur.linalg import gpu_mvp
 
 from okada_constraints import insert_constraints

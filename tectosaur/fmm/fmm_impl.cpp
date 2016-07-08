@@ -132,12 +132,6 @@ void p2p(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {
         obs_n.end - obs_n.start, obs_n.start,
         &ws.src_tree.pts[src_n.start], &ws.src_tree.normals[src_n.start],
         src_n.end - src_n.start, src_n.start);
-// 
-//     auto* vals_end = ws.result.p2p.vals.back();
-//     auto n_vals = (obs_n.end - obs_n.start) * (src_n.end - src_n.start);
-//     auto svd = svd_decompose(matrix, n_rows);     
-//     auto rank = svd_rank(svd, 1e-5);
-//     std::cout << rank << " " << n_rows << std::endl;
 }
 
 void m2p(const Workspace& ws, const KDNode& obs_n, const KDNode& src_n) {

@@ -10,7 +10,10 @@ import mako.lookup
 from tectosaur.util.timer import Timer
 
 gpu_module = dict()
-def load_gpu(filepath, print_code = False, no_caching = False):
+def load_gpu(filepath, print_code = True, no_caching = False, tmpl_args = None):
+    if tmpl_args is None:
+        tmpl_args = dict()
+
     timer = Timer(silent = True)
     global gpu_module
     if filepath in gpu_module and no_caching and not print_code:
@@ -26,7 +29,7 @@ def load_gpu(filepath, print_code = False, no_caching = False):
     timer.report("Load template")
 
     try:
-        code = tmpl.render()
+        code = tmpl.render(**tmpl_args)
     except:
         print(mako.exceptions.text_error_template().render())
 
@@ -37,7 +40,8 @@ def load_gpu(filepath, print_code = False, no_caching = False):
         print(numbered_lines)
     timer.report("Render template")
     gpu_module[filepath] = SourceModule(
-        code, options = [],
+        code,
+        options = ['--use_fast_math', '--restrict', '--resource-usage'],
         include_dirs = [os.getcwd() + '/' + os.path.dirname(filepath)]
     )
     timer.report("Compiling cuda")

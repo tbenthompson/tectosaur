@@ -21,7 +21,7 @@ struct SVDDeleter {
 typedef std::unique_ptr<SVD,SVDDeleter> SVDPtr;
 
 std::vector<double> qr_pseudoinverse(double* matrix, int m, int n);
-SVDPtr svd_decompose(double* matrix, int n);
+SVDPtr svd_decompose(double* matrix, int m, int n);
 void set_threshold(const SVDPtr& svd, double threshold);
 std::vector<double> svd_pseudoinverse(const SVDPtr& svd);
 int svd_rank(const SVDPtr& svd, double threshold);

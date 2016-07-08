@@ -11,7 +11,7 @@ from tectosaur.util.timer import Timer
 from tectosaur.util.caching import cache
 
 
-gpu_module = load_gpu('tectosaur/integrals.cu')
+gpu_module = load_gpu('tectosaur/integrals.cu', tmpl_args = {'block_size': 32})
 def get_pairs_integrator(singular):
     if singular:
         integrator = gpu_module.get_function('single_pairsSH')
@@ -21,6 +21,14 @@ def get_pairs_integrator(singular):
 
 
 def pairs_quad(sm, pr, pts, obs_tris, src_tris, q, singular):
+    print(obs_tris.shape[0])
+    print(q[0].shape)
+    print(obs_tris.shape[0])
+    print(q[0].shape)
+    print(obs_tris.shape[0])
+    print(q[0].shape)
+    print(obs_tris.shape[0])
+    print(q[0].shape)
     integrator = get_pairs_integrator(singular)
 
     result = np.empty((obs_tris.shape[0], 3, 3, 3, 3)).astype(np.float32)
@@ -126,10 +134,12 @@ def cached_coincident_quad(nq, eps):
 
 def coincident(nq, sm, pr, pts, tris):
     timer = Timer(2)
-    q = cached_coincident_quad(nq, [0.1, 0.01])
+    q = cached_coincident_quad(7, [0.1, 0.01])
     timer.report("Generate quadrature rule")
     out = pairs_quad(sm, pr, pts, tris, tris, q, True)
     timer.report("Perform quadrature")
+    import sys
+    sys.exit()
     return out
 
 @cache
