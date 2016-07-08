@@ -178,164 +178,24 @@ void farfield_tris${k_name}(float* result, int n_quad_pts, float* quad_pts,
 }
 </%def>
 
-__global__
-void farfield_ptsU(float3* result, float3* obs_pts, float3* obs_ns,
-    float3* src_pts, float3* src_ns, float3* input, float G, float nu, int n)
-{
-    const int i = blockIdx.x * ${block_size} + threadIdx.x;
-
-    const float3 obsp = obs_pts[i];
-    const float3 obsn = obs_ns[i];
-
-    __shared__ float3 sh_src_pts[${block_size}];
-    __shared__ float3 sh_input[${block_size}];
-    __shared__ float Cs[2];
-    if (threadIdx.x == 0) {
-        Cs[0] = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
-        Cs[1] = 1.0/(G*16.0*M_PI*(1.0-nu));
-    }
-    float3 result_sum = {0.0, 0.0, 0.0};
-
-    int j, tile;
-    for (j = 0, tile = 0; j < n; j += ${block_size}, tile++) {
-        int idx = tile * ${block_size} + threadIdx.x;
-        sh_src_pts[threadIdx.x] = src_pts[idx];
-        sh_input[threadIdx.x] = input[idx];
-        __syncthreads();
-
-        for (int k = 0; k < ${block_size}; k++) {
-            float dx = obsp.x - sh_src_pts[k].x;
-            float dy = obsp.y - sh_src_pts[k].y;
-            float dz = obsp.z - sh_src_pts[k].z;
-            float r2 = dx * dx;
-            r2 += dy * dy;
-            r2 += dz * dz;
-            float invr = 1.0 / sqrt(r2);
-            float Q1 = Cs[0] * invr;
-            float Q2 = Cs[1] * invr / r2;
-            float ddi = dx * sh_input[k].x +
-                dy * sh_input[k].y + 
-                dz * sh_input[k].z;
-            result_sum.x += Q1 * sh_input[k].x + Q2 * dx * ddi;
-            result_sum.y += Q1 * sh_input[k].y + Q2 * dy * ddi;
-            result_sum.z += Q1 * sh_input[k].z + Q2 * dz * ddi;
-        }
-        __syncthreads();
-    }
-
-    result[i] = result_sum;
-}
-
-<%def name="farfield_pts_traction(k_name)">
-<%
-if k_name == 'T':
-    normal_name = 'sh_src_ns[k]'
-    minus_or_plus = '-'
-    plus_or_minus = '+'
-else:
-    normal_name = 'obsn'
-    minus_or_plus = '+'
-    plus_or_minus = '-'
-%>
-__global__
-void farfield_pts${k_name}(float3* result, float3* obs_pts, float3* obs_ns,
-    float3* src_pts, float3* src_ns, float3* input, float G, float nu, int n)
-{
-    const int i = blockIdx.x * ${block_size} + threadIdx.x;
-
-    const float3 obsp = obs_pts[i];
-    % if k_name == 'A':
-    const float3 obsn = obs_ns[i];
-    % endif
-
-    __shared__ float3 sh_src_pts[${block_size}];
-    % if k_name == 'T':
-        __shared__ float3 sh_src_ns[${block_size}];
-    % endif
-    __shared__ float3 sh_input[${block_size}];
-    __shared__ float Cs[2];
-    if (threadIdx.x == 0) {
-        Cs[0] = ${plus_or_minus}(1-2.0*nu)/(8.0*M_PI*(1.0-nu));
-        Cs[1] = ${minus_or_plus}3.0/(8.0*M_PI*(1.0-nu));
-    }
-    float3 result_sum = {0.0, 0.0, 0.0};
-
-    int j, tile;
-    for (j = 0, tile = 0; j < n; j += ${block_size}, tile++) {
-        int idx = tile * ${block_size} + threadIdx.x;
-        sh_src_pts[threadIdx.x] = src_pts[idx];
-        % if k_name == 'T':
-            sh_src_ns[threadIdx.x] = src_ns[idx];
-        % endif
-        sh_input[threadIdx.x] = input[idx];
-        __syncthreads();
-
-        for (int k = 0; k < ${block_size}; k++) {
-            float nx = ${normal_name}.x; 
-            float ny = ${normal_name}.y; 
-            float nz = ${normal_name}.z; 
-
-            float dx = sh_src_pts[k].x - obsp.x;
-            float dy = sh_src_pts[k].y - obsp.y;
-            float dz = sh_src_pts[k].z - obsp.z;
-
-            float r2 = dx * dx + dy * dy + dz * dz;
-            float invr = 1.0 / sqrt(r2);
-            float invr2 = invr * invr;
-            float invr3 = invr2 * invr;
-
-            float rn = nx * dx + ny * dy + nz * dz;
-
-            float A = Cs[0] * invr3;
-            float C = Cs[1] * invr3 * invr2;
-
-            float rnddi = C * rn * (dx * sh_input[k].x +
-                dy * sh_input[k].y + 
-                dz * sh_input[k].z);
-
-            float nxdy = nx*dy-ny*dx;
-            float nzdx = nz*dx-nx*dz;
-            float nzdy = nz*dy-ny*dz;
-
-            result_sum.x += A*(
-                - rn * sh_input[k].x
-                ${minus_or_plus} nxdy * sh_input[k].y
-                ${plus_or_minus} nzdx * sh_input[k].z)
-                + dx*rnddi;
-            result_sum.y += A*(
-                ${plus_or_minus} nxdy * sh_input[k].x
-                - rn * sh_input[k].y
-                ${plus_or_minus} nzdy * sh_input[k].z)
-                + dy*rnddi;
-            result_sum.z += A*(
-                ${minus_or_plus} nzdx * sh_input[k].x 
-                ${minus_or_plus} nzdy * sh_input[k].y 
-                - rn * sh_input[k].z)
-                + dz*rnddi;
-        }
-        __syncthreads();
-    }
-
-    result[i] = result_sum;
-}
-</%def>
-
-${farfield_pts_traction("T")}
-${farfield_pts_traction("A")}
-
 <%def name="farfield_pts(k_name, need_obsn, need_srcn, n_constants, \
     constants_code, kernel_code)">
 __global__
 void farfield_pts${k_name}(float3* result, float3* obs_pts, float3* obs_ns,
-    float3* src_pts, float3* src_ns, float3* input, float G, float nu, int n)
+    float3* src_pts, float3* src_ns, float3* input, float G, float nu, int n_obs, int n_src)
 {
-    const int i = blockIdx.x * ${block_size} + threadIdx.x;
-    const float3 obsp = obs_pts[i];
+    int i = blockIdx.x * ${block_size} + threadIdx.x;
+
+    float3 obsp;
+    if (i < n_obs) {
+        obsp = obs_pts[i];
+    }
 
     % if need_obsn:
-    float mx = obs_ns[i].x; 
-    float my = obs_ns[i].y; 
-    float mz = obs_ns[i].z; 
+    float3 M;
+    if (i < n_obs) {
+        M = obs_ns[i]; 
+    }
     % endif
 
     % if need_srcn:
@@ -348,36 +208,140 @@ void farfield_pts${k_name}(float3* result, float3* obs_pts, float3* obs_ns,
     if (threadIdx.x == 0) {
         ${constants_code}
     }
-    float3 result_sum = {0.0, 0.0, 0.0};
+    float3 sum = {0.0, 0.0, 0.0};
+    float3 comp = {0.0, 0.0, 0.0};
 
-    int j, tile;
-    for (j = 0, tile = 0; j < n; j += ${block_size}, tile++) {
-        int idx = tile * ${block_size} + threadIdx.x;
-        % if need_srcn:
-        sh_src_pts[threadIdx.x] = src_pts[idx];
-        % endif
-        sh_src_ns[threadIdx.x] = src_ns[idx];
-        sh_input[threadIdx.x] = input[idx];
+    int j = 0;
+    int tile = 0;
+    for (; j < n_src; j += ${block_size}, tile++) {
         __syncthreads();
-
-        for (int k = 0; k < ${block_size}; k++) {
-            float dx = sh_src_pts[k].x - obsp.x;
-            float dy = sh_src_pts[k].y - obsp.y;
-            float dz = sh_src_pts[k].z - obsp.z;
-
-            float nx = sh_src_ns[k].x; 
-            float ny = sh_src_ns[k].y; 
-            float nz = sh_src_ns[k].z; 
-            ${kernel_code}
+        int idx = tile * ${block_size} + threadIdx.x;
+        if (idx < n_src) {
+            % if need_srcn:
+            sh_src_ns[threadIdx.x] = src_ns[idx];
+            % endif
+            sh_src_pts[threadIdx.x] = src_pts[idx];
+            sh_input[threadIdx.x] = input[idx];
         }
         __syncthreads();
+
+        if (i >= n_obs) {
+            continue;
+        }
+        for (int k = 0; k < ${block_size} && k < n_src - j; k++) {
+            float3 D = {
+                sh_src_pts[k].x-obsp.x,
+                sh_src_pts[k].y-obsp.y,
+                sh_src_pts[k].z-obsp.z
+            };
+
+            % if need_srcn:
+            float3 N = sh_src_ns[k]; 
+            % endif
+
+            float3 S = sh_input[k];
+
+            float3 res;
+            ${kernel_code}
+            sum.x += res.x;
+            sum.y += res.y;
+            sum.z += res.z;
+
+            // Kahan summation is cool
+            // float3 Y = {res.x - comp.x, res.y - comp.y, res.z - comp.z};
+            // float3 T = {sum.x + Y.x, sum.y + Y.y, sum.z + Y.z};
+            // comp.x = T.x - sum.x - Y.x;
+            // comp.y = T.y - sum.y - Y.y;
+            // comp.z = T.z - sum.z - Y.z;
+            // sum.x = T.x;
+            // sum.y = T.y;
+            // sum.z = T.z;
+        }
     }
 
-    result[i] = result_sum;
+    if (i < n_obs) {
+        result[i] = sum;
+    }
 }
 </%def>
 
 <%
+U_const_code = """
+Cs[0] = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
+Cs[1] = 1.0/(G*16.0*M_PI*(1.0-nu));
+"""
+
+U_code = """
+float r2 = D.x*D.x + D.y*D.y + D.z*D.z;
+float invr = 1.0 / sqrt(r2);
+float Q1 = Cs[0] * invr;
+float Q2 = Cs[1] * invr / r2;
+float ddi = D.x*S.x + D.y*S.y + D.z*S.z;
+res.x = Q1*S.x + Q2*D.x*ddi;
+res.y = Q1*S.y + Q2*D.y*ddi;
+res.z = Q1*S.z + Q2*D.z*ddi;
+"""
+
+if k_name == 'T':
+    normal_name = 'sh_src_ns[k]'
+    minus_or_plus = '-'
+    plus_or_minus = '+'
+else:
+    normal_name = 'obsn'
+    minus_or_plus = '+'
+    plus_or_minus = '-'
+
+TA_const_code = """
+Cs[0] = ${plus_or_minus}(1-2.0*nu)/(8.0*M_PI*(1.0-nu));
+Cs[1] = ${minus_or_plus}3.0/(8.0*M_PI*(1.0-nu));
+"""
+
+TA_code = """
+float r2 = dx * dx + dy * dy + dz * dz;
+float invr = 1.0 / sqrt(r2);
+float invr2 = invr * invr;
+float invr3 = invr2 * invr;
+
+float rn = nx * dx + ny * dy + nz * dz;
+
+float A = Cs[0] * invr3;
+float C = Cs[1] * invr3 * invr2;
+
+float rnddi = C * rn * (dx * sh_input[k].x +
+    dy * sh_input[k].y + 
+    dz * sh_input[k].z);
+
+float nxdy = nx*dy-ny*dx;
+float nzdx = nz*dx-nx*dz;
+float nzdy = nz*dy-ny*dz;
+
+res.x = A*(
+    - rn * sh_input[k].x
+    ${minus_or_plus} nxdy * sh_input[k].y
+    ${plus_or_minus} nzdx * sh_input[k].z)
+    + dx*rnddi;
+res.y = A*(
+    ${plus_or_minus} nxdy * sh_input[k].x
+    - rn * sh_input[k].y
+    ${plus_or_minus} nzdy * sh_input[k].z)
+    + dy*rnddi;
+res.z = A*(
+    ${minus_or_plus} nzdx * sh_input[k].x 
+    ${minus_or_plus} nzdy * sh_input[k].y 
+    - rn * sh_input[k].z)
+    + dz*rnddi;
+"""
+
+from mako.template import Template
+Targs = {'plus_or_minus': '+', 'minus_or_plus': '-', 'normal_name': 'sh_src_ns[k]'}
+T_const_code = Template(TA_const_code).render(Targs)
+T_code = Template(TA_code).render(Targs)
+
+Aargs = {'plus_or_minus': '-', 'minus_or_plus': '+', 'normal_name': 'obsn'}
+A_const_code = Template(TA_const_code).render(Aargs)
+A_code = Template(AA_code).render(Aargs)
+
+
 H_const_code = """
 Cs[0] = G / (4 * M_PI * (1 - nu));
 Cs[1] = 1 - 2 * nu;
@@ -386,37 +350,37 @@ Cs[3] = 3 * nu;
 """
 
 H_code = """
-float r2 = dx * dx + dy * dy + dz * dz;
+float r2 = D.x * D.x + D.y * D.y + D.z * D.z;
 
 float invr = 1.0 / sqrt(r2);
 float invr2 = invr * invr;
 float invr3 = invr2 * invr;
 
-float rn = invr*(nx * dx + ny * dy + nz * dz);
-float rm = invr*(mx * dx + my * dy + mz * dz);
-float mn = mx * nx + my * ny + mz * nz;
+float rn = invr*(N.x * D.x + N.y * D.y + N.z * D.z);
+float rm = invr*(M.x * D.x + M.y * D.y + M.z * D.z);
+float mn = M.x * N.x + M.y * N.y + M.z * N.z;
 
-float3 S = sh_input[k];
-float sn = S.x*nx + S.y*ny + S.z*nz;
-float sd = invr*(S.x*dx + S.y*dy + S.z*dz);
-float sm = S.x*mx + S.y*my + S.z*mz;
+float sn = S.x*N.x + S.y*N.y + S.z*N.z;
+float sd = invr*(S.x*D.x + S.y*D.y + S.z*D.z);
+float sm = S.x*M.x + S.y*M.y + S.z*M.z;
 
 float Q = Cs[0] * invr3;
 float A = Q * 3 * rn;
 float B = Q * Cs[1];
 float C = Q * Cs[3];
-float D = Q * Cs[2];
 
-float MT = D*sn + A*Cs[1]*sd;
+float MT = Q*Cs[2]*sn + A*Cs[1]*sd;
 float NT = B*sm + C*sd*rm;
 float DT = invr*(B*3*sn*rm + C*sd*mn + A*(nu*sm - 5*sd*rm));
 float ST = A*nu*rm + B*mn;
 
-result_sum.x += nx*NT + mx*MT + dx*DT + ST*S.x;
-result_sum.y += ny*NT + my*MT + dy*DT + ST*S.y;
-result_sum.z += nz*NT + mz*MT + dz*DT + ST*S.z;
+res.x = N.x*NT + M.x*MT + D.x*DT + ST*S.x;
+res.y = N.y*NT + M.y*MT + D.y*DT + ST*S.y;
+res.z = N.z*NT + M.z*MT + D.z*DT + ST*S.z;
 """
 %>
+${farfield_pts("U", False, False, 2, U_const_code, U_code)}
+${farfield_pts("T", False, True, 2, T_const_code, T_code)}
 ${farfield_pts("H", True, True, 4, H_const_code, H_code)}
 
 % for k_name in kernel_names:

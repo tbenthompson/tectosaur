@@ -27,10 +27,10 @@ def cpp_pow(expr):
         return '(1 / ({a} * {a}))'.format(a = a)
     elif expr.args[1] == -0.5:
         a = to_cpp(expr.args[0])
-        return '(1.0 / std::sqrt({a}))'.format(a = a)
+        return '(1 / std::sqrt({a}))'.format(a = a)
     elif expr.args[1] == -1.5:
         a = to_cpp(expr.args[0])
-        return '(1.0 / std::sqrt({a} * {a} * {a}))'.format(a = a)
+        return '(1 / std::sqrt({a} * {a} * {a}))'.format(a = a)
     elif expr.args[1] == 0.5:
         a = to_cpp(expr.args[0])
         return '(std::sqrt({a}))'.format(a = a)
@@ -41,8 +41,8 @@ to_cpp_map = dict()
 to_cpp_map[sympy.Mul] = cpp_binop('*')
 to_cpp_map[sympy.Add] = cpp_binop('+')
 to_cpp_map[sympy.Symbol] = lambda e: str(e)
-to_cpp_map[sympy.Number] = lambda e: mpmath.nstr(float(e), 17)
-to_cpp_map[sympy.numbers.Pi] = lambda e: 'M_PI'
+to_cpp_map[sympy.Number] = lambda e: 'float(' + mpmath.nstr(float(e), 17) + ')'
+to_cpp_map[sympy.numbers.Pi] = lambda e: 'float(M_PI)'
 to_cpp_map[sympy.NumberSymbol] = lambda e: 'float(' + str(e) + ')'
 to_cpp_map[sympy.Function] = lambda e: cpp_func(str(e.func))(e)
 to_cpp_map[sympy.Pow] = cpp_pow

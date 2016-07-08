@@ -10,7 +10,7 @@ import mako.lookup
 from tectosaur.util.timer import Timer
 
 gpu_module = dict()
-def load_gpu(filepath, print_code = True, no_caching = False, tmpl_args = None):
+def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None):
     if tmpl_args is None:
         tmpl_args = dict()
 
