@@ -209,7 +209,6 @@ void farfield_pts${k_name}(float3* result, float3* obs_pts, float3* obs_ns,
         ${constants_code}
     }
     float3 sum = {0.0, 0.0, 0.0};
-    float3 comp = {0.0, 0.0, 0.0};
 
     int j = 0;
     int tile = 0;
@@ -241,21 +240,7 @@ void farfield_pts${k_name}(float3* result, float3* obs_pts, float3* obs_ns,
 
             float3 S = sh_input[k];
 
-            float3 res;
             ${kernel_code}
-            sum.x += res.x;
-            sum.y += res.y;
-            sum.z += res.z;
-
-            // Kahan summation is cool
-            // float3 Y = {res.x - comp.x, res.y - comp.y, res.z - comp.z};
-            // float3 T = {sum.x + Y.x, sum.y + Y.y, sum.z + Y.z};
-            // comp.x = T.x - sum.x - Y.x;
-            // comp.y = T.y - sum.y - Y.y;
-            // comp.z = T.z - sum.z - Y.z;
-            // sum.x = T.x;
-            // sum.y = T.y;
-            // sum.z = T.z;
         }
     }
 
@@ -277,19 +262,10 @@ float invr = 1.0 / sqrt(r2);
 float Q1 = Cs[0] * invr;
 float Q2 = Cs[1] * invr / r2;
 float ddi = D.x*S.x + D.y*S.y + D.z*S.z;
-res.x = Q1*S.x + Q2*D.x*ddi;
-res.y = Q1*S.y + Q2*D.y*ddi;
-res.z = Q1*S.z + Q2*D.z*ddi;
+sum.x += Q1*S.x + Q2*D.x*ddi;
+sum.y += Q1*S.y + Q2*D.y*ddi;
+sum.z += Q1*S.z + Q2*D.z*ddi;
 """
-
-if k_name == 'T':
-    normal_name = 'sh_src_ns[k]'
-    minus_or_plus = '-'
-    plus_or_minus = '+'
-else:
-    normal_name = 'obsn'
-    minus_or_plus = '+'
-    plus_or_minus = '-'
 
 TA_const_code = """
 Cs[0] = ${plus_or_minus}(1-2.0*nu)/(8.0*M_PI*(1.0-nu));
@@ -297,50 +273,47 @@ Cs[1] = ${minus_or_plus}3.0/(8.0*M_PI*(1.0-nu));
 """
 
 TA_code = """
-float r2 = dx * dx + dy * dy + dz * dz;
+float r2 = D.x * D.x + D.y * D.y + D.z * D.z;
 float invr = 1.0 / sqrt(r2);
 float invr2 = invr * invr;
 float invr3 = invr2 * invr;
 
-float rn = nx * dx + ny * dy + nz * dz;
+float rn = ${n_name}.x * D.x + ${n_name}.y * D.y + ${n_name}.z * D.z;
 
 float A = Cs[0] * invr3;
 float C = Cs[1] * invr3 * invr2;
 
-float rnddi = C * rn * (dx * sh_input[k].x +
-    dy * sh_input[k].y + 
-    dz * sh_input[k].z);
+float rnddi = C * rn * (D.x*S.x + D.y*S.y + D.z*S.z);
 
-float nxdy = nx*dy-ny*dx;
-float nzdx = nz*dx-nx*dz;
-float nzdy = nz*dy-ny*dz;
+float nxdy = ${n_name}.x*D.y-${n_name}.y*D.x;
+float nzdx = ${n_name}.z*D.x-${n_name}.x*D.z;
+float nzdy = ${n_name}.z*D.y-${n_name}.y*D.z;
 
-res.x = A*(
-    - rn * sh_input[k].x
-    ${minus_or_plus} nxdy * sh_input[k].y
-    ${plus_or_minus} nzdx * sh_input[k].z)
-    + dx*rnddi;
-res.y = A*(
-    ${plus_or_minus} nxdy * sh_input[k].x
-    - rn * sh_input[k].y
-    ${plus_or_minus} nzdy * sh_input[k].z)
-    + dy*rnddi;
-res.z = A*(
-    ${minus_or_plus} nzdx * sh_input[k].x 
-    ${minus_or_plus} nzdy * sh_input[k].y 
-    - rn * sh_input[k].z)
-    + dz*rnddi;
+sum.x += A*(
+    - rn * S.x
+    ${minus_or_plus} nxdy * S.y
+    ${plus_or_minus} nzdx * S.z)
+    + D.x*rnddi;
+sum.y += A*(
+    ${plus_or_minus} nxdy * S.x
+    - rn * S.y
+    ${plus_or_minus} nzdy * S.z)
+    + D.y*rnddi;
+sum.z += A*(
+    ${minus_or_plus} nzdx * S.x 
+    ${minus_or_plus} nzdy * S.y 
+    - rn * S.z)
+    + D.z*rnddi;
 """
 
 from mako.template import Template
-Targs = {'plus_or_minus': '+', 'minus_or_plus': '-', 'normal_name': 'sh_src_ns[k]'}
-T_const_code = Template(TA_const_code).render(Targs)
-T_code = Template(TA_code).render(Targs)
+Targs = {'plus_or_minus': '+', 'minus_or_plus': '-', 'n_name': 'N'}
+T_const_code = Template(TA_const_code).render(**Targs)
+T_code = Template(TA_code).render(**Targs)
 
-Aargs = {'plus_or_minus': '-', 'minus_or_plus': '+', 'normal_name': 'obsn'}
-A_const_code = Template(TA_const_code).render(Aargs)
-A_code = Template(AA_code).render(Aargs)
-
+Aargs = {'plus_or_minus': '-', 'minus_or_plus': '+', 'n_name': 'M'}
+A_const_code = Template(TA_const_code).render(**Aargs)
+A_code = Template(TA_code).render(**Aargs)
 
 H_const_code = """
 Cs[0] = G / (4 * M_PI * (1 - nu));
@@ -374,13 +347,14 @@ float NT = B*sm + C*sd*rm;
 float DT = invr*(B*3*sn*rm + C*sd*mn + A*(nu*sm - 5*sd*rm));
 float ST = A*nu*rm + B*mn;
 
-res.x = N.x*NT + M.x*MT + D.x*DT + ST*S.x;
-res.y = N.y*NT + M.y*MT + D.y*DT + ST*S.y;
-res.z = N.z*NT + M.z*MT + D.z*DT + ST*S.z;
+sum.x += N.x*NT + M.x*MT + D.x*DT + ST*S.x;
+sum.y += N.y*NT + M.y*MT + D.y*DT + ST*S.y;
+sum.z += N.z*NT + M.z*MT + D.z*DT + ST*S.z;
 """
 %>
 ${farfield_pts("U", False, False, 2, U_const_code, U_code)}
 ${farfield_pts("T", False, True, 2, T_const_code, T_code)}
+${farfield_pts("A", True, False, 2, A_const_code, A_code)}
 ${farfield_pts("H", True, True, 4, H_const_code, H_code)}
 
 % for k_name in kernel_names:

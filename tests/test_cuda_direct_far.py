@@ -77,4 +77,7 @@ def test_H():
     run_kernel(1000, 'H', 102, testit = True)
 
 if __name__ == '__main__':
-    run_kernel(128 * 1024, 'H', 102, timeit = True)
+    run_kernel(128 * 512, 'U', 28, timeit = True)
+    run_kernel(128 * 512, 'A', 63, timeit = True)
+    run_kernel(128 * 512, 'T', 63, timeit = True)
+    run_kernel(128 * 512, 'H', 102, timeit = True)
