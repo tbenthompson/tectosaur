@@ -95,15 +95,3 @@ def H(i, j):
     result['symmetric'] = True
     result['expr'] = outer_factor * (term1 + term2 + term3 + term4 + term5 + term6)
     return result
-
-def get_kernel(kernel_builder):
-    out = dict()
-    out['expr'] = []
-    for i in range(3):
-        out['expr'].append([])
-        for j in range(3):
-            result = kernel_builder(i, j)
-            result['expr'] = to_cpp(result['expr'])
-            out['symmetric'] = result['symmetric']
-            out['expr'][i].append(result['expr'])
-    return out

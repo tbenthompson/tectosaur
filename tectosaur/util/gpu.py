@@ -41,7 +41,7 @@ def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None)
     timer.report("Render template")
     gpu_module[filepath] = SourceModule(
         code,
-        options = ['--use_fast_math', '--restrict', '--resource-usage'],
+        options = ['--use_fast_math', '--restrict'],
         include_dirs = [os.getcwd() + '/' + os.path.dirname(filepath)]
     )
     timer.report("Compiling cuda")

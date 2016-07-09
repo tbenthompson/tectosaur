@@ -1,7 +1,7 @@
 <%
 import tectosaur.util.kernel_exprs
 kernel_names = ['U', 'T', 'A', 'H']
-kernels = tectosaur.util.kernel_exprs.get_kernels()
+kernels = tectosaur.util.kernel_exprs.get_kernels('float')
 def dim_name(dim):
     return ['x', 'y', 'z'][dim]
 %>
@@ -73,7 +73,7 @@ ${pt_pfx}${dim_name(dim)} += ${basis_pfx}b${basis} * ${tri_name}[${basis}][${dim
 ${b_obs} * 27 + ${b_src} * 9 + ${d_obs} * 3 + ${d_src}
 </%def>
 
-<%def name="integrate_pair(k_name, limit)">
+<%def name="integrate_pair(k_name, limit, filtered_same_pt)">
     ${tri_info("obs", "n")}
     ${tri_info("src", "l")}
 
@@ -104,13 +104,13 @@ ${b_obs} * 27 + ${b_src} * 9 + ${d_obs} * 3 + ${d_src}
         ${basis("src")}
         ${pts_from_basis("y", "src", "src_tri")}
 
-        float dx = xx - yx;
-        float dy = xy - yy;
-        float dz = xz - yz;
-        float r2 = dx * dx + dy * dy + dz * dz;
-        if (r2 < 1e-5) {
+        % if filtered_same_pt:
+        float3 D = {xx - yx, xy - yy, xz - yz};
+        float r2 = D.x * D.x + D.y * D.y + D.z * D.z;
+        if (r2 == 0.0) {
             continue;
         }
+        % endif
 
         % if limit:
         % for dim in range(3):
@@ -135,14 +135,17 @@ ${b_obs} * 27 + ${b_src} * 9 + ${d_obs} * 3 + ${d_src}
     }
 </%def>
 
-<%def name="single_pairs(k_name, limit)">
+<%def name="single_pairs(k_name, limit, filtered_same_pt)">
 <%
 limit_label = 'N'
 if limit:
     limit_label = 'S'
+filter_label = ''
+if filtered_same_pt:
+    filter_label = 'F'
 %>
 __global__
-void single_pairs${limit_label}${k_name}(float* result, 
+void single_pairs${limit_label}${filter_label}${k_name}(float* result, 
     int n_quad_pts, float* quad_pts, float* quad_wts,
     float* pts, int* obs_tris, int* src_tris, float G, float nu)
 {
@@ -150,7 +153,7 @@ void single_pairs${limit_label}${k_name}(float* result,
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "i")}
-    ${integrate_pair(k_name, limit)}
+    ${integrate_pair(k_name, limit, filtered_same_pt)}
     
     for (int iresult = 0; iresult < 81; iresult++) {
         result[i * 81 + iresult] = result_temp[iresult];
@@ -169,7 +172,7 @@ void farfield_tris${k_name}(float* result, int n_quad_pts, float* quad_pts,
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "j")}
-    ${integrate_pair(k_name, limit = False)}
+    ${integrate_pair(k_name, limit = False, filtered_same_pt = False)}
 
     % for d_obs in range(3):
     % for d_src in range(3):
@@ -368,6 +371,7 @@ ${farfield_pts("H", True, True, 4, H_const_code, H_code)}
 
 % for k_name in kernel_names:
 ${farfield_tris(k_name)}
-${single_pairs(k_name, limit = True)}
-${single_pairs(k_name, limit = False)}
+${single_pairs(k_name, limit = True, filtered_same_pt = False)}
+${single_pairs(k_name, limit = False, filtered_same_pt = False)}
+${single_pairs(k_name, limit = False, filtered_same_pt = True)}
 % endfor
