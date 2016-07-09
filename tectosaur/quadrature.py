@@ -121,7 +121,7 @@ def poly_transform01(quad_rule):
         w[i] = quad_rule[1][i] * J
     return np.array(x), np.array(w)
 
-def gauss4d_tri(N):
+def gauss2d_tri(N):
     qg = gaussxw(N)
 
     q_rect_x, q_rect_y = np.meshgrid(qg[0], qg[0])
@@ -132,7 +132,10 @@ def gauss4d_tri(N):
     q_tri_pts[:,0] = (q_rect_pts[:,0] + 1) / 2
     q_tri_pts[:,1] = (q_rect_pts[:,1] + 1) / 2 * (1 - q_tri_pts[:, 0])
     q_tri_w = q_rect_w / 8.0
+    return q_tri_pts, q_tri_w
 
+def gauss4d_tri(N):
+    q_tri_pts, q_tri_w = gauss2d_tri(N)
     pts = []
     w = []
     for i in range(q_tri_pts.shape[0]):

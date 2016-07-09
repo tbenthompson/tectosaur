@@ -101,14 +101,22 @@ ${b_obs} * 27 + ${b_src} * 9 + ${d_obs} * 3 + ${d_src}
         ${basis("obs")}
         ${pts_from_basis("x", "obs", "obs_tri")}
 
+        ${basis("src")}
+        ${pts_from_basis("y", "src", "src_tri")}
+
+        float dx = xx - yx;
+        float dy = xy - yy;
+        float dz = xz - yz;
+        float r2 = dx * dx + dy * dy + dz * dz;
+        if (r2 == 0.0) {
+            continue;
+        }
+
         % if limit:
         % for dim in range(3):
         x${dim_name(dim)} -= eps * obs_unscaled_normal[${dim}];
         % endfor
         % endif
-
-        ${basis("src")}
-        ${pts_from_basis("y", "src", "src_tri")}
 
         % for d_obs in range(3):
         % for d_src in range(3):
@@ -182,7 +190,8 @@ void farfield_tris${k_name}(float* result, int n_quad_pts, float* quad_pts,
     constants_code, kernel_code)">
 __global__
 void farfield_pts${k_name}(float3* result, float3* obs_pts, float3* obs_ns,
-    float3* src_pts, float3* src_ns, float3* input, float G, float nu, int n_obs, int n_src)
+    float3* src_pts, float3* src_ns, float3* input,
+    float G, float nu, int n_obs, int n_src)
 {
     int i = blockIdx.x * ${block_size} + threadIdx.x;
 
@@ -234,13 +243,16 @@ void farfield_pts${k_name}(float3* result, float3* obs_pts, float3* obs_ns,
                 sh_src_pts[k].z-obsp.z
             };
 
-            % if need_srcn:
-            float3 N = sh_src_ns[k]; 
-            % endif
+            float r2 = D.x * D.x + D.y * D.y + D.z * D.z;
+            if (r2 > 0.0) {
+                % if need_srcn:
+                float3 N = sh_src_ns[k]; 
+                % endif
 
-            float3 S = sh_input[k];
+                float3 S = sh_input[k];
 
-            ${kernel_code}
+                ${kernel_code}
+            }
         }
     }
 
@@ -257,7 +269,6 @@ Cs[1] = 1.0/(G*16.0*M_PI*(1.0-nu));
 """
 
 U_code = """
-float r2 = D.x*D.x + D.y*D.y + D.z*D.z;
 float invr = 1.0 / sqrt(r2);
 float Q1 = Cs[0] * invr;
 float Q2 = Cs[1] * invr / r2;
@@ -273,7 +284,6 @@ Cs[1] = ${minus_or_plus}3.0/(8.0*M_PI*(1.0-nu));
 """
 
 TA_code = """
-float r2 = D.x * D.x + D.y * D.y + D.z * D.z;
 float invr = 1.0 / sqrt(r2);
 float invr2 = invr * invr;
 float invr3 = invr2 * invr;
@@ -323,8 +333,6 @@ Cs[3] = 3 * nu;
 """
 
 H_code = """
-float r2 = D.x * D.x + D.y * D.y + D.z * D.z;
-
 float invr = 1.0 / sqrt(r2);
 float invr2 = invr * invr;
 float invr3 = invr2 * invr;

@@ -11,7 +11,7 @@ from tectosaur.util.timer import Timer
 from tectosaur.util.caching import cache
 
 
-gpu_module = load_gpu('tectosaur/integrals.cu', tmpl_args = {'block_size': 32})
+gpu_module = load_gpu('tectosaur/integrals.cu', tmpl_args = {'block_size': 1})
 def get_pairs_integrator(singular):
     if singular:
         integrator = gpu_module.get_function('single_pairsSH')
@@ -212,3 +212,55 @@ def self_integral_operator(nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
         out.shape[3] * out.shape[4] * out.shape[5]
     )
     return out
+
+class SelfIntegralOperator:
+    def __init__(self, nq_coincident, nq_edge_adjacent,
+            nq_vert_adjacent, sm, pr, pts, tris):
+        timer = Timer(tabs = 1)
+        co_indices = np.arange(tris.shape[0])
+        co_mat = coincident(nq_coincident, sm, pr, pts, tris)
+        timer.report("Coincident")
+
+        va, ea = find_adjacents(tris)
+        timer.report("Find adjacency")
+
+        ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
+            edge_adj_prep(tris, ea)
+        timer.report("Edge adjacency prep")
+        ea_mat_rot = edge_adj(nq_edge_adjacent, sm, pr, pts, ea_obs_tris, ea_src_tris)
+        timer.report("Edge adjacent")
+
+        va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
+            vert_adj_prep(tris, va)
+        timer.report("Vert adjacency prep")
+        va_mat_rot = vert_adj(nq_vert_adjacent, sm, pr, pts, va_obs_tris, va_src_tris)
+        timer.report("Vert adjacent")
+
+        out = farfield(sm, pr, pts, tris, tris, 3)
+
+        timer.report("Farfield")
+        out = set_co_entries(out, co_mat, co_indices)
+
+        # obs_derot = rotate_tri(obs_clicks)
+        # src_derot = rotate_tri(src_clicks)
+
+        # placeholder = np.arange(adj_mat.shape[0])
+        # for b1 in range(3):
+        #     for b2 in range(3):
+        #         mat[tri_idxs[:,0], :, b1,tri_idxs[:,1], :, b2] = \
+        #             adj_mat[placeholder, obs_derot[b1], src_derot[b2], :, :]
+        # return mat
+        out = set_adj_entries(
+            out, ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks
+        )
+
+        out = set_adj_entries(
+            out, va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks
+        )
+        timer.report("Insert coincident adjacent")
+
+        out.shape = (
+            out.shape[0] * out.shape[1] * out.shape[2],
+            out.shape[3] * out.shape[4] * out.shape[5]
+        )
+        self.mat = out

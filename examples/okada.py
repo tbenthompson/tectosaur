@@ -4,7 +4,7 @@ import matplotlib.tri as tri
 import okada_wrapper
 
 import tectosaur.mesh as mesh
-from tectosaur.integral_op import self_integral_operator
+from tectosaur.integral_op import SelfIntegralOperator
 
 from okada_solve import solve
 from okada_constraints import constraints
@@ -12,8 +12,10 @@ from tectosaur.util.timer import Timer
 
 def make_free_surface():
     n = 36
-    inner_n = 7
-    outer_n = 13
+    # inner_n = 7
+    # outer_n = 13
+    inner_n = 5
+    outer_n = 8
     one_side = (
         np.linspace(0, 3, inner_n)[1:].tolist() +
         (3.0 * 1.1 ** np.arange(1, outer_n)).tolist()
@@ -30,7 +32,7 @@ def make_free_surface():
     return (pts, topology)
 
 def make_fault(L, top_depth):
-    return mesh.rect_surface(7, 7, [
+    return mesh.rect_surface(4, 4, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
@@ -52,13 +54,13 @@ def test_okada():
     cs = constraints(surface_tris, fault_tris, all_mesh[0])
     timer.report("Constraints")
 
-    iop = self_integral_operator(15, 15, 8, sm, pr, all_mesh[0], all_mesh[1])
+    iop = SelfIntegralOperator(15, 15, 8, sm, pr, all_mesh[0], all_mesh[1])
     timer.report("Integrals")
 
     soln = solve(iop, cs)
     timer.report("Solve")
 
-    disp = soln[:iop.shape[0]].reshape((int(iop.shape[0]/9), 3, 3))[:-6]
+    disp = soln[:iop.mat.shape[0]].reshape((int(iop.mat.shape[0]/9), 3, 3))[:-6]
     vals = [None] * surface[0].shape[0]
     for i in range(surface[1].shape[0]):
         for b in range(3):
@@ -67,6 +69,7 @@ def test_okada():
     vals = np.array(vals)
     timer.report("Extract surface displacement")
 
+    import sys; sys.exit()
 
     lam = 2 * sm * pr / (1 - 2 * pr)
     alpha = (lam + sm) / (lam + 2 * sm)
