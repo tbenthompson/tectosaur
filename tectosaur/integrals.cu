@@ -108,7 +108,7 @@ ${b_obs} * 27 + ${b_src} * 9 + ${d_obs} * 3 + ${d_src}
         float dy = xy - yy;
         float dz = xz - yz;
         float r2 = dx * dx + dy * dy + dz * dz;
-        if (r2 == 0.0) {
+        if (r2 < 1e-5) {
             continue;
         }
 
@@ -244,15 +244,16 @@ void farfield_pts${k_name}(float3* result, float3* obs_pts, float3* obs_ns,
             };
 
             float r2 = D.x * D.x + D.y * D.y + D.z * D.z;
-            if (r2 > 0.0) {
-                % if need_srcn:
-                float3 N = sh_src_ns[k]; 
-                % endif
-
-                float3 S = sh_input[k];
-
-                ${kernel_code}
+            if (r2 == 0.0) {
+                continue;
             }
+            % if need_srcn:
+            float3 N = sh_src_ns[k]; 
+            % endif
+
+            float3 S = sh_input[k];
+
+            ${kernel_code}
         }
     }
 
