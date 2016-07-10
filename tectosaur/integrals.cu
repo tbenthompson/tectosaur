@@ -72,7 +72,7 @@ ${pt_pfx}${dim_name(dim)} += ${basis_pfx}b${basis} * ${tri_name}[${basis}][${dim
 </%def>
 
 <%def name="temp_result_idx(d_obs, d_src, b_obs, b_src)">
-${b_obs} * 27 + ${b_src} * 9 + ${d_obs} * 3 + ${d_src}
+${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 </%def>
 
 <%def name="integrate_pair(k_name, limit, filtered_same_pt)">
@@ -173,8 +173,8 @@ void farfield_tris${k_name}(float* result, int n_quad_pts, float* quad_pts,
     % for b_obs in range(3):
     % for b_src in range(3):
     result[
-        (i * 9 + ${d_obs} * 3 + ${b_obs}) * n_src_tris * 9 +
-        (j * 9 + ${d_src} * 3 + ${b_src})
+        (i * 9 + ${b_obs} * 3 + ${d_obs}) * n_src_tris * 9 +
+        (j * 9 + ${b_src} * 3 + ${d_src})
         ] = result_temp[${temp_result_idx(d_obs, d_src, b_obs, b_src)}];
     % endfor
     % endfor

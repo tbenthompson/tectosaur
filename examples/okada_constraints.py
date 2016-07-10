@@ -34,8 +34,8 @@ def constraints(surface_tris, fault_tris, pts):
                 continue
 
             for d in range(3):
-                indepedent_dof = tri1_idx * 9 + d * 3 + tpt[0][1]
-                dependent_dof = tri2_idx * 9 + d * 3 + dependent[1]
+                indepedent_dof = tri1_idx * 9 + tpt[0][1] * 3 + d
+                dependent_dof = tri2_idx * 9 + dependent[1] * 3 + d
                 if dependent_dof <= indepedent_dof:
                     continue
                 constraints.append((
@@ -49,7 +49,7 @@ def constraints(surface_tris, fault_tris, pts):
     for i in range(n_surf_tris, n_surf_tris + n_fault_tris):
         for d in range(3):
             for b in range(3):
-                dof = i * 9 + d * 3 + b
+                dof = i * 9 + b * 3 + d
                 constraints.append(([(1.0, dof)], slip[d]))
     constraints = sorted(constraints, key = lambda x: x[0][0][1])
     return constraints

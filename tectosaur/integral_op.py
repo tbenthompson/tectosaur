@@ -171,73 +171,20 @@ def vert_adj(nq, sm, pr, pts, obs_tris, src_tris):
     return out
 
 def set_co_entries(mat, co_mat, co_indices):
-    mat[co_indices, :, :, co_indices, :, :] =\
-        np.swapaxes(np.swapaxes(np.swapaxes(co_mat, 1, 3), 2, 3), 3, 4)
+    mat[co_indices, :, :, co_indices, :, :] += co_mat
     return mat
 
-def set_adj_entries(mat, adj_mat, tri_idxs, obs_clicks, src_clicks):
+def set_adj_entries(mat, adj_mat, tri_idxs, obs_clicks, src_clicks, corr_mat):
     obs_derot = rotate_tri(obs_clicks)
     src_derot = rotate_tri(src_clicks)
 
     placeholder = np.arange(adj_mat.shape[0])
     for b1 in range(3):
         for b2 in range(3):
-            mat[tri_idxs[:,0], :, b1,tri_idxs[:,1], :, b2] = \
-                adj_mat[placeholder, obs_derot[b1], src_derot[b2], :, :]
+            mat[tri_idxs[:,0], b1, :, tri_idxs[:,1], b2, :] += \
+                adj_mat[placeholder, obs_derot[b1], :, src_derot[b2], :] -\
+                corr_mat[placeholder, b1, :, b2, :]
     return mat
-
-class OldSelfIntegralOperator:
-    def __init__(self, nq_coincident, nq_edge_adjacent,
-            nq_vert_adjacent, sm, pr, pts, tris):
-        timer = Timer(tabs = 1)
-        co_indices = np.arange(tris.shape[0])
-        co_mat = coincident(nq_coincident, sm, pr, pts, tris)
-        timer.report("Coincident")
-
-        va, ea = find_adjacents(tris)
-        timer.report("Find adjacency")
-
-        ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
-            edge_adj_prep(tris, ea)
-        timer.report("Edge adjacency prep")
-        ea_mat_rot = edge_adj(nq_edge_adjacent, sm, pr, pts, ea_obs_tris, ea_src_tris)
-        timer.report("Edge adjacent")
-
-        va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
-            vert_adj_prep(tris, va)
-        timer.report("Vert adjacency prep")
-        va_mat_rot = vert_adj(nq_vert_adjacent, sm, pr, pts, va_obs_tris, va_src_tris)
-        timer.report("Vert adjacent")
-
-        out = farfield(sm, pr, pts, tris, tris, 3)
-
-        timer.report("Farfield")
-        out = set_co_entries(out, co_mat, co_indices)
-        out = set_adj_entries(
-            out, ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks
-        )
-        out = set_adj_entries(
-            out, va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks
-        )
-        timer.report("Insert coincident adjacent")
-
-        out.shape = (
-            out.shape[0] * out.shape[1] * out.shape[2],
-            out.shape[3] * out.shape[4] * out.shape[5]
-        )
-
-        self.mat = out
-        self.shape = self.mat.shape
-        self.gpu_mat = None
-
-    def dot(self, v):
-        import pycuda.gpuarray as gpuarray
-        import skcuda.linalg as culg
-        from tectosaur.linalg import gpu_mvp
-        if self.gpu_mat is None:
-            culg.init()
-            self.gpu_mat = gpuarray.to_gpu(self.mat.astype(np.float32))
-        return np.squeeze(gpu_mvp(self.gpu_mat, v[:,np.newaxis].astype(np.float32)))
 
 def interp_galerkin_mat(tri_pts, quad_rule):
     nt = tri_pts.shape[0]
@@ -282,9 +229,6 @@ class SelfIntegralOperator:
         timer = Timer(tabs = 1)
         co_indices = np.arange(tris.shape[0])
         co_mat = coincident(nq_coincident, sm, pr, pts, tris)
-        co_mat -= pairs_quad(
-            sm, pr, pts, tris, tris, far_quad, False, True
-        )
         timer.report("Coincident")
 
         va, ea = find_adjacents(tris)
@@ -294,9 +238,6 @@ class SelfIntegralOperator:
             edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
         ea_mat_rot = edge_adj(nq_edge_adjacent, sm, pr, pts, ea_obs_tris, ea_src_tris)
-        ea_mat_rot -= pairs_quad(
-            sm, pr, pts, ea_obs_tris, ea_src_tris, far_quad, False, True
-        )
         timer.report("Edge adjacent")
 
         va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
@@ -304,23 +245,74 @@ class SelfIntegralOperator:
         timer.report("Vert adjacency prep")
 
         va_mat_rot = vert_adj(nq_vert_adjacent, sm, pr, pts, va_obs_tris, va_src_tris)
-        va_mat_rot -= pairs_quad(
-            sm, pr, pts, va_obs_tris, va_src_tris, far_quad, False, True
-        )
         timer.report("Vert adjacent")
 
-        out = farfield(sm, pr, pts, tris, tris, nq_far)
-
-        timer.report("Farfield")
-
-        near_mat = np.zeros_like(out)
-        near_mat = set_co_entries(near_mat, co_mat, co_indices)
-        near_mat = set_adj_entries(
-            near_mat, ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks
+        co_mat -= pairs_quad(
+            sm, pr, pts, tris, tris, gauss4d_tri(3), False, True
         )
-        near_mat = set_adj_entries(
-            near_mat, va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks
+        ea_mat_corr = pairs_quad(
+            sm, pr, pts,
+            tris[ea_tri_indices[:,0]], tris[ea_tri_indices[:,1]],
+            gauss4d_tri(3), False, True
         )
+        va_mat_corr = pairs_quad(
+            sm, pr, pts,
+            tris[va_tri_indices[:,0]], tris[va_tri_indices[:,1]],
+            gauss4d_tri(3), False, True
+        )
+
+        timer.report("farfield correction")
+
+        def co_sparse_mat(co_indices, co_mat):
+            tiled_co_indices = np.tile(co_indices[:,np.newaxis,np.newaxis], (1,3,3))
+            indices = tiled_co_indices * 9 +\
+                np.arange(3)[np.newaxis,:,np.newaxis] * 3 +\
+                np.arange(3)[np.newaxis, np.newaxis, :]
+            rows = np.tile(indices[:,:,:,np.newaxis,np.newaxis], (1,1,1,3,3)).flatten()
+            cols = np.tile(indices[:,np.newaxis,np.newaxis], (1,3,3,1,1)).flatten()
+            vals = co_mat.flatten()
+            return vals, rows, cols
+
+        def adj_sparse_mat(adj_mat, tri_idxs, obs_clicks, src_clicks, corr_mat):
+            obs_derot = np.array(rotate_tri(obs_clicks))
+            src_derot = np.array(rotate_tri(src_clicks))
+
+            derot_mat = np.empty_like(adj_mat)
+            placeholder = np.arange(adj_mat.shape[0])
+            for b1 in range(3):
+                for b2 in range(3):
+                    derot_mat[placeholder,b1,:,b2,:] =\
+                        adj_mat[placeholder,obs_derot[b1],:,src_derot[b2],:] -\
+                        corr_mat[placeholder,b1,:,b2,:]
+
+            rows = np.tile((
+                np.tile(tri_idxs[:,0,np.newaxis,np.newaxis], (1,3,3)) * 9 +
+                    np.arange(3)[np.newaxis,:,np.newaxis] * 3 +
+                    np.arange(3)[np.newaxis, np.newaxis, :]
+                )[:,:,:,np.newaxis,np.newaxis], (1,1,1,3,3)
+            ).flatten()
+            cols = np.tile((
+                np.tile(tri_idxs[:,1,np.newaxis,np.newaxis], (1,3,3)) * 9 +
+                    np.arange(3)[np.newaxis,:,np.newaxis] * 3 +
+                    np.arange(3)[np.newaxis, np.newaxis, :]
+                )[:,np.newaxis,np.newaxis], (1,3,3,1,1)
+            ).flatten()
+
+            vals = derot_mat.flatten()
+            return vals, rows, cols
+
+        co_vals,co_rows,co_cols = co_sparse_mat(co_indices, co_mat)
+        ea_vals,ea_rows,ea_cols = adj_sparse_mat(
+            ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_mat_corr
+        )
+        va_vals,va_rows,va_cols = adj_sparse_mat(
+            va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks, va_mat_corr
+        )
+        rows = np.hstack((co_rows, ea_rows, va_rows))
+        cols = np.hstack((co_cols, ea_cols, va_cols))
+        vals = np.hstack((co_vals, ea_vals, va_vals))
+        self.coincident = scipy.sparse.coo_matrix((vals, (rows, cols))).tocsr()
+
         timer.report("Insert coincident adjacent")
 
         far_quad2d = gauss2d_tri(nq_far)
@@ -329,16 +321,14 @@ class SelfIntegralOperator:
         self.quad_pts = self.quad_pts.flatten().astype(np.float32)
         self.quad_ns = self.quad_ns.flatten().astype(np.float32)
         self.nq = int(self.quad_pts.shape[0] / 3)
-        self.near_mat = near_mat
-        self.shape = (near_mat.shape[0] * 9, near_mat.shape[3] * 9)
-        self.near_mat.shape = self.shape
+        self.shape = self.coincident.shape
         self.sm = sm
         self.pr = pr
         self.gpu_module = get_gpu_module()
 
     def dot(self, v):
         t = Timer()
-        # out = self.near_mat.dot(v)
+        out = self.coincident.dot(v)
         t.report('nearfield')
 
         interp_v = self.interp_galerkin_mat.dot(v).flatten().astype(np.float32)
@@ -359,6 +349,6 @@ class SelfIntegralOperator:
             time_kernel = True
         )
         t.report('call farfield interact')
-        out = self.interp_galerkin_mat.T.dot(nbody_result)
+        out += self.interp_galerkin_mat.T.dot(nbody_result)
         t.report('galerkin * nbody_result')
         return out

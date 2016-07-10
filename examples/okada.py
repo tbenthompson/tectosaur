@@ -4,7 +4,7 @@ import matplotlib.tri as tri
 import okada_wrapper
 
 import tectosaur.mesh as mesh
-from tectosaur.integral_op import SelfIntegralOperator, OldSelfIntegralOperator
+from tectosaur.integral_op import SelfIntegralOperator
 
 from okada_solve import solve
 from okada_constraints import constraints
@@ -54,7 +54,7 @@ def test_okada():
     cs = constraints(surface_tris, fault_tris, all_mesh[0])
     timer.report("Constraints")
 
-    iop = OldSelfIntegralOperator(15, 15, 8, sm, pr, all_mesh[0], all_mesh[1])
+    iop = SelfIntegralOperator(15, 15, 8, sm, pr, all_mesh[0], all_mesh[1])
     timer.report("Integrals")
 
     soln = solve(iop, cs)
@@ -65,7 +65,7 @@ def test_okada():
     for i in range(surface[1].shape[0]):
         for b in range(3):
             idx = surface[1][i, b]
-            vals[idx] = disp[i,:,b]
+            vals[idx] = disp[i,b,:]
     vals = np.array(vals)
     timer.report("Extract surface displacement")
 

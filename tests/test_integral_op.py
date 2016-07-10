@@ -17,33 +17,38 @@ def test_farfield_two_tris():
     )
     obs_tris = np.array([[0, 1, 2]], dtype = np.int)
     src_tris = np.array([[3, 4, 5]], dtype = np.int)
-    return integral_op.farfield(1.0, 0.25, pts, obs_tris, src_tris, 3)
+    out = integral_op.farfield(1.0, 0.25, pts, obs_tris, src_tris, 3)
+    return out
 
 @golden_master
 def test_gpu_edge_adjacent():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
     obs_tris = np.array([[0,1,2]]).astype(np.int32)
     src_tris = np.array([[1,0,3]]).astype(np.int32)
-    return integral_op.edge_adj(8, 1.0, 0.25, pts, obs_tris, src_tris)
+    out = integral_op.edge_adj(8, 1.0, 0.25, pts, obs_tris, src_tris)
+    return out
 
 @golden_master
 def test_gpu_vert_adjacent():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
     obs_tris = np.array([[1,2,0]]).astype(np.int32)
     src_tris = np.array([[1,3,4]]).astype(np.int32)
-    return integral_op.vert_adj(3, 1.0, 0.25, pts, obs_tris, src_tris)
+    out = integral_op.vert_adj(3, 1.0, 0.25, pts, obs_tris, src_tris)
+    return out
 
 @golden_master
 def test_coincident_gpu():
     n = 4
     w = 4
     pts, tris = mesh.rect_surface(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
-    return integral_op.coincident(8, 1.0, 0.25, pts, tris)
+    out = integral_op.coincident(8, 1.0, 0.25, pts, tris)
+    return out
 
 @golden_master
 def test_full_integral_op():
     m = mesh.rect_surface(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
-    return integral_op.OldSelfIntegralOperator(5, 5, 5, 1.0, 0.25, m[0], m[1]).mat
+    out = integral_op.OldSelfIntegralOperator(5, 5, 5, 1.0, 0.25, m[0], m[1]).mat
+    return out
 
 tri_ref = [[0,0,0],[1,0,0],[0,1,0]]
 tri_down = [[1,0,0],[0,0,0],[0,-1,0]]

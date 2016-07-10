@@ -47,8 +47,7 @@ np.random.seed(100)
 V = np.random.rand(interp_mat.shape[1])
 from tectosaur.integral_op import farfield
 mat = farfield(1.0, 0.25, pts, tris, tris, NQ)
-mat_swapped = np.swapaxes(np.swapaxes(mat, 1, 2), 4, 5)
-mat_reshaped = mat_swapped.reshape((nt * 9, nt * 9))
+mat_reshaped = mat.reshape((nt * 9, nt * 9))
 correct = mat_reshaped.dot(V)
 
 from tectosaur.util.gpu import load_gpu
@@ -83,8 +82,4 @@ np.testing.assert_almost_equal(result, correct, 5)
 from tectosaur.integral_op import pairs_quad
 far_correction = pairs_quad(1.0, 0.25, pts, tris, tris, gauss4d_tri(NQ), False, True)
 for i in range(tris.shape[0]):
-    np.testing.assert_almost_equal(
-        mat_swapped[i,:,:,i],
-        np.swapaxes(far_correction[i], 1, 2),
-        7
-    )
+    np.testing.assert_almost_equal(mat[i,:,:,i], far_correction[i], 7)
