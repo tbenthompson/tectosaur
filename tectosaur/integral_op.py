@@ -1,8 +1,9 @@
 import os
 import numpy as np
 import pycuda.driver as drv
+import scipy.sparse
 
-from tectosaur.quadrature import richardson_quad, gauss4d_tri
+from tectosaur.quadrature import richardson_quad, gauss4d_tri, gauss2d_tri
 from tectosaur.adjacency import find_adjacents, vert_adj_prep,\
     edge_adj_prep, rotate_tri
 import tectosaur.triangle_rules as triangle_rules
@@ -11,17 +12,28 @@ from tectosaur.util.timer import Timer
 from tectosaur.util.caching import cache
 
 
-gpu_module = load_gpu('tectosaur/integrals.cu', tmpl_args = {'block_size': 1})
-def get_pairs_integrator(singular):
+def pairs_func_name(singular, filtered_same_pt, k_name):
+    singular_label = 'N'
     if singular:
-        integrator = gpu_module.get_function('single_pairsSH')
-    else:
-        integrator = gpu_module.get_function('single_pairsNH')
-    return integrator;
+        singular_label = 'S'
+    filter_label = ''
+    if filtered_same_pt:
+        filter_label = 'F'
+    return 'single_pairs' + singular_label + filter_label + k_name
 
+def get_gpu_config():
+    return {'block_size': 128}
 
-def pairs_quad(sm, pr, pts, obs_tris, src_tris, q, singular):
-    integrator = get_pairs_integrator(singular)
+def get_gpu_module():
+    return load_gpu('tectosaur/integrals.cu', tmpl_args = get_gpu_config())
+
+def get_pairs_integrator(singular, filtered_same_pt):
+    return get_gpu_module().get_function(
+        pairs_func_name(singular, filtered_same_pt, 'H')
+    )
+
+def pairs_quad(sm, pr, pts, obs_tris, src_tris, q, singular, filtered_same_pt):
+    integrator = get_pairs_integrator(singular, filtered_same_pt)
 
     result = np.empty((obs_tris.shape[0], 3, 3, 3, 3)).astype(np.float32)
     if obs_tris.shape[0] == 0:
@@ -61,7 +73,7 @@ def farfield(sm, pr, pts, obs_tris, src_tris, n_q):
     q = gauss4d_tri(n_q)
 
     def call_integrator(block, grid, result_buf, tri_start, tri_end):
-        integrator = gpu_module.get_function("farfield_trisH")
+        integrator = get_gpu_module().get_function("farfield_trisH")
         if grid[0] == 0:
             return
         integrator(
@@ -128,7 +140,7 @@ def coincident(nq, sm, pr, pts, tris):
     timer = Timer(2)
     q = cached_coincident_quad(nq, [0.1, 0.01])
     timer.report("Generate quadrature rule")
-    out = pairs_quad(sm, pr, pts, tris, tris, q, True)
+    out = pairs_quad(sm, pr, pts, tris, tris, q, True, False)
     timer.report("Perform quadrature")
     return out
 
@@ -142,7 +154,7 @@ def edge_adj(nq, sm, pr, pts, obs_tris, src_tris):
     timer = Timer(2)
     q = cached_edge_adj_quad(nq, [0.1, 0.01])
     timer.report("Generate quadrature rule")
-    out = pairs_quad(sm, pr, pts, obs_tris, src_tris, q, True)
+    out = pairs_quad(sm, pr, pts, obs_tris, src_tris, q, True, False)
     timer.report("Perform quadrature")
     return out
 
@@ -154,7 +166,7 @@ def vert_adj(nq, sm, pr, pts, obs_tris, src_tris):
     timer = Timer(2)
     q = cached_vert_adj_quad(nq)
     timer.report("Generate quadrature rule")
-    out = pairs_quad(sm, pr, pts, obs_tris, src_tris, q, False)
+    out = pairs_quad(sm, pr, pts, obs_tris, src_tris, q, False, False)
     timer.report("Perform quadrature")
     return out
 
@@ -174,46 +186,7 @@ def set_adj_entries(mat, adj_mat, tri_idxs, obs_clicks, src_clicks):
                 adj_mat[placeholder, obs_derot[b1], src_derot[b2], :, :]
     return mat
 
-def self_integral_operator(nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-                           sm, pr, pts, tris):
-    timer = Timer(tabs = 1)
-    co_indices = np.arange(tris.shape[0])
-    co_mat = coincident(nq_coincident, sm, pr, pts, tris)
-    timer.report("Coincident")
-
-    va, ea = find_adjacents(tris)
-    timer.report("Find adjacency")
-
-    ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
-        edge_adj_prep(tris, ea)
-    timer.report("Edge adjacency prep")
-    ea_mat_rot = edge_adj(nq_edge_adjacent, sm, pr, pts, ea_obs_tris, ea_src_tris)
-    timer.report("Edge adjacent")
-
-    va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
-        vert_adj_prep(tris, va)
-    timer.report("Vert adjacency prep")
-    va_mat_rot = vert_adj(nq_vert_adjacent, sm, pr, pts, va_obs_tris, va_src_tris)
-    timer.report("Vert adjacent")
-
-    out = farfield(sm, pr, pts, tris, tris, 3)
-    timer.report("Farfield")
-    out = set_co_entries(out, co_mat, co_indices)
-    out = set_adj_entries(
-        out, ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks
-    )
-    out = set_adj_entries(
-        out, va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks
-    )
-    timer.report("Insert coincident adjacent")
-
-    out.shape = (
-        out.shape[0] * out.shape[1] * out.shape[2],
-        out.shape[3] * out.shape[4] * out.shape[5]
-    )
-    return out
-
-class SelfIntegralOperator:
+class OldSelfIntegralOperator:
     def __init__(self, nq_coincident, nq_edge_adjacent,
             nq_vert_adjacent, sm, pr, pts, tris):
         timer = Timer(tabs = 1)
@@ -240,20 +213,9 @@ class SelfIntegralOperator:
 
         timer.report("Farfield")
         out = set_co_entries(out, co_mat, co_indices)
-
-        # obs_derot = rotate_tri(obs_clicks)
-        # src_derot = rotate_tri(src_clicks)
-
-        # placeholder = np.arange(adj_mat.shape[0])
-        # for b1 in range(3):
-        #     for b2 in range(3):
-        #         mat[tri_idxs[:,0], :, b1,tri_idxs[:,1], :, b2] = \
-        #             adj_mat[placeholder, obs_derot[b1], src_derot[b2], :, :]
-        # return mat
         out = set_adj_entries(
             out, ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks
         )
-
         out = set_adj_entries(
             out, va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks
         )
@@ -263,4 +225,140 @@ class SelfIntegralOperator:
             out.shape[0] * out.shape[1] * out.shape[2],
             out.shape[3] * out.shape[4] * out.shape[5]
         )
+
         self.mat = out
+        self.shape = self.mat.shape
+        self.gpu_mat = None
+
+    def dot(self, v):
+        import pycuda.gpuarray as gpuarray
+        import skcuda.linalg as culg
+        from tectosaur.linalg import gpu_mvp
+        if self.gpu_mat is None:
+            culg.init()
+            self.gpu_mat = gpuarray.to_gpu(self.mat.astype(np.float32))
+        return np.squeeze(gpu_mvp(self.gpu_mat, v[:,np.newaxis].astype(np.float32)))
+
+def interp_galerkin_mat(tri_pts, quad_rule):
+    nt = tri_pts.shape[0]
+    qx, qw = quad_rule
+    nq = qx.shape[0]
+
+    rows = np.tile(
+        np.arange(nt * nq * 3).reshape((nt, nq, 3))[:,:,np.newaxis,:], (1,1,3,1)
+    ).flatten()
+    cols = np.tile(
+        np.arange(nt * 9).reshape(nt,3,3)[:,np.newaxis,:,:], (1,nq,1,1)
+    ).flatten()
+
+    basis = np.array([1 - qx[:, 0] - qx[:, 1], qx[:, 0], qx[:, 1]]).T
+
+    unscaled_normals = np.cross(
+        tri_pts[:,2,:] - tri_pts[:,0,:],
+        tri_pts[:,2,:] - tri_pts[:,1,:]
+    )
+    jacobians = np.linalg.norm(unscaled_normals, axis = 1)
+    b_tiled = np.tile((qw[:,np.newaxis] * basis)[np.newaxis,:,:], (nt, 1, 1))
+    J_tiled = np.tile(jacobians[:,np.newaxis,np.newaxis], (1, nq, 3))
+    vals = np.tile((J_tiled * b_tiled)[:,:,:,np.newaxis], (1,1,1,3)).flatten()
+
+    quad_pts = np.zeros((nt * nq, 3))
+    for d in range(3):
+        for b in range(3):
+            quad_pts[:,d] += np.outer(basis[:,b], tri_pts[:,b,d]).T.flatten()
+
+    scaled_normals = unscaled_normals / jacobians[:,np.newaxis]
+    quad_ns = np.tile(scaled_normals[:,np.newaxis,:], (1, nq, 1))
+
+    return scipy.sparse.coo_matrix((vals, (rows, cols))), quad_pts, quad_ns
+
+class SelfIntegralOperator:
+    def __init__(self, nq_coincident, nq_edge_adjacent,
+            nq_vert_adjacent, sm, pr, pts, tris):
+
+        nq_far = 3
+        far_quad = gauss4d_tri(nq_far)
+
+        timer = Timer(tabs = 1)
+        co_indices = np.arange(tris.shape[0])
+        co_mat = coincident(nq_coincident, sm, pr, pts, tris)
+        co_mat -= pairs_quad(
+            sm, pr, pts, tris, tris, far_quad, False, True
+        )
+        timer.report("Coincident")
+
+        va, ea = find_adjacents(tris)
+        timer.report("Find adjacency")
+
+        ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
+            edge_adj_prep(tris, ea)
+        timer.report("Edge adjacency prep")
+        ea_mat_rot = edge_adj(nq_edge_adjacent, sm, pr, pts, ea_obs_tris, ea_src_tris)
+        ea_mat_rot -= pairs_quad(
+            sm, pr, pts, ea_obs_tris, ea_src_tris, far_quad, False, True
+        )
+        timer.report("Edge adjacent")
+
+        va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
+            vert_adj_prep(tris, va)
+        timer.report("Vert adjacency prep")
+
+        va_mat_rot = vert_adj(nq_vert_adjacent, sm, pr, pts, va_obs_tris, va_src_tris)
+        va_mat_rot -= pairs_quad(
+            sm, pr, pts, va_obs_tris, va_src_tris, far_quad, False, True
+        )
+        timer.report("Vert adjacent")
+
+        out = farfield(sm, pr, pts, tris, tris, nq_far)
+
+        timer.report("Farfield")
+
+        near_mat = np.zeros_like(out)
+        near_mat = set_co_entries(near_mat, co_mat, co_indices)
+        near_mat = set_adj_entries(
+            near_mat, ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks
+        )
+        near_mat = set_adj_entries(
+            near_mat, va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks
+        )
+        timer.report("Insert coincident adjacent")
+
+        far_quad2d = gauss2d_tri(nq_far)
+        self.interp_galerkin_mat, self.quad_pts, self.quad_ns = \
+            interp_galerkin_mat(pts[tris], far_quad2d)
+        self.quad_pts = self.quad_pts.flatten().astype(np.float32)
+        self.quad_ns = self.quad_ns.flatten().astype(np.float32)
+        self.nq = int(self.quad_pts.shape[0] / 3)
+        self.near_mat = near_mat
+        self.shape = (near_mat.shape[0] * 9, near_mat.shape[3] * 9)
+        self.near_mat.shape = self.shape
+        self.sm = sm
+        self.pr = pr
+        self.gpu_module = get_gpu_module()
+
+    def dot(self, v):
+        t = Timer()
+        # out = self.near_mat.dot(v)
+        t.report('nearfield')
+
+        interp_v = self.interp_galerkin_mat.dot(v).flatten().astype(np.float32)
+        t.report('interp * v')
+        nbody_result = np.empty((self.nq * 3), dtype = np.float32)
+        t.report('empty nbody_result')
+        block = (get_gpu_config()['block_size'], 1, 1)
+        grid = (int(np.ceil(self.nq / block[0])), 1)
+        runtime = self.gpu_module.get_function("farfield_ptsH")(
+            drv.Out(nbody_result),
+            drv.In(self.quad_pts), drv.In(self.quad_ns),
+            drv.In(self.quad_pts), drv.In(self.quad_ns),
+            drv.In(interp_v),
+            np.float32(self.sm), np.float32(self.pr),
+            np.int32(self.nq), np.int32(self.nq),
+            block = block,
+            grid = grid,
+            time_kernel = True
+        )
+        t.report('call farfield interact')
+        out = self.interp_galerkin_mat.T.dot(nbody_result)
+        t.report('galerkin * nbody_result')
+        return out

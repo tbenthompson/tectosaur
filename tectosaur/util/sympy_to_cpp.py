@@ -18,19 +18,19 @@ def cpp_func(f_name):
 
 def cpp_pow(float_type, expr):
     if expr.args[1] == -1:
-        return '(1 / ' + to_cpp(float_type, expr.args[0]) + ')'
+        return '(' + float_type + '(1) / ' + to_cpp(float_type, expr.args[0]) + ')'
     elif expr.args[1] == 2:
         a = to_cpp(float_type, expr.args[0])
         return '({a} * {a})'.format(a = a)
     elif expr.args[1] == -2:
         a = to_cpp(float_type, expr.args[0])
-        return '(1 / ({a} * {a}))'.format(a = a)
+        return '(' + float_type + '(1) / ({a} * {a}))'.format(a = a)
     elif expr.args[1] == -0.5:
         a = to_cpp(float_type, expr.args[0])
-        return '(1 / std::sqrt({a}))'.format(a = a)
+        return '(' + float_type + '(1) / std::sqrt({a}))'.format(a = a)
     elif expr.args[1] == -1.5:
         a = to_cpp(float_type, expr.args[0])
-        return '(1 / std::sqrt({a} * {a} * {a}))'.format(a = a)
+        return '(' + float_type + '(1) / std::sqrt({a} * {a} * {a}))'.format(a = a)
     elif expr.args[1] == 0.5:
         a = to_cpp(float_type, expr.args[0])
         return '(std::sqrt({a}))'.format(a = a)

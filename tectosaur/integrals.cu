@@ -1,4 +1,6 @@
 <%
+from tectosaur.integral_op import pairs_func_name
+
 import tectosaur.util.kernel_exprs
 kernel_names = ['U', 'T', 'A', 'H']
 kernels = tectosaur.util.kernel_exprs.get_kernels('float')
@@ -136,16 +138,8 @@ ${b_obs} * 27 + ${b_src} * 9 + ${d_obs} * 3 + ${d_src}
 </%def>
 
 <%def name="single_pairs(k_name, limit, filtered_same_pt)">
-<%
-limit_label = 'N'
-if limit:
-    limit_label = 'S'
-filter_label = ''
-if filtered_same_pt:
-    filter_label = 'F'
-%>
 __global__
-void single_pairs${limit_label}${filter_label}${k_name}(float* result, 
+void ${pairs_func_name(limit, filtered_same_pt, k_name)}(float* result, 
     int n_quad_pts, float* quad_pts, float* quad_wts,
     float* pts, int* obs_tris, int* src_tris, float G, float nu)
 {
@@ -172,7 +166,7 @@ void farfield_tris${k_name}(float* result, int n_quad_pts, float* quad_pts,
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "j")}
-    ${integrate_pair(k_name, limit = False, filtered_same_pt = False)}
+    ${integrate_pair(k_name, limit = False, filtered_same_pt = True)}
 
     % for d_obs in range(3):
     % for d_src in range(3):

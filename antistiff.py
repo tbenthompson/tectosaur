@@ -25,10 +25,8 @@ cols = np.tile(
 ).flatten()
 
 basis = np.array([1 - qx[:, 0] - qx[:, 1], qx[:, 0], qx[:, 1]]).T
-jacobians = np.linalg.norm(
-    np.cross(tp[:,2,:] - tp[:,0,:], tp[:,2,:] - tp[:,1,:]),
-    axis = 1
-)
+unscaled_normals = np.cross(tp[:,2,:] - tp[:,0,:], tp[:,2,:] - tp[:,1,:])
+jacobians = np.linalg.norm(unscaled_normals, axis = 1)
 b_tiled = np.tile((qw[:,np.newaxis] * basis)[np.newaxis,:,:], (nt, 1, 1))
 J_tiled = np.tile(jacobians[:,np.newaxis,np.newaxis], (1, nq, 3))
 vals = np.tile((J_tiled * b_tiled)[:,:,:,np.newaxis], (1,1,1,3)).flatten()
@@ -42,11 +40,7 @@ for d in range(3):
         quad_pts[:,d] += np.outer(basis[:,b], tp[:,b,d]).T.flatten()
 
 #TODO:
-quad_ns = np.array([
-    np.zeros(quad_pts.shape[0]),
-    np.zeros(quad_pts.shape[0]),
-    np.ones(quad_pts.shape[0])
-]).T
+quad_ns = np.tile((unscaled_normals / jacobians[:,np.newaxis])[:,np.newaxis,:], (1, nq, 1))
 t.report('quad pts')
 
 np.random.seed(100)
@@ -87,7 +81,7 @@ result = galerkin_mat.dot(nbody_res)
 np.testing.assert_almost_equal(result, correct, 5)
 
 from tectosaur.integral_op import pairs_quad
-far_correction = pairs_quad(1.0, 0.25, pts, tris, tris, gauss4d_tri(NQ), False)
+far_correction = pairs_quad(1.0, 0.25, pts, tris, tris, gauss4d_tri(NQ), False, True)
 for i in range(tris.shape[0]):
     np.testing.assert_almost_equal(
         mat_swapped[i,:,:,i],
