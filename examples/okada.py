@@ -11,11 +11,12 @@ from okada_constraints import constraints
 from tectosaur.util.timer import Timer
 
 def make_free_surface():
+    w = 10
+    corners = [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]]
+    return mesh.rect_surface(100,100,corners)
     n = 36
-    # inner_n = 7
-    # outer_n = 13
-    inner_n = 5
-    outer_n = 8
+    inner_n = 15
+    outer_n = 30
     one_side = (
         np.linspace(0, 3, inner_n)[1:].tolist() +
         (3.0 * 1.1 ** np.arange(1, outer_n)).tolist()
@@ -32,7 +33,7 @@ def make_free_surface():
     return (pts, topology)
 
 def make_fault(L, top_depth):
-    return mesh.rect_surface(4, 4, [
+    return mesh.rect_surface(5, 5, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
@@ -47,6 +48,7 @@ def test_okada():
     surface = make_free_surface()
     fault = make_fault(fault_L, top_depth)
     all_mesh = mesh.concat(surface, fault)
+    print(all_mesh[1].shape)
     surface_tris = all_mesh[1][:surface[1].shape[0]]
     fault_tris = all_mesh[1][surface[1].shape[0]:]
     timer.report("Mesh")

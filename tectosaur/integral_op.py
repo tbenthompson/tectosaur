@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pycuda.driver as drv
+import pycuda.gpuarray as gpuarray
 import scipy.sparse
 
 from tectosaur.quadrature import richardson_quad, gauss4d_tri, gauss2d_tri
@@ -311,9 +312,9 @@ class SelfIntegralOperator:
         rows = np.hstack((co_rows, ea_rows, va_rows))
         cols = np.hstack((co_cols, ea_cols, va_cols))
         vals = np.hstack((co_vals, ea_vals, va_vals))
-        self.coincident = scipy.sparse.coo_matrix((vals, (rows, cols))).tocsr()
+        self.nearfield = scipy.sparse.coo_matrix((vals, (rows, cols))).tocsr()
 
-        timer.report("Insert coincident adjacent")
+        timer.report("Build nearfield sparse")
 
         far_quad2d = gauss2d_tri(nq_far)
         self.interp_galerkin_mat, self.quad_pts, self.quad_ns = \
@@ -321,14 +322,16 @@ class SelfIntegralOperator:
         self.quad_pts = self.quad_pts.flatten().astype(np.float32)
         self.quad_ns = self.quad_ns.flatten().astype(np.float32)
         self.nq = int(self.quad_pts.shape[0] / 3)
-        self.shape = self.coincident.shape
+        self.shape = self.nearfield.shape
         self.sm = sm
         self.pr = pr
-        self.gpu_module = get_gpu_module()
+        self.gpu_farfield = get_gpu_module().get_function("farfield_ptsH")
+        self.gpu_quad_pts = gpuarray.to_gpu(self.quad_pts)
+        self.gpu_quad_ns = gpuarray.to_gpu(self.quad_ns)
 
     def dot(self, v):
         t = Timer()
-        out = self.coincident.dot(v)
+        out = self.nearfield.dot(v)
         t.report('nearfield')
 
         interp_v = self.interp_galerkin_mat.dot(v).flatten().astype(np.float32)
@@ -337,10 +340,10 @@ class SelfIntegralOperator:
         t.report('empty nbody_result')
         block = (get_gpu_config()['block_size'], 1, 1)
         grid = (int(np.ceil(self.nq / block[0])), 1)
-        runtime = self.gpu_module.get_function("farfield_ptsH")(
+        runtime = self.gpu_farfield(
             drv.Out(nbody_result),
-            drv.In(self.quad_pts), drv.In(self.quad_ns),
-            drv.In(self.quad_pts), drv.In(self.quad_ns),
+            self.gpu_quad_pts, self.gpu_quad_ns,
+            self.gpu_quad_pts, self.gpu_quad_ns,
             drv.In(interp_v),
             np.float32(self.sm), np.float32(self.pr),
             np.int32(self.nq), np.int32(self.nq),
