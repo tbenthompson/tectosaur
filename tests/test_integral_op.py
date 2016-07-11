@@ -47,8 +47,9 @@ def test_coincident_gpu():
 @golden_master
 def test_full_integral_op():
     m = mesh.rect_surface(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
-    out = integral_op.OldSelfIntegralOperator(5, 5, 5, 1.0, 0.25, m[0], m[1]).mat
-    return out
+    out = integral_op.SelfIntegralOperator(5, 5, 5, 1.0, 0.25, m[0], m[1])
+    np.random.seed(100)
+    return out.dot(np.random.rand(out.shape[1]))
 
 tri_ref = [[0,0,0],[1,0,0],[0,1,0]]
 tri_down = [[1,0,0],[0,0,0],[0,-1,0]]

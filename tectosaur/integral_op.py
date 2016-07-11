@@ -7,6 +7,7 @@ import scipy.sparse
 from tectosaur.quadrature import richardson_quad, gauss4d_tri, gauss2d_tri
 from tectosaur.adjacency import find_adjacents, vert_adj_prep,\
     edge_adj_prep, rotate_tri
+from tectosaur.nearfield import find_nearfield
 import tectosaur.triangle_rules as triangle_rules
 from tectosaur.util.gpu import load_gpu
 from tectosaur.util.timer import Timer
@@ -171,22 +172,6 @@ def vert_adj(nq, sm, pr, pts, obs_tris, src_tris):
     timer.report("Perform quadrature")
     return out
 
-def set_co_entries(mat, co_mat, co_indices):
-    mat[co_indices, :, :, co_indices, :, :] += co_mat
-    return mat
-
-def set_adj_entries(mat, adj_mat, tri_idxs, obs_clicks, src_clicks, corr_mat):
-    obs_derot = rotate_tri(obs_clicks)
-    src_derot = rotate_tri(src_clicks)
-
-    placeholder = np.arange(adj_mat.shape[0])
-    for b1 in range(3):
-        for b2 in range(3):
-            mat[tri_idxs[:,0], b1, :, tri_idxs[:,1], b2, :] += \
-                adj_mat[placeholder, obs_derot[b1], :, src_derot[b2], :] -\
-                corr_mat[placeholder, b1, :, b2, :]
-    return mat
-
 def interp_galerkin_mat(tri_pts, quad_rule):
     nt = tri_pts.shape[0]
     qx, qw = quad_rule
@@ -220,16 +205,73 @@ def interp_galerkin_mat(tri_pts, quad_rule):
 
     return scipy.sparse.coo_matrix((vals, (rows, cols))), quad_pts, quad_ns
 
+def pairs_sparse_mat(obs_idxs, src_idxs, integrals):
+    rows = np.tile((
+        np.tile(obs_idxs[:,np.newaxis,np.newaxis], (1,3,3)) * 9 +
+            np.arange(3)[np.newaxis,:,np.newaxis] * 3 +
+            np.arange(3)[np.newaxis, np.newaxis, :]
+        )[:,:,:,np.newaxis,np.newaxis], (1,1,1,3,3)
+    ).flatten()
+    cols = np.tile((
+        np.tile(src_idxs[:,np.newaxis,np.newaxis], (1,3,3)) * 9 +
+            np.arange(3)[np.newaxis,:,np.newaxis] * 3 +
+            np.arange(3)[np.newaxis, np.newaxis, :]
+        )[:,np.newaxis,np.newaxis], (1,3,3,1,1)
+    ).flatten()
+    return integrals.flatten(), rows, cols
+
+def co_sparse_mat(co_indices, co_mat, correction):
+    return pairs_sparse_mat(co_indices, co_indices, co_mat - correction)
+
+def derot_adj_mat(adj_mat, obs_clicks, src_clicks):
+    # The triangles were rotated prior to performing the adjacent nearfield
+    # quadrature. Therefore, the resulting matrix entries need to be
+    # "derotated" in order to be consistent with the global basis function
+    # numbering.
+
+    obs_derot = np.array(rotate_tri(obs_clicks))
+    src_derot = np.array(rotate_tri(src_clicks))
+
+    derot_mat = np.empty_like(adj_mat)
+    placeholder = np.arange(adj_mat.shape[0])
+    for b1 in range(3):
+        for b2 in range(3):
+            derot_mat[placeholder,b1,:,b2,:] =\
+                adj_mat[placeholder,obs_derot[b1],:,src_derot[b2],:]
+    return derot_mat
+
+def adj_sparse_mat(adj_mat, tri_idxs, obs_clicks, src_clicks, correction_mat):
+    derot_mat = derot_adj_mat(adj_mat, obs_clicks, src_clicks)
+    return pairs_sparse_mat(tri_idxs[:,0],tri_idxs[:,1], derot_mat - correction_mat)
+
+def near_sparse_mat(near_mat, near_pairs, near_correction):
+    return pairs_sparse_mat(near_pairs[:, 0], near_pairs[:, 1], near_mat - near_correction)
+
+def build_nearfield(co_data, ea_data, va_data, near_data):
+    co_vals,co_rows,co_cols = co_sparse_mat(*co_data)
+    ea_vals,ea_rows,ea_cols = adj_sparse_mat(*ea_data)
+    va_vals,va_rows,va_cols = adj_sparse_mat(*va_data)
+    near_vals,near_rows,near_cols = near_sparse_mat(*near_data)
+    rows = np.hstack((co_rows, ea_rows, va_rows, near_rows))
+    cols = np.hstack((co_cols, ea_cols, va_cols, near_cols))
+    vals = np.hstack((co_vals, ea_vals, va_vals, near_vals))
+    return scipy.sparse.coo_matrix((vals, (rows, cols))).tocsr()
+
 class SelfIntegralOperator:
     def __init__(self, nq_coincident, nq_edge_adjacent,
             nq_vert_adjacent, sm, pr, pts, tris):
-
-        nq_far = 3
+        nq_far = 2
+        nq_near = 6
+        near_threshold = 3.0
         far_quad = gauss4d_tri(nq_far)
+        near_gauss = gauss4d_tri(nq_near)
 
         timer = Timer(tabs = 1)
         co_indices = np.arange(tris.shape[0])
         co_mat = coincident(nq_coincident, sm, pr, pts, tris)
+        co_mat_correction = pairs_quad(
+            sm, pr, pts, tris, tris, far_quad, False, True
+        )
         timer.report("Coincident")
 
         va, ea = find_adjacents(tris)
@@ -239,6 +281,11 @@ class SelfIntegralOperator:
             edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
         ea_mat_rot = edge_adj(nq_edge_adjacent, sm, pr, pts, ea_obs_tris, ea_src_tris)
+        ea_mat_correction = pairs_quad(
+            sm, pr, pts,
+            tris[ea_tri_indices[:,0]], tris[ea_tri_indices[:,1]],
+            far_quad, False, True
+        )
         timer.report("Edge adjacent")
 
         va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
@@ -246,98 +293,63 @@ class SelfIntegralOperator:
         timer.report("Vert adjacency prep")
 
         va_mat_rot = vert_adj(nq_vert_adjacent, sm, pr, pts, va_obs_tris, va_src_tris)
-        timer.report("Vert adjacent")
-
-        co_mat -= pairs_quad(
-            sm, pr, pts, tris, tris, gauss4d_tri(3), False, True
-        )
-        ea_mat_corr = pairs_quad(
-            sm, pr, pts,
-            tris[ea_tri_indices[:,0]], tris[ea_tri_indices[:,1]],
-            gauss4d_tri(3), False, True
-        )
-        va_mat_corr = pairs_quad(
+        va_mat_correction = pairs_quad(
             sm, pr, pts,
             tris[va_tri_indices[:,0]], tris[va_tri_indices[:,1]],
-            gauss4d_tri(3), False, True
+            far_quad, False, True
         )
+        timer.report("Vert adjacent")
 
-        timer.report("farfield correction")
+        nearfield_pairs = np.array(find_nearfield(pts, tris, va, ea, near_threshold))
+        timer.report("Find nearfield")
 
-        def co_sparse_mat(co_indices, co_mat):
-            tiled_co_indices = np.tile(co_indices[:,np.newaxis,np.newaxis], (1,3,3))
-            indices = tiled_co_indices * 9 +\
-                np.arange(3)[np.newaxis,:,np.newaxis] * 3 +\
-                np.arange(3)[np.newaxis, np.newaxis, :]
-            rows = np.tile(indices[:,:,:,np.newaxis,np.newaxis], (1,1,1,3,3)).flatten()
-            cols = np.tile(indices[:,np.newaxis,np.newaxis], (1,3,3,1,1)).flatten()
-            vals = co_mat.flatten()
-            return vals, rows, cols
-
-        def adj_sparse_mat(adj_mat, tri_idxs, obs_clicks, src_clicks, corr_mat):
-            obs_derot = np.array(rotate_tri(obs_clicks))
-            src_derot = np.array(rotate_tri(src_clicks))
-
-            derot_mat = np.empty_like(adj_mat)
-            placeholder = np.arange(adj_mat.shape[0])
-            for b1 in range(3):
-                for b2 in range(3):
-                    derot_mat[placeholder,b1,:,b2,:] =\
-                        adj_mat[placeholder,obs_derot[b1],:,src_derot[b2],:] -\
-                        corr_mat[placeholder,b1,:,b2,:]
-
-            rows = np.tile((
-                np.tile(tri_idxs[:,0,np.newaxis,np.newaxis], (1,3,3)) * 9 +
-                    np.arange(3)[np.newaxis,:,np.newaxis] * 3 +
-                    np.arange(3)[np.newaxis, np.newaxis, :]
-                )[:,:,:,np.newaxis,np.newaxis], (1,1,1,3,3)
-            ).flatten()
-            cols = np.tile((
-                np.tile(tri_idxs[:,1,np.newaxis,np.newaxis], (1,3,3)) * 9 +
-                    np.arange(3)[np.newaxis,:,np.newaxis] * 3 +
-                    np.arange(3)[np.newaxis, np.newaxis, :]
-                )[:,np.newaxis,np.newaxis], (1,3,3,1,1)
-            ).flatten()
-
-            vals = derot_mat.flatten()
-            return vals, rows, cols
-
-        co_vals,co_rows,co_cols = co_sparse_mat(co_indices, co_mat)
-        ea_vals,ea_rows,ea_cols = adj_sparse_mat(
-            ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_mat_corr
+        nearfield_mat = pairs_quad(
+            sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
+            near_gauss, False, True
         )
-        va_vals,va_rows,va_cols = adj_sparse_mat(
-            va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks, va_mat_corr
+        nearfield_correction = pairs_quad(
+            sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
+            far_quad, False, True
         )
-        rows = np.hstack((co_rows, ea_rows, va_rows))
-        cols = np.hstack((co_cols, ea_cols, va_cols))
-        vals = np.hstack((co_vals, ea_vals, va_vals))
-        self.nearfield = scipy.sparse.coo_matrix((vals, (rows, cols))).tocsr()
+        timer.report("Nearfield")
+
+        self.nearfield = build_nearfield(
+            (co_indices, co_mat, co_mat_correction),
+            (ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_mat_correction),
+            (va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks, va_mat_correction),
+            (nearfield_mat, nearfield_pairs, nearfield_correction)
+        )
+        self.nearfield_no_correction = build_nearfield(
+            (co_indices, co_mat, 0 * co_mat_correction),
+            (ea_mat_rot, ea_tri_indices, ea_obs_clicks,
+                ea_src_clicks, 0 * ea_mat_correction),
+            (va_mat_rot, va_tri_indices, va_obs_clicks,
+                va_src_clicks, 0 * va_mat_correction),
+            (nearfield_mat, nearfield_pairs, 0 * nearfield_correction)
+        )
 
         timer.report("Build nearfield sparse")
 
         far_quad2d = gauss2d_tri(nq_far)
-        self.interp_galerkin_mat, self.quad_pts, self.quad_ns = \
+        self.interp_galerkin_mat, quad_pts, quad_ns = \
             interp_galerkin_mat(pts[tris], far_quad2d)
-        self.quad_pts = self.quad_pts.flatten().astype(np.float32)
-        self.quad_ns = self.quad_ns.flatten().astype(np.float32)
-        self.nq = int(self.quad_pts.shape[0] / 3)
+        self.nq = int(quad_pts.shape[0])
         self.shape = self.nearfield.shape
         self.sm = sm
         self.pr = pr
         self.gpu_farfield = get_gpu_module().get_function("farfield_ptsH")
-        self.gpu_quad_pts = gpuarray.to_gpu(self.quad_pts)
-        self.gpu_quad_ns = gpuarray.to_gpu(self.quad_ns)
+        self.gpu_quad_pts = gpuarray.to_gpu(quad_pts.flatten().astype(np.float32))
+        self.gpu_quad_ns = gpuarray.to_gpu(quad_ns.flatten().astype(np.float32))
 
     def dot(self, v):
-        t = Timer()
+        # t = Timer()
         out = self.nearfield.dot(v)
-        t.report('nearfield')
+        # t.report('nearfield')
 
         interp_v = self.interp_galerkin_mat.dot(v).flatten().astype(np.float32)
-        t.report('interp * v')
+        # t.report('interp * v')
         nbody_result = np.empty((self.nq * 3), dtype = np.float32)
-        t.report('empty nbody_result')
+        # t.report('empty nbody_result')
         block = (get_gpu_config()['block_size'], 1, 1)
         grid = (int(np.ceil(self.nq / block[0])), 1)
         runtime = self.gpu_farfield(
@@ -351,7 +363,7 @@ class SelfIntegralOperator:
             grid = grid,
             time_kernel = True
         )
-        t.report('call farfield interact')
+        # t.report('call farfield interact')
         out += self.interp_galerkin_mat.T.dot(nbody_result)
-        t.report('galerkin * nbody_result')
+        # t.report('galerkin * nbody_result')
         return out

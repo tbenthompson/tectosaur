@@ -33,7 +33,7 @@ def make_free_surface():
     return (pts, topology)
 
 def make_fault(L, top_depth):
-    return mesh.rect_surface(5, 5, [
+    return mesh.rect_surface(10, 10, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
