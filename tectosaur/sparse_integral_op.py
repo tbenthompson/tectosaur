@@ -4,173 +4,15 @@ import pycuda.driver as drv
 import pycuda.gpuarray as gpuarray
 import scipy.sparse
 
-from tectosaur.quadrature import richardson_quad, gauss4d_tri, gauss2d_tri
-from tectosaur.adjacency import find_adjacents, vert_adj_prep,\
+from tectosaur.adjacency import find_adjacents, vert_adj_prep, \
     edge_adj_prep, rotate_tri
 from tectosaur.nearfield import find_nearfield
-import tectosaur.triangle_rules as triangle_rules
-from tectosaur.util.gpu import load_gpu
+from tectosaur.quadrature import gauss4d_tri, gauss2d_tri
+#TODO: Split the cuda code into nearfield integrals and farfield.
+from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
+    get_gpu_module, get_gpu_config
+
 from tectosaur.util.timer import Timer
-from tectosaur.util.caching import cache
-
-
-def pairs_func_name(singular, filtered_same_pt, k_name):
-    singular_label = 'N'
-    if singular:
-        singular_label = 'S'
-    filter_label = ''
-    if filtered_same_pt:
-        filter_label = 'F'
-    return 'single_pairs' + singular_label + filter_label + k_name
-
-def get_gpu_config():
-    return {'block_size': 128}
-
-def get_gpu_module():
-    return load_gpu('tectosaur/integrals.cu', tmpl_args = get_gpu_config())
-
-def get_pairs_integrator(singular, filtered_same_pt):
-    return get_gpu_module().get_function(
-        pairs_func_name(singular, filtered_same_pt, 'H')
-    )
-
-def pairs_quad(sm, pr, pts, obs_tris, src_tris, q, singular, filtered_same_pt):
-    integrator = get_pairs_integrator(singular, filtered_same_pt)
-
-    result = np.empty((obs_tris.shape[0], 3, 3, 3, 3)).astype(np.float32)
-    if obs_tris.shape[0] == 0:
-        return result
-
-    block_main = (32, 1, 1)
-    remaining = obs_tris.shape[0] % block_main[0]
-
-    result_rem = np.empty((remaining, 3, 3, 3, 3)).astype(np.float32)
-
-    grid_main = (obs_tris.shape[0] // block_main[0], 1, 1)
-    grid_rem = (remaining, 1, 1)
-
-    def call_integrator(block, grid, result_buf, tri_start, tri_end):
-        if grid[0] == 0:
-            return
-        integrator(
-            drv.Out(result_buf),
-            np.int32(q[0].shape[0]),
-            drv.In(q[0].astype(np.float32)),
-            drv.In(q[1].astype(np.float32)),
-            drv.In(pts.astype(np.float32)),
-            drv.In(obs_tris[tri_start:tri_end].astype(np.int32)),
-            drv.In(src_tris[tri_start:tri_end].astype(np.int32)),
-            np.float32(sm),
-            np.float32(pr),
-            block = block, grid = grid
-        )
-    call_integrator(block_main, grid_main, result, 0, obs_tris.shape[0] - remaining)
-    call_integrator(
-        (1,1,1), grid_rem, result_rem,
-        obs_tris.shape[0] - remaining, obs_tris.shape[0])
-    result[obs_tris.shape[0] - remaining:,:,:,:,:] = result_rem
-    return result
-
-def farfield(sm, pr, pts, obs_tris, src_tris, n_q):
-    q = gauss4d_tri(n_q)
-
-    def call_integrator(block, grid, result_buf, tri_start, tri_end):
-        integrator = get_gpu_module().get_function("farfield_trisH")
-        if grid[0] == 0:
-            return
-        integrator(
-            drv.Out(result_buf),
-            np.int32(q[0].shape[0]),
-            drv.In(q[0].astype(np.float32)),
-            drv.In(q[1].astype(np.float32)),
-            drv.In(pts.astype(np.float32)),
-            np.int32(tri_end - tri_start),
-            drv.In(obs_tris[tri_start:tri_end].astype(np.int32)),
-            np.int32(src_tris.shape[0]),
-            drv.In(src_tris.astype(np.int32)),
-            np.float32(sm),
-            np.float32(pr),
-            block = block,
-            grid = grid
-        )
-
-    max_block = 32
-    max_grid = 20
-    cur_result_buf = np.empty(
-        (max_block * max_grid, 3, 3, src_tris.shape[0], 3, 3)
-    ).astype(np.float32)
-
-    full_result = np.empty(
-        (obs_tris.shape[0], 3, 3, src_tris.shape[0], 3, 3)
-    ).astype(np.float32)
-
-    def next_integral(next_tri = 0):
-        remaining = obs_tris.shape[0] - next_tri
-        if remaining == 0:
-            return
-        elif remaining > max_block:
-            block = (max_block, 1, 1)
-        else:
-            block = (remaining, 1, 1)
-        grid = (min(remaining // block[0], max_grid), src_tris.shape[0])
-        n_tris = grid[0] * block[0]
-        past_end_tri = next_tri + n_tris
-        call_integrator(block, grid, cur_result_buf, next_tri, past_end_tri)
-        full_result[next_tri:past_end_tri] = cur_result_buf[:n_tris]
-        next_integral(past_end_tri)
-
-    next_integral()
-    return full_result
-
-def cached_in(name, creator):
-    filename = os.path.join('cache_tectosaur', name + '.npy')
-    if not os.path.exists(filename):
-        dirname = os.path.dirname(filename)
-        print(dirname)
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
-        np.save(filename, *creator())
-    return np.load(filename)
-
-@cache
-def cached_coincident_quad(nq, eps):
-    return richardson_quad(
-        eps, lambda e: triangle_rules.coincident_quad(e, nq, nq, nq, nq)
-    )
-
-def coincident(nq, sm, pr, pts, tris):
-    timer = Timer(2)
-    q = cached_coincident_quad(nq, [0.1, 0.01])
-    timer.report("Generate quadrature rule")
-    out = pairs_quad(sm, pr, pts, tris, tris, q, True, False)
-    timer.report("Perform quadrature")
-    return out
-
-@cache
-def cached_edge_adj_quad(nq, eps):
-    return richardson_quad(
-        eps, lambda e: triangle_rules.edge_adj_quad(e, nq, nq, nq, nq, False)
-    )
-
-def edge_adj(nq, sm, pr, pts, obs_tris, src_tris):
-    timer = Timer(2)
-    q = cached_edge_adj_quad(nq, [0.1, 0.01])
-    timer.report("Generate quadrature rule")
-    out = pairs_quad(sm, pr, pts, obs_tris, src_tris, q, True, False)
-    timer.report("Perform quadrature")
-    return out
-
-@cache
-def cached_vert_adj_quad(nq):
-    return triangle_rules.vertex_adj_quad(nq, nq, nq)
-
-def vert_adj(nq, sm, pr, pts, obs_tris, src_tris):
-    timer = Timer(2)
-    q = cached_vert_adj_quad(nq)
-    timer.report("Generate quadrature rule")
-    out = pairs_quad(sm, pr, pts, obs_tris, src_tris, q, False, False)
-    timer.report("Perform quadrature")
-    return out
 
 def interp_galerkin_mat(tri_pts, quad_rule):
     nt = tri_pts.shape[0]
@@ -257,12 +99,9 @@ def build_nearfield(co_data, ea_data, va_data, near_data):
     vals = np.hstack((co_vals, ea_vals, va_vals, near_vals))
     return scipy.sparse.coo_matrix((vals, (rows, cols))).tocsr()
 
-class SelfIntegralOperator:
-    def __init__(self, nq_coincident, nq_edge_adjacent,
-            nq_vert_adjacent, sm, pr, pts, tris):
-        nq_far = 2
-        nq_near = 6
-        near_threshold = 3.0
+class SparseIntegralOperator:
+    def __init__(self, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
+            nq_far, nq_near, near_threshold, sm, pr, pts, tris):
         far_quad = gauss4d_tri(nq_far)
         near_gauss = gauss4d_tri(nq_near)
 

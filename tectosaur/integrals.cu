@@ -1,5 +1,5 @@
 <%
-from tectosaur.integral_op import pairs_func_name
+from tectosaur.nearfield_op import pairs_func_name
 
 import tectosaur.util.kernel_exprs
 kernel_names = ['U', 'T', 'A', 'H']
