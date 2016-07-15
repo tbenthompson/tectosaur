@@ -28,6 +28,7 @@ def get_pairs_integrator(singular, filtered_same_pt):
     )
 
 def get_eps():
+    return [0.1, 0.01]
     eps = 0.1 * (5.0 ** -np.arange(0, 3))
     print(eps)
     return eps

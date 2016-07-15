@@ -18,7 +18,8 @@ def constraints(surface_tris, fault_tris, pts):
     n_fault_tris = fault_tris.shape[0]
 
     touching_pt = find_touching_pts(surface_tris)
-    fault_touching_pt = find_touching_pts(fault_tris)
+    if fault_tris.shape[0] > 0:
+        fault_touching_pt = find_touching_pts(fault_tris)
     constraints = []
     for i, tpt in enumerate(touching_pt):
 
@@ -29,7 +30,13 @@ def constraints(surface_tris, fault_tris, pts):
             tri2 = surface_tris[tri2_idx]
 
             # Check for anything that touches across the fault.
-            if check_if_crosses_fault(tri1, tri2, fault_touching_pt[i], fault_tris, pts):
+            crosses = (
+                fault_tris.shape[0] > 0
+                and check_if_crosses_fault(
+                    tri1, tri2, fault_touching_pt[i], fault_tris, pts
+                )
+            )
+            if crosses:
                 print("HI")
                 continue
 
@@ -47,8 +54,8 @@ def constraints(surface_tris, fault_tris, pts):
     # Y comp = Z comp = 0
     slip = [-1, 0, 0]
     for i in range(n_surf_tris, n_surf_tris + n_fault_tris):
-        for d in range(3):
-            for b in range(3):
+        for b in range(3):
+            for d in range(3):
                 dof = i * 9 + b * 3 + d
                 constraints.append(([(1.0, dof)], slip[d]))
     constraints = sorted(constraints, key = lambda x: x[0][0][1])

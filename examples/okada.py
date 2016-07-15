@@ -31,12 +31,12 @@ def refined_free_surface():
     return (pts, topology)
 
 def make_free_surface():
-    w = 4
+    w = 3
     corners = [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]]
-    return mesh.rect_surface(27,27,corners)
+    return mesh.rect_surface(37,37,corners)
 
 def make_fault(L, top_depth):
-    return mesh.rect_surface(4, 4, [
+    return mesh.rect_surface(20, 20, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
@@ -44,7 +44,6 @@ def make_fault(L, top_depth):
 def make_meshes(fault_L, top_depth):
     surface = make_free_surface()
     fault = make_fault(fault_L, top_depth)
-    print(fault)
     all_mesh = mesh.concat(surface, fault)
     surface_tris = all_mesh[1][:surface[1].shape[0]]
     fault_tris = all_mesh[1][surface[1].shape[0]:]
@@ -74,7 +73,7 @@ def test_okada():
         soln = iterative_solve(iop, cs)
         timer.report("Solve")
 
-        disp = soln[:iop.shape[0]].reshape((int(iop.shape[0]/9), 3, 3))[:-fault_tris.shape[0]]
+        disp = soln[:iop.shape[0]].reshape((int(iop.shape[0] / 9), 3, 3))[:-fault_tris.shape[0]]
         vals = [None] * surface_pt_idxs.shape[0]
         for i in range(surface_tris.shape[0]):
             for b in range(3):
@@ -105,8 +104,8 @@ def okada_exact(obs_pts, fault_L, top_depth, sm, pr):
     for i in range(n_pts):
         pt = obs_pts[i, :]
         [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
-            alpha, pt, -top_depth + 0.5, 90,
-            [-fault_L, fault_L], [-0.5, 0.5], [1.0, 0, 0]
+            alpha, pt, -top_depth + 0.5, 90.0,
+            [-fault_L, fault_L], [-0.5, 0.5], [1.0 / np.sqrt(3), 0.0, 0.0]
         )
         assert(suc == 0)
         u[i, :] = uv
@@ -132,16 +131,6 @@ def plot_results(pts, tris, correct, est):
             cmap = 'PuOr', vmin = -vmax, vmax = vmax
         )
         plt.title("Okada u " + ['x', 'y', 'z'][d])
-        plt.colorbar()
-
-    for d in range(3):
-        plt.figure()
-        plt.tripcolor(
-            pts[:, 0], pts[:, 1], tris,
-            est[:, d] / correct[:, d], shading='gouraud',
-            cmap = 'PuOr', vmin = 0.1, vmax = 1.0
-        )
-        plt.title("ratio " + ['x', 'y', 'z'][d])
         plt.colorbar()
 
     plt.show()

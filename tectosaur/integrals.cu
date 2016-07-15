@@ -80,6 +80,7 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
     ${tri_info("src", "l")}
 
     float result_temp[81];
+    float kahan_C[81];
 
     for (int iresult = 0; iresult < 81; iresult++) {
         result_temp[iresult] = 0;
@@ -124,11 +125,17 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
         % for d_src in range(3):
         {
             float kernel_val = obs_jacobian * src_jacobian * quadw * 
-                ${kernels[k_name]['expr'][d_obs][d_src]};
+                (${kernels[k_name]['expr'][d_obs][d_src]});
             % for b_obs in range(3):
             % for b_src in range(3):
-            result_temp[${temp_result_idx(d_obs, d_src, b_obs, b_src)}] += 
-                obsb${b_obs} * srcb${b_src} * kernel_val;
+            {
+                int idx = ${temp_result_idx(d_obs, d_src, b_obs, b_src)};
+                float value = obsb${b_obs} * srcb${b_src} * kernel_val;
+                float y = value - kahan_C[idx];
+                float t = result_temp[idx] + y;
+                kahan_C[idx] = (t - result_temp[idx]) - y;
+                result_temp[idx] = t;
+            }
             % endfor
             % endfor
         }

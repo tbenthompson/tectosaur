@@ -2,7 +2,9 @@ import numpy as np
 from pycuda import driver as drv
 
 import tectosaur.triangle_rules as triangle_rules
-import tectosaur.integral_op as integral_op
+import tectosaur.nearfield_op as nearfield_op
+import tectosaur.dense_integral_op as dense_integral_op
+import tectosaur.sparse_integral_op as sparse_integral_op
 import tectosaur.quadrature as quad
 import tectosaur.mesh as mesh
 
@@ -17,7 +19,7 @@ def test_farfield_two_tris():
     )
     obs_tris = np.array([[0, 1, 2]], dtype = np.int)
     src_tris = np.array([[3, 4, 5]], dtype = np.int)
-    out = integral_op.farfield(1.0, 0.25, pts, obs_tris, src_tris, 3)
+    out = dense_integral_op.farfield(1.0, 0.25, pts, obs_tris, src_tris, 3)
     return out
 
 @golden_master
@@ -25,7 +27,7 @@ def test_gpu_edge_adjacent():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
     obs_tris = np.array([[0,1,2]]).astype(np.int32)
     src_tris = np.array([[1,0,3]]).astype(np.int32)
-    out = integral_op.edge_adj(8, 1.0, 0.25, pts, obs_tris, src_tris)
+    out = nearfield_op.edge_adj(8, 1.0, 0.25, pts, obs_tris, src_tris)
     return out
 
 @golden_master
@@ -33,7 +35,7 @@ def test_gpu_vert_adjacent():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
     obs_tris = np.array([[1,2,0]]).astype(np.int32)
     src_tris = np.array([[1,3,4]]).astype(np.int32)
-    out = integral_op.vert_adj(3, 1.0, 0.25, pts, obs_tris, src_tris)
+    out = nearfield_op.vert_adj(3, 1.0, 0.25, pts, obs_tris, src_tris)
     return out
 
 @golden_master
@@ -41,13 +43,15 @@ def test_coincident_gpu():
     n = 4
     w = 4
     pts, tris = mesh.rect_surface(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
-    out = integral_op.coincident(8, 1.0, 0.25, pts, tris)
+    out = nearfield_op.coincident(8, 1.0, 0.25, pts, tris)
     return out
 
 @golden_master
 def test_full_integral_op():
     m = mesh.rect_surface(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
-    out = integral_op.SelfIntegralOperator(5, 5, 5, 1.0, 0.25, m[0], m[1])
+    out = sparse_integral_op.SparseIntegralOperator(
+        5, 5, 5, 3, 3, 3.0, 1.0, 0.25, m[0], m[1]
+    )
     np.random.seed(100)
     return out.dot(np.random.rand(out.shape[1]))
 
