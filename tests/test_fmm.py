@@ -188,7 +188,7 @@ def check(est, correct, accuracy):
     print("MAXRELERR: " + str(np.max(np.abs((est - correct) / correct))))
     np.testing.assert_almost_equal(est / rms_c, correct / rms_c, accuracy)
 
-def check_invr(obs_pts, src_pts, est, accuracy = 3):
+def check_invr(obs_pts, _0, src_pts, _1, est, accuracy = 3):
     correct_matrix = 1.0 / (scipy.spatial.distance.cdist(obs_pts, src_pts))
     correct = correct_matrix.dot(np.ones(src_pts.shape[0]))
     check(est, correct, accuracy)
@@ -206,7 +206,7 @@ def test_irregular():
 def test_tensor():
     obs_pts, _, src_pts, _, est = run_full(5000, rand_pts, 2.6, 35, "tensor_invr", [])
     for d in range(3):
-        check_invr(obs_pts, src_pts, est[d::3] / 3.0)
+        check_invr(obs_pts, _, src_pts, _, est[d::3] / 3.0)
 
 def test_double_layer():
     obs_pts, obs_ns, src_pts, src_ns, est = run_full(
@@ -218,11 +218,12 @@ def test_double_layer():
     correct = correct_mat.dot(np.ones(src_pts.shape[0]))
     check(est, correct, 3)
 
+@slow
 def test_elasticH():
     params = [1.0, 0.25]
     K = "elasticT"
     obs_pts, obs_ns, src_pts, src_ns, est = run_full(
-        35000, ellipse_pts, 2.8, 52, K, params
+        10000, ellipse_pts, 2.8, 52, K, params
     )
     # correct_mat = fmm.direct_eval(
     #     K, obs_pts, obs_ns, src_pts, src_ns, params

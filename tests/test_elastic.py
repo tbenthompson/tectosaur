@@ -44,6 +44,3 @@ def test_kernels():
         for i in range(3):
             for j in range(3):
                 kernel_tester(k_idx, i, j)
-
-def test_co_adj_convergence():
-    m = mesh.rect_surface([[-4, -4, 0], [-4, 4, 0], [4, 4, 0], [4, -4, 0]])
