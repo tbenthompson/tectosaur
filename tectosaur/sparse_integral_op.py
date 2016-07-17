@@ -100,14 +100,14 @@ def build_nearfield(co_data, ea_data, va_data, near_data):
     return scipy.sparse.coo_matrix((vals, (rows, cols))).tocsr()
 
 class SparseIntegralOperator:
-    def __init__(self, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
+    def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, sm, pr, pts, tris):
         far_quad = gauss4d_tri(nq_far)
         near_gauss = gauss4d_tri(nq_near)
 
         timer = Timer(tabs = 1)
         co_indices = np.arange(tris.shape[0])
-        co_mat = coincident(nq_coincident, sm, pr, pts, tris)
+        co_mat = coincident(nq_coincident, eps, sm, pr, pts, tris)
         co_mat_correction = pairs_quad(
             sm, pr, pts, tris, tris, far_quad, False, True
         )
@@ -119,7 +119,9 @@ class SparseIntegralOperator:
         ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
             edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
-        ea_mat_rot = edge_adj(nq_edge_adjacent, sm, pr, pts, ea_obs_tris, ea_src_tris)
+        ea_mat_rot = edge_adj(
+            nq_edge_adjacent, eps, sm, pr, pts, ea_obs_tris, ea_src_tris
+        )
         ea_mat_correction = pairs_quad(
             sm, pr, pts,
             tris[ea_tri_indices[:,0]], tris[ea_tri_indices[:,1]],

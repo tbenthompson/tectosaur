@@ -7,8 +7,8 @@ import tectosaur.mesh as mesh
 from tectosaur.sparse_integral_op import SparseIntegralOperator
 from tectosaur.dense_integral_op import DenseIntegralOperator
 
-from okada_solve import iterative_solve
-from okada_constraints import constraints, insert_constraints
+from okada_solve import iterative_solve, direct_solve
+from tectosaur.constraints import constraints
 from tectosaur.util.timer import Timer
 
 def refined_free_surface():
@@ -36,7 +36,7 @@ def make_free_surface():
     return mesh.rect_surface(37,37,corners)
 
 def make_fault(L, top_depth):
-    return mesh.rect_surface(20, 20, [
+    return mesh.rect_surface(10, 10, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
@@ -66,14 +66,21 @@ def test_okada():
     obs_pts = all_mesh[0][surface_pt_idxs,:]
     load_soln = False
     if not load_soln:
-        iop = SparseIntegralOperator(16, 16, 8, 2, 7, 4.0, sm, pr, all_mesh[0], all_mesh[1])
-        # iop = DenseIntegralOperator(16, 16, 8, 4, sm, pr, all_mesh[0], all_mesh[1])
+        # iop = SparseIntegralOperator(
+        #     [0.1, 0.01], 16, 16, 8, 2, 7, 4.0, sm, pr, all_mesh[0], all_mesh[1]
+        # )
+        iop = DenseIntegralOperator(
+            [0.1, 0.01], 16, 16, 8, 8, sm, pr, all_mesh[0], all_mesh[1]
+        )
         timer.report("Integrals")
 
-        soln = iterative_solve(iop, cs)
+        # soln = iterative_solve(iop, cs)
+        soln = direct_solve(iop, cs)
         timer.report("Solve")
 
-        disp = soln[:iop.shape[0]].reshape((int(iop.shape[0] / 9), 3, 3))[:-fault_tris.shape[0]]
+        disp = soln[:iop.shape[0]].reshape(
+            (int(iop.shape[0] / 9), 3, 3)
+        )[:-fault_tris.shape[0]]
         vals = [None] * surface_pt_idxs.shape[0]
         for i in range(surface_tris.shape[0]):
             for b in range(3):
@@ -117,7 +124,7 @@ def plot_results(pts, tris, correct, est):
         plt.figure()
         plt.tripcolor(
             pts[:,0], pts[:, 1], tris,
-            est[:,d], shading = 'gouraud',
+            est[:,d],
             cmap = 'PuOr', vmin = -vmax, vmax = vmax
         )
         plt.title("u " + ['x', 'y', 'z'][d])
@@ -127,7 +134,7 @@ def plot_results(pts, tris, correct, est):
         plt.figure()
         plt.tripcolor(
             pts[:, 0], pts[:, 1], tris,
-            correct[:, d], shading='gouraud',
+            correct[:, d],
             cmap = 'PuOr', vmin = -vmax, vmax = vmax
         )
         plt.title("Okada u " + ['x', 'y', 'z'][d])
@@ -136,7 +143,6 @@ def plot_results(pts, tris, correct, est):
     plt.show()
 
 def print_error(pts, correct, est):
-    import ipdb; ipdb.set_trace()
     close = np.sqrt(np.sum(pts ** 2, axis = 1)) < 4.0
     diff = correct[close,:] - est[close,:]
     l2diff = np.sum(diff ** 2)

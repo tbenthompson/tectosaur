@@ -27,7 +27,7 @@ def test_gpu_edge_adjacent():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
     obs_tris = np.array([[0,1,2]]).astype(np.int32)
     src_tris = np.array([[1,0,3]]).astype(np.int32)
-    out = nearfield_op.edge_adj(8, 1.0, 0.25, pts, obs_tris, src_tris)
+    out = nearfield_op.edge_adj(8, [0.1, 0.01], 1.0, 0.25, pts, obs_tris, src_tris)
     return out
 
 @golden_master
@@ -43,14 +43,14 @@ def test_coincident_gpu():
     n = 4
     w = 4
     pts, tris = mesh.rect_surface(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
-    out = nearfield_op.coincident(8, 1.0, 0.25, pts, tris)
+    out = nearfield_op.coincident(8, [0.1, 0.01], 1.0, 0.25, pts, tris)
     return out
 
 @golden_master
 def test_full_integral_op():
     m = mesh.rect_surface(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     out = sparse_integral_op.SparseIntegralOperator(
-        5, 5, 5, 3, 3, 3.0, 1.0, 0.25, m[0], m[1]
+        [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, 1.0, 0.25, m[0], m[1]
     )
     np.random.seed(100)
     return out.dot(np.random.rand(out.shape[1]))

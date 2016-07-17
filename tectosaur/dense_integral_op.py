@@ -86,11 +86,11 @@ def gpu_mvp(A, x):
     return Ax_gpu.get()
 
 class DenseIntegralOperator:
-    def __init__(self, nq_coincident, nq_edge_adjacent,
+    def __init__(self, eps, nq_coincident, nq_edge_adjacent,
             nq_vert_adjacent, nq_far, sm, pr, pts, tris):
         timer = Timer(tabs = 1)
         co_indices = np.arange(tris.shape[0])
-        co_mat = coincident(nq_coincident, sm, pr, pts, tris)
+        co_mat = coincident(nq_coincident, eps, sm, pr, pts, tris)
         timer.report("Coincident")
 
         va, ea = find_adjacents(tris)
@@ -99,7 +99,9 @@ class DenseIntegralOperator:
         ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
             edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
-        ea_mat_rot = edge_adj(nq_edge_adjacent, sm, pr, pts, ea_obs_tris, ea_src_tris)
+        ea_mat_rot = edge_adj(
+            nq_edge_adjacent, eps, sm, pr, pts, ea_obs_tris, ea_src_tris
+        )
         timer.report("Edge adjacent")
 
         va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\

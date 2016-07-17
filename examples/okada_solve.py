@@ -3,16 +3,26 @@ import scipy.sparse as sparse
 import scipy.sparse.linalg
 
 from tectosaur.util.timer import Timer
+from tectosaur.constraints import lagrange_constraints, build_constraint_matrix
 
-from okada_constraints import lagrange_constraints
-
-def direct_solve(iop, constraints):
-    n = iop.shape[0] + len(cs)
+# Kˆ uˆ = ˆf, in which Kˆ = TT K T, ˆf = TT (f − K g).
+def lagrange_direct_solve(iop, constraints):
+    n = iop.shape[0] + len(constraints)
     A = np.zeros((n, n))
     b = np.zeros(n)
     A[:iop.shape[0],:iop.shape[0]] = iop.mat
-    lagrange_constraints(A, b, cs)
+    lagrange_constraints(A, b, constraints)
     soln = np.linalg.solve(A, b)
+    return soln
+
+def direct_solve(iop, constraints):
+    cm, rhs = build_constraint_matrix(constraints, iop.shape[0])
+    cm = cm.tocsr()
+    cmT = cm.T
+    iop_constrained = cmT.dot(cmT.dot(iop.mat.T).T)
+    rhs_constrained = cmT.dot(-iop.mat.dot(rhs))
+    soln_constrained = np.linalg.solve(iop_constrained, rhs_constrained)
+    soln = cm.dot(soln_constrained)
     return soln
 
 def iterative_solve(iop, constraints):

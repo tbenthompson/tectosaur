@@ -27,13 +27,6 @@ def get_pairs_integrator(singular, filtered_same_pt):
         pairs_func_name(singular, filtered_same_pt, 'H')
     )
 
-def get_eps():
-    # return [0.1, 0.05, 0.025]
-    return [0.1, 0.01]
-    eps = 0.1 * (5.0 ** -np.arange(0, 3))
-    print(eps)
-    return eps
-
 def pairs_quad(sm, pr, pts, obs_tris, src_tris, q, singular, filtered_same_pt):
     integrator = get_pairs_integrator(singular, filtered_same_pt)
 
@@ -87,8 +80,8 @@ def cached_coincident_quad(nq, eps):
         eps, lambda e: triangle_rules.coincident_quad(e, nq, nq, nq, nq)
     )
 
-def coincident(nq, sm, pr, pts, tris):
-    q = cached_coincident_quad(nq, get_eps())
+def coincident(nq, eps, sm, pr, pts, tris):
+    q = cached_coincident_quad(nq, eps)
     out = pairs_quad(sm, pr, pts, tris, tris, q, True, False)
     return out
 
@@ -98,8 +91,8 @@ def cached_edge_adj_quad(nq, eps):
         eps, lambda e: triangle_rules.edge_adj_quad(e, nq, nq, nq, nq, False)
     )
 
-def edge_adj(nq, sm, pr, pts, obs_tris, src_tris):
-    q = cached_edge_adj_quad(nq, get_eps())
+def edge_adj(nq, eps, sm, pr, pts, obs_tris, src_tris):
+    q = cached_edge_adj_quad(nq, eps)
     out = pairs_quad(sm, pr, pts, obs_tris, src_tris, q, True, False)
     return out
 
