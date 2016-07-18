@@ -19,7 +19,9 @@ void cross(float x[3], float y[3], float out[3]) {
 
 __device__
 void sub(float x[3], float y[3], float out[3]) {
-    out[0] = x[0] - y[0]; out[1] = x[1] - y[1]; out[2] = x[2] - y[2];
+    % for d in range(3):
+    out[${d}] = x[${d}] - y[${d}];
+    % endfor
 }
 
 __device__
@@ -50,6 +52,7 @@ float ${prefix}_unscaled_normal[3];
 get_unscaled_normal(${prefix}_tri, ${prefix}_unscaled_normal);
 float ${prefix}_normal_length = magnitude(${prefix}_unscaled_normal);
 float ${prefix}_jacobian = ${prefix}_normal_length;
+printf("%f \n", ${prefix}_jacobian);
 % for dim in range(3):
 float ${normal_prefix}${dim_name(dim)} = 
     ${prefix}_unscaled_normal[${dim}] / ${prefix}_normal_length;

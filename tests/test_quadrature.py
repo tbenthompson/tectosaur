@@ -23,6 +23,12 @@ def test_richardson_quad():
     res = quadrature(f, q)
     np.testing.assert_almost_equal(np.pi, res, 4)
 
+def test_richardson10():
+    h = np.array([1.0, 0.1, 0.01])
+    q = richardson_quad(h, lambda h: (np.array([0.0]), np.array([1.0])))
+    est = np.sum((h ** 2) * q[1])
+    np.testing.assert_almost_equal(est, 0.0)
+
 def test_sinh():
     eps = 0.01
     q = map_to(sinh_transform(gaussxw(12), -1, eps), [0, 1])
@@ -41,10 +47,15 @@ def test_gauss2d_tri():
     result = quadrature(lambda x: 1, q)
     np.testing.assert_almost_equal(result, 0.5)
 
+def test_gauss2d_tri():
+    q = gauss2d_tri(5)
+    result = quadrature(lambda x: x[:,0] ** 3 * x[:,1] ** 4, q)
+    np.testing.assert_almost_equal(result, 1.0 / 2520.0, 12)
+
 def test_gauss4d_tri():
-    q = gauss4d_tri(2)
+    q = gauss4d_tri(3)
     result = quadrature(lambda x: 1, q)
     np.testing.assert_almost_equal(result, 0.25)
 
-    result = quadrature(lambda x: x[:,0] * x[:,1] * x[:,2] * x[:,3], q)
-    np.testing.assert_almost_equal(result, 1.0 / 576.0)
+    result = quadrature(lambda x: (x[:,0] * x[:,1] * x[:,2] * x[:,3]) ** 2, q)
+    np.testing.assert_almost_equal(result, 1.0 / (180.0 ** 2), 10)

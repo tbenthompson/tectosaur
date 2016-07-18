@@ -31,12 +31,16 @@ def refined_free_surface():
     return (pts, topology)
 
 def make_free_surface():
-    w = 3
-    corners = [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]]
-    return mesh.rect_surface(37,37,corners)
+    return (
+        np.array([[-4, -4, 0], [4, -4, 0], [4, 4, 0], [-4, 4, 0]]),
+        np.array([[0, 1, 2], [0, 2, 3]])
+    )
+    # w = 4
+    # corners = [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]]
+    # return mesh.rect_surface(30,30,corners)
 
 def make_fault(L, top_depth):
-    return mesh.rect_surface(10, 10, [
+    return mesh.rect_surface(2, 2, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
@@ -52,8 +56,8 @@ def make_meshes(fault_L, top_depth):
 def test_okada():
     sm = 1.0
     pr = 0.25
-    fault_L = 0.3333
-    top_depth = -0.5
+    fault_L = 0.3333 * 3.0
+    top_depth = -3.5
 
     timer = Timer()
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth)
@@ -69,8 +73,10 @@ def test_okada():
         # iop = SparseIntegralOperator(
         #     [0.1, 0.01], 16, 16, 8, 2, 7, 4.0, sm, pr, all_mesh[0], all_mesh[1]
         # )
+        eps = [0.04, 0.02, 0.01, 0.05]
+        eps = [1.0, 0.5, 0.25, 0.125, 0.0625]
         iop = DenseIntegralOperator(
-            [0.1, 0.01], 16, 16, 8, 8, sm, pr, all_mesh[0], all_mesh[1]
+            eps, 15, 13, 8, 8, sm, pr, all_mesh[0], all_mesh[1]
         )
         timer.report("Integrals")
 
@@ -112,7 +118,7 @@ def okada_exact(obs_pts, fault_L, top_depth, sm, pr):
         pt = obs_pts[i, :]
         [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
             alpha, pt, -top_depth + 0.5, 90.0,
-            [-fault_L, fault_L], [-0.5, 0.5], [1.0 / np.sqrt(3), 0.0, 0.0]
+            [-fault_L, fault_L], [-0.5, 0.5], [1.0, 0.0, 0.0]
         )
         assert(suc == 0)
         u[i, :] = uv

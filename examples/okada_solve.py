@@ -21,6 +21,9 @@ def direct_solve(iop, constraints):
     cmT = cm.T
     iop_constrained = cmT.dot(cmT.dot(iop.mat.T).T)
     rhs_constrained = cmT.dot(-iop.mat.dot(rhs))
+    AAA = np.load('/home/tbent/projects/3bem/devlib/AAA.npy')
+    AAA = np.swapaxes(np.swapaxes(AAA.reshape((3, 9, 3, 9)), 0, 1), 2, 3).reshape((27,27))
+    import ipdb; ipdb.set_trace()
     soln_constrained = np.linalg.solve(iop_constrained, rhs_constrained)
     soln = cm.dot(soln_constrained)
     return soln
