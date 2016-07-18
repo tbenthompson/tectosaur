@@ -65,8 +65,8 @@ def set_co_entries(mat, co_mat, co_indices):
     return mat
 
 def set_adj_entries(mat, adj_mat, tri_idxs, obs_clicks, src_clicks):
-    obs_derot = rotate_tri(obs_clicks)
-    src_derot = rotate_tri(src_clicks)
+    obs_derot = rotate_tri(-obs_clicks)
+    src_derot = rotate_tri(-src_clicks)
 
     placeholder = np.arange(adj_mat.shape[0])
     for b1 in range(3):

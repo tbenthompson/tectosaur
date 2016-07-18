@@ -31,13 +31,13 @@ def refined_free_surface():
     return (pts, topology)
 
 def make_free_surface():
-    return (
-        np.array([[-4, -4, 0], [4, -4, 0], [4, 4, 0], [-4, 4, 0]]),
-        np.array([[0, 1, 2], [0, 2, 3]])
-    )
-    # w = 4
-    # corners = [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]]
-    # return mesh.rect_surface(30,30,corners)
+    # return (
+    #     np.array([[-4, -4, 0], [4, -4, 0], [4, 4, 0], [-4, 4, 0]]),
+    #     np.array([[0, 1, 2], [0, 2, 3]])
+    # )
+    w = 4
+    corners = [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]]
+    return mesh.rect_surface(30,30,corners)
 
 def make_fault(L, top_depth):
     return mesh.rect_surface(2, 2, [
@@ -57,7 +57,7 @@ def test_okada():
     sm = 1.0
     pr = 0.25
     fault_L = 0.3333 * 3.0
-    top_depth = -3.5
+    top_depth = -0.5
 
     timer = Timer()
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth)
@@ -73,10 +73,10 @@ def test_okada():
         # iop = SparseIntegralOperator(
         #     [0.1, 0.01], 16, 16, 8, 2, 7, 4.0, sm, pr, all_mesh[0], all_mesh[1]
         # )
-        eps = [0.04, 0.02, 0.01, 0.05]
+        eps = [0.04, 0.02, 0.01, 0.005]
         eps = [1.0, 0.5, 0.25, 0.125, 0.0625]
         iop = DenseIntegralOperator(
-            eps, 15, 13, 8, 8, sm, pr, all_mesh[0], all_mesh[1]
+            eps, 20, 20, 8, 8, sm, pr, all_mesh[0], all_mesh[1]
         )
         timer.report("Integrals")
 

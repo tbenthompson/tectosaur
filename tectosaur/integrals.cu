@@ -52,7 +52,6 @@ float ${prefix}_unscaled_normal[3];
 get_unscaled_normal(${prefix}_tri, ${prefix}_unscaled_normal);
 float ${prefix}_normal_length = magnitude(${prefix}_unscaled_normal);
 float ${prefix}_jacobian = ${prefix}_normal_length;
-printf("%f \n", ${prefix}_jacobian);
 % for dim in range(3):
 float ${normal_prefix}${dim_name(dim)} = 
     ${prefix}_unscaled_normal[${dim}] / ${prefix}_normal_length;
@@ -120,7 +119,7 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 
         % if limit:
         % for dim in range(3):
-        x${dim_name(dim)} -= eps * obs_unscaled_normal[${dim}];
+        x${dim_name(dim)} -= eps * sqrt(obs_jacobian) * n${dim_name(dim)};
         % endfor
         % endif
 
