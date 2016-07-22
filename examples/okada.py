@@ -1,3 +1,4 @@
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
@@ -31,16 +32,12 @@ def refined_free_surface():
     return (pts, topology)
 
 def make_free_surface():
-    # return (
-    #     np.array([[-4, -4, 0], [4, -4, 0], [4, 4, 0], [-4, 4, 0]]),
-    #     np.array([[0, 1, 2], [0, 2, 3]])
-    # )
-    w = 4
+    w = 12
     corners = [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]]
-    return mesh.rect_surface(30,30,corners)
+    return mesh.rect_surface(200, 200, corners)
 
 def make_fault(L, top_depth):
-    return mesh.rect_surface(2, 2, [
+    return mesh.rect_surface(10, 10, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
@@ -56,7 +53,7 @@ def make_meshes(fault_L, top_depth):
 def test_okada():
     sm = 1.0
     pr = 0.25
-    fault_L = 0.3333 * 3.0
+    fault_L = 1.0
     top_depth = -0.5
 
     timer = Timer()
@@ -70,18 +67,17 @@ def test_okada():
     obs_pts = all_mesh[0][surface_pt_idxs,:]
     load_soln = False
     if not load_soln:
-        # iop = SparseIntegralOperator(
-        #     [0.1, 0.01], 16, 16, 8, 2, 7, 4.0, sm, pr, all_mesh[0], all_mesh[1]
-        # )
-        eps = [0.04, 0.02, 0.01, 0.005]
-        eps = [1.0, 0.5, 0.25, 0.125, 0.0625]
-        iop = DenseIntegralOperator(
-            eps, 20, 20, 8, 8, sm, pr, all_mesh[0], all_mesh[1]
+        eps = [0.04, 0.02, 0.01]
+        iop = SparseIntegralOperator(
+            eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
         )
+        # iop = DenseIntegralOperator(
+        #     eps, 18, 13, 6, 3, sm, pr, all_mesh[0], all_mesh[1]
+        # )
         timer.report("Integrals")
 
-        # soln = iterative_solve(iop, cs)
-        soln = direct_solve(iop, cs)
+        soln = iterative_solve(iop, cs)
+        # soln = direct_solve(iop, cs)
         timer.report("Solve")
 
         disp = soln[:iop.shape[0]].reshape(
@@ -96,9 +92,8 @@ def test_okada():
                 vals[idx] = disp[i,b,:]
         vals = np.array(vals)
         timer.report("Extract surface displacement")
-        np.save('okada.npy', vals)
-    else:
-        vals = np.load('okada.npy')
+        with open('okada.npy', 'wb') as f:
+            pickle.dump((vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr), f)
 
     timer.restart()
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
@@ -117,11 +112,13 @@ def okada_exact(obs_pts, fault_L, top_depth, sm, pr):
     for i in range(n_pts):
         pt = obs_pts[i, :]
         [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
-            alpha, pt, -top_depth + 0.5, 90.0,
-            [-fault_L, fault_L], [-0.5, 0.5], [1.0, 0.0, 0.0]
+            alpha, pt, 0.5, 90.0,
+            [-fault_L, fault_L], [-1.0, 0.0], [1.0, 0.0, 0.0]
         )
-        assert(suc == 0)
-        u[i, :] = uv
+        if suc != 0:
+            u[i, :] = 0
+        else:
+            u[i, :] = uv
     return u
 
 def plot_results(pts, tris, correct, est):
@@ -130,7 +127,7 @@ def plot_results(pts, tris, correct, est):
         plt.figure()
         plt.tripcolor(
             pts[:,0], pts[:, 1], tris,
-            est[:,d],
+            est[:,d], shading='gouraud',
             cmap = 'PuOr', vmin = -vmax, vmax = vmax
         )
         plt.title("u " + ['x', 'y', 'z'][d])
@@ -140,10 +137,20 @@ def plot_results(pts, tris, correct, est):
         plt.figure()
         plt.tripcolor(
             pts[:, 0], pts[:, 1], tris,
-            correct[:, d],
+            correct[:, d], shading='gouraud',
             cmap = 'PuOr', vmin = -vmax, vmax = vmax
         )
         plt.title("Okada u " + ['x', 'y', 'z'][d])
+        plt.colorbar()
+
+    for d in range(3):
+        plt.figure()
+        plt.tripcolor(
+            pts[:, 0], pts[:, 1], tris,
+            correct[:, d] - est[:,d], shading='gouraud',
+            cmap = 'PuOr'
+        )
+        plt.title("Diff u " + ['x', 'y', 'z'][d])
         plt.colorbar()
 
     plt.show()

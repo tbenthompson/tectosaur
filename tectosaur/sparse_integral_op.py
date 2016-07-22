@@ -71,8 +71,8 @@ def derot_adj_mat(adj_mat, obs_clicks, src_clicks):
     # "derotated" in order to be consistent with the global basis function
     # numbering.
 
-    obs_derot = np.array(rotate_tri(obs_clicks))
-    src_derot = np.array(rotate_tri(src_clicks))
+    obs_derot = np.array(rotate_tri(-obs_clicks))
+    src_derot = np.array(rotate_tri(-src_clicks))
 
     derot_mat = np.empty_like(adj_mat)
     placeholder = np.arange(adj_mat.shape[0])
@@ -186,7 +186,9 @@ class SparseIntegralOperator:
         # t = Timer()
         out = self.nearfield.dot(v)
         # t.report('nearfield')
+        return out + self.farfield_dot(v)
 
+    def farfield_dot(self, v):
         interp_v = self.interp_galerkin_mat.dot(v).flatten().astype(np.float32)
         # t.report('interp * v')
         nbody_result = np.empty((self.nq * 3), dtype = np.float32)
@@ -205,6 +207,6 @@ class SparseIntegralOperator:
             time_kernel = True
         )
         # t.report('call farfield interact')
-        out += self.interp_galerkin_mat.T.dot(nbody_result)
+        out = self.interp_galerkin_mat.T.dot(nbody_result)
         # t.report('galerkin * nbody_result')
         return out
