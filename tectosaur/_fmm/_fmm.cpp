@@ -103,8 +103,8 @@ std::vector<T> get_vector(NPArray& np_arr) {
 }
 
 
-PYBIND11_PLUGIN(fmm) {
-    py::module m("fmm");
+PYBIND11_PLUGIN(_fmm) {
+    py::module m("_fmm");
 
     py::class_<Sphere>(m, "Sphere")
         .def_readonly("r", &Sphere::r)

@@ -9,8 +9,7 @@ from tectosaur.util.timer import Timer
 
 from test_decorators import slow
 
-import cppimport
-fmm = cppimport.imp("tectosaur.fmm.fmm").fmm.fmm
+import tectosaur.fmm as fmm
 
 def rand_pts(n, source):
     return np.random.rand(n, 3)
@@ -130,44 +129,12 @@ def run_full(n, make_pts, mac, order, kernel, params):
     print("total nnz: " + str(total_nnz))
     print("compression ratio: " + str(total_nnz / ((tdim * n) ** 2)))
 
-    n_surf = fmm_mat.translation_surface_order
-    n_inputs = src_pts.shape[0] * tdim
     n_outputs = obs_pts.shape[0] * tdim
-    n_multipoles = n_surf * len(src_kd.nodes) * tdim
-    n_locals = n_surf * len(obs_kd.nodes) * tdim
-    input_vals = np.ones(n_inputs)
+    input_vals = np.ones(src_pts.shape[0] * tdim)
     t.report("make input")
 
-    t2 = Timer()
-    est = fmm_mat.p2p.matvec(input_vals, n_outputs)
-    t.report("p2p")
-
-    m_check = fmm_mat.p2m.matvec(input_vals, n_multipoles)
-    multipoles = fmm_mat.uc2e[0].matvec(m_check, n_multipoles)
-
-    t.report("p2m")
-    for m2m, uc2e in zip(fmm_mat.m2m[1:], fmm_mat.uc2e[1:]):
-        m_check = m2m.matvec(multipoles, n_multipoles)
-        multipoles += uc2e.matvec(m_check, n_multipoles)
-    t.report("m2m")
-
-    l_check = fmm_mat.p2l.matvec(input_vals, n_locals)
-    t.report("p2l")
-    l_check += fmm_mat.m2l.matvec(multipoles, n_locals)
-    t.report("m2l")
-
-    locals = np.zeros(n_locals)
-    for l2l, dc2e in zip(fmm_mat.l2l, fmm_mat.dc2e):
-        l_check += l2l.matvec(locals, n_locals)
-        locals += dc2e.matvec(l_check, n_locals)
-    t.report("l2l")
-
-    est += fmm_mat.m2p.matvec(multipoles, n_outputs)
-    t.report("m2p")
-
-    est += fmm_mat.l2p.matvec(locals, n_outputs)
-    t.report("l2p")
-    t2.report("matvec")
+    est = fmm.eval(obs_kd, src_kd, fmm_mat, input_vals, n_outputs)
+    t.report("matvec")
 
     return (
         np.array(obs_kd.pts), np.array(obs_kd.normals),

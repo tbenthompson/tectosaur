@@ -80,6 +80,18 @@ void elastic${k_name}(const NBodyProblem& p, double* out) {
             auto yz = p.src_pts[j][2];
             (void)yx;(void)yy;(void)yz;
 
+            auto Dx = xx - yx;
+            auto Dy = xy - yy;
+            auto Dz = xz - yz;
+            auto R2 = Dx * Dx + Dy * Dy + Dz * Dz;
+            if (R2 == 0.0) {
+                % for d1 in range(3):
+                % for d2 in range(3):
+                out[i * p.n_src * 9 + ${d1} * 3 * p.n_src + j * 3 + ${d2}] = 0.0;
+                % endfor
+                % endfor
+            }
+
             auto lx = p.src_ns[j][0];
             auto ly = p.src_ns[j][1];
             auto lz = p.src_ns[j][2];

@@ -38,7 +38,7 @@ def iterative_solve(iop, constraints):
         out += cmT.dot(iop.farfield_dot(cm.dot(v)))
         return out
 
-    P = sparse.linalg.spilu(cmT.dot(iop.nearfield_no_correction.dot(cm)))
+    P = sparse.linalg.spilu(cmT.dot(iop.nearfield.mat_no_correction.dot(cm)))
     def prec_f(x):
         return P.solve(x.astype(np.float32))
     M = sparse.linalg.LinearOperator((n, n), matvec = prec_f)
@@ -53,28 +53,6 @@ def iterative_solve(iop, constraints):
     timer.report("GMRES")
     return cm.dot(soln[0])
 
-    # timer = Timer()
-    # n_iop = iop.shape[0]
-    # n = n_iop + len(constraints)
-    # rhs = np.zeros(n)
-    # lhs_cs_dok = sparse.dok_matrix((n, n))
-    # lagrange_constraints(lhs_cs_dok, rhs, constraints)
-    # lhs_cs_csr = lhs_cs_dok.tocsr()
-    # timer.report("Build constraints matrix")
-
-    # n_coo = iop.nearfield.tocoo()
-    # c_coo = lhs_cs_csr.tocoo()
-    # vals = np.concatenate((n_coo.data, c_coo.data))
-    # rows = np.concatenate((n_coo.row, c_coo.row))
-    # cols = np.concatenate((n_coo.col, c_coo.col))
-    # N_plus_C = scipy.sparse.coo_matrix((vals, (rows, cols))).tocsc()
-    # P = sparse.linalg.spilu(N_plus_C)
-    # def prec_f(x):
-    #     return P.solve(x.astype(np.float32))
-    # M = sparse.linalg.LinearOperator((n, n), matvec = prec_f)
-    # timer.report("Build sparse ILU preconditioner")
-
-
 def lagrange_iterative_solve(iop, constraints):
     timer = Timer()
     n_iop = iop.shape[0]
@@ -84,18 +62,6 @@ def lagrange_iterative_solve(iop, constraints):
     lagrange_constraints(lhs_cs_dok, rhs, constraints)
     lhs_cs_csr = lhs_cs_dok.tocsr()
     timer.report("Build constraints matrix")
-
-    # n_coo = iop.nearfield.tocoo()
-    # c_coo = lhs_cs_csr.tocoo()
-    # vals = np.concatenate((n_coo.data, c_coo.data))
-    # rows = np.concatenate((n_coo.row, c_coo.row))
-    # cols = np.concatenate((n_coo.col, c_coo.col))
-    # N_plus_C = scipy.sparse.coo_matrix((vals, (rows, cols))).tocsc()
-    # P = sparse.linalg.spilu(N_plus_C)
-    # def prec_f(x):
-    #     return P.solve(x.astype(np.float32))
-    # M = sparse.linalg.LinearOperator((n, n), matvec = prec_f)
-    # timer.report("Build sparse ILU preconditioner")
 
     iter = [0]
     def mv(v):

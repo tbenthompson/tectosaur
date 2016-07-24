@@ -5,7 +5,7 @@ import matplotlib.tri as tri
 import okada_wrapper
 
 import tectosaur.mesh as mesh
-from tectosaur.sparse_integral_op import SparseIntegralOperator
+from tectosaur.sparse_integral_op import SparseIntegralOperator, FMMIntegralOperator
 from tectosaur.dense_integral_op import DenseIntegralOperator
 
 from okada_solve import iterative_solve, direct_solve
@@ -34,7 +34,7 @@ def refined_free_surface():
 def make_free_surface():
     w = 12
     corners = [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]]
-    return mesh.rect_surface(200, 200, corners)
+    return mesh.rect_surface(30, 30, corners)
 
 def make_fault(L, top_depth):
     return mesh.rect_surface(10, 10, [
@@ -68,9 +68,12 @@ def test_okada():
     load_soln = False
     if not load_soln:
         eps = [0.04, 0.02, 0.01]
-        iop = SparseIntegralOperator(
+        iop = FMMIntegralOperator(
             eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
         )
+        # iop = SparseIntegralOperator(
+        #     eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
+        # )
         # iop = DenseIntegralOperator(
         #     eps, 18, 13, 6, 3, sm, pr, all_mesh[0], all_mesh[1]
         # )

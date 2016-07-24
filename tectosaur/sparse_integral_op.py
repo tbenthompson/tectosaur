@@ -8,11 +8,13 @@ from tectosaur.adjacency import find_adjacents, vert_adj_prep, \
     edge_adj_prep, rotate_tri
 from tectosaur.find_nearfield import find_nearfield
 from tectosaur.quadrature import gauss4d_tri, gauss2d_tri
+import tectosaur.fmm as fmm
 #TODO: Split the cuda code into nearfield integrals and farfield.
 from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
     get_gpu_module, get_gpu_config
 
 from tectosaur.util.timer import Timer
+
 
 def interp_galerkin_mat(tri_pts, quad_rule):
     nt = tri_pts.shape[0]
@@ -99,11 +101,11 @@ def build_nearfield(co_data, ea_data, va_data, near_data):
     vals = np.hstack((co_vals, ea_vals, va_vals, near_vals))
     return scipy.sparse.coo_matrix((vals, (rows, cols))).tocsr()
 
-class SparseIntegralOperator:
+class NearfieldIntegralOperator:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, sm, pr, pts, tris):
-        far_quad = gauss4d_tri(nq_far)
         near_gauss = gauss4d_tri(nq_near)
+        far_quad = gauss4d_tri(nq_far)
 
         timer = Timer(tabs = 1)
         co_indices = np.arange(tris.shape[0])
@@ -154,13 +156,13 @@ class SparseIntegralOperator:
         )
         timer.report("Nearfield")
 
-        self.nearfield = build_nearfield(
+        self.mat = build_nearfield(
             (co_indices, co_mat, co_mat_correction),
             (ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_mat_correction),
             (va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks, va_mat_correction),
             (nearfield_mat, nearfield_pairs, nearfield_correction)
         )
-        self.nearfield_no_correction = build_nearfield(
+        self.mat_no_correction = build_nearfield(
             (co_indices, co_mat, 0 * co_mat_correction),
             (ea_mat_rot, ea_tri_indices, ea_obs_clicks,
                 ea_src_clicks, 0 * ea_mat_correction),
@@ -169,13 +171,22 @@ class SparseIntegralOperator:
             (nearfield_mat, nearfield_pairs, 0 * nearfield_correction)
         )
 
-        timer.report("Build nearfield sparse")
+    def dot(self, v):
+        return self.mat.dot(v)
+
+class SparseIntegralOperator:
+    def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
+            nq_far, nq_near, near_threshold, sm, pr, pts, tris):
+        self.nearfield = NearfieldIntegralOperator(
+            eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
+            nq_far, nq_near, near_threshold, sm, pr, pts, tris
+        )
 
         far_quad2d = gauss2d_tri(nq_far)
         self.interp_galerkin_mat, quad_pts, quad_ns = \
             interp_galerkin_mat(pts[tris], far_quad2d)
         self.nq = int(quad_pts.shape[0])
-        self.shape = self.nearfield.shape
+        self.shape = self.nearfield.mat.shape
         self.sm = sm
         self.pr = pr
         self.gpu_farfield = get_gpu_module().get_function("farfield_ptsH")
@@ -210,3 +221,40 @@ class SparseIntegralOperator:
         out = self.interp_galerkin_mat.T.dot(nbody_result)
         # t.report('galerkin * nbody_result')
         return out
+
+class FMMIntegralOperator:
+    def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
+            nq_far, nq_near, near_threshold, sm, pr, pts, tris):
+        self.nearfield = NearfieldIntegralOperator(
+            eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
+            nq_far, nq_near, near_threshold, sm, pr, pts, tris
+        )
+
+        far_quad2d = gauss2d_tri(nq_far)
+        self.interp_galerkin_mat, quad_pts, quad_ns = \
+            interp_galerkin_mat(pts[tris], far_quad2d)
+        self.shape = self.nearfield.mat.shape
+        quad_ns = quad_ns.reshape(quad_pts.shape)
+
+        order = 100
+        mac = 3.0
+        self.obs_kd = fmm.KDTree(quad_pts, quad_ns, order)
+        self.src_kd = fmm.KDTree(quad_pts, quad_ns, order)
+        self.fmm_mat = fmm.fmmmmmmm(
+            self.obs_kd, self.src_kd,
+            fmm.FMMConfig(1.1, mac, order, 'elasticH', [sm, pr])
+        )
+
+    def dot(self, v):
+        out = self.nearfield.dot(v)
+        out += self.farfield_dot(v)
+        return out
+
+    def farfield_dot(self, v):
+        interp_v = self.interp_galerkin_mat.dot(v)
+        fmm_out = fmm.eval(
+            self.obs_kd, self.src_kd, self.fmm_mat, interp_v,
+            interp_v.shape[0]
+        )
+        return self.interp_galerkin_mat.T.dot(fmm_out)
+

@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     packages = ['tectosaur'],
-    install_requires = ['numpy', 'sympy', 'scipy', 'dill', 'mako'],
+    install_requires = ['numpy', 'sympy', 'scipy', 'dill', 'mako', 'pycuda', 'cppimport', 'joblib'],
     zip_safe = False,
 
     name = 'tectosaur',
