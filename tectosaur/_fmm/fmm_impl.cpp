@@ -75,27 +75,12 @@ std::vector<double> BlockSparseMat::matvec(double* vec, size_t out_size) {
     double beta = 1;
     int inc = 1;
     std::vector<double> out(out_size, 0.0);
-    // #pragma omp parallel if(vals.size() > 10000000)
-    // {
-    //     std::vector<double> thread_out(out_size, 0.0);
-    //     #pragma omp for nowait
-    //     for (size_t b_idx = 0; b_idx < blocks.size(); b_idx++) {
-    //         auto& b = blocks[b_idx];
-    //         dgemv_(&transpose, &b.n_cols, &b.n_rows, &alpha,
-    //         &vals[b.data_start],
-    //             &b.n_cols, &vec[b.col_start], &inc, &beta, &out[b.row_start],
-    //             &inc);
-    //     }
-    //     #pragma omp critical
-    //     for (size_t i = 0; i < thread_out.size(); i++) {
-    //         out[i] += thread_out[i];
-    //     }
-    // }
     for (size_t b_idx = 0; b_idx < blocks.size(); b_idx++) {
         auto& b = blocks[b_idx];
-        dgemv_(&transpose, &b.n_cols, &b.n_rows, &alpha, &vals[b.data_start],
-               &b.n_cols, &vec[b.col_start], &inc, &beta, &out[b.row_start],
-               &inc);
+        dgemv_(
+            &transpose, &b.n_cols, &b.n_rows, &alpha, &vals[b.data_start],
+            &b.n_cols, &vec[b.col_start], &inc, &beta, &out[b.row_start], &inc
+        );
     }
     return out;
 }
