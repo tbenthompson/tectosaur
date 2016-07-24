@@ -29,7 +29,11 @@ void one(const NBodyProblem& p, double* out) {
 void invr(const NBodyProblem& p, double* out) {
     direct_nbody(p, out,
         [](const Vec3& obs, const Vec3& nobs, const Vec3& src, const Vec3& nsrc) {
-            return 1.0 / hypot(sub(obs, src));
+            auto r = hypot(sub(obs, src));
+            if (r == 0.0) {
+                return 0.0;
+            }
+            return 1.0 / r;
         });
 }
 
@@ -80,6 +84,7 @@ void elastic${k_name}(const NBodyProblem& p, double* out) {
             auto yz = p.src_pts[j][2];
             (void)yx;(void)yy;(void)yz;
 
+            // If the src to obs distance is 0, then the output is just 0.
             auto Dx = xx - yx;
             auto Dy = xy - yy;
             auto Dz = xz - yz;
@@ -90,12 +95,14 @@ void elastic${k_name}(const NBodyProblem& p, double* out) {
                 out[i * p.n_src * 9 + ${d1} * 3 * p.n_src + j * 3 + ${d2}] = 0.0;
                 % endfor
                 % endfor
+                continue;
             }
 
             auto lx = p.src_ns[j][0];
             auto ly = p.src_ns[j][1];
             auto lz = p.src_ns[j][2];
             (void)lx;(void)ly;(void)lz;
+
             % for d1 in range(3):
             % for d2 in range(3):
             out[i * p.n_src * 9 + ${d1} * 3 * p.n_src + j * 3 + ${d2}] = 

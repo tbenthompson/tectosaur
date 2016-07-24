@@ -99,6 +99,11 @@ void to_pts(const Workspace& ws, BlockSparseMat& mat,
             size_t n_obs, size_t obs_pt_start,
             const Vec3* src_pts, const Vec3* src_ns,
             size_t n_src, size_t src_pt_start) {
+
+    if (n_obs == 0 || n_src == 0) {
+        return;
+    }
+
     auto tdim = ws.cfg.kernel.tensor_dim;
     auto n_rows = n_obs * tdim;
     auto n_cols = n_src * tdim;

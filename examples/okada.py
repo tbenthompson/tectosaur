@@ -34,7 +34,7 @@ def refined_free_surface():
 def make_free_surface():
     w = 12
     corners = [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]]
-    return mesh.rect_surface(30, 30, corners)
+    return mesh.rect_surface(20, 20, corners)
 
 def make_fault(L, top_depth):
     return mesh.rect_surface(10, 10, [
