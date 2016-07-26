@@ -59,7 +59,7 @@ def constraints(surface_tris, fault_tris, pts):
 
     # X component = 1
     # Y comp = Z comp = 0
-    slip = [-1, 0, 0]
+    slip = [1, 0, 0]
     for i in range(n_surf_tris, n_surf_tris + n_fault_tris):
         for b in range(3):
             for d in range(3):

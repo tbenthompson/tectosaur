@@ -77,7 +77,7 @@ def cached_in(name, creator):
 @cache
 def cached_coincident_quad(nq, eps):
     return richardson_quad(
-        eps, lambda e: triangle_rules.coincident_quad(e, nq, nq, nq, nq)
+        eps, lambda e: triangle_rules.coincident_quad(e, nq, nq, nq, nq / 2)
     )
 
 def coincident(nq, eps, sm, pr, pts, tris):

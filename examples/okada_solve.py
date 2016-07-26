@@ -39,6 +39,7 @@ def iterative_solve(iop, constraints):
         return out
 
     P = sparse.linalg.spilu(cmT.dot(iop.nearfield.mat_no_correction.dot(cm)))
+    timer.report("Build preconditioner")
     def prec_f(x):
         return P.solve(x.astype(np.float32))
     M = sparse.linalg.LinearOperator((n, n), matvec = prec_f)
@@ -48,7 +49,7 @@ def iterative_solve(iop, constraints):
         print(R)
         pass
     soln = sparse.linalg.gmres(
-        A, rhs_constrained, M = M, tol = 5e-6, callback = report_res, restart = 100
+        A, rhs_constrained, M = M, tol = 1e-8, callback = report_res, restart = 100
     )
     timer.report("GMRES")
     return cm.dot(soln[0])

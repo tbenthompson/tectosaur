@@ -85,7 +85,7 @@ def gpu_mvp(A, x):
     Ax_gpu = culg.dot(A, x_gpu)
     return Ax_gpu.get()
 
-class DenseIntegralOperator:
+class DenseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent,
             nq_vert_adjacent, nq_far, sm, pr, pts, tris):
         timer = Timer(tabs = 1)

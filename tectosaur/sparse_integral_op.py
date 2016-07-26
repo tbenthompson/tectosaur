@@ -101,7 +101,7 @@ def build_nearfield(co_data, ea_data, va_data, near_data):
     vals = np.hstack((co_vals, ea_vals, va_vals, near_vals))
     return scipy.sparse.coo_matrix((vals, (rows, cols))).tocsr()
 
-class NearfieldIntegralOperator:
+class NearfieldIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, sm, pr, pts, tris):
         near_gauss = gauss4d_tri(nq_near)
@@ -174,10 +174,10 @@ class NearfieldIntegralOperator:
     def dot(self, v):
         return self.mat.dot(v)
 
-class SparseIntegralOperator:
+class SparseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, sm, pr, pts, tris):
-        self.nearfield = NearfieldIntegralOperator(
+        self.nearfield = NearfieldIntegralOp(
             eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, sm, pr, pts, tris
         )
@@ -222,10 +222,10 @@ class SparseIntegralOperator:
         # t.report('galerkin * nbody_result')
         return out
 
-class FMMIntegralOperator:
+class FMMIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, sm, pr, pts, tris):
-        self.nearfield = NearfieldIntegralOperator(
+        self.nearfield = NearfieldIntegralOp(
             eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, sm, pr, pts, tris
         )

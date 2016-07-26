@@ -3,47 +3,88 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
 import okada_wrapper
+import scipy.spatial
 
 import tectosaur.mesh as mesh
-from tectosaur.sparse_integral_op import SparseIntegralOperator, FMMIntegralOperator
-from tectosaur.dense_integral_op import DenseIntegralOperator
+from tectosaur.sparse_integral_op import SparseIntegralOp, FMMIntegralOp
+from tectosaur.dense_integral_op import DenseIntegralOp
 
 from okada_solve import iterative_solve, direct_solve
 from tectosaur.constraints import constraints
 from tectosaur.util.timer import Timer
 
 def refined_free_surface():
-    n = 36
-    inner_n = 15
-    outer_n = 20
-    one_side = (
-        np.linspace(0, 3, inner_n)[1:].tolist() +
-        (3.0 * 1.1 ** np.arange(1, outer_n)).tolist()
-    )
-    xs = np.array((-np.array(one_side[::-1])).tolist() + [0] + one_side)
-    minxs = np.min(xs)
-    maxxs = np.max(xs)
-    xs = (xs - minxs) / (maxxs - minxs)
+    w = 20
+    minsize = 0.02
+    slope = 200
+    maxsize = 25
+    pts = np.array([[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
+    tris = np.array([[0, 1, 3], [3, 1, 2]])
 
-    w = maxxs
-    corners = [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]]
-    pts = mesh.rect_surface_points(corners, xs, xs)
-    topology = mesh.rect_surface_topology(xs.shape[0], xs.shape[0])
-    return (pts, topology)
+    addedpts = 4
+    it = 0
+    while addedpts > 0:
+        pts, tris = mesh.remove_duplicate_pts((pts, tris))
+        print(it, addedpts)
+        it += 1
+        newpts = pts.tolist()
+        newtris = []
+        addedpts = 0
+        # size = np.linalg.norm(np.cross(
+        #     pts[tris[:, 1]] - pts[tris[:, 0]],
+        #     pts[tris[:, 2]] - pts[tris[:, 0]]
+        # ), axis = 1) / 2.0
+        # centroid = np.mean(pts[tris], axis = 2)
+        # r2 = np.sum(centroid ** 2, axis = 1)
+        for i, t in enumerate(tris):
+            size = np.linalg.norm(np.cross(
+                pts[t[1]] - pts[t[0]],
+                pts[t[2]] - pts[t[0]]
+            )) / 2.0
+            centroid = np.mean(pts[t], axis = 0)
+            A = (centroid[0] / 1.5) ** 2 + (centroid[1] / 1.0) ** 2
+            # A = np.sum(centroid ** 2)
+            if (A < slope * size and size > minsize) or size > maxsize:
+            # print(r2[i], size[i])
+            # if r2[i] < size[i] and size[i] > minsize:
+                newidx = len(newpts)
+                newpts.extend([
+                    (pts[t[0]] + pts[t[1]]) / 2,
+                    (pts[t[1]] + pts[t[2]]) / 2,
+                    (pts[t[2]] + pts[t[0]]) / 2
+                ])
+                newtris.extend([
+                    [t[0], newidx, newidx + 2],
+                    [newidx, t[1], newidx + 1],
+                    [newidx + 1, t[2], newidx + 2],
+                    [newidx + 1, newidx + 2, newidx]
+                ])
+                addedpts += 3
+            else:
+                newtris.append(t)
+        pts = np.array(newpts)
+        tris = np.array(newtris)
+    final_tris = scipy.spatial.Delaunay(np.array([pts[:,0],pts[:,1]]).T).simplices
+    plt.triplot(pts[:, 0], pts[:, 1], final_tris, linewidth = 0.5)
+    plt.show()
+    print('npts: ' + str(pts.shape[0]))
+    print('ntris: ' + str(final_tris.shape[0]))
+    return pts, final_tris
 
 def make_free_surface():
     w = 12
-    corners = [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]]
-    return mesh.rect_surface(20, 20, corners)
+    corners = [[-w, -w, 0], [-w, w, 0], [w, w, 0], [w, -w, 0]]
+    return mesh.rect_surface(50, 50, corners)
 
 def make_fault(L, top_depth):
-    return mesh.rect_surface(10, 10, [
+    return mesh.rect_surface(20, 20, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
 
 def make_meshes(fault_L, top_depth):
-    surface = make_free_surface()
+    # surface = make_free_surface()
+    surface = refined_free_surface()
     fault = make_fault(fault_L, top_depth)
     all_mesh = mesh.concat(surface, fault)
     surface_tris = all_mesh[1][:surface[1].shape[0]]
@@ -55,26 +96,27 @@ def test_okada():
     pr = 0.25
     fault_L = 1.0
     top_depth = -0.5
-
-    timer = Timer()
-    all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth)
-    timer.report("Mesh")
-
-    cs = constraints(surface_tris, fault_tris, all_mesh[0])
-    timer.report("Constraints")
-
-    surface_pt_idxs = np.unique(surface_tris)
-    obs_pts = all_mesh[0][surface_pt_idxs,:]
     load_soln = False
+
     if not load_soln:
-        eps = [0.04, 0.02, 0.01]
-        iop = FMMIntegralOperator(
-            eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
-        )
-        # iop = SparseIntegralOperator(
+        timer = Timer()
+        all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth)
+        timer.report("Mesh")
+
+        cs = constraints(surface_tris, fault_tris, all_mesh[0])
+        timer.report("Constraints")
+
+        surface_pt_idxs = np.unique(surface_tris)
+        obs_pts = all_mesh[0][surface_pt_idxs,:]
+
+        eps = [0.08, 0.04, 0.02, 0.01]
+        # iop = FMMIntegralOp(
         #     eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
         # )
-        # iop = DenseIntegralOperator(
+        iop = SparseIntegralOp(
+            eps, 32, 22, 7, 4, 10, 5.0, sm, pr, all_mesh[0], all_mesh[1]
+        )
+        # iop = DenseIntegralOp(
         #     eps, 18, 13, 6, 3, sm, pr, all_mesh[0], all_mesh[1]
         # )
         timer.report("Integrals")
@@ -97,11 +139,18 @@ def test_okada():
         timer.report("Extract surface displacement")
         with open('okada.npy', 'wb') as f:
             pickle.dump((vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr), f)
+    else:
+        with open('okada.npy', 'rb') as f:
+            vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
-    timer.restart()
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-    timer.report("Okada")
-
+    cond1 = np.logical_and(obs_pts[:,1] > -0.4, obs_pts[:,1] < -0.25)
+    cond2 = np.logical_and(obs_pts[:,1] < 0.4, obs_pts[:,1] > 0.25)
+    plt.plot(obs_pts[cond1, 0], vals[cond1,0],'r.')
+    plt.plot(obs_pts[cond2, 0], vals[cond2,0],'r.')
+    plt.plot(obs_pts[cond1, 0], u[cond1,0],'b.')
+    plt.plot(obs_pts[cond2, 0], u[cond2,0],'b.')
+    plt.show()
     plot_results(obs_pts, surface_tris, u, vals)
     print_error(obs_pts, u, vals)
 
@@ -130,7 +179,7 @@ def plot_results(pts, tris, correct, est):
         plt.figure()
         plt.tripcolor(
             pts[:,0], pts[:, 1], tris,
-            est[:,d], shading='gouraud',
+            est[:,d], #shading='gouraud',
             cmap = 'PuOr', vmin = -vmax, vmax = vmax
         )
         plt.title("u " + ['x', 'y', 'z'][d])
@@ -140,7 +189,7 @@ def plot_results(pts, tris, correct, est):
         plt.figure()
         plt.tripcolor(
             pts[:, 0], pts[:, 1], tris,
-            correct[:, d], shading='gouraud',
+            correct[:, d], #shading='gouraud',
             cmap = 'PuOr', vmin = -vmax, vmax = vmax
         )
         plt.title("Okada u " + ['x', 'y', 'z'][d])
@@ -150,7 +199,7 @@ def plot_results(pts, tris, correct, est):
         plt.figure()
         plt.tripcolor(
             pts[:, 0], pts[:, 1], tris,
-            correct[:, d] - est[:,d], shading='gouraud',
+            correct[:, d] - est[:,d], #shading='gouraud',
             cmap = 'PuOr'
         )
         plt.title("Diff u " + ['x', 'y', 'z'][d])
