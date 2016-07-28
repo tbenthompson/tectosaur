@@ -109,13 +109,17 @@ def test_okada():
         surface_pt_idxs = np.unique(surface_tris)
         obs_pts = all_mesh[0][surface_pt_idxs,:]
 
-        eps = [0.08, 0.04, 0.02, 0.01]
+        # eps = [0.08, 0.04, 0.02, 0.01]
+        iop = DenseTaylorIntegralOp(
+            0.5, 5, 15, 15, 10, 7, 3.0, 3,
+            sm, pr, all_mesh[0], all_mesh[1]
+        )
         # iop = FMMIntegralOp(
         #     eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
         # )
-        iop = SparseIntegralOp(
-            eps, 32, 22, 7, 4, 10, 5.0, sm, pr, all_mesh[0], all_mesh[1]
-        )
+        # iop = SparseIntegralOp(
+        #     eps, 32, 22, 7, 4, 10, 5.0, sm, pr, all_mesh[0], all_mesh[1]
+        # )
         # iop = DenseIntegralOp(
         #     eps, 18, 13, 6, 3, sm, pr, all_mesh[0], all_mesh[1]
         # )
