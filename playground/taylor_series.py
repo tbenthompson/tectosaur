@@ -50,11 +50,11 @@ def eval_taylor(ts, x, y):
     global q
     result = 0
     for i in range(len(ts)):
-        # q = gaussxw(18)
-        # te1 = ((y - x) ** i / factorial(i)) * ts[i](x)
-        # q = gaussxw(20)
+        q = gaussxw(18)
+        te1 = ((y - x) ** i / factorial(i)) * ts[i](x)
+        q = gaussxw(20)
         te2 = ((y - x) ** i / factorial(i)) * ts[i](x)
-        # print(np.abs((te1 - te2)), te2)
+        print(np.abs((te1 - te2)), te2)
         result += te2
     return result
 
@@ -69,20 +69,27 @@ print(calc_inner(-1.0))
 print(scipy.integrate.quad(calc_inner, -2, 0))
 
 q = gaussxw(30)
+# q = sinh_transform(gaussxw(50), 0, 0.5)
+# print('std::vector<double> qx = {' + ','.join(map(str, q[0])) + '};')
+# print('std::vector<double> qw = {' + ','.join(map(str, q[1])) + '};')
+# import ipdb; ipdb.set_trace()
 def calc_inner_taylor(x):
     print(x)
     f_dom = f_outer(x)
-    ts = taylor_series(f_dom(0), 7)
-    ts2 = taylor_series(f_dom(2), 7)
     return sum([eval_taylor(taylor_series(f_dom(x), 7), 1.0, 0.0) for x in [0, 2, -2]])
+
+print(calc_inner_taylor(0.0))
+
 # q5 = gaussxw(4)
 # shiftedqx = q5[0] - 1
 # res = quadrature(lambda xs: np.array([calc_inner_taylor(x) for x in xs]), (shiftedqx, q5[1]))
 # print(res)
-xs = np.linspace(-3, 3, 100)
-vs = [calc_inner_taylor(x) for x in xs]
-plt.plot(xs, vs)
-plt.savefig('abc.pdf')
+
+# xs = np.linspace(-3, 3, 100)
+# vs = [calc_inner_taylor(x) for x in xs]
+# plt.plot(xs, vs)
+# plt.savefig('abc.pdf')
+
 # print(scipy.integrate.quad(calc_inner_taylor, -2, 0))
 
 

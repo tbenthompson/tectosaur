@@ -8,6 +8,7 @@ import scipy.spatial
 import tectosaur.mesh as mesh
 from tectosaur.sparse_integral_op import SparseIntegralOp, FMMIntegralOp
 from tectosaur.dense_integral_op import DenseIntegralOp
+from tectosaur.dense_taylor_integral_op import DenseTaylorIntegralOp
 
 from okada_solve import iterative_solve, direct_solve
 from tectosaur.constraints import constraints

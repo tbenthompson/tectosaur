@@ -2,7 +2,7 @@
 setup_pybind11(cfg)
 cfg['compiler_args'].extend(['-std=c++14', '-O3', '-g', '-Wall', '-Werror', '-fopenmp'])
 cfg['sources'] = ['fmm_impl.cpp', 'kdtree.cpp', 'blas_wrapper.cpp', 'cpp_tester.cpp', 'fmm_kernels.cpp']
-cfg['dependencies'] = ['fmm_impl.hpp', 'kdtree.hpp', 'blas_wrapper.hpp']
+cfg['dependencies'] = ['fmm_impl.hpp', 'kdtree.hpp', 'blas_wrapper.hpp', '../lib/pybind11_nparray.hpp']
 cfg['parallel'] = True
 cfg['linker_args'] = ['-fopenmp']
 cfg['include_dirs'].append('../')
@@ -41,8 +41,9 @@ with open(os.path.join(filedirname, '.gitignore'), 'w') as f:
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include <pybind11/numpy.h>
 #include <pybind11/functional.h>
+
+#include "lib/pybind11_nparray.hpp"
 
 #include "fmm_impl.hpp"
 #include "kdtree.hpp"
@@ -50,36 +51,8 @@ with open(os.path.join(filedirname, '.gitignore'), 'w') as f:
 using namespace tectosaur;
 namespace py = pybind11;
 
-using NPArray = py::array_t<double,py::array::c_style>;
 
 int main(int,char**);
-
-std::vector<size_t> calc_strides(const std::vector<size_t>& shape, size_t unit_size) {
-    std::vector<size_t> strides(shape.size());
-    strides[shape.size() - 1] = unit_size;
-    for (int i = shape.size() - 2; i >= 0; i--) {
-        strides[i] = strides[i + 1] * shape[i + 1];
-    }
-    return strides;
-}
-
-template <typename T>
-pybind11::array_t<T> make_array(const std::vector<size_t>& shape) {
-    return pybind11::array(pybind11::buffer_info(
-        nullptr, sizeof(T), pybind11::format_descriptor<T>::value,
-        shape.size(), shape, calc_strides(shape, sizeof(T))
-    ));
-}
-
-template <typename T>
-pybind11::array_t<T> array_from_vector(const std::vector<T>& in) {
-    auto out = make_array<T>({in.size()});
-    T* ptr = reinterpret_cast<T*>(out.request().ptr);
-    for (size_t i = 0; i < in.size(); i++) {
-        ptr[i] = in[i];
-    }
-    return out;
-}
 
 
 void check_shape(NPArray& arr) {
@@ -87,19 +60,6 @@ void check_shape(NPArray& arr) {
     if (buf.ndim != 2 || buf.shape[1] != 3) {
         throw std::runtime_error("parameter requires n x 3 array.");
     }
-}
-
-template <typename T>
-T* as_ptr(NPArray& np_arr) {
-    return reinterpret_cast<T*>(np_arr.request().ptr);
-}
-
-template <typename T>
-std::vector<T> get_vector(NPArray& np_arr) {
-    auto buf = np_arr.request();
-    auto* first = reinterpret_cast<T*>(buf.ptr);
-    auto* last = first + buf.shape[0];
-    return std::vector<T>(first, last);
 }
 
 
