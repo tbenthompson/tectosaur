@@ -27,15 +27,15 @@ def cpp_pow(float_type, expr):
         return '(' + float_type + '(1) / (({a}) * ({a})))'.format(a = a)
     elif expr.args[1] == -0.5:
         a = to_cpp(float_type, expr.args[0])
-        return '(' + float_type + '(1) / std::sqrt({a}))'.format(a = a)
+        return '(' + float_type + '(1) / sqrt({a}))'.format(a = a)
     elif expr.args[1] == -1.5:
         a = to_cpp(float_type, expr.args[0])
-        return '(' + float_type + '(1) / std::sqrt(({a}) * ({a}) * ({a})))'.format(a = a)
+        return '(' + float_type + '(1) / sqrt(({a}) * ({a}) * ({a})))'.format(a = a)
     elif expr.args[1] == 0.5:
         a = to_cpp(float_type, expr.args[0])
-        return '(std::sqrt({a}))'.format(a = a)
+        return '(sqrt({a}))'.format(a = a)
     else:
-        return cpp_func('std::pow')(float_type, expr)
+        return cpp_func('pow')(float_type, expr)
 
 to_cpp_map = dict()
 to_cpp_map[sympy.Mul] = cpp_binop('*')

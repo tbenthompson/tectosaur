@@ -18,17 +18,13 @@
 //-- sine and cosine
 //-- how to get the other operations from sine and cosine and other implemented operations?
 //---- use trig definitions (see the papers above)
-//TODO: Use this for the bem evaluation!
 
 template <typename T, int M>
 struct Taylor {
     static_assert(M >= 1, "Taylor<T,M> should be used with M > 1. \
                  Otherwise it is pointless!");
 
-    typedef Taylor<T,M> MyType;
-    typedef std::array<T,M+1> Array;
-
-    Array c;
+    std::array<T,M+1> c;
     int n_coeffs;
 
     Taylor(): c{}, n_coeffs(1) {
@@ -60,7 +56,7 @@ struct Taylor {
 
     void log() {
         n_coeffs = M + 1;     
-        Array temp_c = c;
+        std::array<T,M+1> temp_c = c;
         c[0] = std::log(c[0]);
         for (int i = 1; i < n_coeffs; i++) {
             c[i] = i * temp_c[i];
@@ -73,7 +69,7 @@ struct Taylor {
 
     void exp() {
         n_coeffs = M + 1;
-        Array temp_c = c;
+        std::array<T,M+1> temp_c = c;
         c[0] = std::exp(c[0]);
         for (int i = 1; i < n_coeffs; i++) {
             c[i] = 0;
@@ -86,7 +82,7 @@ struct Taylor {
 
     void pow(const T& r) {
         n_coeffs = M + 1;
-        Array temp_c = c;
+        std::array<T,M+1> temp_c = c;
         c[0] = std::pow(c[0], r);
         for (int i = 1; i < n_coeffs; i++) {
             double term1 = 0;
@@ -103,7 +99,7 @@ struct Taylor {
     }
 
 
-    void operator/=(const MyType& b) {
+    void operator/=(const Taylor<T,M>& b) {
         n_coeffs = M + 1;
         for (int i = 0; i < n_coeffs; i++) {
             for (int j = 0; j <= i - 1; j++) {
@@ -113,9 +109,9 @@ struct Taylor {
         }
     }
 
-    void operator*=(const MyType& b) {
+    void operator*=(const Taylor<T,M>& b) {
         n_coeffs = std::min(n_coeffs + b.n_coeffs - 1, M + 1);
-        Array temp_c = c;
+        std::array<T,M+1> temp_c = c;
         for (int i = 0; i < n_coeffs; i++) {
             c[i] = 0.0;
             for (int j = 0; j <= i; j++) {
@@ -124,50 +120,50 @@ struct Taylor {
         }
     }
 
-    void operator+=(const MyType& b) {
+    void operator+=(const Taylor<T,M>& b) {
         n_coeffs = std::max(n_coeffs, b.n_coeffs);
         for (int i = 0; i < b.n_coeffs; i++) {
             c[i] += b.c[i];
         }
     }
 
-    void operator-=(const MyType& b) {
+    void operator-=(const Taylor<T,M>& b) {
         (*this) += -b;
     }
 
-    MyType operator-() const {
-        MyType res = *this;
+    Taylor<T,M> operator-() const {
+        Taylor<T,M> res = *this;
         for (int i = 0; i < n_coeffs; i++) {
             res.c[i] = -res.c[i];
         }
         return res;
     }
 
-    MyType operator/(const MyType& b) const {
-        MyType res = *this;
+    Taylor<T,M> operator/(const Taylor<T,M>& b) const {
+        Taylor<T,M> res = *this;
         res /= b;
         return res;
     }
 
-    MyType operator*(const MyType& b) const {
-        MyType res = *this;
+    Taylor<T,M> operator*(const Taylor<T,M>& b) const {
+        Taylor<T,M> res = *this;
         res *= b;
         return res;
     }
     
-    MyType operator+(const MyType& b) const {
-        MyType res = *this;
+    Taylor<T,M> operator+(const Taylor<T,M>& b) const {
+        Taylor<T,M> res = *this;
         res += b;
         return res;
     }
 
-    MyType operator-(const MyType& b) const {
-        MyType res = *this;
+    Taylor<T,M> operator-(const Taylor<T,M>& b) const {
+        Taylor<T,M> res = *this;
         res += -b;
         return res;
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const MyType& t) {
+    friend std::ostream& operator<<(std::ostream& os, const Taylor<T,M>& t) {
         os << "(";
         for (int i = 0; i < t.n_coeffs - 1; i++) {
             os << t.c[i] << ", ";
@@ -177,12 +173,12 @@ struct Taylor {
         return os;
     }
 
-    static MyType constant(const T& x) {
-        return MyType(x);
+    static Taylor<T,M> constant(const T& x) {
+        return Taylor<T,M>(x);
     }
 
-    static MyType var(const T& x) {
-        auto t = MyType(x);
+    static Taylor<T,M> var(const T& x) {
+        auto t = Taylor<T,M>(x);
         t.c[1] = 1.0;
         t.n_coeffs = 2;
         return t;

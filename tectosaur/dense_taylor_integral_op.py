@@ -8,34 +8,21 @@ from tectosaur.util.timer import Timer
 import cppimport
 taylor_integrals = cppimport.imp("tectosaur.taylor_integrals").taylor_integrals
 
-def calc_near_obs_pts(pts, tris, va, ea, q, offset):
-    # find real coordinates for each quadrature point
-    qx = q[0]
-    basis = np.array([1 - qx[:, 0] - qx[:, 1], qx[:, 0], qx[:, 1]])
-    tri_pts = pts[tris]
-
-    t = Timer()
-    # TODO: Some of this crazy vectorization is identical to stuff in interp_galerkin_mat
-    obs_pts = np.sum(
-        np.tile(tri_pts[:,:,np.newaxis,:],(1,1,qx.shape[0],1)) *
-            np.tile(basis[np.newaxis,:,:,np.newaxis], (tri_pts.shape[0],1,1,3)),
-        axis = 1
-    )
-    t.report('obs_pts')
-
+def calc_near_obs_dir(pts, tris, va, ea, q):
     # find offset direction for each quadrature point
+    # TODO: similar to some stuff in interp_galerkin_mat
     # TODO: adjust offset direction depending on adjacent elements
-    # --- the quadrature order should also adjust depending on how far i can get the expansion point away from an element
+    # --- the quadrature order should also adjust depending on how
+    # far i can get the expansion point away from an element
+    tri_pts = pts[tris]
     unscaled_normals = np.cross(
         tri_pts[:,2,:] - tri_pts[:,0,:],
         tri_pts[:,2,:] - tri_pts[:,1,:]
     )
     jacobians = np.linalg.norm(unscaled_normals, axis = 1)
     offset_dir = unscaled_normals / np.sqrt(jacobians)[:,np.newaxis]
-
-    # calculate offset points (surf_pt + near_offset * offset_dir)
-    offset_pts = obs_pts + offset * offset_dir[:,np.newaxis,:]
-    return offset_pts
+    offset_dir = np.tile(offset_dir[:,np.newaxis,:], (1, q[0].shape[0], 1))
+    return offset_dir
 
 
 
@@ -61,7 +48,7 @@ class DenseTaylorIntegralOp:
         v_adj, e_adj = find_adjacents(tris)
         t.report("Find adjacent")
 
-        near_obs_pts = calc_near_obs_pts(pts, tris, v_adj, e_adj, near_obs_q, near_offset)
+        obs_dir = calc_near_obs_dir(pts, tris, v_adj, e_adj, near_obs_q)
         t.report("Nearfield offset points")
 
         # singular_tris = np.array(
@@ -74,11 +61,20 @@ class DenseTaylorIntegralOp:
         co_q = gauss2d_tri(near_co_order)
         co_pairs = np.array([(i, i) for i in range(tris.shape[0])])
         result = taylor_integrals.taylor_integralsH(
-            near_obs_q[0], near_obs_q[1], near_obs_q[1],
-            co_q[0], co_q[1],
-            pts, tris, co_pairs[:, 0], co_pairs[:, 1],
+            near_obs_q[0].astype(np.float32),
+            near_obs_q[1].astype(np.float32),
+            obs_dir.astype(np.float32),
+            near_offset,
+            co_q[0].astype(np.float32),
+            co_q[1].astype(np.float32),
+            pts.astype(np.float32),
+            tris.astype(np.int32),
+            co_pairs[:, 0].astype(np.int32),
+            co_pairs[:, 1].astype(np.int32),
             sm, pr
         )
+        import ipdb; ipdb.set_trace()
+        print(result)
 
         #TODO:
         # for taylor series stuff:
