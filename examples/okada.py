@@ -8,15 +8,14 @@ import scipy.spatial
 import tectosaur.mesh as mesh
 from tectosaur.sparse_integral_op import SparseIntegralOp, FMMIntegralOp
 from tectosaur.dense_integral_op import DenseIntegralOp
-from tectosaur.dense_taylor_integral_op import DenseTaylorIntegralOp
 
 from okada_solve import iterative_solve, direct_solve
 from tectosaur.constraints import constraints
 from tectosaur.util.timer import Timer
 
 def refined_free_surface():
-    w = 20
-    minsize = 0.02
+    w = 5
+    minsize = 0.1
     slope = 200
     maxsize = 25
     pts = np.array([[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
@@ -110,17 +109,13 @@ def test_okada():
         surface_pt_idxs = np.unique(surface_tris)
         obs_pts = all_mesh[0][surface_pt_idxs,:]
 
-        # eps = [0.08, 0.04, 0.02, 0.01]
-        iop = DenseTaylorIntegralOp(
-            0.5, 5, 15, 15, 10, 7, 3.0, 3,
-            sm, pr, all_mesh[0], all_mesh[1]
-        )
+        eps = [0.08, 0.04, 0.02, 0.01]
         # iop = FMMIntegralOp(
         #     eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
         # )
-        # iop = SparseIntegralOp(
-        #     eps, 32, 22, 7, 4, 10, 5.0, sm, pr, all_mesh[0], all_mesh[1]
-        # )
+        iop = SparseIntegralOp(
+            eps, 12, 12, 12, 4, 10, 5.0, sm, pr, all_mesh[0], all_mesh[1]
+        )
         # iop = DenseIntegralOp(
         #     eps, 18, 13, 6, 3, sm, pr, all_mesh[0], all_mesh[1]
         # )

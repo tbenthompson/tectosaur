@@ -77,7 +77,7 @@ def cached_in(name, creator):
 @cache
 def cached_coincident_quad(nq, eps):
     return richardson_quad(
-        eps, lambda e: triangle_rules.coincident_quad(e, nq, nq, nq, nq / 2)
+        eps, lambda e: triangle_rules.coincident_quad(e, nq, nq, nq)
     )
 
 def coincident(nq, eps, sm, pr, pts, tris):
@@ -88,7 +88,7 @@ def coincident(nq, eps, sm, pr, pts, tris):
 @cache
 def cached_edge_adj_quad(nq, eps):
     return richardson_quad(
-        eps, lambda e: triangle_rules.edge_adj_quad(e, nq, nq, nq, nq, False)
+        eps, lambda e: triangle_rules.edge_adj_quad(e, nq, nq, nq)
     )
 
 def edge_adj(nq, eps, sm, pr, pts, obs_tris, src_tris):

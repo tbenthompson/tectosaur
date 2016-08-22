@@ -5,7 +5,7 @@
 #include <limits>
 #include "lib/doctest.h"
 #include "blas_wrapper.hpp"
-#include "test_helpers.hpp"
+#include "lib/test_helpers.hpp"
 
 namespace tectosaur {
 

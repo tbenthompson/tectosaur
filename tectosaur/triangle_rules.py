@@ -2,13 +2,14 @@ import tectosaur.quadrature as quad
 import numpy as np
 import cppimport
 
-def coincident_quad(eps, n_outer_sing, n_outer_smooth, n_theta, n_rho):
+# The inner integrals is split into three based on the observation point. Then,
+# polar coordinates are introduced to reduce the order of the singularity by one.
+# This function simply returns the points and weights of the resulting quadrature
+# formula.
+def coincident_quad(eps, n_outer, n_theta, n_rho):
     rho_quad = quad.sinh_transform(quad.gaussxw(n_rho), -1, eps)
     theta_quad = quad.poly_transform01(quad.gaussxw(n_theta))
-    # theta_quad = quad.gaussxw(n_theta)
-    outer_smooth_quad = quad.aimi_diligenti(quad.gaussxw(n_outer_smooth), 3, 3)
-    outer_sing_quad1 = quad.sinh_transform(quad.gaussxw(n_outer_sing), 1, eps)
-    outer_sing_quad23 = quad.sinh_transform(quad.gaussxw(n_outer_sing), -1, eps)
+    outer_quad = quad.gauss2d_tri(n_outer)
 
     theta_lims = [
         lambda x, y: np.pi - np.arctan((1 - y) / x),
@@ -40,110 +41,51 @@ def coincident_quad(eps, n_outer_sing, n_outer_smooth, n_theta, n_rho):
             pts.extend([(ox, oy, x, y) for x,y in zip(xs, ys)])
             wts.extend(wxy * wr * wt * jacobian)
 
-    def obsyhat_integral(desc, ox, wx):
-        q = quad.map_to(desc[4], [0, 1 - ox])
-        for oy, wy in zip(*q):
-            inner_integral(ox, oy, wx * wy, desc)
+    def outer_integral(desc):
+        for pt, wt in zip(*outer_quad):
+            inner_integral(pt[0], pt[1], wt, desc)
 
-    def obsxhat_integral(desc):
-        q = quad.map_to(desc[3], [0, 1])
-        for ox, wx in zip(*q):
-            obsyhat_integral(desc, ox, wx)
-
-    def I1():
-        desc = (
-            rho_lims[0],
-            lambda x, y: theta_lims[2](x, y) - 2 * np.pi,
-            theta_lims[0]
-        )
-        q_beta = quad.map_to(outer_smooth_quad, [0, np.pi / 2])
-        for b, wb in zip(*q_beta):
-            alpha_max = 1.0 / (np.cos(b) + np.sin(b))
-            q_alpha = quad.map_to(outer_sing_quad1, [0, alpha_max])
-            for a, wa in zip(*q_alpha):
-                ox = a * np.cos(b)
-                oy = a * np.sin(b)
-                inner_integral(ox, oy, wa * wb * a, desc)
-
-    def I2():
-        obsxhat_integral((
-            rho_lims[1],
-            theta_lims[0],
-            theta_lims[1],
-            outer_sing_quad23,
-            outer_smooth_quad,
-        ))
-
-    def I3():
-        obsxhat_integral((
-            rho_lims[2],
-            theta_lims[1],
-            theta_lims[2],
-            outer_smooth_quad,
-            outer_sing_quad23,
-        ))
-
-    I1()
-    I2()
-    I3()
-
+    outer_integral((
+        rho_lims[0],
+        lambda x, y: theta_lims[2](x, y) - 2 * np.pi,
+        theta_lims[0]
+    ))
+    outer_integral((rho_lims[1], theta_lims[0], theta_lims[1]))
+    outer_integral((rho_lims[2], theta_lims[1], theta_lims[2]))
     return np.array(pts), np.array(wts)
 
-def edge_adj_quad(eps, n_x, n_theta, n_beta, n_alpha, basis_cancellation):
-    # alpha and beta here are capital lambda and captial psi in
-    # sutradhar et al
-    if basis_cancellation:
-        alpha_quad = quad.gaussxw(n_alpha)
-    else:
-        alpha_quad = quad.sinh_transform(quad.gaussxw(n_alpha), -1, eps)
-    beta_quad = quad.gaussxw(n_beta)
-    theta_quad = quad.gaussxw(n_theta)
-    x_quad = quad.aimi_diligenti(quad.gaussxw(n_x), 2, 2)
+def edge_adj_quad(eps, n_outer, n_theta, n_rho):
+    print(n_rho,eps)
+    rho_quad = quad.sinh_transform(quad.gaussxw(n_rho), -1, eps)
+    theta_quad = quad.poly_transform01(quad.gaussxw(n_theta))
+    outer_quad = quad.gauss2d_tri(n_outer)
 
     pts = []
     wts = []
 
-    def alpha_integral(w, obsxhat, theta, beta, alpha_max):
-        q = quad.map_to(alpha_quad, [0, alpha_max])
-        for alpha, alphaw in zip(*q):
-            jacobian = alpha ** 2 * np.cos(beta)
-
-            rho = alpha * np.cos(beta)
-            obsyhat = alpha * np.sin(beta)
-
-            srcxhat = rho * np.cos(theta) + (1 - obsxhat)
-            srcyhat = rho * np.sin(theta)
-
-            pts.append((obsxhat, obsyhat, srcxhat, srcyhat))
-            wts.append(jacobian * alphaw * w)
+    def theta_integral(w, x, y, theta_min, theta_max, L_fnc):
+        qt = quad.map_to(theta_quad, [theta_min, theta_max])
+        for theta, thetaw in zip(*qt):
+            qr = quad.map_to(rho_quad, [0, L_fnc(theta)])
+            for rho, rhow in zip(*qr):
+                srcxhat = rho * np.cos(theta) + (1 - x)
+                srcyhat = rho * np.sin(theta)
+                pts.append((x, y, srcxhat, srcyhat))
+                wts.append(w * rho * thetaw * rhow)
 
 
-    def beta_integral(w, x, theta, beta_min, beta_max, alpha_max_fnc):
-        q = quad.map_to(beta_quad, [beta_min, beta_max])
-        for beta, betaw in zip(*q):
-            alpha_integral(betaw * w, x, theta, beta, alpha_max_fnc(beta))
+    for pt, wt in zip(*outer_quad):
+        x = pt[0]
+        y = pt[1]
+        L_fnc1 = lambda t: x / (np.cos(t) + np.sin(t))
+        L_fnc2 = lambda t: -(1 - x) / np.cos(t)
+        theta1 = np.pi - np.arctan(1 / (1 - x))
+        theta_integral(wt, x, y, 0, theta1, L_fnc1)
+        theta_integral(wt, x, y, theta1, np.pi, L_fnc2)
 
-    def theta_integral(w, x, theta_min, theta_max, L_fnc):
-        q = quad.map_to(theta_quad, [theta_min, theta_max])
-        for theta, thetaw in zip(*q):
-            L_theta = L_fnc(theta)
-            beta1 = np.arctan((1 - x) / L_theta)
-            alpha_max_f1 = lambda b: L_theta / np.cos(b)
-            alpha_max_f2 = lambda b: (1 - x) / np.sin(b)
-            beta_integral(w * thetaw, x, theta, 0, beta1, alpha_max_f1)
-            beta_integral(w * thetaw, x, theta, beta1, np.pi / 2, alpha_max_f2)
-
-    def x_integral():
-        q = quad.map_to(x_quad, [0, 1])
-        for x, xw in zip(*q):
-            theta1 = np.pi - np.arctan(1 / (1 - x))
-            L_fnc1 = lambda t: x / (np.cos(t) + np.sin(t))
-            L_fnc2 = lambda t: -(1 - x) / np.cos(t)
-            theta_integral(xw, x, 0, theta1, L_fnc1)
-            theta_integral(xw, x, theta1, np.pi, L_fnc2)
-
-    x_integral()
-    return np.array(pts), np.array(wts)
+    pts = np.array(pts)
+    wts = np.array(wts)
+    return pts, wts
 
 def vertex_adj_quad(n_theta, n_beta, n_alpha):
     theta_quad = quad.gaussxw(n_theta)

@@ -1,6 +1,6 @@
 #include "blas_wrapper.hpp"
 #include "lib/doctest.h"
-#include "test_helpers.hpp"
+#include "lib/test_helpers.hpp"
 #include <cmath>
 #include <cassert>
 #include <iostream>

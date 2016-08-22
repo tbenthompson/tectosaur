@@ -49,7 +49,7 @@ def test_coincident_gpu():
 @golden_master
 def test_full_integral_op():
     m = mesh.rect_surface(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
-    out = sparse_integral_op.SparseIntegralOperator(
+    out = sparse_integral_op.SparseIntegralOp(
         [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, 1.0, 0.25, m[0], m[1]
     )
     np.random.seed(100)
@@ -63,13 +63,18 @@ def test_weakly_singular_adjacent():
     # touch, the integral is no longer hypersingular, but instead is only weakly
     # singular.
     weakly_singular = [(2, 2), (2, 0), (2, 1), (0, 2), (1, 2)]
-    q1 = triangle_rules.edge_adj_quad(0, 4, 4, 4, 4, True)
-    q2 = triangle_rules.edge_adj_quad(0, 5, 5, 5, 5, True)
-    for i, j in weakly_singular:
-        K = lambda pts: laplace(tri_ref, tri_down, i, j, 0, pts)
-        v = quad.quadrature(K, q1)
-        v2 = quad.quadrature(K, q2)
-        assert(np.abs((v - v2) / v2) < 0.012)
+    for i in range(8, 15):
+        n1 = i
+        n2 = n1 + 1
+        q1 = triangle_rules.edge_adj_quad(0.1, n1,n1,n1)
+        q2 = triangle_rules.edge_adj_quad(0.1, n2,n2,n2)
+        for i, j in weakly_singular:
+            K = lambda pts: laplace(tri_ref, tri_down, i, j, 0, pts)
+            v = quad.quadrature(K, q1)
+            v2 = quad.quadrature(K, q2)
+            err = np.abs((v - v2) / v2)
+            print(err)
+            assert(err < 0.012)
 
 @slow
 def test_edge_adj_quad():
@@ -77,8 +82,8 @@ def test_edge_adj_quad():
     # These basis function pairs are both non-zero along the triangle boundary
     hypersingular = [(0, 0), (0, 1), (1, 0), (1, 1)]
     eps = 0.01
-    q1 = triangle_rules.edge_adj_quad(eps, 8, 8, 8, 8, False)
-    q2 = triangle_rules.edge_adj_quad(eps, 9, 9, 9, 9, False)
+    q1 = triangle_rules.edge_adj_quad(eps, 8, 8, 8, False)
+    q2 = triangle_rules.edge_adj_quad(eps, 9, 9, 9, False)
     for i, j in hypersingular:
         K = lambda pts: laplace(tri_ref, tri_down, i, j, eps, pts)
         v = quad.quadrature(K, q1)
@@ -94,7 +99,7 @@ def test_cancellation():
             eps, lambda e: triangle_rules.coincident_quad(e, 15, 15, 15, 20)
         )
         qa = quad.richardson_quad(
-            eps, lambda e: triangle_rules.edge_adj_quad(e, 15, 15, 15, 20, False)
+            eps, lambda e: triangle_rules.edge_adj_quad(e, 15, 15, 15, False)
         )
 
         Kco = lambda pts: laplace(tri_ref, tri_ref, 1, 1, pts[:,4], pts)
@@ -110,26 +115,33 @@ def test_cancellation():
         result.append(nondivergent)
     assert(abs(result[2] - result[1]) < 0.5 * abs(result[1] - result[0]))
 
-def test_adjacent_rule():
-    nq = 7
-    q = triangle_rules.vertex_adj_quad(nq, nq, nq)
+def check_simple(q):
     est = quad.quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q)
     correct = 1.0 / 576.0
     np.testing.assert_almost_equal(est, correct)
 
+    est = quad.quadrature(lambda p: p[:,0]**6*p[:,1]*p[:,3], q)
+    correct = 1.0 / 3024.0
+    np.testing.assert_almost_equal(est, correct)
+
+    est = quad.quadrature(lambda p: p[:,0]*p[:,2]**6*p[:,3], q)
+    correct = 1.0 / 3024.0
+    np.testing.assert_almost_equal(est, correct)
+
+def test_edge_adjacent_simple():
+    nq = 11
+    q = triangle_rules.edge_adj_quad(1.0, nq, nq, nq)
+    check_simple(q)
+
+def test_vertex_adjacent_simple():
+    nq = 8
+    q = triangle_rules.vertex_adj_quad(nq, nq, nq)
+    check_simple(q)
+
 def test_coincident_simple():
-    eps = 0.01
-
-    q = triangle_rules.coincident_quad(0.01, 10, 10, 10, 10)
-
-    result = quad.quadrature(lambda x: x[:, 2], q)
-    np.testing.assert_almost_equal(result, 1.0 / 12.0, 2)
-
-    result = quad.quadrature(lambda x: x[:, 3], q)
-    np.testing.assert_almost_equal(result, 1.0 / 12.0, 2)
-
-    result = quad.quadrature(lambda x: x[:, 2] * x[:, 3], q)
-    np.testing.assert_almost_equal(result, 1.0 / 48.0, 2)
+    nq = 12
+    q = triangle_rules.coincident_quad(1.0, nq, nq, nq)
+    check_simple(q)
 
 @slow
 def test_coincident_laplace():
