@@ -111,13 +111,13 @@ def test_okada():
 
         eps = [0.08, 0.04, 0.02, 0.01]
         # iop = FMMIntegralOp(
-        #     eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
+        #     eps, 10, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
         # )
         iop = SparseIntegralOp(
-            eps, 12, 12, 12, 4, 10, 5.0, sm, pr, all_mesh[0], all_mesh[1]
+            eps, 10, 12, 12, 12, 4, 5.0, sm, pr, all_mesh[0], all_mesh[1]
         )
         # iop = DenseIntegralOp(
-        #     eps, 18, 13, 6, 3, sm, pr, all_mesh[0], all_mesh[1]
+        #     eps, 10, 18, 13, 6, 3, sm, pr, all_mesh[0], all_mesh[1]
         # )
         timer.report("Integrals")
 

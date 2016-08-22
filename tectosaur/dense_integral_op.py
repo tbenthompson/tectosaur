@@ -86,11 +86,11 @@ def gpu_mvp(A, x):
     return Ax_gpu.get()
 
 class DenseIntegralOp:
-    def __init__(self, eps, nq_coincident, nq_edge_adjacent,
+    def __init__(self, eps, nq_near, nq_coincident, nq_edge_adjacent,
             nq_vert_adjacent, nq_far, sm, pr, pts, tris):
         timer = Timer(tabs = 1)
         co_indices = np.arange(tris.shape[0])
-        co_mat = coincident(nq_coincident, eps, sm, pr, pts, tris)
+        co_mat = coincident(nq_near, nq_coincident, eps, sm, pr, pts, tris)
         timer.report("Coincident")
 
         va, ea = find_adjacents(tris)
@@ -100,14 +100,14 @@ class DenseIntegralOp:
             edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
         ea_mat_rot = edge_adj(
-            nq_edge_adjacent, eps, sm, pr, pts, ea_obs_tris, ea_src_tris
+            nq_near, nq_edge_adjacent, eps, sm, pr, pts, ea_obs_tris, ea_src_tris
         )
         timer.report("Edge adjacent")
 
         va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
             vert_adj_prep(tris, va)
         timer.report("Vert adjacency prep")
-        va_mat_rot = vert_adj(nq_vert_adjacent, sm, pr, pts, va_obs_tris, va_src_tris)
+        va_mat_rot = vert_adj(nq_near, nq_vert_adjacent, sm, pr, pts, va_obs_tris, va_src_tris)
         timer.report("Vert adjacent")
 
         out = farfield(sm, pr, pts, tris, tris, nq_far)
