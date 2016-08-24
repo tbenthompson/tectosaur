@@ -3,6 +3,18 @@ import numpy as np
 def linear_basis_tri(xhat, yhat):
     return np.array([1.0 - xhat - yhat, xhat, yhat])
 
+def linear_basis_tri_arr(pts):
+    return np.array([1 - pts[:, 0] - pts[:, 1], pts[:, 0], pts[:, 1]]).T
+
+def unscaled_normals(tri_pts):
+    return np.cross(
+        tri_pts[:,2,:] - tri_pts[:,0,:],
+        tri_pts[:,2,:] - tri_pts[:,1,:]
+    )
+
+def jacobians(unscaled_normals):
+    return np.linalg.norm(unscaled_normals, axis = 1)
+
 def tri_pt(basis, tri):
     return np.array([
         sum([basis[j] * tri[j][i] for j in range(3)])
@@ -61,60 +73,3 @@ def tri_side(s):
     if edge2 == Side.intersect and edge0 == edge1:
         return edge0;
     return edge0;
-
-# template <size_t dim>
-# Side which_side_point(const Vec<Vec<double,dim>,dim>& face,
-#                 const Vec<double,dim>& pt)
-# {
-#     auto normal = unscaled_normal(face);
-#     double dot_val = dot_product(pt - face[0], normal);
-#     if (dot_val > 0) { return FRONT; }
-#     else if (dot_val < 0) { return BEHIND; }
-#     else { return INTERSECT; }
-# }
-#
-# /* Returns the side of a plane that a triangle/segment is on. */
-# template <size_t dim>
-# Side facet_side(const std::array<Side,dim>& s);
-#
-# template <>
-# inline Side facet_side<2>(const std::array<Side,2>& s)
-# {
-#     if (s[0] == s[1]) { return s[0]; }
-#     else if (s[0] == INTERSECT) { return s[1]; }
-#     else if (s[1] == INTERSECT) { return s[0]; }
-#     else { return INTERSECT; }
-# }
-#
-# template <>
-# inline Side facet_side<3>(const std::array<Side,3>& s)
-# {
-#     auto edge0 = facet_side<2>({s[0], s[1]});
-#     auto edge1 = facet_side<2>({s[0], s[2]});
-#     auto edge2 = facet_side<2>({s[1], s[2]});
-#     if (edge0 == INTERSECT && edge1 == edge2) {
-#         return edge1;
-#     }
-#     if (edge1 == INTERSECT && edge2 == edge0) {
-#         return edge2;
-#     }
-#     if (edge2 == INTERSECT && edge0 == edge1) {
-#         return edge0;
-#     }
-#     return edge0;
-# }
-#
-#
-# /* Determine the side of the plane/line defined by triangle/segment
-#  * that the given triangle/segment is on
-#  */
-# template <size_t dim>
-# Side which_side_facet(const Vec<Vec<double,dim>,dim>& plane,
-#     const Vec<Vec<double,dim>,dim>& face)
-# {
-#     std::array<Side,dim> sides;
-#     for (size_t d = 0; d < dim; d++) {
-#         sides[d] = which_side_point<dim>(plane, face[d]);
-#     }
-#     return facet_side<dim>(sides);
-# }

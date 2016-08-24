@@ -30,6 +30,26 @@ def concat(m1, m2):
     newm = np.vstack((m1[0], m2[0])), np.vstack((m1[1], m2[1] + m1[0].shape[0]))
     return remove_duplicate_pts(newm)
 
+def refine(m):
+    pts, tris = m
+    c0 = pts[tris[:,0]]
+    c1 = pts[tris[:,1]]
+    c2 = pts[tris[:,2]]
+    midpt01 = (c0 + c1) / 2.0
+    midpt12 = (c1 + c2) / 2.0
+    midpt20 = (c2 + c0) / 2.0
+    new_pts = np.vstack((pts, midpt01, midpt12, midpt20))
+    new_tris = []
+    first_new = pts.shape[0]
+    ntris = tris.shape[0]
+    for i, t in enumerate(tris):
+        new_tris.append((t[0], first_new + i, first_new + 2 * ntris + i))
+        new_tris.append((t[1], first_new + ntris + i, first_new + i))
+        new_tris.append((t[2], first_new + 2 * ntris + i, first_new + ntris + i))
+        new_tris.append((first_new + i, first_new + ntris + i, first_new + 2 * ntris + i))
+    new_tris = np.array(new_tris)
+    return remove_duplicate_pts((new_pts, new_tris))
+
 # Corners are ordered: lower left, lower right, upper right, upper left
 def rect_surface_points(corners, xhat_vals, yhat_vals):
     nx = xhat_vals.shape[0]

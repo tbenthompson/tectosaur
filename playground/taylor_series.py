@@ -58,7 +58,8 @@ def eval_taylor(ts, x, y):
         result += te2
     return result
 
-f_outer = lambda outer_x: lambda dom: lambda y: quadrature(lambda x: hyp([outer_x, y], np.array([x - dom, 0]), [0, 1], [0, 1]), q)
+f_outer = lambda outer_x: lambda dom: lambda y: \
+    quadrature(lambda x: hyp([outer_x, y], np.array([x - dom, 0]), [0, 1], [0, 1]), q)
 def calc_inner(x):
     f_dom = f_outer(x)
     hs = 0.5 * 2.0 ** -np.arange(7)
@@ -76,9 +77,9 @@ q = gaussxw(30)
 def calc_inner_taylor(x):
     print(x)
     f_dom = f_outer(x)
-    return sum([eval_taylor(taylor_series(f_dom(x), 7), 1.0, 0.0) for x in [0, 2, -2]])
+    return sum([eval_taylor(taylor_series(f_dom(x), 7), 1.0, 0.0) for x in [0, 2]])
 
-print(calc_inner_taylor(0.0))
+print(calc_inner_taylor(-1.0))
 
 # q5 = gaussxw(4)
 # shiftedqx = q5[0] - 1

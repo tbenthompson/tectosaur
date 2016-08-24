@@ -9,6 +9,7 @@ from tectosaur.adjacency import find_adjacents, vert_adj_prep, \
 from tectosaur.find_nearfield import find_nearfield
 from tectosaur.quadrature import gauss4d_tri, gauss2d_tri
 import tectosaur.fmm as fmm
+import tectosaur.geometry as geometry
 #TODO: Split the cuda code into nearfield integrals and farfield.
 from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
     get_gpu_module, get_gpu_config
@@ -28,13 +29,11 @@ def interp_galerkin_mat(tri_pts, quad_rule):
         np.arange(nt * 9).reshape(nt,3,3)[:,np.newaxis,:,:], (1,nq,1,1)
     ).flatten()
 
-    basis = np.array([1 - qx[:, 0] - qx[:, 1], qx[:, 0], qx[:, 1]]).T
+    basis = geometry.linear_basis_tri_arr(qx)
 
-    unscaled_normals = np.cross(
-        tri_pts[:,2,:] - tri_pts[:,0,:],
-        tri_pts[:,2,:] - tri_pts[:,1,:]
-    )
-    jacobians = np.linalg.norm(unscaled_normals, axis = 1)
+    unscaled_normals = geometry.unscaled_normals(tri_pts)
+    jacobians = geometry.jacobians(unscaled_normals)
+
     b_tiled = np.tile((qw[:,np.newaxis] * basis)[np.newaxis,:,:], (nt, 1, 1))
     J_tiled = np.tile(jacobians[:,np.newaxis,np.newaxis], (1, nq, 3))
     vals = np.tile((J_tiled * b_tiled)[:,:,:,np.newaxis], (1,1,1,3)).flatten()
@@ -103,15 +102,15 @@ def build_nearfield(co_data, ea_data, va_data, near_data):
 
 class NearfieldIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, sm, pr, pts, tris):
+            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris):
         near_gauss = gauss4d_tri(nq_near)
         far_quad = gauss4d_tri(nq_far)
 
         timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])
-        co_mat = coincident(nq_coincident, eps, sm, pr, pts, tris)
+        co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris)
         co_mat_correction = pairs_quad(
-            sm, pr, pts, tris, tris, far_quad, False, True
+            kernel, sm, pr, pts, tris, tris, far_quad, False
         )
         timer.report("Coincident")
 
@@ -122,12 +121,12 @@ class NearfieldIntegralOp:
             edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
         ea_mat_rot = edge_adj(
-            nq_edge_adjacent, eps, sm, pr, pts, ea_obs_tris, ea_src_tris
+            nq_edge_adjacent, eps, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris
         )
         ea_mat_correction = pairs_quad(
-            sm, pr, pts,
+            kernel, sm, pr, pts,
             tris[ea_tri_indices[:,0]], tris[ea_tri_indices[:,1]],
-            far_quad, False, True
+            far_quad, False
         )
         timer.report("Edge adjacent")
 
@@ -135,11 +134,11 @@ class NearfieldIntegralOp:
             vert_adj_prep(tris, va)
         timer.report("Vert adjacency prep")
 
-        va_mat_rot = vert_adj(nq_vert_adjacent, sm, pr, pts, va_obs_tris, va_src_tris)
+        va_mat_rot = vert_adj(nq_vert_adjacent, kernel, sm, pr, pts, va_obs_tris, va_src_tris)
         va_mat_correction = pairs_quad(
-            sm, pr, pts,
+            kernel, sm, pr, pts,
             tris[va_tri_indices[:,0]], tris[va_tri_indices[:,1]],
-            far_quad, False, True
+            far_quad, False
         )
         timer.report("Vert adjacent")
 
@@ -147,12 +146,12 @@ class NearfieldIntegralOp:
         timer.report("Find nearfield")
 
         nearfield_mat = pairs_quad(
-            sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
-            near_gauss, False, True
+            kernel, sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
+            near_gauss, False
         )
         nearfield_correction = pairs_quad(
-            sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
-            far_quad, False, True
+            kernel, sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
+            far_quad, False
         )
         timer.report("Nearfield")
 
@@ -176,10 +175,10 @@ class NearfieldIntegralOp:
 
 class SparseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, sm, pr, pts, tris):
+            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris):
         self.nearfield = NearfieldIntegralOp(
             eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, sm, pr, pts, tris
+            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris
         )
 
         far_quad2d = gauss2d_tri(nq_far)
@@ -189,7 +188,7 @@ class SparseIntegralOp:
         self.shape = self.nearfield.mat.shape
         self.sm = sm
         self.pr = pr
-        self.gpu_farfield = get_gpu_module().get_function("farfield_ptsH")
+        self.gpu_farfield = get_gpu_module().get_function("farfield_pts" + kernel)
         self.gpu_quad_pts = gpuarray.to_gpu(quad_pts.flatten().astype(np.float32))
         self.gpu_quad_ns = gpuarray.to_gpu(quad_ns.flatten().astype(np.float32))
 
@@ -224,7 +223,7 @@ class SparseIntegralOp:
 
 class FMMIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, sm, pr, pts, tris):
+            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris):
         self.nearfield = NearfieldIntegralOp(
             eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, sm, pr, pts, tris
@@ -242,7 +241,7 @@ class FMMIntegralOp:
         self.src_kd = fmm.KDTree(quad_pts, quad_ns, order)
         self.fmm_mat = fmm.fmmmmmmm(
             self.obs_kd, self.src_kd,
-            fmm.FMMConfig(1.1, mac, order, 'elasticH', [sm, pr])
+            fmm.FMMConfig(1.1, mac, order, 'elastic' + kernel, [sm, pr])
         )
 
     def dot(self, v):

@@ -114,7 +114,8 @@ def test_okada():
         #     eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
         # )
         iop = SparseIntegralOp(
-            eps, (17,17,17,14), (23,13,9,15), 7, 4, 10, 5.0, sm, pr, all_mesh[0], all_mesh[1]
+            eps, (17,17,17,14), (23,13,9,15), 7, 4, 10, 5.0,
+            'H', sm, pr, all_mesh[0], all_mesh[1]
         )
         # iop = DenseIntegralOp(
         #     eps, 18, 13, 6, 3, sm, pr, all_mesh[0], all_mesh[1]

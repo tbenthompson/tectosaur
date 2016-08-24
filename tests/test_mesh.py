@@ -21,3 +21,9 @@ def test_tri_side():
     assert(tri_side([Side.intersect, Side.intersect, Side.front]) == Side.front);
     assert(tri_side([Side.behind, Side.intersect, Side.behind]) == Side.behind);
 
+def test_refine():
+    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,1,0]])
+    tris = np.array([[0, 1, 2], [3, 2, 1]])
+    refined = mesh.refine((pts, tris))
+    assert(refined[0].shape[0] == 9)
+

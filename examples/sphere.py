@@ -6,36 +6,17 @@ import okada_wrapper
 import scipy.spatial
 
 import tectosaur.mesh as mesh
+from tectosaur.mass_op import MassOp
 from tectosaur.sparse_integral_op import SparseIntegralOp, FMMIntegralOp
 from tectosaur.dense_integral_op import DenseIntegralOp
+import tectosaur.constraints as constraints
 
-from solve import iterative_solve, direct_solve
-from tectosaur.constraints import constraints
+from solve import iterative_solve, direct_solve, SumOp
 from tectosaur.util.timer import Timer
 
 def spherify(center, r, pts):
     D = scipy.spatial.distance.cdist(pts, center.reshape((1,center.shape[0])))
     return (r / D) * (pts - center) + center
-
-def refine(m):
-    pts, tris = m
-    c0 = pts[tris[:,0]]
-    c1 = pts[tris[:,1]]
-    c2 = pts[tris[:,2]]
-    midpt01 = (c0 + c1) / 2.0
-    midpt12 = (c1 + c2) / 2.0
-    midpt20 = (c2 + c0) / 2.0
-    new_pts = np.vstack((pts, midpt01, midpt12, midpt20))
-    new_tris = []
-    first_new = pts.shape[0]
-    ntris = tris.shape[0]
-    for i, t in enumerate(tris):
-        new_tris.append((t[0], first_new + i, first_new + 2 * ntris + i))
-        new_tris.append((t[1], first_new + ntris + i, first_new + i))
-        new_tris.append((t[2], first_new + 2 * ntris + i, first_new + ntris + i))
-        new_tris.append((first_new + i, first_new + ntris + i, first_new + 2 * ntris + i))
-    new_tris = np.array(new_tris)
-    return new_pts, new_tris
 
 def make_sphere(center, r, refinements):
     pts = np.array([[0,-r,0],[r,0,0],[0,0,r],[-r,0,0],[0,0,-r],[0,r,0]])
@@ -43,7 +24,7 @@ def make_sphere(center, r, refinements):
     tris = np.array([[1,0,2],[2,0,3],[3,0,4],[4,0,1],[5,1,2],[5,2,3],[5,3,4],[5,4,1]])
     m = pts, tris
     for i in range(refinements):
-        m = refine(m)
+        m = mesh.refine(m)
     spherified_m = [spherify(center, r, m[0]), m[1]]
     return spherified_m
 
@@ -59,22 +40,60 @@ def plot_sphere_3d(pts, tris):
     ax.add_collection3d(coll)
     plt.show()
 
-
 def main():
-    m = make_sphere(np.array([0,1,0]), 1.0, 4)
-    plot_sphere_3d(*m)
-
+    refine = 4
+    m = make_sphere(np.array([0,0,0]), 1.0, refine)
+    print(m[1].shape)
+    # plot_sphere_3d(*m)
 
     sm = 1.0
     pr = 0.25
-#     load_soln = False
-#
-#
-#     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth)
-#
-#         cs = constraints(surface_tris, fault_tris, all_mesh[0])
-#         timer.report("Constraints")
-#
+    cs = constraints.constraints(m[1], np.array([]), m[0])
+    eps = [0.08, 0.04, 0.02, 0.01]
+    t = Timer()
+    Uop = DenseIntegralOp(
+        eps, (17,17,17,17), (23,13,9,15), 7, 3,
+        'U', 1.0, 0.25, m[0], m[1]
+    )
+    t.report('U')
+    Top = DenseIntegralOp(
+        eps, (14,14,14,14), (19,12,8,14), 7, 3,
+        'T', 1.0, 0.25, m[0], m[1]
+    )
+    selfop = MassOp(2, m[0], m[1])
+
+    # solving: u(x) + int(T*u) = int(U*t)
+    # traction values radial direction because the sphere is centered at (0,0,0)
+    tri_pts = m[0][m[1]]
+    traction = tri_pts.reshape((m[1].shape[0] * 9))
+
+    rhs = Uop.dot(traction)
+
+    # full_op = SumOp(selfop, Top)
+    # soln = iterative_solve(full_op, rhs, cs)
+
+    full_op = Top.mat + selfop.mat
+    cm, c_rhs = constraints.build_constraint_matrix(cs, full_op.shape[0])
+
+    cm = cm.tocsr().todense()
+    cmT = cm.T
+
+    constrained_op = cmT.dot(full_op.dot(cm))
+    rhs_constrained = cmT.dot(-full_op.dot(rhs + c_rhs).T)
+    constrained_soln = np.linalg.solve(constrained_op, rhs_constrained)
+    soln = cm.dot(constrained_soln)
+
+    import ipdb; ipdb.set_trace()
+    disp = np.array(soln[:full_op.shape[0]]).reshape((int(full_op.shape[0] / 9), 3, 3))
+
+
+
+
+
+
+
+
+
 #         surface_pt_idxs = np.unique(surface_tris)
 #         obs_pts = all_mesh[0][surface_pt_idxs,:]
 #

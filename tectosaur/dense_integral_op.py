@@ -9,11 +9,11 @@ from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
 from tectosaur.quadrature import gauss4d_tri
 from tectosaur.util.timer import Timer
 
-def farfield(sm, pr, pts, obs_tris, src_tris, n_q):
+def farfield(kernel, sm, pr, pts, obs_tris, src_tris, n_q):
     q = gauss4d_tri(n_q)
 
     def call_integrator(block, grid, result_buf, tri_start, tri_end):
-        integrator = get_gpu_module().get_function("farfield_trisH")
+        integrator = get_gpu_module().get_function("farfield_tris" + kernel)
         if grid[0] == 0:
             return
         integrator(
@@ -87,10 +87,10 @@ def gpu_mvp(A, x):
 
 class DenseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent,
-            nq_vert_adjacent, nq_far, sm, pr, pts, tris):
+            nq_vert_adjacent, nq_far, kernel, sm, pr, pts, tris):
         timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])
-        co_mat = coincident(nq_coincident, eps, sm, pr, pts, tris)
+        co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris)
         timer.report("Coincident")
 
         va, ea = find_adjacents(tris)
@@ -100,17 +100,17 @@ class DenseIntegralOp:
             edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
         ea_mat_rot = edge_adj(
-            nq_edge_adjacent, eps, sm, pr, pts, ea_obs_tris, ea_src_tris
+            nq_edge_adjacent, eps, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris
         )
         timer.report("Edge adjacent")
 
         va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
             vert_adj_prep(tris, va)
         timer.report("Vert adjacency prep")
-        va_mat_rot = vert_adj(nq_vert_adjacent, sm, pr, pts, va_obs_tris, va_src_tris)
+        va_mat_rot = vert_adj(nq_vert_adjacent, kernel, sm, pr, pts, va_obs_tris, va_src_tris)
         timer.report("Vert adjacent")
 
-        out = farfield(sm, pr, pts, tris, tris, nq_far)
+        out = farfield(kernel, sm, pr, pts, tris, tris, nq_far)
 
         timer.report("Farfield")
         out = set_co_entries(out, co_mat, co_indices)

@@ -7,7 +7,7 @@ from tectosaur.util.gpu import load_gpu
 from test_decorators import golden_master
 
 import cppimport
-fmm = cppimport.imp("tectosaur.fmm.fmm").fmm.fmm
+fmm = cppimport.imp("tectosaur._fmm._fmm")._fmm._fmm
 
 def normalize(vs):
     return vs / np.linalg.norm(vs, axis = 1).reshape((vs.shape[0], 1))

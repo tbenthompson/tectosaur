@@ -8,6 +8,24 @@ from tectosaur.constraints import lagrange_constraints, build_constraint_matrix
 # master-slave constrained direct solves look like:
 # Kˆ uˆ = ˆf, in which Kˆ = TT K T, ˆf = TT (f − K g).
 
+class SumOp:
+    def __init__(self, A, B):
+        self.A = A
+        self.B = B
+        assert(self.A.shape == self.B.shape)
+        self.shape = self.A.shape
+
+    def dot(self, v):
+        return self.A.dot(v) + self.B.dot(v)
+
+class NegOp:
+    def __init__(self, A):
+        self.A = A
+        self.shape = self.A.shape
+
+    def dot(self, v):
+        return -self.A.dot(v)
+
 def direct_solve(iop, constraints):
     cm, rhs = build_constraint_matrix(constraints, iop.shape[0])
     cm = cm.tocsr()
@@ -18,14 +36,14 @@ def direct_solve(iop, constraints):
     soln = cm.dot(soln_constrained)
     return soln
 
-def iterative_solve(iop, constraints):
+def iterative_solve(iop, rhs, constraints):
     timer = Timer()
-    cm, rhs = build_constraint_matrix(constraints, iop.shape[0])
+    cm, c_rhs = build_constraint_matrix(constraints, iop.shape[0])
     timer.report('Build constraint matrix')
     cm = cm.tocsr()
     cmT = cm.T
     nearfield_constrained = cmT.dot(iop.nearfield.dot(cm))
-    rhs_constrained = cmT.dot(-iop.dot(rhs))
+    rhs_constrained = cmT.dot(-iop.dot(rhs + c_rhs))
     timer.report('Constrain linear system')
 
     n = rhs_constrained.shape[0]

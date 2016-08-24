@@ -6,6 +6,8 @@ kernel_names = ['U', 'T', 'A', 'H']
 kernels = tectosaur.util.kernel_exprs.get_kernels('float')
 def dim_name(dim):
     return ['x', 'y', 'z'][dim]
+
+kronecker = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 %>
 
 #include <stdio.h>
@@ -77,16 +79,19 @@ ${pt_pfx}${dim_name(dim)} += ${basis_pfx}b${basis} * ${tri_name}[${basis}][${dim
 ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 </%def>
 
-<%def name="integrate_pair(k_name, limit, filtered_same_pt)">
+<%def name="integrate_pair(k_name, limit)">
     ${tri_info("obs", "n")}
     ${tri_info("src", "l")}
 
     float result_temp[81];
-    float kahan_C[81];
 
     for (int iresult = 0; iresult < 81; iresult++) {
         result_temp[iresult] = 0;
     }
+
+    float Cs[2];
+    Cs[0] = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
+    Cs[1] = 1.0/(G*16.0*M_PI*(1.0-nu));
 
     for (int iq = 0; iq < n_quad_pts; iq++) {
         <% 
@@ -109,34 +114,49 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
         ${basis("src")}
         ${pts_from_basis("y", "src", "src_tri")}
 
-        % if filtered_same_pt:
-        float3 D = {xx - yx, xy - yy, xz - yz};
-        float r2 = D.x * D.x + D.y * D.y + D.z * D.z;
-        if (r2 == 0.0) {
-            continue;
-        }
-        % endif
-
         % if limit:
         % for dim in range(3):
         x${dim_name(dim)} -= eps * sqrt(obs_jacobian) * n${dim_name(dim)};
         % endfor
         % endif
 
+        float3 D = {yx - xx, yy - xy, yz - xz};
+        float r2 = D.x * D.x + D.y * D.y + D.z * D.z;
+        if (r2 == 0.0) {
+            continue;
+        }
+
+        % if k_name is 'U':
+        float invr = 1.0 / sqrt(r2);
+        float Q1 = Cs[0] * invr;
+        float Q2 = Cs[1] * pow(invr, 3);
+        % for k in range(3):
+        % for j in range(3):
+        float K${k}${j} = Q2 * D.${dim_name(k)} * D.${dim_name(j)};
+        % if k == j:
+            K${k}${j} += Q1 * ${kronecker[k][j]};
+        % endif
+        % endfor
+        % endfor
+
+        % else:
+
+        % for k in range(3):
+        % for j in range(3):
+        float K${k}${j} = ${kernels[k_name]['expr'][k][j]};
+        % endfor
+        % endfor
+        % endif
+
         % for d_obs in range(3):
         % for d_src in range(3):
         {
-            float kernel_val = obs_jacobian * src_jacobian * quadw * 
-                (${kernels[k_name]['expr'][d_obs][d_src]});
+            float kernel_val = obs_jacobian * src_jacobian * quadw * K${d_obs}${d_src};
             % for b_obs in range(3):
             % for b_src in range(3):
             {
                 int idx = ${temp_result_idx(d_obs, d_src, b_obs, b_src)};
-                float value = obsb${b_obs} * srcb${b_src} * kernel_val;
-                float y = value - kahan_C[idx];
-                float t = result_temp[idx] + y;
-                kahan_C[idx] = (t - result_temp[idx]) - y;
-                result_temp[idx] = t;
+                result_temp[idx] += obsb${b_obs} * srcb${b_src} * kernel_val;
             }
             % endfor
             % endfor
@@ -146,9 +166,9 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
     }
 </%def>
 
-<%def name="single_pairs(k_name, limit, filtered_same_pt)">
+<%def name="single_pairs(k_name, limit)">
 __global__
-void ${pairs_func_name(limit, filtered_same_pt, k_name)}(float* result, 
+void ${pairs_func_name(limit, k_name)}(float* result, 
     int n_quad_pts, float* quad_pts, float* quad_wts,
     float* pts, int* obs_tris, int* src_tris, float G, float nu)
 {
@@ -156,7 +176,7 @@ void ${pairs_func_name(limit, filtered_same_pt, k_name)}(float* result,
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "i")}
-    ${integrate_pair(k_name, limit, filtered_same_pt)}
+    ${integrate_pair(k_name, limit)}
     
     for (int iresult = 0; iresult < 81; iresult++) {
         result[i * 81 + iresult] = result_temp[iresult];
@@ -175,7 +195,7 @@ void farfield_tris${k_name}(float* result, int n_quad_pts, float* quad_pts,
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "j")}
-    ${integrate_pair(k_name, limit = False, filtered_same_pt = True)}
+    ${integrate_pair(k_name, limit = False)}
 
     % for d_obs in range(3):
     % for d_src in range(3):
@@ -374,7 +394,6 @@ ${farfield_pts("H", True, True, 4, H_const_code, H_code)}
 
 % for k_name in kernel_names:
 ${farfield_tris(k_name)}
-${single_pairs(k_name, limit = True, filtered_same_pt = False)}
-${single_pairs(k_name, limit = False, filtered_same_pt = False)}
-${single_pairs(k_name, limit = False, filtered_same_pt = True)}
+${single_pairs(k_name, limit = True)}
+${single_pairs(k_name, limit = False)}
 % endfor
