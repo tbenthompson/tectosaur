@@ -107,7 +107,7 @@ class NearfieldIntegralOp:
         near_gauss = gauss4d_tri(nq_near)
         far_quad = gauss4d_tri(nq_far)
 
-        timer = Timer(tabs = 1)
+        timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])
         co_mat = coincident(nq_coincident, eps, sm, pr, pts, tris)
         co_mat_correction = pairs_quad(

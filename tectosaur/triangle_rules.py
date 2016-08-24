@@ -4,7 +4,7 @@ import cppimport
 
 def coincident_quad(eps, n_outer_sing, n_outer_smooth, n_theta, n_rho):
     rho_quad = quad.sinh_transform(quad.gaussxw(n_rho), -1, eps)
-    theta_quad = quad.poly_transform01(quad.gaussxw(n_theta))
+    theta_quad = quad.gaussxw(n_theta)
     # theta_quad = quad.gaussxw(n_theta)
     outer_smooth_quad = quad.aimi_diligenti(quad.gaussxw(n_outer_smooth), 3, 3)
     outer_sing_quad1 = quad.sinh_transform(quad.gaussxw(n_outer_sing), 1, eps)
@@ -97,8 +97,8 @@ def edge_adj_quad(eps, n_x, n_theta, n_beta, n_alpha, basis_cancellation):
     else:
         alpha_quad = quad.sinh_transform(quad.gaussxw(n_alpha), -1, eps)
     beta_quad = quad.gaussxw(n_beta)
-    theta_quad = quad.gaussxw(n_theta)
-    x_quad = quad.aimi_diligenti(quad.gaussxw(n_x), 2, 2)
+    theta_quad = quad.poly_transform01(quad.gaussxw(n_theta))
+    x_quad = quad.gaussxw(n_x)
 
     pts = []
     wts = []
@@ -134,7 +134,7 @@ def edge_adj_quad(eps, n_x, n_theta, n_beta, n_alpha, basis_cancellation):
             beta_integral(w * thetaw, x, theta, beta1, np.pi / 2, alpha_max_f2)
 
     def x_integral():
-        q = quad.map_to(x_quad, [0, 1])
+        q = quad.map_to(x_quad, [0.0, 1.0])
         for x, xw in zip(*q):
             theta1 = np.pi - np.arctan(1 / (1 - x))
             L_fnc1 = lambda t: x / (np.cos(t) + np.sin(t))

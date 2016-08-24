@@ -88,7 +88,7 @@ def gpu_mvp(A, x):
 class DenseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent,
             nq_vert_adjacent, nq_far, sm, pr, pts, tris):
-        timer = Timer(tabs = 1)
+        timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])
         co_mat = coincident(nq_coincident, eps, sm, pr, pts, tris)
         timer.report("Coincident")
