@@ -60,6 +60,14 @@ def test_full_integral_opU():
     return full_integral_op_tester('U')
 
 @golden_master
+def test_full_integral_opT():
+    return full_integral_op_tester('T')
+
+@golden_master
+def test_full_integral_opA():
+    return full_integral_op_tester('A')
+
+@golden_master
 def test_full_integral_opH():
     return full_integral_op_tester('H')
 

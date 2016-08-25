@@ -60,6 +60,7 @@ def main():
         eps, (14,14,14,14), (19,12,8,14), 7, 3,
         'T', 1.0, 0.25, m[0], m[1]
     )
+    t.report('T')
     selfop = MassOp(2, m[0], m[1])
 
     # solving: u(x) + int(T*u) = int(U*t)
