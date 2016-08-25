@@ -93,10 +93,10 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
     float CsU1 = 1.0/(G*16.0*float(M_PI)*(1.0-nu));
     float CsT0 = 1/(8*float(M_PI)*(1-nu));
     float CsT1 = 1-2*nu;
-    float CsH0 = G/(4*float(M_PI)*(1-nu));
-    float CsH1 = -1+4*nu;
-    float CsH2 = 3*nu;
-    float CsH3 = 1-2*nu;
+    float CsH0 = G / (4 * float(M_PI) * (1 - nu));
+    float CsH1 = 1 - 2 * nu;
+    float CsH2 = -1 + 4 * nu;
+    float CsH3 = 3 * nu;
 
     for (int iq = 0; iq < n_quad_pts; iq++) {
         <% 
@@ -167,83 +167,47 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
             % endfor
 
         % elif k_name is 'H':
-            /*float invr = 1.0 / sqrt(r2);*/
-            /*float3 dr = {D.x * invr, D.y * invr, D.z * invr};*/
-            /*float drdn = dr.x * lx + dr.y * ly + dr.z * lz;*/
-            /*float drdm = dr.x * nx + dr.y * ny + dr.z * nz;*/
-            /*float ndm = lx * nx + ly * ny + lz * nz;*/
-            /*% for k in range(3):*/
-            /*    % for j in range(3):*/
-            /*        float K${k}${j};*/
-            /*        {*/
-            /*            float line1 = 3 * drdn * (*/
-            /*                CsH3 * n${dn(k)} * dr.${dn(j)} */
-            /*                + nu * (n${dn(j)} * dr.${dn(k)} + ${kronecker[k][j]} * drdm) */
-            /*                - 5 * dr.${dn(k)} * dr.${dn(j)} * drdm*/
-            /*            );*/
-            /*            float line2 = CsH3 * (*/
-            /*                3 * l${dn(j)} * dr.${dn(k)} * drdm */
-            /*                + ${kronecker[k][j]} * ndm */
-            /*                + l${dn(k)} * n${dn(j)}*/
-            /*            );*/
-            /*            float line3 = CsH2 * (*/
-            /*                l${dn(k)} * dr.${dn(j)} * drdm +*/
-            /*                ndm * dr.${dn(k)} * dr.${dn(j)}*/
-            /*            );*/
-            /*            float line4 = CsH1 * l${dn(j)} * n${dn(k)};*/
-            /*            float C = CsH0 * invr * invr * invr;*/
-            /*            K${k}${j} = C * (line1 + line2 + line3 + line4);*/
-            /*        }*/
-            /*    % endfor*/
-            /*% endfor*/
-
             float invr = 1.0 / sqrt(r2);
             float invr2 = invr * invr;
             float invr3 = invr2 * invr;
+            float3 Dor = {invr * D.x, invr * D.y, invr * D.z};
 
-            float rn = invr*(N.x * D.x + N.y * D.y + N.z * D.z);
-            float rm = invr*(M.x * D.x + M.y * D.y + M.z * D.z);
-            float mn = M.x * N.x + M.y * N.y + M.z * N.z;
+            float rn = lx * Dor.x + ly * Dor.y + lz * Dor.z;
+            float rm = nx * Dor.x + ny * Dor.y + nz * Dor.z;
+            float mn = nx * lx + ny * ly + nz * lz;
 
-            /*float sn = S.x*N.x + S.y*N.y + S.z*N.z;*/
-            /*float sd = invr*(S.x*D.x + S.y*D.y + S.z*D.z);*/
-            /*float sm = S.x*M.x + S.y*M.y + S.z*M.z;*/
-
-            float Q = Cs[0] * invr3;
+            float Q = CsH0 * invr3;
             float A = Q * 3 * rn;
-            float B = Q * Cs[1];
-            float C = Q * Cs[3];
+            float B = Q * CsH1;
+            float C = Q * CsH3;
 
             float3 MT = {
-                Q*Cs[2]*N.x + A*Cs[1]*invr*D.x,
-                Q*Cs[2]*N.y + A*Cs[1]*invr*D.y,
-                Q*Cs[2]*N.z + A*Cs[1]*invr*D.z
+                Q*CsH2*lx + A*CsH1*Dor.x,
+                Q*CsH2*ly + A*CsH1*Dor.y,
+                Q*CsH2*lz + A*CsH1*Dor.z
             };
-                /*Q*Cs[2]*sn + A*Cs[1]*sd,*/
-            float NT = {
-                B*M.x + C*D.x*invr*rm,
-                B*M.y + C*D.y*invr*rm,
-                B*M.z + C*D.z*invr*rm,
+            float3 NT = {
+                B*nx + C*Dor.x*rm,
+                B*ny + C*Dor.y*rm,
+                B*nz + C*Dor.z*rm
             };
-            /*float NT = B*sm + C*sd*rm;*/
-            float DT = {
-                invr*(B*3*N.x*rm + C*invr*D.x*mn + A*(nu*M.x - 5*D.x*invr*rm)),
-                invr*(B*3*N.y*rm + C*invr*D.y*mn + A*(nu*M.y - 5*D.y*invr*rm)),
-                invr*(B*3*N.z*rm + C*invr*D.z*mn + A*(nu*M.z - 5*D.z*invr*rm));
+            float3 DT = {
+                B*3*lx*rm + C*Dor.x*mn + A*(nu*nx - 5*Dor.x*rm),
+                B*3*ly*rm + C*Dor.y*mn + A*(nu*ny - 5*Dor.y*rm),
+                B*3*lz*rm + C*Dor.z*mn + A*(nu*nz - 5*Dor.z*rm)
             };
             /*float DT = invr*(B*3*sn*rm + C*sd*mn + A*(nu*sm - 5*sd*rm));*/
             float ST = A*nu*rm + B*mn;
 
-            K[0][0] = N.x*NT.x + M.x*MT.x + D.x*DT.x + ST;
-            K[0][1] = N.x*NT.y + M.x*MT.y + D.x*DT.y;
-            K[0][2] = N.x*NT.z + M.x*MT.z + D.x*DT.z;
-            K[1][0] = N.y*NT.x + M.y*MT.x + D.y*DT.x;
-            K[1][1] = N.y*NT.y + M.y*MT.y + D.y*DT.y + ST;
-            K[1][2] = N.y*NT.z + M.y*MT.z + D.y*DT.z;
-            K[2][0] = N.z*NT.x + M.z*MT.x + D.z*DT.x;
-            K[2][1] = N.z*NT.y + M.z*MT.y + D.z*DT.y;
-            K[2][2] = N.z*NT.z + M.z*MT.z + D.z*DT.z + ST;
-
+            float K00 = lx*NT.x + nx*MT.x + Dor.x*DT.x + ST;
+            float K01 = lx*NT.y + nx*MT.y + Dor.x*DT.y;
+            float K02 = lx*NT.z + nx*MT.z + Dor.x*DT.z;
+            float K10 = ly*NT.x + ny*MT.x + Dor.y*DT.x;
+            float K11 = ly*NT.y + ny*MT.y + Dor.y*DT.y + ST;
+            float K12 = ly*NT.z + ny*MT.z + Dor.y*DT.z;
+            float K20 = lz*NT.x + nz*MT.x + Dor.z*DT.x;
+            float K21 = lz*NT.y + nz*MT.y + Dor.z*DT.y;
+            float K22 = lz*NT.z + nz*MT.z + Dor.z*DT.z + ST;
         % else:
 
             % for k in range(3):

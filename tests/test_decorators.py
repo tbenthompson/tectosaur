@@ -22,6 +22,6 @@ def golden_master(test_fnc):
         if save:
             np.save(filename, result)
         correct = np.load(filename)
-        np.testing.assert_almost_equal(result, correct)
+        np.testing.assert_almost_equal(result, correct, 6)
     return wrapper
 
