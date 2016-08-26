@@ -4,6 +4,7 @@ import pycuda.gpuarray as gpuarray
 
 from tectosaur.adjacency import find_adjacents, vert_adj_prep,\
     edge_adj_prep, rotate_tri
+from tectosaur.find_nearfield import find_nearfield
 from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
     get_gpu_module, get_gpu_config
 from tectosaur.quadrature import gauss4d_tri
@@ -75,6 +76,10 @@ def set_adj_entries(mat, adj_mat, tri_idxs, obs_clicks, src_clicks):
                 adj_mat[placeholder, obs_derot[b1], :, src_derot[b2], :]
     return mat
 
+def set_near_entries(mat, near_mat, near_entries):
+    mat[near_entries[:,0],:,:,near_entries[:,1],:,:] = near_mat
+    return mat
+
 def gpu_mvp(A, x):
     import skcuda.linalg as culg
     assert(A.dtype == np.float32)
@@ -86,8 +91,10 @@ def gpu_mvp(A, x):
     return Ax_gpu.get()
 
 class DenseIntegralOp:
-    def __init__(self, eps, nq_coincident, nq_edge_adjacent,
-            nq_vert_adjacent, nq_far, kernel, sm, pr, pts, tris):
+    def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
+            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris):
+        near_gauss = gauss4d_tri(nq_near)
+
         timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])
         co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris)
@@ -110,6 +117,13 @@ class DenseIntegralOp:
         va_mat_rot = vert_adj(nq_vert_adjacent, kernel, sm, pr, pts, va_obs_tris, va_src_tris)
         timer.report("Vert adjacent")
 
+        nearfield_pairs = np.array(find_nearfield(pts, tris, va, ea, near_threshold))
+        nearfield_mat = pairs_quad(
+            kernel, sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
+            near_gauss, False
+        )
+        timer.report("Nearfield")
+
         out = farfield(kernel, sm, pr, pts, tris, tris, nq_far)
 
         timer.report("Farfield")
@@ -120,6 +134,7 @@ class DenseIntegralOp:
         out = set_adj_entries(
             out, va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks
         )
+        out = set_near_entries(out, nearfield_mat, nearfield_pairs)
         timer.report("Insert coincident adjacent")
 
         out.shape = (

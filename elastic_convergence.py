@@ -14,24 +14,53 @@ cm = build_constraint_matrix(cs, m[1].shape[0] * 9)
 cm = cm[0].todense()
 
 old_iop = None
-for i, nq in enumerate(range(5, 45, 3)):
+for i, nq in enumerate(range(2, 15, 1)):
+    eps = (2.0 ** -np.arange(-nq, 0)) / 40.
+    eps = np.linspace(1.0, 0.1, nq)
+    # eps = np.linspace((1 + nq) / 10.0, 0.1, nq)
+    # if i == 0:
+    #     eps = [0.2, 0.1]
+    # elif i == 1:
+    #     eps = [0.2, 0.1, 0.05]
+    # elif i == 2:
+    #     eps = [0.2, 0.1, 0.05, 0.025]
+    # elif i == 3:
+    #     eps = [0.2, 0.1, 0.05, 0.025, 0.0125]
+
+    print(eps)
     iop = DenseIntegralOp(
-        [0.08, 0.04, 0.02, 0.01],
+        eps,
         (17, 17, 17, 14),
         (23, 13, 9, 15),
-        # [0.08, 0.04, 0.02, 0.01, 0.005],
-        # (23, 23, 23, nq),
-        # (29, 19, 15, 21),
-        8, 4, sm, pr, m[0], m[1]
+        7, 3, 6, 4.0, 'H', sm, pr, m[0], m[1]
     )
 
-    # (15,15,7,15)
     if i == 0:
         old_iop = iop
         continue
     Khat = cm.T.dot(iop.mat.dot(cm))
     Khat_old = cm.T.dot(old_iop.mat.dot(cm))
+    diff = (Khat - Khat_old)[27:33,27:33]
+    # import matplotlib.pyplot as plt
+    # plt.imshow(Khat - Khat_old, interpolation = 'none')
+    # plt.colorbar()
+    # plt.show()
     print(i, nq)
-    print(np.max(Khat_old - Khat))
+    print(np.max(diff))
     print(np.max(Khat_old))
     old_iop = iop
+
+
+
+
+
+
+        # (12, 11, 12, 8),
+        # (7, 7, 8, 12),
+        # 6, 3, 6, 4.0, 'U', sm, pr, m[0], m[1]
+
+
+
+        # (17, 17, 17, 14),
+        # (23, 13, 9, 15),
+        # nq, 3, 6, 4.0, 'H', sm, pr, m[0], m[1]
