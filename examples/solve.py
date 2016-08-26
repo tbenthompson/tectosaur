@@ -43,7 +43,7 @@ def iterative_solve(iop, rhs, constraints):
     cm = cm.tocsr()
     cmT = cm.T
     nearfield_constrained = cmT.dot(iop.nearfield.dot(cm))
-    rhs_constrained = cmT.dot(-iop.dot(rhs + c_rhs))
+    rhs_constrained = cmT.dot(rhs - iop.dot(c_rhs))
     timer.report('Constrain linear system')
 
     n = rhs_constrained.shape[0]

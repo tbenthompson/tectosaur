@@ -45,12 +45,12 @@ def plot_sphere_3d(pts, tris):
     plt.show()
 
 def main():
-    refine = 4
+    refine = 3
     m = make_sphere(np.array([0,0,0]), 1.0, refine)
     tri_pts = m[0][m[1]]
     # plot_sphere_3d(*m)
 
-    sm = 1e6
+    sm = 1e0
     pr = 0.25
     cs = constraints.constraints(m[1], np.array([]), m[0])
 
@@ -85,16 +85,16 @@ def main():
     avg_face_input = np.mean(input_nd, axis = 1)
     input_mag = np.sqrt(np.sum(avg_face_input ** 2, axis = 1))
 
-    solve_for = 'trac'
+    solve_for = 'disp'
     if solve_for == 'disp':
-        lhs = Top.mat + selfop
-        rhs = Uop.dot(traction)
+        lhs = -Top.mat + selfop
+        rhs = Uop.dot(input)
 
         cm, c_rhs = constraints.build_constraint_matrix(cs, lhs.shape[0])
         cm = cm.tocsr().todense()
         cmT = cm.T
         lhs_constrained = cmT.dot(lhs.dot(cm))
-        rhs_constrained = cmT.dot(-lhs.dot(rhs + c_rhs).T)
+        rhs_constrained = cmT.dot((rhs + lhs.dot(c_rhs)).T)
         constrained_soln = np.linalg.solve(lhs_constrained, rhs_constrained)
         soln = cm.dot(constrained_soln)
 
@@ -104,7 +104,7 @@ def main():
         to_plot = disp_mag
     elif solve_for == 'trac':
         lhs = Uop.mat
-        rhs = (Top.mat + 0.5 * selfop).dot(input)
+        rhs = (-Top.mat + selfop).dot(input)
         soln = np.linalg.solve(lhs, rhs.T)
         trac = np.array(soln).reshape((int(lhs.shape[0] / 9), 3, 3))
         avg_face_trac = np.mean(trac, axis = 1)
