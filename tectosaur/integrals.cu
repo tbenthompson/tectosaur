@@ -89,11 +89,11 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
         result_temp[iresult] = 0;
     }
 
-    float CsU0 = (3.0-4.0*nu)/(G*16.0*float(M_PI)*(1.0-nu));
-    float CsU1 = 1.0/(G*16.0*float(M_PI)*(1.0-nu));
-    float CsT0 = 1/(8*float(M_PI)*(1-nu));
+    float CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
+    float CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
+    float CsT0 = 1/(8*M_PI*(1-nu));
     float CsT1 = 1-2*nu;
-    float CsH0 = G / (4 * float(M_PI) * (1 - nu));
+    float CsH0 = G / (4 * M_PI * (1 - nu));
     float CsH1 = 1 - 2 * nu;
     float CsH2 = -1 + 4 * nu;
     float CsH3 = 3 * nu;
@@ -134,16 +134,16 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
         % if k_name is 'U':
             float invr = 1.0 / sqrt(r2);
             float Q1 = CsU0 * invr;
-            float Q2 = CsU1 * pow(invr, 3);
-            % for k in range(3):
-                % for j in range(3):
-                    float K${k}${j} = Q2 * D.${dn(k)} * D.${dn(j)};
-                    % if k == j:
-                        K${k}${j} += Q1 * ${kronecker[k][j]};
-                    % endif
-                % endfor
-            % endfor
-
+            float Q2 = CsU1 * invr / r2;
+            float K00 = Q2*D.x*D.x + Q1;
+            float K01 = Q2*D.x*D.y;
+            float K02 = Q2*D.x*D.z;
+            float K10 = Q2*D.y*D.x;
+            float K11 = Q2*D.y*D.y + Q1;
+            float K12 = Q2*D.y*D.z;
+            float K20 = Q2*D.z*D.x;
+            float K21 = Q2*D.z*D.y;
+            float K22 = Q2*D.z*D.z + Q1;
         % elif k_name is 'T' or k_name is 'A':
             float invr = 1.0 / sqrt(r2);
             float invr2 = invr * invr;
@@ -196,7 +196,6 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
                 B*3*ly*rm + C*Dor.y*mn + A*(nu*ny - 5*Dor.y*rm),
                 B*3*lz*rm + C*Dor.z*mn + A*(nu*nz - 5*Dor.z*rm)
             };
-            /*float DT = invr*(B*3*sn*rm + C*sd*mn + A*(nu*sm - 5*sd*rm));*/
             float ST = A*nu*rm + B*mn;
 
             float K00 = lx*NT.x + nx*MT.x + Dor.x*DT.x + ST;
@@ -360,8 +359,8 @@ void farfield_pts${k_name}(float3* result, float3* obs_pts, float3* obs_ns,
 
 <%
 U_const_code = """
-Cs[0] = (3.0-4.0*nu)/(G*16.0*float(M_PI)*(1.0-nu));
-Cs[1] = 1.0/(G*16.0*float(M_PI)*(1.0-nu));
+Cs[0] = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
+Cs[1] = 1.0/(G*16.0*M_PI*(1.0-nu));
 """
 
 U_code = """
@@ -375,8 +374,8 @@ sum.z += Q1*S.z + Q2*D.z*ddi;
 """
 
 TA_const_code = """
-Cs[0] = ${plus_or_minus}(1-2.0*nu)/(8.0*float(M_PI)*(1.0-nu));
-Cs[1] = ${minus_or_plus}3.0/(8.0*float(M_PI)*(1.0-nu));
+Cs[0] = ${plus_or_minus}(1-2.0*nu)/(8.0*M_PI*(1.0-nu));
+Cs[1] = ${minus_or_plus}3.0/(8.0*M_PI*(1.0-nu));
 """
 
 TA_code = """
@@ -422,7 +421,7 @@ A_const_code = Template(TA_const_code).render(**Aargs)
 A_code = Template(TA_code).render(**Aargs)
 
 H_const_code = """
-Cs[0] = G / (4 * float(M_PI) * (1 - nu));
+Cs[0] = G / (4 * M_PI * (1 - nu));
 Cs[1] = 1 - 2 * nu;
 Cs[2] = -1 + 4 * nu;
 Cs[3] = 3 * nu;

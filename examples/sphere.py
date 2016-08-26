@@ -45,12 +45,12 @@ def plot_sphere_3d(pts, tris):
     plt.show()
 
 def main():
-    refine = 3
+    refine = 4
     m = make_sphere(np.array([0,0,0]), 1.0, refine)
     tri_pts = m[0][m[1]]
     # plot_sphere_3d(*m)
 
-    sm = 1e0
+    sm = 1.0
     pr = 0.25
     cs = constraints.constraints(m[1], np.array([]), m[0])
 
@@ -85,7 +85,7 @@ def main():
     avg_face_input = np.mean(input_nd, axis = 1)
     input_mag = np.sqrt(np.sum(avg_face_input ** 2, axis = 1))
 
-    solve_for = 'disp'
+    solve_for = 'trac'
     if solve_for == 'disp':
         lhs = -Top.mat + selfop
         rhs = Uop.dot(input)
@@ -102,9 +102,10 @@ def main():
         avg_face_disp = np.mean(disp, axis = 1)
         disp_mag = np.sqrt(np.sum(avg_face_disp ** 2, axis = 1))
         to_plot = disp_mag
+        import ipdb; ipdb.set_trace()
     elif solve_for == 'trac':
         lhs = Uop.mat
-        rhs = (-Top.mat + selfop).dot(input)
+        rhs = (-Top.mat - selfop).dot(input)
         soln = np.linalg.solve(lhs, rhs.T)
         trac = np.array(soln).reshape((int(lhs.shape[0] / 9), 3, 3))
         avg_face_trac = np.mean(trac, axis = 1)
