@@ -48,12 +48,18 @@ def test_coincident_gpu():
     return out
 
 def full_integral_op_tester(k):
-    m = mesh.rect_surface(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
-    out = sparse_integral_op.SparseIntegralOp(
-        [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, 1.0, 0.25, m[0], m[1]
-    )
-    np.random.seed(100)
-    return out.dot(np.random.rand(out.shape[1]))
+    pts = np.array([[0,0,0], [1,1,0], [0, 1, 1], [0,0,2]])
+    tris = np.array([[0, 1, 2], [2, 1, 3]])
+    rect_mesh = mesh.rect_surface(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    out = np.zeros(1)
+    for m in [(pts, tris), rect_mesh]:
+        op = sparse_integral_op.SparseIntegralOp(
+            [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, 1.0, 0.25, m[0], m[1]
+        )
+        np.random.seed(100)
+        this_res = op.dot(np.random.rand(op.shape[1]))
+        out = np.hstack((out, this_res))
+    return out
 
 @golden_master
 def test_full_integral_opU():

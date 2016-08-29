@@ -3,8 +3,6 @@ setup_pybind11(cfg)
 cfg['dependencies'] = ['lib/pybind11_nparray.hpp']
 
 import tectosaur.util.kernel_exprs
-kernel_names = ['U', 'T', 'A', 'H']
-kernels = tectosaur.util.kernel_exprs.get_kernels('float')
 def dim_name(dim):
     return ['x', 'y', 'z'][dim]
 %>
@@ -76,7 +74,8 @@ ${pt_pfx}${dim_name(dim)} += ${basis_pfx}b${basis} * ${tri_name}[${basis}][${dim
 % endfor
 </%def>
 
-RealT4d taylor_integralsH_pair(int n_obs_quad, RealT* obs_quad_pts,
+<%def name="taylor_integrals(k_name)">
+RealT4d taylor_integrals${k_name}_pair(int n_obs_quad, RealT* obs_quad_pts,
     RealT* obs_quad_wts, RealT* obs_dir, RealT offset,
     int n_src_quad, RealT* src_quad_pts, RealT* src_quad_wts,
     RealT2d obs_tri, RealT2d src_tri, RealT G, RealT nu) 
@@ -125,58 +124,82 @@ RealT4d taylor_integralsH_pair(int n_obs_quad, RealT* obs_quad_pts,
             auto Dz = yz - xz;
             auto r2 = Dx * Dx + Dy * Dy + Dz * Dz;
 
-            auto invr = 1.0 / sqrt(r2);
-            auto Q1 = CsU0 * invr;
-            auto Q2 = CsU1 * invr * invr * invr;
-            auto K00 = Q2*Dx*Dx + Q1;
-            auto K01 = Q2*Dx*Dy;
-            auto K02 = Q2*Dx*Dz;
-            auto K10 = Q2*Dy*Dx;
-            auto K11 = Q2*Dy*Dy + Q1;
-            auto K12 = Q2*Dy*Dz;
-            auto K20 = Q2*Dz*Dx;
-            auto K21 = Q2*Dz*Dy;
-            auto K22 = Q2*Dz*Dz + Q1;
-            // 
-            // auto invr = 1.0 / sqrt(r2);
-            // auto invr2 = invr * invr;
-            // auto invr3 = invr2 * invr;
-            // auto Dorx = invr * Dx;
-            // auto Dory = invr * Dy;
-            // auto Dorz = invr * Dz;
+            % if k_name is 'U':
+                float invr = 1.0 / sqrt(r2);
+                float Q1 = CsU0 * invr;
+                float Q2 = CsU1 * invr / r2;
+                float K00 = Q2*Dx*Dx + Q1;
+                float K01 = Q2*Dx*Dy;
+                float K02 = Q2*Dx*Dz;
+                float K10 = Q2*Dy*Dx;
+                float K11 = Q2*Dy*Dy + Q1;
+                float K12 = Q2*Dy*Dz;
+                float K20 = Q2*Dz*Dx;
+                float K21 = Q2*Dz*Dy;
+                float K22 = Q2*Dz*Dz + Q1;
+            % elif k_name is 'T' or k_name is 'A':
+                float invr = 1.0 / sqrt(r2);
+                float invr2 = invr * invr;
+                float rn = lx * Dx + ly * Dy + lz * Dz;
+                float A = CsT0 * invr2;
+                float drdn = (Dx * lx + Dy * ly + Dz * lz) * invr;
+                % for k in range(3):
+                    % for j in range(3):
+                        float K${k}${j};
+                        {
+                            float term1 = (CsT1 * ${kronecker[k][j]} +
+                                3 * D${dn(k)} * D${dn(j)} * invr2);
+                            float term2 = CsT1 * (n${dn(j)} * D${dn(k)} - l${dn(k)} * D${dn(j)}) * invr;
+                            % if k_name is 'T':
+                                K${k}${j} = -A * (term1 * drdn - term2);
+                            % else:
+                                K${k}${j} = A * (term1 * drdn + term2);
+                            % endif
+                        }
+                    % endfor
+                % endfor
 
-            // auto rn = lx * Dorx + ly * Dory + lz * Dorz;
-            // auto rm = nx * Dorx + ny * Dory + nz * Dorz;
-            // auto mn = nx * lx + ny * ly + nz * lz;
+            % elif k_name is 'H':
+                float invr = 1.0 / sqrt(r2);
+                float invr2 = invr * invr;
+                float invr3 = invr2 * invr;
+                float Dorx = invr * Dx;
+                float Dory = invr * Dy;
+                float Dorz = invr * Dz;
 
-            // auto Q = CsH0 * invr3;
-            // auto A = Q * 3 * rn;
-            // auto B = Q * CsH1;
-            // auto C = Q * CsH3;
+                float rn = lx * Dorx + ly * Dory + lz * Dorz;
+                float rm = nx * Dorx + ny * Dory + nz * Dorz;
+                float mn = nx * lx + ny * ly + nz * lz;
 
-            // auto MTx = Q*CsH2*lx + A*CsH1*Dorx;
-            // auto MTy = Q*CsH2*ly + A*CsH1*Dory;
-            // auto MTz = Q*CsH2*lz + A*CsH1*Dorz;
+                float Q = CsH0 * invr3;
+                float A = Q * 3 * rn;
+                float B = Q * CsH1;
+                float C = Q * CsH3;
 
-            // auto NTx = B*nx + C*Dorx*rm;
-            // auto NTy = B*ny + C*Dory*rm;
-            // auto NTz = B*nz + C*Dorz*rm;
+                float MTx = Q*CsH2*lx + A*CsH1*Dorx;
+                float MTy = Q*CsH2*ly + A*CsH1*Dory;
+                float MTz = Q*CsH2*lz + A*CsH1*Dorz;
 
-            // auto DTx = B*3*lx*rm + C*Dorx*mn + A*(nu*nx - 5*Dorx*rm);
-            // auto DTy = B*3*ly*rm + C*Dory*mn + A*(nu*ny - 5*Dory*rm);
-            // auto DTz = B*3*lz*rm + C*Dorz*mn + A*(nu*nz - 5*Dorz*rm);
+                float NTx = B*nx + C*Dorx*rm;
+                float NTy = B*ny + C*Dory*rm;
+                float NTz = B*nz + C*Dorz*rm;
 
-            // auto ST = A*nu*rm + B*mn;
+                float DTx = B*3*lx*rm + C*Dorx*mn + A*(nu*nx - 5*Dorx*rm);
+                float DTy = B*3*ly*rm + C*Dory*mn + A*(nu*ny - 5*Dory*rm);
+                float DTz = B*3*lz*rm + C*Dorz*mn + A*(nu*nz - 5*Dorz*rm);
 
-            // auto K00 = lx*NTx + nx*MTx + Dorx*DTx + ST;
-            // auto K01 = lx*NTy + nx*MTy + Dorx*DTy;
-            // auto K02 = lx*NTz + nx*MTz + Dorx*DTz;
-            // auto K10 = ly*NTx + ny*MTx + Dory*DTx;
-            // auto K11 = ly*NTy + ny*MTy + Dory*DTy + ST;
-            // auto K12 = ly*NTz + ny*MTz + Dory*DTz;
-            // auto K20 = lz*NTx + nz*MTx + Dorz*DTx;
-            // auto K21 = lz*NTy + nz*MTy + Dorz*DTy;
-            // auto K22 = lz*NTz + nz*MTz + Dorz*DTz + ST;
+                float ST = A*nu*rm + B*mn;
+
+                float K00 = lx*NTx + nx*MTx + Dorx*DTx + ST;
+                float K01 = lx*NTy + nx*MTy + Dorx*DTy;
+                float K02 = lx*NTz + nx*MTz + Dorx*DTz;
+                float K10 = ly*NTx + ny*MTx + Dory*DTx;
+                float K11 = ly*NTy + ny*MTy + Dory*DTy + ST;
+                float K12 = ly*NTz + ny*MTz + Dory*DTz;
+                float K20 = lz*NTx + nz*MTx + Dorz*DTx;
+                float K21 = lz*NTy + nz*MTy + Dorz*DTy;
+                float K22 = lz*NTz + nz*MTz + Dorz*DTz + ST;
+            % endif
 
             % for d_obs in range(3):
                 % for d_src in range(3):
@@ -203,7 +226,7 @@ RealT4d taylor_integralsH_pair(int n_obs_quad, RealT* obs_quad_pts,
     return out;
 }
 
-void taylor_integralsH(RealT* result,
+void taylor_integrals${k_name}(RealT* result,
     int n_obs_quad, RealT* obs_quad_pts, RealT* obs_quad_wts,
     RealT* obs_dir, RealT offset,
     int n_src_quad, RealT* src_quad_pts, RealT* src_quad_wts, 
@@ -218,7 +241,7 @@ void taylor_integralsH(RealT* result,
         ${get_triangle("obs_tri", "tris", "obs_t_idx")}
         ${get_triangle("src_tri", "tris", "src_t_idx")}
 
-        auto temp_result = taylor_integralsH_pair(
+        auto temp_result = taylor_integrals${k_name}_pair(
             n_obs_quad, obs_quad_pts, obs_quad_wts,
             &obs_dir[obs_t_idx * n_obs_quad * 3], offset,
             n_src_quad, src_quad_pts, src_quad_wts,
@@ -230,11 +253,17 @@ void taylor_integralsH(RealT* result,
         }
     }
 }
+<%/def>
+
+% for k in ['U', 'T', 'A', 'H']:
+${taylor_integrals(k)}
+% endfor
 
 PYBIND11_PLUGIN(taylor_integrals) {
     pybind11::module m("taylor_integrals");
 
-    m.def("taylor_integralsH", 
+    % for k in ['U', 'T', 'A', 'H']:
+    m.def("taylor_integrals${k}", 
         [] (NPArray<RealT> obs_quad_pts, NPArray<RealT> obs_quad_wts,
             NPArray<RealT> obs_dir, RealT offset,
             NPArray<RealT> src_quad_pts, NPArray<RealT> src_quad_wts, 
@@ -242,7 +271,7 @@ PYBIND11_PLUGIN(taylor_integrals) {
             RealT G, RealT nu) 
         {
             auto result = make_array<RealT>({obs_tris.request().shape[0] * 81});
-            taylor_integralsH(
+            taylor_integrals${k}(
                 as_ptr<RealT>(result),
                 obs_quad_pts.request().shape[0],
                 as_ptr<RealT>(obs_quad_pts),
@@ -261,5 +290,6 @@ PYBIND11_PLUGIN(taylor_integrals) {
             );
             return result;
         });
+    % endfor
     return m.ptr();
 }

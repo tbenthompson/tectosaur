@@ -91,12 +91,14 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 
     float CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
     float CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
-    float CsT0 = 1/(8*M_PI*(1-nu));
-    float CsT1 = 1-2*nu;
-    float CsH0 = G / (4 * M_PI * (1 - nu));
-    float CsH1 = 1 - 2 * nu;
-    float CsH2 = -1 + 4 * nu;
-    float CsH3 = 3 * nu;
+    float CsT0 = (1-2.0*nu)/(8.0*M_PI*(1.0-nu));
+    float CsT1 = 3.0/(8.0*M_PI*(1.0-nu));
+    float CsT2 = 1.0/(8*M_PI*(1-nu));
+    float CsT3 = 1-2*nu;
+    float CsH0 = G/(4*M_PI*(1-nu));
+    float CsH1 = 1-2*nu;
+    float CsH2 = -1+4*nu;
+    float CsH3 = 3*nu;
 
     for (int iq = 0; iq < n_quad_pts; iq++) {
         <% 
@@ -147,27 +149,33 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
             float K21 = Q2*Dz*Dy;
             float K22 = Q2*Dz*Dz + Q1;
         % elif k_name is 'T' or k_name is 'A':
+            <%
+                minus_or_plus = '-' if k_name is 'T' else '+'
+                plus_or_minus = '+' if k_name is 'T' else '-'
+                n_name = 'l' if k_name is 'T' else 'n'
+            %>
             float invr = 1.0 / sqrt(r2);
             float invr2 = invr * invr;
-            float rn = lx * Dx + ly * Dy + lz * Dz;
-            float A = CsT0 * invr2;
-            float drdn = (Dx * lx + Dy * ly + Dz * lz) * invr;
-            % for k in range(3):
-                % for j in range(3):
-                    float K${k}${j};
-                    {
-                        float term1 = (CsT1 * ${kronecker[k][j]} +
-                            3 * D${dn(k)} * D${dn(j)} * invr2);
-                        float term2 = CsT1 * (n${dn(j)} * D${dn(k)} - l${dn(k)} * D${dn(j)}) * invr;
-                        % if k_name is 'T':
-                            K${k}${j} = -A * (term1 * drdn - term2);
-                        % else:
-                            K${k}${j} = A * (term1 * drdn + term2);
-                        % endif
-                    }
-                % endfor
-            % endfor
+            float invr3 = invr2 * invr;
 
+            float rn = ${n_name}x * Dx + ${n_name}y * Dy + ${n_name}z * Dz;
+
+            float A = ${plus_or_minus}CsT0 * invr3;
+            float C = ${minus_or_plus}CsT1 * invr3 * invr2;
+
+            float nxdy = ${n_name}x*Dy-${n_name}y*Dx;
+            float nzdx = ${n_name}z*Dx-${n_name}x*Dz;
+            float nzdy = ${n_name}z*Dy-${n_name}y*Dz;
+
+            float K00 = A * -rn                  + C*Dx*rn*Dx;
+            float K01 = A * ${minus_or_plus}nxdy + C*Dx*rn*Dy;
+            float K02 = A * ${plus_or_minus}nzdx + C*Dx*rn*Dz;
+            float K10 = A * ${plus_or_minus}nxdy + C*Dy*rn*Dx;
+            float K11 = A * -rn                  + C*Dy*rn*Dy;
+            float K12 = A * ${plus_or_minus}nzdy + C*Dy*rn*Dz;
+            float K20 = A * ${minus_or_plus}nzdx + C*Dz*rn*Dx;
+            float K21 = A * ${minus_or_plus}nzdy + C*Dz*rn*Dy;
+            float K22 = A * -rn                  + C*Dz*rn*Dz;
         % elif k_name is 'H':
             float invr = 1.0 / sqrt(r2);
             float invr2 = invr * invr;
@@ -375,8 +383,8 @@ sum.z += Q1*S.z + Q2*D.z*ddi;
 """
 
 TA_const_code = """
-Cs[0] = ${plus_or_minus}(1-2.0*nu)/(8.0*M_PI*(1.0-nu));
-Cs[1] = ${minus_or_plus}3.0/(8.0*M_PI*(1.0-nu));
+Cs[0] = (1-2.0*nu)/(8.0*M_PI*(1.0-nu));
+Cs[1] = 3.0/(8.0*M_PI*(1.0-nu));
 """
 
 TA_code = """
@@ -386,8 +394,8 @@ float invr3 = invr2 * invr;
 
 float rn = ${n_name}.x * D.x + ${n_name}.y * D.y + ${n_name}.z * D.z;
 
-float A = Cs[0] * invr3;
-float C = Cs[1] * invr3 * invr2;
+float A = ${plus_or_minus}Cs[0] * invr3;
+float C = ${minus_or_plus}Cs[1] * invr3 * invr2;
 
 float rnddi = C * rn * (D.x*S.x + D.y*S.y + D.z*S.z);
 

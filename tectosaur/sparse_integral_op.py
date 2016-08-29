@@ -143,6 +143,8 @@ class NearfieldIntegralOp:
         timer.report("Vert adjacent")
 
         nearfield_pairs = np.array(find_nearfield(pts, tris, va, ea, near_threshold))
+        if nearfield_pairs.size == 0:
+            nearfield_pairs = np.array([], dtype = np.int).reshape(0,2)
         timer.report("Find nearfield")
 
         nearfield_mat = pairs_quad(
