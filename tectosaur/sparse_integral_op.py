@@ -36,7 +36,7 @@ def interp_galerkin_mat(tri_pts, quad_rule):
 
     b_tiled = np.tile((qw[:,np.newaxis] * basis)[np.newaxis,:,:], (nt, 1, 1))
     J_tiled = np.tile(jacobians[:,np.newaxis,np.newaxis], (1, nq, 3))
-    vals = np.tile((np.sqrt(J_tiled) * b_tiled)[:,:,:,np.newaxis], (1,1,1,3)).flatten()
+    vals = np.tile((J_tiled * b_tiled)[:,:,:,np.newaxis], (1,1,1,3)).flatten()
 
     quad_pts = np.zeros((nt * nq, 3))
     for d in range(3):

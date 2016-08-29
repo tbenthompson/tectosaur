@@ -12,37 +12,38 @@ def dim_name(dim):
 #include "lib/pybind11_nparray.hpp"
 #include "taylor.hpp"
 
-using FloatT2d = std::array<std::array<float,3>,3>;
-using FloatT4d = std::array<std::array<std::array<std::array<float,3>,3>,3>,3>;
+using RealT = float;
+using RealT2d = std::array<std::array<RealT,3>,3>;
+using RealT4d = std::array<std::array<std::array<std::array<RealT,3>,3>,3>,3>;
 
-std::array<float,3> cross(std::array<float,3> x, std::array<float,3> y) {
-    std::array<float,3> out;
+std::array<RealT,3> cross(std::array<RealT,3> x, std::array<RealT,3> y) {
+    std::array<RealT,3> out;
     out[0] = x[1] * y[2] - x[2] * y[1];
     out[1] = x[2] * y[0] - x[0] * y[2];
     out[2] = x[0] * y[1] - x[1] * y[0];
     return out;
 }
 
-std::array<float,3> sub(std::array<float,3> x, std::array<float,3> y) {
-    std::array<float,3> out;
+std::array<RealT,3> sub(std::array<RealT,3> x, std::array<RealT,3> y) {
+    std::array<RealT,3> out;
     % for d in range(3):
     out[${d}] = x[${d}] - y[${d}];
     % endfor
     return out;
 }
 
-std::array<float,3> get_unscaled_normal(FloatT2d tri) {
+std::array<RealT,3> get_unscaled_normal(RealT2d tri) {
     auto s20 = sub(tri[2], tri[0]);
     auto s21 = sub(tri[2], tri[1]);
     return cross(s20, s21);
 }
 
-float magnitude(std::array<float,3> v) {
+RealT magnitude(std::array<RealT,3> v) {
     return sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
 
 <%def name="get_triangle(name, tris, index)">
-FloatT2d ${name}{};
+RealT2d ${name}{};
 for (int c = 0; c < 3; c++) {
     for (int d = 0; d < 3; d++) {
         ${name}[c][d] = pts[3 * ${tris}[3 * ${index} + c] + d];
@@ -52,33 +53,33 @@ for (int c = 0; c < 3; c++) {
 
 <%def name="tri_info(prefix,normal_prefix)">
 auto ${prefix}_unscaled_normal = get_unscaled_normal(${prefix}_tri);
-float ${prefix}_normal_length = magnitude(${prefix}_unscaled_normal);
-float ${prefix}_jacobian = ${prefix}_normal_length;
+RealT ${prefix}_normal_length = magnitude(${prefix}_unscaled_normal);
+RealT ${prefix}_jacobian = ${prefix}_normal_length;
 % for dim in range(3):
-float ${normal_prefix}${dim_name(dim)} = 
+RealT ${normal_prefix}${dim_name(dim)} = 
     ${prefix}_unscaled_normal[${dim}] / ${prefix}_normal_length;
 % endfor
 </%def>
 
 <%def name="basis(prefix)">
-float ${prefix}b0 = 1 - ${prefix}xhat - ${prefix}yhat;
-float ${prefix}b1 = ${prefix}xhat;
-float ${prefix}b2 = ${prefix}yhat;
+RealT ${prefix}b0 = 1 - ${prefix}xhat - ${prefix}yhat;
+RealT ${prefix}b1 = ${prefix}xhat;
+RealT ${prefix}b2 = ${prefix}yhat;
 </%def>
 
 <%def name="pts_from_basis(pt_pfx,basis_pfx,tri_name)">
 % for dim in range(3):
-float ${pt_pfx}${dim_name(dim)} = 0;
+RealT ${pt_pfx}${dim_name(dim)} = 0;
 % for basis in range(3):
 ${pt_pfx}${dim_name(dim)} += ${basis_pfx}b${basis} * ${tri_name}[${basis}][${dim}];
 % endfor
 % endfor
 </%def>
 
-FloatT4d taylor_integralsH_pair(int n_obs_quad, float* obs_quad_pts,
-    float* obs_quad_wts, float* obs_dir, float offset,
-    int n_src_quad, float* src_quad_pts, float* src_quad_wts,
-    FloatT2d obs_tri, FloatT2d src_tri, float G, float nu) 
+RealT4d taylor_integralsH_pair(int n_obs_quad, RealT* obs_quad_pts,
+    RealT* obs_quad_wts, RealT* obs_dir, RealT offset,
+    int n_src_quad, RealT* src_quad_pts, RealT* src_quad_wts,
+    RealT2d obs_tri, RealT2d src_tri, RealT G, RealT nu) 
 {
     ${tri_info("obs", "n")}
     ${tri_info("src", "l")}
@@ -87,21 +88,24 @@ FloatT4d taylor_integralsH_pair(int n_obs_quad, float* obs_quad_pts,
 
     auto taylor_var = Tf<taylor_order>::var(1.0);
 
-    auto CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
-    auto CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
+    RealT CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
+    RealT CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
+    RealT CsT0 = 1/(8*M_PI*(1-nu));
+    RealT CsT1 = 1-2*nu;
+    RealT CsH0 = G/(4*M_PI*(1-nu));
+    RealT CsH1 = 1-2*nu;
+    RealT CsH2 = -1+4*nu;
+    RealT CsH3 = 3*nu;
 
-    FloatT4d out{};
+    RealT4d out{};
+    RealT4d kahanc{};
     for (int obs_idx = 0; obs_idx < n_obs_quad; obs_idx++) {
-        float obsxhat = obs_quad_pts[obs_idx * 2 + 0];
-        float obsyhat = obs_quad_pts[obs_idx * 2 + 1];
-        float obsw = obs_quad_wts[obs_idx];
+        RealT obsxhat = obs_quad_pts[obs_idx * 2 + 0];
+        RealT obsyhat = obs_quad_pts[obs_idx * 2 + 1];
+        RealT obsw = obs_quad_wts[obs_idx];
 
         ${basis("obs")}
         ${pts_from_basis("x_exp", "obs", "obs_tri")}
-
-        % for dim in range(3):
-        x_exp${dim_name(dim)} += obs_dir[obs_idx * 3 + ${dim}] * offset;
-        % endfor
 
         % for dim in range(3):
         auto x${dim_name(dim)} = x_exp${dim_name(dim)} +
@@ -109,9 +113,9 @@ FloatT4d taylor_integralsH_pair(int n_obs_quad, float* obs_quad_pts,
         % endfor
 
         for (int src_idx = 0; src_idx < n_src_quad; src_idx++) {
-            float srcxhat = src_quad_pts[src_idx * 2 + 0];
-            float srcyhat = src_quad_pts[src_idx * 2 + 1];
-            float srcw = src_quad_wts[src_idx];
+            RealT srcxhat = src_quad_pts[src_idx * 2 + 0];
+            RealT srcyhat = src_quad_pts[src_idx * 2 + 1];
+            RealT srcw = src_quad_wts[src_idx];
 
             ${basis("src")}
             ${pts_from_basis("y", "src", "src_tri")}
@@ -133,6 +137,46 @@ FloatT4d taylor_integralsH_pair(int n_obs_quad, float* obs_quad_pts,
             auto K20 = Q2*Dz*Dx;
             auto K21 = Q2*Dz*Dy;
             auto K22 = Q2*Dz*Dz + Q1;
+            // 
+            // auto invr = 1.0 / sqrt(r2);
+            // auto invr2 = invr * invr;
+            // auto invr3 = invr2 * invr;
+            // auto Dorx = invr * Dx;
+            // auto Dory = invr * Dy;
+            // auto Dorz = invr * Dz;
+
+            // auto rn = lx * Dorx + ly * Dory + lz * Dorz;
+            // auto rm = nx * Dorx + ny * Dory + nz * Dorz;
+            // auto mn = nx * lx + ny * ly + nz * lz;
+
+            // auto Q = CsH0 * invr3;
+            // auto A = Q * 3 * rn;
+            // auto B = Q * CsH1;
+            // auto C = Q * CsH3;
+
+            // auto MTx = Q*CsH2*lx + A*CsH1*Dorx;
+            // auto MTy = Q*CsH2*ly + A*CsH1*Dory;
+            // auto MTz = Q*CsH2*lz + A*CsH1*Dorz;
+
+            // auto NTx = B*nx + C*Dorx*rm;
+            // auto NTy = B*ny + C*Dory*rm;
+            // auto NTz = B*nz + C*Dorz*rm;
+
+            // auto DTx = B*3*lx*rm + C*Dorx*mn + A*(nu*nx - 5*Dorx*rm);
+            // auto DTy = B*3*ly*rm + C*Dory*mn + A*(nu*ny - 5*Dory*rm);
+            // auto DTz = B*3*lz*rm + C*Dorz*mn + A*(nu*nz - 5*Dorz*rm);
+
+            // auto ST = A*nu*rm + B*mn;
+
+            // auto K00 = lx*NTx + nx*MTx + Dorx*DTx + ST;
+            // auto K01 = lx*NTy + nx*MTy + Dorx*DTy;
+            // auto K02 = lx*NTz + nx*MTz + Dorx*DTz;
+            // auto K10 = ly*NTx + ny*MTx + Dory*DTx;
+            // auto K11 = ly*NTy + ny*MTy + Dory*DTy + ST;
+            // auto K12 = ly*NTz + ny*MTz + Dory*DTz;
+            // auto K20 = lz*NTx + nz*MTx + Dorz*DTx;
+            // auto K21 = lz*NTy + nz*MTy + Dorz*DTy;
+            // auto K22 = lz*NTz + nz*MTz + Dorz*DTz + ST;
 
             % for d_obs in range(3):
                 % for d_src in range(3):
@@ -140,10 +184,16 @@ FloatT4d taylor_integralsH_pair(int n_obs_quad, float* obs_quad_pts,
                         auto kernel_val = obs_jacobian * src_jacobian * obsw * srcw * 
                             K${d_obs}${d_src}.eval(-1.0);
                         % for b_obs in range(3):
-                            % for b_src in range(3):
-                                out[${b_obs}][${d_obs}][${b_src}][${d_src}] +=
-                                    obsb${b_obs} * srcb${b_src} * kernel_val;
-                            % endfor
+                        % for b_src in range(3):
+                        {
+                        auto val = obsb${b_obs} * srcb${b_src} * kernel_val;
+                        auto kahany = val - kahanc[${b_obs}][${d_obs}][${b_src}][${d_src}];
+                        auto kahant = out[${b_obs}][${d_obs}][${b_src}][${d_src}] + kahany;
+                        kahanc[${b_obs}][${d_obs}][${b_src}][${d_src}] =
+                            (kahant - out[${b_obs}][${d_obs}][${b_src}][${d_src}]) - kahany;
+                        out[${b_obs}][${d_obs}][${b_src}][${d_src}] = kahant;
+                        }
+                        % endfor
                         % endfor
                     }
                 % endfor
@@ -153,12 +203,12 @@ FloatT4d taylor_integralsH_pair(int n_obs_quad, float* obs_quad_pts,
     return out;
 }
 
-void taylor_integralsH(float* result,
-    int n_obs_quad, float* obs_quad_pts, float* obs_quad_wts,
-    float* obs_dir, float offset,
-    int n_src_quad, float* src_quad_pts, float* src_quad_wts, 
-    int n_tri_pairs, float* pts, int* tris, int* obs_tri_idxs, int* src_tri_idxs,
-    float G, float nu) 
+void taylor_integralsH(RealT* result,
+    int n_obs_quad, RealT* obs_quad_pts, RealT* obs_quad_wts,
+    RealT* obs_dir, RealT offset,
+    int n_src_quad, RealT* src_quad_pts, RealT* src_quad_wts, 
+    int n_tri_pairs, RealT* pts, int* tris, int* obs_tri_idxs, int* src_tri_idxs,
+    RealT G, RealT nu) 
 {
     for (int i = 0; i < n_tri_pairs; i++) {
 
@@ -174,7 +224,7 @@ void taylor_integralsH(float* result,
             n_src_quad, src_quad_pts, src_quad_wts,
             obs_tri, src_tri, G, nu
         );
-        float* temp_result_ptr = reinterpret_cast<float*>(&temp_result);
+        RealT* temp_result_ptr = reinterpret_cast<RealT*>(&temp_result);
         for (int j = 0; j < 81; j++) {
             result[i * 81 + j] = temp_result_ptr[j];
         }
@@ -185,26 +235,25 @@ PYBIND11_PLUGIN(taylor_integrals) {
     pybind11::module m("taylor_integrals");
 
     m.def("taylor_integralsH", 
-        [] (
-            NPArrayF obs_quad_pts, NPArrayF obs_quad_wts,
-            NPArrayF obs_dir, float offset,
-            NPArrayF src_quad_pts, NPArrayF src_quad_wts, 
-            NPArrayF pts, NPArrayI tris, NPArrayI obs_tris, NPArrayI src_tris,
-            float G, float nu) 
+        [] (NPArray<RealT> obs_quad_pts, NPArray<RealT> obs_quad_wts,
+            NPArray<RealT> obs_dir, RealT offset,
+            NPArray<RealT> src_quad_pts, NPArray<RealT> src_quad_wts, 
+            NPArray<RealT> pts, NPArrayI tris, NPArrayI obs_tris, NPArrayI src_tris,
+            RealT G, RealT nu) 
         {
-            auto result = make_array<float>({obs_tris.request().shape[0] * 81});
+            auto result = make_array<RealT>({obs_tris.request().shape[0] * 81});
             taylor_integralsH(
-                as_ptr<float>(result),
+                as_ptr<RealT>(result),
                 obs_quad_pts.request().shape[0],
-                as_ptr<float>(obs_quad_pts),
-                as_ptr<float>(obs_quad_wts),
-                as_ptr<float>(obs_dir),
+                as_ptr<RealT>(obs_quad_pts),
+                as_ptr<RealT>(obs_quad_wts),
+                as_ptr<RealT>(obs_dir),
                 offset,
                 src_quad_pts.request().shape[0],
-                as_ptr<float>(src_quad_pts),
-                as_ptr<float>(src_quad_wts),
+                as_ptr<RealT>(src_quad_pts),
+                as_ptr<RealT>(src_quad_wts),
                 obs_tris.request().shape[0],
-                as_ptr<float>(pts),
+                as_ptr<RealT>(pts),
                 as_ptr<int>(tris),
                 as_ptr<int>(obs_tris),
                 as_ptr<int>(src_tris),

@@ -8,6 +8,7 @@ import scipy.spatial
 import tectosaur.mesh as mesh
 from tectosaur.sparse_integral_op import SparseIntegralOp, FMMIntegralOp
 from tectosaur.dense_integral_op import DenseIntegralOp
+from tectosaur.dense_taylor_integral_op import DenseTaylorIntegralOp
 
 from solve import iterative_solve, direct_solve
 from tectosaur.constraints import constraints
@@ -72,19 +73,19 @@ def refined_free_surface():
     return pts, final_tris
 
 def make_free_surface():
-    w = 12
+    w = 6
     corners = [[-w, -w, 0], [-w, w, 0], [w, w, 0], [w, -w, 0]]
-    return mesh.rect_surface(50, 50, corners)
+    return mesh.rect_surface(10, 10, corners)
 
 def make_fault(L, top_depth):
-    return mesh.rect_surface(20, 20, [
+    return mesh.rect_surface(4, 4, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
 
 def make_meshes(fault_L, top_depth):
-    # surface = make_free_surface()
-    surface = refined_free_surface()
+    surface = make_free_surface()
+    # surface = refined_free_surface()
     fault = make_fault(fault_L, top_depth)
     all_mesh = mesh.concat(surface, fault)
     surface_tris = all_mesh[1][:surface[1].shape[0]]
@@ -109,21 +110,24 @@ def test_okada():
         surface_pt_idxs = np.unique(surface_tris)
         obs_pts = all_mesh[0][surface_pt_idxs,:]
 
-        eps = [0.16, 0.08, 0.04, 0.03, 0.02, 0.015]
+        eps = [0.08, 0.04, 0.02, 0.01]
         # iop = FMMIntegralOp(
         #     eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
         # )
-        iop = SparseIntegralOp(
-            eps, (17,17,17,14), (23,13,9,15), 7, 4, 10, 5.0,
-            'H', sm, pr, all_mesh[0], all_mesh[1]
-        )
-        # iop = DenseIntegralOp(
-        #     eps, 18, 13, 6, 3, sm, pr, all_mesh[0], all_mesh[1]
+        # iop = SparseIntegralOp(
+        #     eps, 18, 16, 6, 3, 6, 4.0,
+        #     'H', sm, pr, all_mesh[0], all_mesh[1]
         # )
+        # iop2 = DenseIntegralOp(
+        #     eps, 18, 16, 6, 3, 6, 4.0, 'H', sm, pr, all_mesh[0], all_mesh[1]
+        # )
+        iop = DenseTaylorIntegralOp(
+            0.5, 5, 15, 15, 7, 7, 3.0, 3, sm, pr, all_mesh[0], all_mesh[1]
+        )
         timer.report("Integrals")
 
-        soln = iterative_solve(iop, cs)
-        # soln = direct_solve(iop, cs)
+        # soln = iterative_solve(iop, cs)
+        soln = direct_solve(iop, cs)
         timer.report("Solve")
 
         disp = soln[:iop.shape[0]].reshape(

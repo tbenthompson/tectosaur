@@ -125,8 +125,10 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
             % endfor
         % endif
 
-        float3 D = {yx - xx, yy - xy, yz - xz};
-        float r2 = D.x * D.x + D.y * D.y + D.z * D.z;
+        float Dx = yx - xx;
+        float Dy = yy - xy; 
+        float Dz = yz - xz;
+        float r2 = Dx * Dx + Dy * Dy + Dz * Dz;
         if (r2 == 0.0) {
             continue;
         }
@@ -135,28 +137,28 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
             float invr = 1.0 / sqrt(r2);
             float Q1 = CsU0 * invr;
             float Q2 = CsU1 * invr / r2;
-            float K00 = Q2*D.x*D.x + Q1;
-            float K01 = Q2*D.x*D.y;
-            float K02 = Q2*D.x*D.z;
-            float K10 = Q2*D.y*D.x;
-            float K11 = Q2*D.y*D.y + Q1;
-            float K12 = Q2*D.y*D.z;
-            float K20 = Q2*D.z*D.x;
-            float K21 = Q2*D.z*D.y;
-            float K22 = Q2*D.z*D.z + Q1;
+            float K00 = Q2*Dx*Dx + Q1;
+            float K01 = Q2*Dx*Dy;
+            float K02 = Q2*Dx*Dz;
+            float K10 = Q2*Dy*Dx;
+            float K11 = Q2*Dy*Dy + Q1;
+            float K12 = Q2*Dy*Dz;
+            float K20 = Q2*Dz*Dx;
+            float K21 = Q2*Dz*Dy;
+            float K22 = Q2*Dz*Dz + Q1;
         % elif k_name is 'T' or k_name is 'A':
             float invr = 1.0 / sqrt(r2);
             float invr2 = invr * invr;
-            float rn = lx * D.x + ly * D.y + lz * D.z;
+            float rn = lx * Dx + ly * Dy + lz * Dz;
             float A = CsT0 * invr2;
-            float drdn = (D.x * lx + D.y * ly + D.z * lz) * invr;
+            float drdn = (Dx * lx + Dy * ly + Dz * lz) * invr;
             % for k in range(3):
                 % for j in range(3):
                     float K${k}${j};
                     {
                         float term1 = (CsT1 * ${kronecker[k][j]} +
-                            3 * D.${dn(k)} * D.${dn(j)} * invr2);
-                        float term2 = CsT1 * (n${dn(j)} * D.${dn(k)} - l${dn(k)} * D.${dn(j)}) * invr;
+                            3 * D${dn(k)} * D${dn(j)} * invr2);
+                        float term2 = CsT1 * (n${dn(j)} * D${dn(k)} - l${dn(k)} * D${dn(j)}) * invr;
                         % if k_name is 'T':
                             K${k}${j} = -A * (term1 * drdn - term2);
                         % else:
@@ -170,10 +172,12 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
             float invr = 1.0 / sqrt(r2);
             float invr2 = invr * invr;
             float invr3 = invr2 * invr;
-            float3 Dor = {invr * D.x, invr * D.y, invr * D.z};
+            float Dorx = invr * Dx;
+            float Dory = invr * Dy;
+            float Dorz = invr * Dz;
 
-            float rn = lx * Dor.x + ly * Dor.y + lz * Dor.z;
-            float rm = nx * Dor.x + ny * Dor.y + nz * Dor.z;
+            float rn = lx * Dorx + ly * Dory + lz * Dorz;
+            float rm = nx * Dorx + ny * Dory + nz * Dorz;
             float mn = nx * lx + ny * ly + nz * lz;
 
             float Q = CsH0 * invr3;
@@ -181,32 +185,29 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
             float B = Q * CsH1;
             float C = Q * CsH3;
 
-            float3 MT = {
-                Q*CsH2*lx + A*CsH1*Dor.x,
-                Q*CsH2*ly + A*CsH1*Dor.y,
-                Q*CsH2*lz + A*CsH1*Dor.z
-            };
-            float3 NT = {
-                B*nx + C*Dor.x*rm,
-                B*ny + C*Dor.y*rm,
-                B*nz + C*Dor.z*rm
-            };
-            float3 DT = {
-                B*3*lx*rm + C*Dor.x*mn + A*(nu*nx - 5*Dor.x*rm),
-                B*3*ly*rm + C*Dor.y*mn + A*(nu*ny - 5*Dor.y*rm),
-                B*3*lz*rm + C*Dor.z*mn + A*(nu*nz - 5*Dor.z*rm)
-            };
+            float MTx = Q*CsH2*lx + A*CsH1*Dorx;
+            float MTy = Q*CsH2*ly + A*CsH1*Dory;
+            float MTz = Q*CsH2*lz + A*CsH1*Dorz;
+
+            float NTx = B*nx + C*Dorx*rm;
+            float NTy = B*ny + C*Dory*rm;
+            float NTz = B*nz + C*Dorz*rm;
+
+            float DTx = B*3*lx*rm + C*Dorx*mn + A*(nu*nx - 5*Dorx*rm);
+            float DTy = B*3*ly*rm + C*Dory*mn + A*(nu*ny - 5*Dory*rm);
+            float DTz = B*3*lz*rm + C*Dorz*mn + A*(nu*nz - 5*Dorz*rm);
+
             float ST = A*nu*rm + B*mn;
 
-            float K00 = lx*NT.x + nx*MT.x + Dor.x*DT.x + ST;
-            float K01 = lx*NT.y + nx*MT.y + Dor.x*DT.y;
-            float K02 = lx*NT.z + nx*MT.z + Dor.x*DT.z;
-            float K10 = ly*NT.x + ny*MT.x + Dor.y*DT.x;
-            float K11 = ly*NT.y + ny*MT.y + Dor.y*DT.y + ST;
-            float K12 = ly*NT.z + ny*MT.z + Dor.y*DT.z;
-            float K20 = lz*NT.x + nz*MT.x + Dor.z*DT.x;
-            float K21 = lz*NT.y + nz*MT.y + Dor.z*DT.y;
-            float K22 = lz*NT.z + nz*MT.z + Dor.z*DT.z + ST;
+            float K00 = lx*NTx + nx*MTx + Dorx*DTx + ST;
+            float K01 = lx*NTy + nx*MTy + Dorx*DTy;
+            float K02 = lx*NTz + nx*MTz + Dorx*DTz;
+            float K10 = ly*NTx + ny*MTx + Dory*DTx;
+            float K11 = ly*NTy + ny*MTy + Dory*DTy + ST;
+            float K12 = ly*NTz + ny*MTz + Dory*DTz;
+            float K20 = lz*NTx + nz*MTx + Dorz*DTx;
+            float K21 = lz*NTy + nz*MTy + Dorz*DTy;
+            float K22 = lz*NTz + nz*MTz + Dorz*DTz + ST;
         % else:
 
             % for k in range(3):
