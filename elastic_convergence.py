@@ -15,8 +15,8 @@ cm = cm[0].todense()
 
 old_iop = None
 for i, nq in enumerate(range(2, 20, 1)):
-    # eps = (2.0 ** -np.arange(-nq, 0)) / (6.7)
-    eps = np.linspace(1.1, 0.9, nq)
+    eps = (2.0 ** -np.arange(0, nq)) / (6.7)
+    # eps = np.linspace(1.1, 0.9, nq)
     # eps = [1.0, 0.3]
     # eps = np.linspace((1 + nq) / 10.0, 0.1, nq)
     # if i == 0:
@@ -33,7 +33,7 @@ for i, nq in enumerate(range(2, 20, 1)):
         eps,
         (17, 17, 17, 15),
         (23, 13, 9, 15),
-        7, 3, 6, 4.0, 'H', sm, pr, m[0], m[1]
+        7, 3, 6, 4.0, 'U', sm, pr, m[0], m[1]
     )
 
     if i == 0:

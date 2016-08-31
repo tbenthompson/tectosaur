@@ -8,44 +8,24 @@ from tectosaur.nearfield_op import pairs_quad, vert_adj
 from tectosaur.dense_integral_op import farfield, set_co_entries, set_adj_entries, set_near_entries
 from tectosaur.quadrature import gauss4d_tri
 from tectosaur.util.timer import Timer
+from tectosaur.triangle_rules import coincident_quad
 
 import cppimport
 taylor_integrals = cppimport.imp("tectosaur.taylor_integrals").taylor_integrals
 
-def calc_near_obs_dir(pts, tris, va, ea, q):
-    # find offset direction for each quadrature point
-    # TODO: similar to some stuff in interp_galerkin_mat
-    # TODO: adjust offset direction depending on adjacent elements
-    # --- the quadrature order should also adjust depending on how
-    # far i can get the expansion point away from an element
-    tri_pts = pts[tris]
-    unscaled_normals = np.cross(
-        tri_pts[:,2,:] - tri_pts[:,0,:],
-        tri_pts[:,2,:] - tri_pts[:,1,:]
-    )
-    jacobians = np.linalg.norm(unscaled_normals, axis = 1)
-    offset_dir = unscaled_normals / np.sqrt(jacobians)[:,np.newaxis]
-    offset_dir = np.tile(offset_dir[:,np.newaxis,:], (1, q[0].shape[0], 1))
-    return offset_dir
+floatt = np.float64
 
-def pairs_taylor_quad(obs_quad, obs_dir, offset, src_quad, pts, tris, obs_tris, src_tris, sm, pr):
-    floatt = np.float32
-    return taylor_integrals.taylor_integralsH(
-        obs_quad[0].astype(floatt),
-        obs_quad[1].astype(floatt),
-        obs_dir.astype(floatt),
+def pairs_taylor_quad(quad, offset, pts, tris, obs_tris, src_tris, kernel, sm, pr):
+    return getattr(taylor_integrals, 'taylor_integrals' + kernel)(
+        quad[0].astype(floatt),
+        quad[1].astype(floatt),
         offset,
-        src_quad[0].astype(floatt),
-        src_quad[1].astype(floatt),
         pts.astype(floatt),
         tris.astype(np.int32),
         obs_tris.astype(np.int32),
         src_tris.astype(np.int32),
         sm, pr
     )
-
-
-
 
 # parameters:
 # nearfield offset (ratio of element length)
@@ -59,16 +39,14 @@ def pairs_taylor_quad(obs_quad, obs_dir, offset, src_quad, pts, tris, obs_tris, 
 class DenseTaylorIntegralOp:
     def __init__(self, near_offset, near_obs_order, near_co_order, near_edge_adj_order,
         near_vert_adj_order, near_order, near_threshold, far_order,
-        sm, pr, pts, tris):
-
-        kernel = 'U'
+        kernel, sm, pr, pts, tris):
 
         t = Timer(silent = True)
 
-        near_obs_q = gauss2d_tri(near_obs_order)
-        co_q = gauss2d_tri(near_co_order)
-        e_adj_q = gauss2d_tri(near_edge_adj_order)
-        near_q = gauss4d_tri(near_order)
+        # co_q = gauss4d_tri(near_obs_order, near_co_order)
+        co_q = coincident_quad(near_offset, near_obs_order, near_obs_order, near_co_order, near_co_order)
+        e_adj_q = gauss4d_tri(near_obs_order, near_edge_adj_order)
+        near_q = gauss4d_tri(near_obs_order, near_order)
         t.report('Make quadrature')
 
         va, ea = find_adjacents(tris)
@@ -82,21 +60,18 @@ class DenseTaylorIntegralOp:
             vert_adj_prep(tris, va)
         t.report("Vert adjacency prep")
 
-        obs_dir = calc_near_obs_dir(pts, tris, va, ea, near_obs_q)
-        t.report("Nearfield offset points")
-
         co_indices = np.arange(tris.shape[0])
         co_mat = pairs_taylor_quad(
-            near_obs_q, obs_dir, near_offset, co_q, pts, tris,
-            co_indices, co_indices, sm, pr
+            co_q, near_offset, pts, tris, co_indices, co_indices, kernel, sm, pr
         ).reshape((co_indices.shape[0], 3, 3, 3, 3))
+        print(co_mat[0,0,0,0,0])
         t.report('Coincident')
 
-        ea_mat_rot = pairs_taylor_quad(
-            near_obs_q, obs_dir, near_offset, e_adj_q, pts, tris,
-            ea_tri_indices[:,0], ea_tri_indices[:,1], sm, pr
-        ).reshape((ea_tri_indices.shape[0], 3, 3, 3, 3))
-        t.report('Edge adjacent')
+        # ea_mat_rot = pairs_taylor_quad(
+        #     e_adj_q, near_offset, pts, tris,
+        #     ea_tri_indices[:,0], ea_tri_indices[:,1], kernel, sm, pr
+        # ).reshape((ea_tri_indices.shape[0], 3, 3, 3, 3))
+        # t.report('Edge adjacent')
 
         va_mat_rot = vert_adj(near_vert_adj_order, kernel, sm, pr, pts, va_obs_tris, va_src_tris)
         t.report("Vert adjacent")
@@ -111,16 +86,17 @@ class DenseTaylorIntegralOp:
         t.report("Nearfield")
 
         out = farfield(kernel, sm, pr, pts, tris, tris, far_order)
+        out = out.astype(floatt)
         t.report("Farfield")
 
         out = set_co_entries(out, co_mat, co_indices)
-        out = set_adj_entries(
-            out, ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks
-        )
-        out = set_adj_entries(
-            out, va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks
-        )
-        out = set_near_entries(out, nearfield_mat, nearfield_pairs)
+        # out = set_adj_entries(
+        #     out, ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks
+        # )
+        # out = set_adj_entries(
+        #     out, va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks
+        # )
+        # out = set_near_entries(out, nearfield_mat, nearfield_pairs)
         t.report("Insert coincident nearfield")
 
         out.shape = (

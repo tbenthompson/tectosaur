@@ -38,8 +38,10 @@ struct Taylor {
     T eval(const T& x) {
         T res = 0.0;
         for (int i = n_coeffs - 1; i >= 0; i--) {
+            // std::cout << c[i] << std::endl;
             res = c[i] + x * res;
         }
+        // std::cout << "DONE" << std::endl;
         return res;
     }
 
@@ -155,6 +157,10 @@ struct Taylor {
         Taylor<T,M> res = *this;
         res += b;
         return res;
+    }
+
+    Taylor<T,M> operator+() const {
+        return *this;
     }
 
     Taylor<T,M> operator-(const Taylor<T,M>& b) const {

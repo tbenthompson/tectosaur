@@ -11,7 +11,7 @@ from tectosaur.quadrature import gauss4d_tri
 from tectosaur.util.timer import Timer
 
 def farfield(kernel, sm, pr, pts, obs_tris, src_tris, n_q):
-    q = gauss4d_tri(n_q)
+    q = gauss4d_tri(n_q, n_q)
 
     def call_integrator(block, grid, result_buf, tri_start, tri_end):
         integrator = get_gpu_module().get_function("farfield_tris" + kernel)
@@ -93,7 +93,7 @@ def gpu_mvp(A, x):
 class DenseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris):
-        near_gauss = gauss4d_tri(nq_near)
+        near_gauss = gauss4d_tri(nq_near, nq_near)
 
         timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])

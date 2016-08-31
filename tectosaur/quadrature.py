@@ -136,15 +136,17 @@ def gauss2d_tri(N):
     q_tri_w = (q_rect_w / 4.0) * (1 - q_y01)
     return q_tri_pts, q_tri_w
 
-def gauss4d_tri(N):
-    q_tri_pts, q_tri_w = gauss2d_tri(N)
+def gauss4d_tri(N_outer, N_inner):
+    q_tri_pts_outer, q_tri_w_outer = gauss2d_tri(N_outer)
+    q_tri_pts_inner, q_tri_w_inner = gauss2d_tri(N_inner)
     pts = []
     w = []
-    for i in range(q_tri_pts.shape[0]):
-        for j in range(q_tri_pts.shape[0]):
+    for i in range(q_tri_pts_outer.shape[0]):
+        for j in range(q_tri_pts_inner.shape[0]):
             pts.append((
-                q_tri_pts[i,0], q_tri_pts[i,1], q_tri_pts[j,0], q_tri_pts[j,1]
+                q_tri_pts_outer[i,0], q_tri_pts_outer[i,1],
+                q_tri_pts_inner[j,0], q_tri_pts_inner[j,1]
             ))
-            w.append(q_tri_w[i] * q_tri_w[j])
+            w.append(q_tri_w_outer[i] * q_tri_w_inner[j])
 
     return np.array(pts), np.array(w)

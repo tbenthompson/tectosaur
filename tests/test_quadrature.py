@@ -53,7 +53,7 @@ def test_gauss2d_tri():
     np.testing.assert_almost_equal(result, 1.0 / 2520.0, 12)
 
 def test_gauss4d_tri():
-    q = gauss4d_tri(3)
+    q = gauss4d_tri(3, 3)
     result = quadrature(lambda x: 1, q)
     np.testing.assert_almost_equal(result, 0.25)
 
