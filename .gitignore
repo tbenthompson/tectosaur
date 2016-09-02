@@ -11,3 +11,4 @@ build
 dist
 cache_tectosaur
 oprofile_data
+*.o
