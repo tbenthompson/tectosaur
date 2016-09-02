@@ -2,7 +2,28 @@
 #include <cmath>
 #include <vector>
 #include <functional>
+#include <chrono>
 #include "cubature/cubature.h"
+
+struct Timer {
+    typedef std::chrono::high_resolution_clock::time_point Time;
+    Time t_start;
+    int time_us = 0;
+
+    void start() {
+        t_start = std::chrono::high_resolution_clock::now();
+    }
+
+    void stop() {
+        time_us += std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::high_resolution_clock::now() - t_start
+        ).count();
+    }
+
+    int get_time() {
+        return time_us;
+    }
+};
 
 double thetalim0(double x, double y) { return M_PI - atan((1 - y) / x); }
 double thetalim1(double x, double y) { return M_PI + atan(y / x); }
@@ -29,8 +50,10 @@ struct Data {
     double CsH1;
     double CsH2;
     double CsH3;
+    Timer timer_integrate;
+    Timer timer_internal;
 
-    Data(std::array<std::array<double,3>,3> tri, int piece, double eps, double G, double nu):
+    Data(std::array<std::array<double,3>,3> tri, double eps, double G, double nu):
         tri(tri),
         eps(eps),
         G(G),
@@ -42,6 +65,10 @@ struct Data {
         CsH2(-1+4*nu),
         CsH3(3*nu)
     {
+        set_piece(0);
+    }
+
+    void set_piece(int piece) {
         if (piece == 0) {
             theta_low = thetalim0; theta_high = thetalim1; rhohigh = rholim1;
         } else if (piece == 1) {
@@ -127,8 +154,9 @@ int f(unsigned ndim, long unsigned npts, const double *x,
     Data& d = *reinterpret_cast<Data*>(fdata);
     d.evals += npts;
 
+    d.timer_internal.stop();
+    d.timer_integrate.start();
     // std::cout << d.evals << " " << npts << std::endl;
-
 #pragma omp parallel for
     for (unsigned i = 0; i < npts; i++) {
         double obsxhat = x[i * 4 + 0];
@@ -183,21 +211,37 @@ int f(unsigned ndim, long unsigned npts, const double *x,
         double Dy = yy - xy;
         double Dz = yz - xz;
 
-        auto K = Ukernel(d, Dx, Dy, Dz, nx, ny, nz, lx, ly, lz);
+        auto K = Hkernel(d, Dx, Dy, Dz, nx, ny, nz, lx, ly, lz);
 
-        fval[i] = K[0][0] * jacobian;
+        auto basisprod = (1 - obsxhat - obsyhat) * (1 - srcxhat - srcyhat);
+        for (int d1 = 0; d1 < 3; d1++) {
+            for (int d2 = 0; d2 < 3; d2++) {
+                fval[i * 9 + d1 * 3 + d2] = K[d1][d2] * basisprod * jacobian;
+            }
+        }
         // fval[i] = K00 * (1 - x[i * 4 + 2]) * (1 - x[i * 4 + 0]);
     }
+    d.timer_integrate.stop();
+    d.timer_internal.start();
     return 0; 
 }
 
-double integrate(Data& d) {
+std::array<double,9> integrate(Data& d) {
     d.evals = 0;
-    const double xmin[4] = {0,0,0,0};
-    const double xmax[4] = {1,1,1,1};
-    double val, err;
-    hcubature_v(1, f, &d, 4, xmin, xmax, 0, 0, 1e-5, ERROR_INDIVIDUAL, &val, &err);
-    return val;
+    std::array<double,9> sum{};
+    for (int piece = 0; piece < 3; piece++) {
+        d.set_piece(piece);
+        const double xmin[4] = {0,0,0,0};
+        const double xmax[4] = {1,1,1,1};
+        double val[9], err[9];
+        d.timer_internal.start();
+        hcubature_v(9, f, &d, 4, xmin, xmax, 0, 0, 1e-5, ERROR_INDIVIDUAL, val, err);
+        d.timer_internal.stop();
+        for (int i = 0; i < 9; i++) {
+            sum[i] += val[i];
+        }
+    }
+    return sum;
 }
 
 /* Chebyshev nodes in the [a,b] interval. Good for interpolation. Avoids Runge
@@ -215,6 +259,8 @@ void testHinterp() {
     // Left right symmetry means that I only need to go from A in [0.0, 0.5]
     int nA = 16;
     int nB = 31;
+
+    // These numbers are from ablims.py
     auto minlegalA = 0.100201758858;
     auto minlegalB = 0.24132345693;
     auto maxlegalB = 0.860758641203;
@@ -224,25 +270,18 @@ void testHinterp() {
         double A = Avals[i];
         for (int j = 0; j < nB; j++) {
             double B = Bvals[j];
-            double sum = 0;
-            for (int piece = 0; piece < 3; piece++) {
-
-                Data d(Tri{{{0,0,0},{1,0,0},{A,B,0}}}, piece, 0.1, 1.0, 0.25);
-                sum += integrate(d);
-                // std::cout << val << " " << err << std::endl;
-                // std::cout << "With evals = " << d.evals << std::endl;
-            }
+            Data d(Tri{{{0,0,0},{1,0,0},{A,B,0}}}, 0.1, 1.0, 0.25);
+            auto sum = integrate(d);
             std::cout << i << ", " << j << ", " 
-                << A << ", " << B << ", " << sum << ", " << std::endl;
+                << A << ", " << B << ", " << sum[0] << ", " << std::endl;
         }
     }
 }
 
 int main() {
-    double sum = 0.0;
-    for (int piece = 0; piece < 3; piece++) {
-        Data d(Tri{{{0,0,0},{1,0,0},{0,1,0}}}, piece, 0.1, 1.0, 0.25);
-        sum += integrate(d);
+    Data d(Tri{{{0,0,0},{1,0,0},{0,1,0}}}, 0.1, 1.0, 0.25);
+    auto sum = integrate(d);
+    for(int i = 0; i < 9; i++) {
+        std::cout << sum[i] << std::endl;
     }
-    std::cout << sum << std::endl;
 }
