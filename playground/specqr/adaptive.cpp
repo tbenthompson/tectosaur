@@ -5,6 +5,19 @@
 #include <chrono>
 #include "cubature/cubature.h"
 
+// Multidimensional adaptive quadrature
+// http://ab-initio.mit.edu/wiki/index.php/Cubature <-- using this
+// http://mint.sbg.ac.at/HIntLib/
+// http://www.feynarts.de/cuba/
+//
+//
+// TODO:
+// is hcubature or pcubature better?
+// should i used vector integrands or is it better to split up the integral into each
+// individual component so that they don't all need to take as long as the most expensive one
+// write the table lookup procedure
+// test the lookup by selecting random legal triangles and comparing the interpolation
+
 struct Timer {
     typedef std::chrono::high_resolution_clock::time_point Time;
     Time t_start;
@@ -148,6 +161,16 @@ std::array<std::array<double,3>,3> Hkernel(Data& d, double Dx, double Dy, double
     return {{{K00,K01,K02},{K10,K11,K12},{K20,K21,K22}}};
 }
 
+std::array<double,3> basis(double xhat, double yhat) {
+     return {1 - xhat - yhat, xhat, yhat};
+}
+
+void all_zeros(int i, double* fval) {
+    for (int idx = 0; idx < 81; idx++) {
+        fval[i * 81 + idx] = 0.0;
+    }
+}
+
 int f(unsigned ndim, long unsigned npts, const double *x,
     void *fdata, unsigned fdim, double *fval) 
 {
@@ -157,22 +180,27 @@ int f(unsigned ndim, long unsigned npts, const double *x,
     d.timer_internal.stop();
     d.timer_integrate.start();
     // std::cout << d.evals << " " << npts << std::endl;
-#pragma omp parallel for
     for (unsigned i = 0; i < npts; i++) {
         double obsxhat = x[i * 4 + 0];
-        double obsyhat = x[i * 4 + 1] * (1 - x[i * 4 + 0]);
-        double jacobian = (1 - x[i * 4 + 0]);
+        double obsyhat = x[i * 4 + 1] * (1 - obsxhat);
+        double jacobian = 1 - obsxhat;
 
+        // double thetahat = x[i * 4 + 2];
         double thetahat = x[i * 4 + 2];
         double thetalow = d.theta_low(obsxhat, obsyhat);
         double thetahigh = d.theta_high(obsxhat, obsyhat);
         double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
+        if (std::isnan(theta)) { 
+        // ???? this breaks things, but something like this may be necessary for using pcubature
+            all_zeros(i, fval);
+            continue;
+        }
         jacobian *= thetahigh - thetalow;
 
         // tried a sinh transform here and it doesn't work well
         // double s = 2.0 * x[i * 4 + 3] - 1.0;
         // double a = -1.0;
-        // double b = eps;
+        // double b = d.eps;
         // double mu0 = 0.5 * (asinh((1.0 + a) / b) + asinh((1.0 - a) / b));
         // double eta0 = 0.5 * (asinh((1.0 + a) / b) - asinh((1.0 - a) / b));
         // double rhohat = ((a + b * sinh(mu0 * s - eta0)) + 1.0) / 2.0;
@@ -185,13 +213,11 @@ int f(unsigned ndim, long unsigned npts, const double *x,
 
         double srcxhat = obsxhat + rho * cos(theta);
         double srcyhat = obsyhat + rho * sin(theta);
-        // double srcxhat = x[i * 4 + 2];
-        // double srcyhat = x[i * 4 + 3] * (1 - x[i * 4 + 2]);
         // double xx = basiseval(obsxhat, obsyhat, {d.tri[0][0], d.tri[1][0], d.tri[2][0]});
         // double xy = basiseval(obsxhat, obsyhat, {d.tri[0][1], d.tri[1][1], d.tri[2][1]});
         double xx = obsxhat;
         double xy = obsyhat;
-        double xz = d.eps;
+        double xz = -d.eps;
 
         // double yx = ref2realx(srcxhat, srcyhat);
         // double yy = ref2realy(srcxhat, srcyhat);
@@ -213,33 +239,45 @@ int f(unsigned ndim, long unsigned npts, const double *x,
 
         auto K = Hkernel(d, Dx, Dy, Dz, nx, ny, nz, lx, ly, lz);
 
-        auto basisprod = (1 - obsxhat - obsyhat) * (1 - srcxhat - srcyhat);
-        for (int d1 = 0; d1 < 3; d1++) {
-            for (int d2 = 0; d2 < 3; d2++) {
-                fval[i * 9 + d1 * 3 + d2] = K[d1][d2] * basisprod * jacobian;
+        auto obsbasis = basis(obsxhat, obsyhat);
+        auto srcbasis = basis(srcxhat, srcyhat);
+
+        for (int b1 = 0; b1 < 3; b1++) {
+            for (int b2 = 0; b2 < 3; b2++) {
+                auto basisprod = obsbasis[b1] * srcbasis[b2];
+                // if (b1 != 0 || b2 != 0) {
+                //     basisprod = 0;
+                // }
+                for (int d1 = 0; d1 < 3; d1++) {
+                    for (int d2 = 0; d2 < 3; d2++) {
+                        auto idx = i * 81 + b1 * 27 + d1 * 9 + b2 * 3 + d2;
+                        fval[idx] = K[d1][d2] * basisprod * jacobian;
+                    }
+                }
             }
         }
-        // fval[i] = K00 * (1 - x[i * 4 + 2]) * (1 - x[i * 4 + 0]);
     }
     d.timer_integrate.stop();
     d.timer_internal.start();
     return 0; 
 }
 
-std::array<double,9> integrate(Data& d) {
+std::array<double,81> integrate(Data& d) {
     d.evals = 0;
-    std::array<double,9> sum{};
+    std::array<double,81> sum{};
     for (int piece = 0; piece < 3; piece++) {
         d.set_piece(piece);
         const double xmin[4] = {0,0,0,0};
         const double xmax[4] = {1,1,1,1};
-        double val[9], err[9];
+        double val[81], err[81];
         d.timer_internal.start();
-        hcubature_v(9, f, &d, 4, xmin, xmax, 0, 0, 1e-5, ERROR_INDIVIDUAL, val, err);
+        pcubature_v(81, f, &d, 4, xmin, xmax, 0, 0, 1e-7, ERROR_INDIVIDUAL, val, err);
         d.timer_internal.stop();
-        for (int i = 0; i < 9; i++) {
+        for (int i = 0; i < 81; i++) {
             sum[i] += val[i];
         }
+        std::cout << "internal: " << d.timer_internal.get_time() << std::endl;
+        std::cout << "integration: " << d.timer_integrate.get_time() << std::endl;
     }
     return sum;
 }
@@ -279,9 +317,16 @@ void testHinterp() {
 }
 
 int main() {
-    Data d(Tri{{{0,0,0},{1,0,0},{0,1,0}}}, 0.1, 1.0, 0.25);
+    Data d(Tri{{{0,0,0},{1,0,0},{0,1,0}}}, 0.001, 1.0, 0.25);
     auto sum = integrate(d);
-    for(int i = 0; i < 9; i++) {
-        std::cout << sum[i] << std::endl;
+    for(int i = 0; i < 81; i++) {
+        std::cout << sum[i] << ", " << std::endl;
     }
 }
+
+// correct result for H
+// -0.0681271, 0.00374717, -2.92972e-08, -0.0479374, 0.000289359, -0.0310311, -0.0273078, 0.000289343, -0.0157399, 0.00374717, -0.0681271, 1.33654e-10, 0.000289359, -0.0273078, -0.0157399, 0.000289343, -0.0479374, -0.0310311, -2.92972e-08, 1.33654e-10, -0.253279, -0.0310311, -0.0157399, -0.0988838, -0.0157399, -0.0310311, -0.0988839, -0.0479374, 0.00028935, 0.0310311, -0.0773209, 0.0222243, 6.62088e-07, -0.0347615, 0.0145934, 0.0148439, 0.00028935, -0.0273078, 0.01574, 0.0222243, -0.0499281, -1.0635e-06, 0.0145934, -0.0347614, -0.014844, 0.0310311, 0.01574, -0.0988838, 6.62088e-07, -1.0635e-06, -0.25622, 0.0148439, -0.014844, -0.108641, -0.0273078, 0.000289349, 0.0157399, -0.0347616, 0.0145936, -0.0148446, -0.049928, 0.0222245, -1.30437e-06, 0.000289349, -0.0479374, 0.0310311, 0.0145936, -0.0347616, 0.0148445, 0.0222245, -0.0773207, 1.04316e-06, 0.0157399, 0.0310311, -0.0988839, -0.0148446, 0.0148445, -0.108641, -1.30437e-06, 1.04316e-06, -0.256222, 
+
+// correct result for U
+// 0.00627743, -0.00010931, 8.61569e-13, 0.00537344, -8.73445e-05, 0.000245357, 0.00502987, -8.73445e-05, 6.91567e-05, -0.00010931, 0.00627743, 6.53942e-13, -8.73445e-05, 0.00502987, 6.91567e-05, -8.73445e-05, 0.00537344, 0.000245357, 8.61569e-13, 6.53942e-13, 0.00602593, 0.000245357, 6.91567e-05, 0.00478726, 6.91567e-05, 0.000245357, 0.00478726, 0.00537344, -8.73445e-05, -0.000245357, 0.00617234, -0.000251347, -5.2341e-13, 0.00484596, -0.000324509, -0.000149677, -8.73445e-05, 0.00502987, -6.91567e-05, -0.000251347, 0.00596753, 2.48253e-13, -0.000324509, 0.00484596, 0.000149677, -0.000245357, -6.91567e-05, 0.00478726, -5.2341e-13, 2.48253e-13, 0.00581716, -0.000149677, 0.000149677, 0.00445606, 0.00502987, -8.73445e-05, -6.91567e-05, 0.00484596, -0.000324509, 0.000149677, 0.00596753, -0.000251347, 7.19921e-14, -8.73445e-05, 0.00537344, -0.000245357, -0.000324509, 0.00484596, -0.000149677, -0.000251347, 0.00617234, -2.4481e-13, -6.91567e-05, -0.000245357, 0.00478726, 0.000149677, -0.000149677, 0.00445606, 7.19921e-14, -2.4481e-13, 0.00581716,
+    
