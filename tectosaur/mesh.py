@@ -34,6 +34,9 @@ def concat(m1, m2):
 def concat_list(ms):
     return reduce(lambda x,y: concat(x,y), ms)
 
+def flip_normals(m):
+    return (m[0], np.array([[m[1][i,0],m[1][i,2],m[1][i,1]] for i in range(m[1].shape[0])]))
+
 def refine(m):
     pts, tris = m
     c0 = pts[tris[:,0]]
