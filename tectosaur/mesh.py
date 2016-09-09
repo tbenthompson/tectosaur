@@ -1,3 +1,4 @@
+from functools import reduce
 import numpy as np
 
 def remove_duplicate_pts(m):
@@ -29,6 +30,9 @@ def remove_duplicate_pts(m):
 def concat(m1, m2):
     newm = np.vstack((m1[0], m2[0])), np.vstack((m1[1], m2[1] + m1[0].shape[0]))
     return remove_duplicate_pts(newm)
+
+def concat_list(ms):
+    return reduce(lambda x,y: concat(x,y), ms)
 
 def refine(m):
     pts, tris = m
@@ -91,3 +95,15 @@ def rect_surface(nx, ny, corners):
     x = np.linspace(0, 1, nx)
     y = np.linspace(0, 1, ny)
     return rect_surface_points(corners, x, y), rect_surface_topology(nx, ny)
+
+def plot_mesh3d(pts, tris):
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+    fig = plt.figure()
+    ax = Axes3D(fig)
+    verts = pts[tris]
+    coll = Poly3DCollection(verts)
+    coll.set_facecolor((0.0, 0.0, 0.0, 0.0))
+    ax.add_collection3d(coll)
+    plt.show()

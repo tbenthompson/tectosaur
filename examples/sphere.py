@@ -4,8 +4,6 @@ import scipy.spatial
 
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
-from mpl_toolkits.mplot3d import Axes3D
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import matplotlib.pyplot as plt
 
 import okada_wrapper
@@ -35,20 +33,11 @@ def make_sphere(center, r, refinements):
     spherified_m = [spherify(center, r, m[0]), m[1]]
     return spherified_m
 
-def plot_sphere_3d(pts, tris):
-    fig = plt.figure()
-    ax = Axes3D(fig)
-    verts = pts[tris]
-    coll = Poly3DCollection(verts)
-    coll.set_facecolor((0.0, 0.0, 0.0, 0.0))
-    ax.add_collection3d(coll)
-    plt.show()
-
 def main():
     refine = 3
     m = make_sphere(np.array([0,0,0]), 1.0, refine)
     tri_pts = m[0][m[1]]
-    # plot_sphere_3d(*m)
+    # mesh.plot_mesh3d(*m)
 
     sm = 1.0
     pr = 0.25

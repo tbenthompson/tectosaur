@@ -103,8 +103,8 @@ def build_nearfield(co_data, ea_data, va_data, near_data):
 class NearfieldIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris):
-        near_gauss = gauss4d_tri(nq_near)
-        far_quad = gauss4d_tri(nq_far)
+        near_gauss = gauss4d_tri(nq_near, nq_near)
+        far_quad = gauss4d_tri(nq_far, nq_far)
 
         timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])

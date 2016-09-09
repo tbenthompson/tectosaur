@@ -13,10 +13,17 @@
 //
 // TODO:
 // is hcubature or pcubature better?
+//
 // should i used vector integrands or is it better to split up the integral into each
 // individual component so that they don't all need to take as long as the most expensive one
+//
 // write the table lookup procedure
+//
 // test the lookup by selecting random legal triangles and comparing the interpolation
+//
+// problem! running out of memory for higher accuracy integrals.. how to fix? can i split up
+// the domain of integration? how do i reduce the accuracy requirements after splitting a domain?
+// i suspect the answer is buried in the cubature code...
 
 struct Timer {
     typedef std::chrono::high_resolution_clock::time_point Time;
@@ -63,8 +70,7 @@ struct Data {
     double CsH1;
     double CsH2;
     double CsH3;
-    Timer timer_integrate;
-    Timer timer_internal;
+    Timer timer;
 
     Data(std::array<std::array<double,3>,3> tri, double eps, double G, double nu):
         tri(tri),
@@ -165,100 +171,83 @@ std::array<double,3> basis(double xhat, double yhat) {
      return {1 - xhat - yhat, xhat, yhat};
 }
 
-void all_zeros(int i, double* fval) {
+void all_zeros(double* fval) {
     for (int idx = 0; idx < 81; idx++) {
-        fval[i * 81 + idx] = 0.0;
+        fval[idx] = 0.0;
     }
 }
 
-int f(unsigned ndim, long unsigned npts, const double *x,
+int f(unsigned ndim, const double *x,
     void *fdata, unsigned fdim, double *fval) 
 {
     Data& d = *reinterpret_cast<Data*>(fdata);
-    d.evals += npts;
+    d.evals += 1;
 
-    d.timer_internal.stop();
-    d.timer_integrate.start();
     // std::cout << d.evals << " " << npts << std::endl;
-    for (unsigned i = 0; i < npts; i++) {
-        double obsxhat = x[i * 4 + 0];
-        double obsyhat = x[i * 4 + 1] * (1 - obsxhat);
-        double jacobian = 1 - obsxhat;
+    double obsxhat = x[0];
+    double obsyhat = x[1] * (1 - obsxhat);
+    double jacobian = 1 - obsxhat;
 
-        // double thetahat = x[i * 4 + 2];
-        double thetahat = x[i * 4 + 2];
-        double thetalow = d.theta_low(obsxhat, obsyhat);
-        double thetahigh = d.theta_high(obsxhat, obsyhat);
-        double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
-        if (std::isnan(theta)) { 
-        // ???? this breaks things, but something like this may be necessary for using pcubature
-            all_zeros(i, fval);
-            continue;
-        }
-        jacobian *= thetahigh - thetalow;
+    double thetahat = x[2];
+    double thetalow = d.theta_low(obsxhat, obsyhat);
+    double thetahigh = d.theta_high(obsxhat, obsyhat);
+    double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
+    if (std::isnan(theta)) { 
+        // this is necessary to handle the interval endpoints used by pcubature
+        all_zeros(fval);
+        return 0; 
+    }
+    jacobian *= thetahigh - thetalow;
 
-        // tried a sinh transform here and it doesn't work well
-        // double s = 2.0 * x[i * 4 + 3] - 1.0;
-        // double a = -1.0;
-        // double b = d.eps;
-        // double mu0 = 0.5 * (asinh((1.0 + a) / b) + asinh((1.0 - a) / b));
-        // double eta0 = 0.5 * (asinh((1.0 + a) / b) - asinh((1.0 - a) / b));
-        // double rhohat = ((a + b * sinh(mu0 * s - eta0)) + 1.0) / 2.0;
-        // jacobian *= b * mu0 * cosh(mu0 * s - eta0);
-        double rhohat = x[i * 4 + 3];
+    // tried a sinh transform here and it doesn't work well
+    double rhohat = x[3];
 
-        double rhohigh = d.rhohigh(obsxhat, obsyhat, theta);
-        double rho = rhohat * rhohigh;
-        jacobian *= rho * rhohigh;
+    double rhohigh = d.rhohigh(obsxhat, obsyhat, theta);
+    double rho = rhohat * rhohigh;
+    jacobian *= rho * rhohigh;
 
-        double srcxhat = obsxhat + rho * cos(theta);
-        double srcyhat = obsyhat + rho * sin(theta);
-        // double xx = basiseval(obsxhat, obsyhat, {d.tri[0][0], d.tri[1][0], d.tri[2][0]});
-        // double xy = basiseval(obsxhat, obsyhat, {d.tri[0][1], d.tri[1][1], d.tri[2][1]});
-        double xx = obsxhat;
-        double xy = obsyhat;
-        double xz = -d.eps;
+    double srcxhat = obsxhat + rho * cos(theta);
+    double srcyhat = obsyhat + rho * sin(theta);
+    // double xx = basiseval(obsxhat, obsyhat, {d.tri[0][0], d.tri[1][0], d.tri[2][0]});
+    // double xy = basiseval(obsxhat, obsyhat, {d.tri[0][1], d.tri[1][1], d.tri[2][1]});
+    double xx = obsxhat;
+    double xy = obsyhat;
+    double xz = -d.eps;
 
-        // double yx = ref2realx(srcxhat, srcyhat);
-        // double yy = ref2realy(srcxhat, srcyhat);
-        double yx = srcxhat;
-        double yy = srcyhat;
-        double yz = 0;
+    // double yx = ref2realx(srcxhat, srcyhat);
+    // double yy = ref2realy(srcxhat, srcyhat);
+    double yx = srcxhat;
+    double yy = srcyhat;
+    double yz = 0;
 
-        double nx = 0;
-        double ny = 0;
-        double nz = 1;
-        double lx = 0;
-        double ly = 0;
-        double lz = 1;
+    double nx = 0;
+    double ny = 0;
+    double nz = 1;
+    double lx = 0;
+    double ly = 0;
+    double lz = 1;
 
 
-        double Dx = yx - xx;
-        double Dy = yy - xy;
-        double Dz = yz - xz;
+    double Dx = yx - xx;
+    double Dy = yy - xy;
+    double Dz = yz - xz;
 
-        auto K = Hkernel(d, Dx, Dy, Dz, nx, ny, nz, lx, ly, lz);
+    auto K = Hkernel(d, Dx, Dy, Dz, nx, ny, nz, lx, ly, lz);
 
-        auto obsbasis = basis(obsxhat, obsyhat);
-        auto srcbasis = basis(srcxhat, srcyhat);
+    auto obsbasis = basis(obsxhat, obsyhat);
+    auto srcbasis = basis(srcxhat, srcyhat);
 
-        for (int b1 = 0; b1 < 3; b1++) {
-            for (int b2 = 0; b2 < 3; b2++) {
-                auto basisprod = obsbasis[b1] * srcbasis[b2];
-                // if (b1 != 0 || b2 != 0) {
-                //     basisprod = 0;
-                // }
-                for (int d1 = 0; d1 < 3; d1++) {
-                    for (int d2 = 0; d2 < 3; d2++) {
-                        auto idx = i * 81 + b1 * 27 + d1 * 9 + b2 * 3 + d2;
-                        fval[idx] = K[d1][d2] * basisprod * jacobian;
-                    }
+    for (int b1 = 0; b1 < 3; b1++) {
+        for (int b2 = 0; b2 < 3; b2++) {
+            auto basisprod = obsbasis[b1] * srcbasis[b2];
+            for (int d1 = 0; d1 < 3; d1++) {
+                for (int d2 = 0; d2 < 3; d2++) {
+                    auto idx = b1 * 27 + d1 * 9 + b2 * 3 + d2;
+                    fval[idx] = K[d1][d2] * basisprod * jacobian;
                 }
             }
         }
     }
-    d.timer_integrate.stop();
-    d.timer_internal.start();
     return 0; 
 }
 
@@ -270,14 +259,13 @@ std::array<double,81> integrate(Data& d) {
         const double xmin[4] = {0,0,0,0};
         const double xmax[4] = {1,1,1,1};
         double val[81], err[81];
-        d.timer_internal.start();
-        pcubature_v(81, f, &d, 4, xmin, xmax, 0, 0, 1e-7, ERROR_INDIVIDUAL, val, err);
-        d.timer_internal.stop();
+        d.timer.start();
+        pcubature(81, f, &d, 4, xmin, xmax, 0, 0, 1e-1, ERROR_INDIVIDUAL, val, err);
+        d.timer.stop();
         for (int i = 0; i < 81; i++) {
             sum[i] += val[i];
         }
-        std::cout << "internal: " << d.timer_internal.get_time() << std::endl;
-        std::cout << "integration: " << d.timer_integrate.get_time() << std::endl;
+        std::cout << "internal: " << d.timer.get_time() << std::endl;
     }
     return sum;
 }

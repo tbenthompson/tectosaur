@@ -20,7 +20,7 @@ def check_if_crosses_fault(tri1, tri2, fault_touching_pts, fault_tris, pts):
             return True
     return False
 
-def constraints(surface_tris, fault_tris, pts):
+def continuity_constraints(surface_tris, fault_tris, pts):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
 
@@ -55,18 +55,16 @@ def constraints(surface_tris, fault_tris, pts):
                 constraints.append(ConstraintEQ(
                     [Term(1.0, dependent_dof), Term(-1.0, indepedent_dof)], 0.0
                 ))
-    # assert(len(touching_pt) == surface_tris.size - len(constraints) / 3)
+    return constraints
 
-    # X component = 1
-    # Y comp = Z comp = 0
-    slip = [1, 0, 0]
-    for i in range(n_surf_tris, n_surf_tris + n_fault_tris):
+def constant_bc_constraints(start_tri, end_tri, value):
+    cs = []
+    for i in range(start_tri, end_tri):
         for b in range(3):
             for d in range(3):
                 dof = i * 9 + b * 3 + d
-                constraints.append(ConstraintEQ([Term(1.0, dof)], slip[d]))
-    constraints = sorted(constraints, key = lambda x: x[0][0][1])
-    return constraints
+                cs.append(ConstraintEQ([Term(1.0, dof)], value[d]))
+    return cs
 
 def lagrange_constraints(lhs, rhs, cs):
     c_start = lhs.shape[0] - len(cs)
