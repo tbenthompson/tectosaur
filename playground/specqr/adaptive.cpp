@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include <map>
 #include <vector>
 #include <functional>
 #include <chrono>
@@ -19,9 +20,11 @@
 //
 // should i used vector integrands or is it better to split up the integral into each
 // individual component so that they don't all need to take as long as the most expensive one
+// (DONE)test out the richardson process
 //
 // TODO:
-// split up integrals by basis
+//
+// add the T and A kernels.
 //
 // write the table lookup procedure
 //
@@ -70,6 +73,8 @@ struct Data {
     bool p;
 
     Kernel K;
+    int b1; 
+    int b2;
 
     int evals;
     std::function<double(double,double)> theta_low;
@@ -114,6 +119,11 @@ struct Data {
         } else if (piece == 2) {
             theta_low = thetalim2b; theta_high = thetalim0; rhohigh = rholim0;
         }
+    }
+
+    void set_basis(int b1, int b2) {
+        this->b1 = b1;
+        this->b2 = b2;
     }
 };
 
@@ -255,41 +265,43 @@ int f(unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval)
     auto obsbasis = basis(obsxhat, obsyhat);
     auto srcbasis = basis(srcxhat, srcyhat);
 
-    for (int b1 = 0; b1 < 3; b1++) {
-        for (int b2 = 0; b2 < 3; b2++) {
-            auto basisprod = obsbasis[b1] * srcbasis[b2];
-            for (int d1 = 0; d1 < 3; d1++) {
-                for (int d2 = 0; d2 < 3; d2++) {
-                    auto idx = b1 * 27 + d1 * 9 + b2 * 3 + d2;
-                    fval[idx] = K[d1][d2] * basisprod * jacobian;
-                }
-            }
+    auto basisprod = obsbasis[d.b1] * srcbasis[d.b2];
+    for (int d1 = 0; d1 < 3; d1++) {
+        for (int d2 = 0; d2 < 3; d2++) {
+            fval[d1 * 3 + d2] = K[d1][d2] * basisprod * jacobian;
         }
     }
     return 0; 
 }
 
-std::array<double,81> integrate_all(Data& d) {
+std::array<double,81> integrate(Data& d) {
     d.evals = 0;
     std::array<double,81> sum{};
-    for (int piece = 0; piece < 3; piece++) {
-        d.set_piece(piece);
-        const double xmin[4] = {0,0,0,0};
-        const double xmax[4] = {1,1,1,1};
-        double val[81], err[81];
-        d.timer.start();
-        decltype(&pcubature) integrator;
-        if (d.p) {
-            integrator = &pcubature;
-        } else {
-            integrator = &hcubature;
+    for (int b1 = 0; b1 < 3; b1++) {
+        for (int b2 = 0; b2 < 3; b2++) {
+            for (int piece = 0; piece < 3; piece++) {
+                d.set_piece(piece);
+                d.set_basis(b1, b2);
+                const double xmin[4] = {0,0,0,0};
+                const double xmax[4] = {1,1,1,1};
+                double val[81], err[81];
+                d.timer.start();
+                decltype(&pcubature) integrator;
+                if (d.p) {
+                    integrator = &pcubature;
+                } else {
+                    integrator = &hcubature;
+                }
+                integrator(9, f, &d, 4, xmin, xmax, 0, 0, d.tol, ERROR_INDIVIDUAL, val, err);
+                d.timer.stop();
+                for (int d1 = 0; d1 < 3; d1++) {
+                    for (int d2 = 0; d2 < 3; d2++) {
+                        sum[b1 * 27 + d1 * 9 + b2 * 3 + d2] += val[d1 * 3 + d2];
+                    }
+                }
+                // std::cout << "piece " << piece << ": " << d.timer.get_time() << std::endl;
+            }
         }
-        integrator(81, f, &d, 4, xmin, xmax, 0, 0, d.tol, ERROR_INDIVIDUAL, val, err);
-        d.timer.stop();
-        for (int i = 0; i < 81; i++) {
-            sum[i] += val[i];
-        }
-        std::cout << "piece " << piece << ": " << d.timer.get_time() << std::endl;
     }
     return sum;
 }
@@ -311,9 +323,9 @@ void testHinterp() {
     int nB = 31;
 
     // These numbers are from ablims.py
-    auto minlegalA = 0.100201758858;
-    auto minlegalB = 0.24132345693;
-    auto maxlegalB = 0.860758641203;
+    auto minlegalA = 0.100201758858 - 0.01;
+    auto minlegalB = 0.24132345693 - 0.02;
+    auto maxlegalB = 0.860758641203 + 0.02;
     auto Avals = chebab(minlegalA, 0.5, nA); 
     auto Bvals = chebab(minlegalB, maxlegalB, nB); 
     for (int i = 0; i < nA; i++) {
@@ -328,20 +340,74 @@ void testHinterp() {
     }
 }
 
-int main() {
-    Data d(1e-2, false, Hkernel, Tri{{{0,0,0},{1,0,0},{0,1,0}}}, 0.1, 1.0, 0.25);
+void check(std::string k_name) {
+    std::map<std::string,std::vector<double>> correct;
+    correct["H"] = std::vector<double>{-0.0681271, 0.00374717, -2.92972e-08, -0.0479374, 0.000289359, -0.0310311, -0.0273078, 0.000289343, -0.0157399, 0.00374717, -0.0681271, 1.33654e-10, 0.000289359, -0.0273078, -0.0157399, 0.000289343, -0.0479374, -0.0310311, -2.92972e-08, 1.33654e-10, -0.253279, -0.0310311, -0.0157399, -0.0988838, -0.0157399, -0.0310311, -0.0988839, -0.0479374, 0.00028935, 0.0310311, -0.0773209, 0.0222243, 6.62088e-07, -0.0347615, 0.0145934, 0.0148439, 0.00028935, -0.0273078, 0.01574, 0.0222243, -0.0499281, -1.0635e-06, 0.0145934, -0.0347614, -0.014844, 0.0310311, 0.01574, -0.0988838, 6.62088e-07, -1.0635e-06, -0.25622, 0.0148439, -0.014844, -0.108641, -0.0273078, 0.000289349, 0.0157399, -0.0347616, 0.0145936, -0.0148446, -0.049928, 0.0222245, -1.30437e-06, 0.000289349, -0.0479374, 0.0310311, 0.0145936, -0.0347616, 0.0148445, 0.0222245, -0.0773207, 1.04316e-06, 0.0157399, 0.0310311, -0.0988839, -0.0148446, 0.0148445, -0.108641, -1.30437e-06, 1.04316e-06, -0.256222};
+    correct["U"] = std::vector<double>{0.00627743, -0.00010931, 8.61569e-13, 0.00537344, -8.73445e-05, 0.000245357, 0.00502987, -8.73445e-05, 6.91567e-05, -0.00010931, 0.00627743, 6.53942e-13, -8.73445e-05, 0.00502987, 6.91567e-05, -8.73445e-05, 0.00537344, 0.000245357, 8.61569e-13, 6.53942e-13, 0.00602593, 0.000245357, 6.91567e-05, 0.00478726, 6.91567e-05, 0.000245357, 0.00478726, 0.00537344, -8.73445e-05, -0.000245357, 0.00617234, -0.000251347, -5.2341e-13, 0.00484596, -0.000324509, -0.000149677, -8.73445e-05, 0.00502987, -6.91567e-05, -0.000251347, 0.00596753, 2.48253e-13, -0.000324509, 0.00484596, 0.000149677, -0.000245357, -6.91567e-05, 0.00478726, -5.2341e-13, 2.48253e-13, 0.00581716, -0.000149677, 0.000149677, 0.00445606, 0.00502987, -8.73445e-05, -6.91567e-05, 0.00484596, -0.000324509, 0.000149677, 0.00596753, -0.000251347, 7.19921e-14, -8.73445e-05, 0.00537344, -0.000245357, -0.000324509, 0.00484596, -0.000149677, -0.000251347, 0.00617234, -2.4481e-13, -6.91567e-05, -0.000245357, 0.00478726, 0.000149677, -0.000149677, 0.00445606, 7.19921e-14, -2.4481e-13, 0.00581716};
+
+    std::map<std::string,Kernel> Ks;
+    Ks["H"] = Hkernel;
+    Ks["U"] = Ukernel;
+
+    Data d(1e-2, false, Ks[k_name], Tri{{{0,0,0},{1,0,0},{0,1,0}}}, 0.1, 1.0, 0.25);
     auto sum = integrate(d);
 
-    std::vector<double> correctH{-0.0681271, 0.00374717, -2.92972e-08, -0.0479374, 0.000289359, -0.0310311, -0.0273078, 0.000289343, -0.0157399, 0.00374717, -0.0681271, 1.33654e-10, 0.000289359, -0.0273078, -0.0157399, 0.000289343, -0.0479374, -0.0310311, -2.92972e-08, 1.33654e-10, -0.253279, -0.0310311, -0.0157399, -0.0988838, -0.0157399, -0.0310311, -0.0988839, -0.0479374, 0.00028935, 0.0310311, -0.0773209, 0.0222243, 6.62088e-07, -0.0347615, 0.0145934, 0.0148439, 0.00028935, -0.0273078, 0.01574, 0.0222243, -0.0499281, -1.0635e-06, 0.0145934, -0.0347614, -0.014844, 0.0310311, 0.01574, -0.0988838, 6.62088e-07, -1.0635e-06, -0.25622, 0.0148439, -0.014844, -0.108641, -0.0273078, 0.000289349, 0.0157399, -0.0347616, 0.0145936, -0.0148446, -0.049928, 0.0222245, -1.30437e-06, 0.000289349, -0.0479374, 0.0310311, 0.0145936, -0.0347616, 0.0148445, 0.0222245, -0.0773207, 1.04316e-06, 0.0157399, 0.0310311, -0.0988839, -0.0148446, 0.0148445, -0.108641, -1.30437e-06, 1.04316e-06, -0.256222};
     for(int i = 0; i < 81; i++) {
-        if (fabs(sum[i] - correctH[i]) > 1e-2) {
-            std::cout << "FAIL " << i << " " << sum[i] << " " << correctH[i] << std::endl;
+        if (fabs(sum[i] - correct[k_name][i]) > 1e-4) {
+            std::cout << "FAIL " << i << " " << sum[i] << " " << correct[k_name][i] << std::endl;
         }
     }
+}
+
+template <typename T>
+T richardson_limit(double step_ratio, const std::vector<T>& values) 
+{
+    // assert(values.size() > 1);
+
+    auto n_steps = values.size();
+    auto last_level = values;
+    decltype(last_level) this_level;
+
+    for (size_t m = 1; m < n_steps; m++) {
+        this_level.resize(n_steps - m);
+
+        for (size_t i = 0; i < n_steps - m; i++) {
+            auto mult = std::pow(step_ratio, m);
+            auto factor = 1.0 / (mult - 1.0);
+            auto low = last_level[i];
+            auto high = last_level[i + 1];
+            auto moreacc = factor * (mult * high - low);
+            this_level[i] = moreacc;
+        }
+        last_level = this_level;
+    }
+    return this_level[0];
+}
+
+void limitU() {
+    double eps0 = 0.000625;
+    double rich_step = 2;
+    std::vector<double> results;
+    int n = 3;
+    double eps = eps0;
+    for (int i = 0; i < n; i++) {
+        Data d(1e-3, false, Ukernel, Tri{{{0,0,0},{1,0,0},{0,1,0}}}, eps, 1.0, 0.25);
+        results.push_back(integrate(d)[0]);
+        if (i > 0) {
+            double extrap = richardson_limit(rich_step, results);
+            std::cout << i << " " << eps << " " << results.back() << " " << extrap << std::endl;
+        }
+        eps /= rich_step;
+    }
+}
+
+int main() {
+    // check("U");
+    // check("H");
+    limitU();
 }
 
 // correct result for H
 
 // correct result for U
-// 0.00627743, -0.00010931, 8.61569e-13, 0.00537344, -8.73445e-05, 0.000245357, 0.00502987, -8.73445e-05, 6.91567e-05, -0.00010931, 0.00627743, 6.53942e-13, -8.73445e-05, 0.00502987, 6.91567e-05, -8.73445e-05, 0.00537344, 0.000245357, 8.61569e-13, 6.53942e-13, 0.00602593, 0.000245357, 6.91567e-05, 0.00478726, 6.91567e-05, 0.000245357, 0.00478726, 0.00537344, -8.73445e-05, -0.000245357, 0.00617234, -0.000251347, -5.2341e-13, 0.00484596, -0.000324509, -0.000149677, -8.73445e-05, 0.00502987, -6.91567e-05, -0.000251347, 0.00596753, 2.48253e-13, -0.000324509, 0.00484596, 0.000149677, -0.000245357, -6.91567e-05, 0.00478726, -5.2341e-13, 2.48253e-13, 0.00581716, -0.000149677, 0.000149677, 0.00445606, 0.00502987, -8.73445e-05, -6.91567e-05, 0.00484596, -0.000324509, 0.000149677, 0.00596753, -0.000251347, 7.19921e-14, -8.73445e-05, 0.00537344, -0.000245357, -0.000324509, 0.00484596, -0.000149677, -0.000251347, 0.00617234, -2.4481e-13, -6.91567e-05, -0.000245357, 0.00478726, 0.000149677, -0.000149677, 0.00445606, 7.19921e-14, -2.4481e-13, 0.00581716,
     
