@@ -113,7 +113,8 @@ def make_reduced(c, matrix):
     for i, t in enumerate(c.terms):
         if t.dof in matrix:
             c_subs = substitute(c, i, matrix[t.dof])
-            c_filtered = filter_zero_terms(c_subs)
+            c_comb = combine_terms(c_subs)
+            c_filtered = filter_zero_terms(c_comb)
             return make_reduced(c_filtered, matrix)
     return c
 
@@ -126,6 +127,7 @@ def reduce_constraints(cs):
         c_lower_tri = make_reduced(c_filtered, lower_tri_cs)
 
         if len(c_lower_tri.terms) == 0:
+            # print("REDUNDANT CONSTRAINT")
             continue
 
         ldi = last_dof_idx(c_lower_tri)
@@ -146,7 +148,6 @@ def to_matrix(reduced_cs, n_total_dofs):
                 # constraints have been lower triangularized.
 
                 cm[i, new_dofs[t.dof]] = t.val
-            #TODO: handle rhs/inhomogeneous constraints
         else:
             cm[i, next_new_dof] = 1
             new_dofs[i] = next_new_dof

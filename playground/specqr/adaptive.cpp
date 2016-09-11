@@ -10,20 +10,23 @@
 // http://mint.sbg.ac.at/HIntLib/
 // http://www.feynarts.de/cuba/
 //
+// is hcubature or pcubature better? answer: doesn't seem to matter much but probably p
 //
-// TODO:
-// is hcubature or pcubature better?
+// problem! running out of memory for higher accuracy integrals.. how to fix? can i split up
+// the domain of integration? how do i reduce the accuracy requirements after splitting a domain?
+// i suspect the answer is buried in the cubature code... 
+// another idea for reducing memory requirements by a factor of 81 is to split up the integrals so that each dimension and basis func is computed separately. or just split by basis func since different basis function pairs should need very different sets of points -- some will be zero in different places than others
 //
 // should i used vector integrands or is it better to split up the integral into each
 // individual component so that they don't all need to take as long as the most expensive one
+//
+// TODO:
+// split up integrals by basis
 //
 // write the table lookup procedure
 //
 // test the lookup by selecting random legal triangles and comparing the interpolation
 //
-// problem! running out of memory for higher accuracy integrals.. how to fix? can i split up
-// the domain of integration? how do i reduce the accuracy requirements after splitting a domain?
-// i suspect the answer is buried in the cubature code...
 
 struct Timer {
     typedef std::chrono::high_resolution_clock::time_point Time;
@@ -45,6 +48,7 @@ struct Timer {
     }
 };
 
+
 double thetalim0(double x, double y) { return M_PI - atan((1 - y) / x); }
 double thetalim1(double x, double y) { return M_PI + atan(y / x); }
 double thetalim2a(double x, double y) { return 2 * M_PI - atan(y / (1 - x)); }
@@ -55,7 +59,18 @@ double rholim2(double x, double y, double t) { return -y / sin(t); }
 
 using Tri = std::array<std::array<double,3>,3>;
 
+struct Data;
+using Kernel = std::function<
+    std::array<std::array<double,3>,3>(
+        Data&,double,double,double,double,double,double,double,double,double
+    )>;
+
 struct Data {
+    double tol;
+    bool p;
+
+    Kernel K;
+
     int evals;
     std::function<double(double,double)> theta_low;
     std::function<double(double,double)> theta_high;
@@ -72,7 +87,11 @@ struct Data {
     double CsH3;
     Timer timer;
 
-    Data(std::array<std::array<double,3>,3> tri, double eps, double G, double nu):
+    Data(double tol, bool p, Kernel K, 
+            std::array<std::array<double,3>,3> tri, double eps, double G, double nu):
+        tol(tol),
+        p(p),
+        K(K),
         tri(tri),
         eps(eps),
         G(G),
@@ -97,10 +116,6 @@ struct Data {
         }
     }
 };
-
-double basiseval(double xhat, double yhat, std::array<double,3> vals) {
-    return (1.0 - xhat - yhat) * vals[0] + xhat * vals[1] + yhat * vals[2];
-}
 
 std::array<std::array<double,3>,3> Ukernel(Data& d, double Dx, double Dy, double Dz,
     double nx, double ny, double nz, double lx, double ly, double lz)
@@ -167,6 +182,10 @@ std::array<std::array<double,3>,3> Hkernel(Data& d, double Dx, double Dy, double
     return {{{K00,K01,K02},{K10,K11,K12},{K20,K21,K22}}};
 }
 
+double basiseval(double xhat, double yhat, std::array<double,3> vals) {
+    return (1.0 - xhat - yhat) * vals[0] + xhat * vals[1] + yhat * vals[2];
+}
+
 std::array<double,3> basis(double xhat, double yhat) {
      return {1 - xhat - yhat, xhat, yhat};
 }
@@ -177,8 +196,7 @@ void all_zeros(double* fval) {
     }
 }
 
-int f(unsigned ndim, const double *x,
-    void *fdata, unsigned fdim, double *fval) 
+int f(unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval) 
 {
     Data& d = *reinterpret_cast<Data*>(fdata);
     d.evals += 1;
@@ -232,7 +250,7 @@ int f(unsigned ndim, const double *x,
     double Dy = yy - xy;
     double Dz = yz - xz;
 
-    auto K = Hkernel(d, Dx, Dy, Dz, nx, ny, nz, lx, ly, lz);
+    auto K = d.K(d, Dx, Dy, Dz, nx, ny, nz, lx, ly, lz);
 
     auto obsbasis = basis(obsxhat, obsyhat);
     auto srcbasis = basis(srcxhat, srcyhat);
@@ -251,7 +269,7 @@ int f(unsigned ndim, const double *x,
     return 0; 
 }
 
-std::array<double,81> integrate(Data& d) {
+std::array<double,81> integrate_all(Data& d) {
     d.evals = 0;
     std::array<double,81> sum{};
     for (int piece = 0; piece < 3; piece++) {
@@ -260,12 +278,18 @@ std::array<double,81> integrate(Data& d) {
         const double xmax[4] = {1,1,1,1};
         double val[81], err[81];
         d.timer.start();
-        pcubature(81, f, &d, 4, xmin, xmax, 0, 0, 1e-1, ERROR_INDIVIDUAL, val, err);
+        decltype(&pcubature) integrator;
+        if (d.p) {
+            integrator = &pcubature;
+        } else {
+            integrator = &hcubature;
+        }
+        integrator(81, f, &d, 4, xmin, xmax, 0, 0, d.tol, ERROR_INDIVIDUAL, val, err);
         d.timer.stop();
         for (int i = 0; i < 81; i++) {
             sum[i] += val[i];
         }
-        std::cout << "internal: " << d.timer.get_time() << std::endl;
+        std::cout << "piece " << piece << ": " << d.timer.get_time() << std::endl;
     }
     return sum;
 }
@@ -296,7 +320,7 @@ void testHinterp() {
         double A = Avals[i];
         for (int j = 0; j < nB; j++) {
             double B = Bvals[j];
-            Data d(Tri{{{0,0,0},{1,0,0},{A,B,0}}}, 0.1, 1.0, 0.25);
+            Data d(1e-2, false, Hkernel, Tri{{{0,0,0},{1,0,0},{A,B,0}}}, 0.1, 1.0, 0.25);
             auto sum = integrate(d);
             std::cout << i << ", " << j << ", " 
                 << A << ", " << B << ", " << sum[0] << ", " << std::endl;
@@ -305,15 +329,18 @@ void testHinterp() {
 }
 
 int main() {
-    Data d(Tri{{{0,0,0},{1,0,0},{0,1,0}}}, 0.001, 1.0, 0.25);
+    Data d(1e-2, false, Hkernel, Tri{{{0,0,0},{1,0,0},{0,1,0}}}, 0.1, 1.0, 0.25);
     auto sum = integrate(d);
+
+    std::vector<double> correctH{-0.0681271, 0.00374717, -2.92972e-08, -0.0479374, 0.000289359, -0.0310311, -0.0273078, 0.000289343, -0.0157399, 0.00374717, -0.0681271, 1.33654e-10, 0.000289359, -0.0273078, -0.0157399, 0.000289343, -0.0479374, -0.0310311, -2.92972e-08, 1.33654e-10, -0.253279, -0.0310311, -0.0157399, -0.0988838, -0.0157399, -0.0310311, -0.0988839, -0.0479374, 0.00028935, 0.0310311, -0.0773209, 0.0222243, 6.62088e-07, -0.0347615, 0.0145934, 0.0148439, 0.00028935, -0.0273078, 0.01574, 0.0222243, -0.0499281, -1.0635e-06, 0.0145934, -0.0347614, -0.014844, 0.0310311, 0.01574, -0.0988838, 6.62088e-07, -1.0635e-06, -0.25622, 0.0148439, -0.014844, -0.108641, -0.0273078, 0.000289349, 0.0157399, -0.0347616, 0.0145936, -0.0148446, -0.049928, 0.0222245, -1.30437e-06, 0.000289349, -0.0479374, 0.0310311, 0.0145936, -0.0347616, 0.0148445, 0.0222245, -0.0773207, 1.04316e-06, 0.0157399, 0.0310311, -0.0988839, -0.0148446, 0.0148445, -0.108641, -1.30437e-06, 1.04316e-06, -0.256222};
     for(int i = 0; i < 81; i++) {
-        std::cout << sum[i] << ", " << std::endl;
+        if (fabs(sum[i] - correctH[i]) > 1e-2) {
+            std::cout << "FAIL " << i << " " << sum[i] << " " << correctH[i] << std::endl;
+        }
     }
 }
 
 // correct result for H
-// -0.0681271, 0.00374717, -2.92972e-08, -0.0479374, 0.000289359, -0.0310311, -0.0273078, 0.000289343, -0.0157399, 0.00374717, -0.0681271, 1.33654e-10, 0.000289359, -0.0273078, -0.0157399, 0.000289343, -0.0479374, -0.0310311, -2.92972e-08, 1.33654e-10, -0.253279, -0.0310311, -0.0157399, -0.0988838, -0.0157399, -0.0310311, -0.0988839, -0.0479374, 0.00028935, 0.0310311, -0.0773209, 0.0222243, 6.62088e-07, -0.0347615, 0.0145934, 0.0148439, 0.00028935, -0.0273078, 0.01574, 0.0222243, -0.0499281, -1.0635e-06, 0.0145934, -0.0347614, -0.014844, 0.0310311, 0.01574, -0.0988838, 6.62088e-07, -1.0635e-06, -0.25622, 0.0148439, -0.014844, -0.108641, -0.0273078, 0.000289349, 0.0157399, -0.0347616, 0.0145936, -0.0148446, -0.049928, 0.0222245, -1.30437e-06, 0.000289349, -0.0479374, 0.0310311, 0.0145936, -0.0347616, 0.0148445, 0.0222245, -0.0773207, 1.04316e-06, 0.0157399, 0.0310311, -0.0988839, -0.0148446, 0.0148445, -0.108641, -1.30437e-06, 1.04316e-06, -0.256222, 
 
 // correct result for U
 // 0.00627743, -0.00010931, 8.61569e-13, 0.00537344, -8.73445e-05, 0.000245357, 0.00502987, -8.73445e-05, 6.91567e-05, -0.00010931, 0.00627743, 6.53942e-13, -8.73445e-05, 0.00502987, 6.91567e-05, -8.73445e-05, 0.00537344, 0.000245357, 8.61569e-13, 6.53942e-13, 0.00602593, 0.000245357, 6.91567e-05, 0.00478726, 6.91567e-05, 0.000245357, 0.00478726, 0.00537344, -8.73445e-05, -0.000245357, 0.00617234, -0.000251347, -5.2341e-13, 0.00484596, -0.000324509, -0.000149677, -8.73445e-05, 0.00502987, -6.91567e-05, -0.000251347, 0.00596753, 2.48253e-13, -0.000324509, 0.00484596, 0.000149677, -0.000245357, -6.91567e-05, 0.00478726, -5.2341e-13, 2.48253e-13, 0.00581716, -0.000149677, 0.000149677, 0.00445606, 0.00502987, -8.73445e-05, -6.91567e-05, 0.00484596, -0.000324509, 0.000149677, 0.00596753, -0.000251347, 7.19921e-14, -8.73445e-05, 0.00537344, -0.000245357, -0.000324509, 0.00484596, -0.000149677, -0.000251347, 0.00617234, -2.4481e-13, -6.91567e-05, -0.000245357, 0.00478726, 0.000149677, -0.000149677, 0.00445606, 7.19921e-14, -2.4481e-13, 0.00581716,
