@@ -33,28 +33,29 @@ def shouldfilter(a, b):
         return True
     return False
 
-# avs = []
-# bvs = []
-#
-# for i in range(20000):
-#     # choose random a,b where a is in [0, 1] and b is in [0, 1]
-#     params = np.random.rand(2)
-#     a = params[0] * 0.5
-#     b = params[1]
-#     if shouldfilter(a,b):
-#         continue
-#
-#     avs.append(a)
-#     bvs.append(b)
-# minA = np.min(avs)
-# minB = np.min(bvs)
-# maxB = np.max(bvs)
-# print(minA, minB, maxB)
-#
-# plt.plot(avs, bvs, '.')
-# plt.xlim([0,0.5])
-# plt.ylim([0,1])
-# plt.show()
+avs = []
+bvs = []
+
+for i in range(2000000):
+    # choose random a,b where a is in [0, 1] and b is in [0, 1]
+    params = np.random.rand(2)
+    a = params[0] * 0.5
+    b = params[1]
+    if shouldfilter(a,b):
+        continue
+
+    avs.append(a)
+    bvs.append(b)
+minA = np.min(avs)
+minB = np.min(bvs)
+maxB = np.max(bvs)
+print(minA, minB, maxB)
+
+plt.plot(avs, bvs, '.')
+plt.xlim([0,0.5])
+plt.ylim([0,1])
+plt.savefig('abrange.pdf')
+import sys;sys.exit()
 minlegalA = 0.100201758858;
 minlegalB = 0.24132345693;
 maxlegalB = 0.860758641203;

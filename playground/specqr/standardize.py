@@ -41,11 +41,12 @@ def get_origin_vertex(lens):
 
 def relabel(tri, ov, longest_edge):
     if longest_edge == ov:
-        return np.array([tri[ov], tri[(ov + 1) % 3], tri[(ov + 2) % 3]])
+        labels = [ov, (ov + 1) % 3, (ov + 2) % 3]
     elif (longest_edge + 1) % 3 == ov:
-        return np.array([tri[ov], tri[(ov + 2) % 3], tri[(ov + 1) % 3]])
+        labels = [ov, (ov + 2) % 3, (ov + 1) % 3]
     else:
         raise Exception("BAD!")
+    return np.array([tri[L] for L in labels]), labels
 
 def translate(tri):
     return tri - tri[0,:]
@@ -71,18 +72,18 @@ def rotate1_to_xaxis(tri):
         axis /= axis_mag
     theta = np.pi
     rot_mat = rotation_matrix(axis, theta)
-    return rot_mat.dot(tri.T).T
+    return rot_mat.dot(tri.T).T, rot_mat
 
 def rotate2_to_xyplane(tri):
     xaxis = np.array([1, 0, 0])
     yaxis = np.array([0, 1, 0])
     ydot2 = yaxis[1:].dot(tri[2][1:]) / np.linalg.norm(tri[2][1:])
-    theta = np.arccos(ydot2)
+    theta = -np.arccos(ydot2)
     rot_mat = rotation_matrix(xaxis, theta)
-    return rot_mat.dot(tri.T).T
+    return rot_mat.dot(tri.T).T, rot_mat
 
 def scale(tri):
-    return tri / tri[1][0]
+    return tri / tri[1][0], 1.0 / tri[1][0]
 
 def lawcos(a, b, c):
     return np.arccos((a**2 + b**2 - c**2) / (2*a*b))
@@ -95,41 +96,41 @@ def check_bad_tri(tri, angle_lim):
     # filter out when L2 < 1
     L2 = np.sqrt((a-1)**2 + b**2)
     if L2 > 1:
-        return True
+        return 1
 
     # filter out when L3 < 1
     L3 = np.sqrt(a**2 + b**2)
     if L3 > 1:
-        return True
+        return 2
 
     # filter out when T1 < 20
     A1 = lawcos(1.0, L3, L2)
     if np.rad2deg(A1) < angle_lim:
-        return True
+        return 3
 
     # filter out when A2 < 20
     A2 = lawcos(1.0, L2, L3)
     if np.rad2deg(A2) < angle_lim:
-        return True
+        return 4
 
     # filter out when A3 < 20
     A3 = lawcos(L2, L3, 1.0)
     if np.rad2deg(A3) < angle_lim:
-        return True
-    return False
+        return 5
+    return 0
 
 def standardize(tri):
     ls = get_edge_lens(tri)
     longest = get_longest_edge(ls)
     ov = get_origin_vertex(ls)
-    relabeled = relabel(tri, ov, longest)
+    relabeled, labels = relabel(tri, ov, longest)
     trans = translate(relabeled)
-    rot1 = rotate1_to_xaxis(trans)
-    rot2 = rotate2_to_xyplane(rot1)
-    sc = scale(rot2)
-    if check_bad_tri(sc, 20):
+    rot1, rot_mat1 = rotate1_to_xaxis(trans)
+    rot2, rot_mat2 = rotate2_to_xyplane(rot1)
+    sc, factor = scale(rot2)
+    if check_bad_tri(sc, 20) > 0:
         raise Exception("Bad tri!")
-    return sc
+    return sc, labels, rot_mat2.dot(rot_mat1), factor
 
 def test_origin_vertex():
     assert(get_origin_vertex(get_edge_lens(np.array([[0,0,0],[1,0,0],[0.2,0.5,0]]))) == 0)
@@ -169,6 +170,6 @@ def test_standardize():
     # out = standardize(np.array([[0,0,0],[0.2,0,0],[0.4,0.5,0]]))
     # np.testing.assert_almost_equal(out, [[0,0,0],[0.4,0.5,0],[0.2,0,0]])
 
-    out = standardize(np.array([[0,0,0],[1,0.0,0],[0.0,0.5,0]]))
+    out,_,_ = standardize(np.array([[0,0,0],[1,0.0,0],[0.0,0.5,0]]))
     np.testing.assert_almost_equal(out, [[0,0,0],[0.4,0.5,0],[0.2,0.1,0]])
 
