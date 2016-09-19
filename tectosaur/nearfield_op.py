@@ -98,7 +98,7 @@ def edge_adj(nq, eps, kernel, sm, pr, pts, obs_tris, src_tris):
     return out
 
 @cache
-def cached_vert_adj_quad(nq):
+def cached_vert_adj_quad(nq_obs, nq_src):
     return triangle_rules.vertex_adj_quad(nq, nq, nq)
 
 def vert_adj(nq, kernel, sm, pr, pts, obs_tris, src_tris):

@@ -2,7 +2,11 @@ import tectosaur.quadrature as quad
 import numpy as np
 import cppimport
 
-def coincident_quad(eps, n_outer_sing, n_outer_smooth, n_theta, n_rho):
+# The inner integrals is split into three based on the observation point. Then,
+# polar coordinates are introduced to reduce the order of the singularity by one.
+# This function simply returns the points and weights of the resulting quadrature
+# formula.
+def coincident_quad(eps, n_outer, n_theta, n_rho):
     rho_quad = quad.sinh_transform(quad.gaussxw(n_rho), -1, eps)
     theta_quad = quad.gaussxw(n_theta)
     # theta_quad = quad.gaussxw(n_theta)
@@ -40,53 +44,17 @@ def coincident_quad(eps, n_outer_sing, n_outer_smooth, n_theta, n_rho):
             pts.extend([(ox, oy, x, y) for x,y in zip(xs, ys)])
             wts.extend(wxy * wr * wt * jacobian)
 
-    def obsyhat_integral(desc, ox, wx):
-        q = quad.map_to(desc[4], [0, 1 - ox])
-        for oy, wy in zip(*q):
-            inner_integral(ox, oy, wx * wy, desc)
+    def outer_integral(desc):
+        for pt, wt in zip(*outer_quad):
+            inner_integral(pt[0], pt[1], wt, desc)
 
-    def obsxhat_integral(desc):
-        q = quad.map_to(desc[3], [0, 1])
-        for ox, wx in zip(*q):
-            obsyhat_integral(desc, ox, wx)
-
-    def I1():
-        desc = (
-            rho_lims[0],
-            lambda x, y: theta_lims[2](x, y) - 2 * np.pi,
-            theta_lims[0]
-        )
-        q_beta = quad.map_to(outer_smooth_quad, [0, np.pi / 2])
-        for b, wb in zip(*q_beta):
-            alpha_max = 1.0 / (np.cos(b) + np.sin(b))
-            q_alpha = quad.map_to(outer_sing_quad1, [0, alpha_max])
-            for a, wa in zip(*q_alpha):
-                ox = a * np.cos(b)
-                oy = a * np.sin(b)
-                inner_integral(ox, oy, wa * wb * a, desc)
-
-    def I2():
-        obsxhat_integral((
-            rho_lims[1],
-            theta_lims[0],
-            theta_lims[1],
-            outer_sing_quad23,
-            outer_smooth_quad,
-        ))
-
-    def I3():
-        obsxhat_integral((
-            rho_lims[2],
-            theta_lims[1],
-            theta_lims[2],
-            outer_smooth_quad,
-            outer_sing_quad23,
-        ))
-
-    I1()
-    I2()
-    I3()
-
+    outer_integral((
+        rho_lims[0],
+        lambda x, y: theta_lims[2](x, y) - 2 * np.pi,
+        theta_lims[0]
+    ))
+    outer_integral((rho_lims[1], theta_lims[0], theta_lims[1]))
+    outer_integral((rho_lims[2], theta_lims[1], theta_lims[2]))
     return np.array(pts), np.array(wts)
 
 def edge_adj_quad(eps, n_x, n_theta, n_beta, n_alpha, basis_cancellation):

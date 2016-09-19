@@ -8,7 +8,6 @@ import scipy.spatial
 import tectosaur.mesh as mesh
 from tectosaur.sparse_integral_op import SparseIntegralOp, FMMIntegralOp
 from tectosaur.dense_integral_op import DenseIntegralOp
-from tectosaur.dense_taylor_integral_op import DenseTaylorIntegralOp
 
 from solve import iterative_solve, direct_solve
 import tectosaur.constraints as constraints
@@ -30,8 +29,8 @@ def build_constraints(surface_tris, fault_tris, pts):
     return cs
 
 def refined_free_surface():
-    w = 20
-    minsize = 0.02
+    w = 5
+    minsize = 0.1
     slope = 200
     maxsize = 25
     pts = np.array([[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])

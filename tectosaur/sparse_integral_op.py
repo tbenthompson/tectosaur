@@ -227,8 +227,8 @@ class FMMIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris):
         self.nearfield = NearfieldIntegralOp(
-            eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, sm, pr, pts, tris
+            eps, nq_near, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
+            nq_far, near_threshold, sm, pr, pts, tris
         )
 
         far_quad2d = gauss2d_tri(nq_far)
