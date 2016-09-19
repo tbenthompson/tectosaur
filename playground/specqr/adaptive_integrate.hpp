@@ -251,6 +251,10 @@ std::array<double,3> sub(std::array<double,3> x, std::array<double,3> y) {
     return {x[0] - y[0], x[1] - y[1], x[2] - y[2]};
 }
 
+double dot(std::array<double,3> x, std::array<double,3> y) {
+    return x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+}
+
 std::array<double,3> get_unscaled_normal(std::array<std::array<double,3>,3> tri) {
     return cross(sub(tri[2], tri[0]), sub(tri[2], tri[1]));
 }
@@ -263,9 +267,9 @@ std::array<double,3> ref_to_real(
     double xhat, double yhat, std::array<std::array<double,3>,3> tri) 
 {
     return {
-        basiseval(xhat, yhat, {tri[0][0], tri[1][0], tri[2][0]}),
-        basiseval(xhat, yhat, {tri[0][1], tri[1][1], tri[2][1]}),
-        basiseval(xhat, yhat, {tri[0][2], tri[1][2], tri[2][2]})
+        dot(basis(xhat, yhat), {tri[0][0], tri[1][0], tri[2][0]}),
+        dot(basis(xhat, yhat), {tri[0][1], tri[1][1], tri[2][1]}),
+        dot(basis(xhat, yhat), {tri[0][2], tri[1][2], tri[2][2]})
     };
 }
 
@@ -313,15 +317,16 @@ int f(unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval)
 
     auto obsn = get_unscaled_normal(d.obs_tri);
     auto obsnL = magnitude(obsn);
+    jacobian *= obsnL;
     auto inv_obsnL = 1.0 / obsnL;
     double nx = obsn[0] * inv_obsnL;
     double ny = obsn[1] * inv_obsnL;
     double nz = obsn[2] * inv_obsnL;
 
-    auto inv_sqrt_obsnL = sqrt(inv_obsnL);
-    xx -= d.eps * nx;
-    xy -= d.eps * ny;
-    xz -= d.eps * nz;
+    auto sqrt_obsnL = sqrt(obsnL);
+    xx -= d.eps * nx * sqrt_obsnL;
+    xy -= d.eps * ny * sqrt_obsnL;
+    xz -= d.eps * nz * sqrt_obsnL;
 
     auto srcpt = ref_to_real(srcxhat, srcyhat, d.src_tri);
     double yx = srcpt[0];
@@ -330,6 +335,7 @@ int f(unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval)
 
     auto srcn = get_unscaled_normal(d.src_tri);
     auto srcnL = magnitude(srcn);
+    jacobian *= srcnL;
     double lx = srcn[0] / srcnL;
     double ly = srcn[1] / srcnL;
     double lz = srcn[2] / srcnL;

@@ -78,9 +78,14 @@ def rotate2_to_xyplane(tri):
     xaxis = np.array([1, 0, 0])
     yaxis = np.array([0, 1, 0])
     ydot2 = yaxis[1:].dot(tri[2][1:]) / np.linalg.norm(tri[2][1:])
-    theta = -np.arccos(ydot2)
+    theta = np.arccos(ydot2)
     rot_mat = rotation_matrix(xaxis, theta)
-    return rot_mat.dot(tri.T).T, rot_mat
+    out_tri = rot_mat.dot(tri.T).T
+    if np.abs(out_tri[2][2]) > 1e-10:
+        theta = -np.arccos(ydot2)
+        rot_mat = rotation_matrix(xaxis, theta)
+        out_tri = rot_mat.dot(tri.T).T
+    return out_tri, rot_mat
 
 def scale(tri):
     return tri / tri[1][0], 1.0 / tri[1][0]
@@ -127,6 +132,7 @@ def standardize(tri):
     trans = translate(relabeled)
     rot1, rot_mat1 = rotate1_to_xaxis(trans)
     rot2, rot_mat2 = rotate2_to_xyplane(rot1)
+    np.testing.assert_almost_equal(0, rot2[2][2])
     sc, factor = scale(rot2)
     if check_bad_tri(sc, 20) > 0:
         raise Exception("Bad tri!")
