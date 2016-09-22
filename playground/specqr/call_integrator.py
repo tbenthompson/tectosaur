@@ -68,43 +68,49 @@ def calc(k_name, tri, tol, start_eps, eps_step, n_steps, sm, pr):
     if n_steps > 1:
         return richardson_limit(eps_step, vals)
     else:
-        return vals
+        return vals[0]
 
 # These A, B limits come from ablims.py
 minlegalA = 0.0939060848748 - 0.01
 minlegalB = 0.233648154379 - 0.01
 maxlegalB = 0.865565992417 + 0.01
 
-tol = 0.01
-eps_start = 0.01
+# tol = 0.0001
+# eps_start = 0.01
+# eps_step = 2.0
+# n_steps = 6
+# K = "U"
+
+tol = 0.0001
+eps_start = 0.0001
 eps_step = 2.0
-n_steps = 4
-pr = 0.25
-sm = 1.0
+n_steps = 3
 K = "H"
 
-def AB_val(Ahat, Bhat):
-    A = to_interval(minlegalA, 0.49, Ahat)
+def AB_val(Ahat, Bhat, prhat):
+    A = to_interval(minlegalA, 0.499999, Ahat)
     B = to_interval(minlegalB, maxlegalB, Bhat)
-    print(A,B)
+    pr = to_interval(0.0, 0.5, prhat)
+    print("starting: " + str((A,B)))
     res = calc(
         K, [[0,0,0],[1,0,0],[A,B,0.0]], tol, eps_start, eps_step, n_steps, 1.0, pr
     )
+    print("finished: " + str((A,B)))
     return res
 
 def calc_entry(pt):
     #TODO: Why does the integration slow to a crawl with A = 0.5?
-    return AB_val(pt[0], pt[1])
+    return AB_val(pt[0], pt[1], pt[2])
 
 
 def test_interpolation(input):
     np.random.seed()
     idx, vals, pts, wts = input
-    Ahat, Bhat = np.random.rand(2) * 2 - 1
-    res = AB_val(Ahat, Bhat)
+    Ahat, Bhat, prhat = np.random.rand(3) * 2 - 1
+    res = AB_val(Ahat, Bhat, prhat)
     worst = 0.0
     for i in range(81):
-        correct = barycentric_evalnd(pts, wts, vals[:,i], np.array([[Ahat,Bhat]]))[0]
+        correct = barycentric_evalnd(pts, wts, vals[:,i], np.array([[Ahat,Bhat,prhat]]))[0]
         if correct < 1e-5:
             continue
         est = res[i]
@@ -114,39 +120,43 @@ def test_interpolation(input):
     return worst
 
 def test_convergence():
-    tri = [[0,0,0],[1,0,0],[0.4,0.5,0]]
+    tri = [[0,0,0],[1,0,0],[0.4999999,0.5,0]]
     # print(adaptive_integrator.integrate("U", tri, 0.01, 0.01, 1.0, 0.25))
-    # res = calc(
-    #     "U", tri, 1e-5, 0, 2.0, 1, 1.0, 0.25
-    # )
+    res = calc(
+        "U", tri, 1e-5, 0, 2.0, 1, 1.0, 0.25
+    )
+    print(res[0])
     # res = calc(
     #     "T", tri, 1e-3, 1e-2, 2.0, 8, 1.0, 0.25
     # )
-    res = calc(
-        "T", tri, 1e-4, 1e-6, 2.0, 2, 1.0, 0.25
-    )
-    print(res[0])
-    print("NEXT")
-    res = calc(
-        "T", tri, 1e-4, 1e-7, 2.0, 2, 1.0, 0.25
-    )
-    print(res[0])
+    # res = calc(
+    #     "T", tri, 1e-4, 1e-6, 2.0, 2, 1.0, 0.25
+    # )
+    # print(res[0])
+    # print("NEXT")
+    # res = calc(
+    #     "T", tri, 1e-4, 1e-7, 2.0, 2, 1.0, 0.25
+    # )
+    # print(res[0])
 
 def build_test_table():
     # n_A = n_B = 8 seems sufficient
-    n_A = 3
-    n_B = 3
+    n_A = 8
+    n_B = 8
+    n_pr = 8
     Ahats = cheblob(-1, 1, n_A)#minlegalA, 0.5, n_A)
     Bhats = cheblob(-1, 1, n_B)#minlegalB, maxlegalB, n_B)
-    Ah,Bh = np.meshgrid(Ahats, Bhats)
-    pts = np.array([Ah.ravel(),Bh.ravel()]).T
+    prhats = cheblob(-1, 1, n_pr)
+    Ah,Bh,Nh = np.meshgrid(Ahats, Bhats,prhats)
+    pts = np.array([Ah.ravel(),Bh.ravel(), Nh.ravel()]).T
 
     Awts = cheblob_wts(-1,1,n_A)
     Bwts = cheblob_wts(-1,1,n_B)
-    wts = np.outer(Bwts,Awts).ravel()
+    prwts = cheblob_wts(-1,1,n_pr)
+    wts = np.outer(Awts,np.outer(Bwts,prwts)).ravel()
 
     load = False
-    filename =  str(n_A) + 'x' + str(n_B) + 'ABinterptable.npy'
+    filename =  str(n_A) + '_' + K + 'k_ABinterptable.npy'
     pool = multiprocessing.Pool()
 
     if not load:
@@ -174,6 +184,8 @@ def build_test_table():
     print(worst)
 
 def test_rotation():
+    sm = 1.0
+
     def test_tri(tri):
         standard_tri, labels, R, factor = standardize.standardize(np.array(tri))
         np.testing.assert_almost_equal(
