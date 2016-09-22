@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt
 import cppimport
 adaptive_integrator = cppimport.imp('adaptive_integrator')
 
-from interpolate import cheblob, cheblob_wts, barycentric_evalnd, to_interval
+from interpolate import cheb, cheb_wts, barycentric_evalnd, to_interval
 import standardize
 
 def richardson_limit(step_ratio, values):
@@ -88,7 +88,7 @@ n_steps = 3
 K = "H"
 
 def AB_val(Ahat, Bhat, prhat):
-    A = to_interval(minlegalA, 0.499999, Ahat)
+    A = to_interval(minlegalA, 0.5, Ahat)
     B = to_interval(minlegalB, maxlegalB, Bhat)
     pr = to_interval(0.0, 0.5, prhat)
     print("starting: " + str((A,B)))
@@ -120,10 +120,10 @@ def test_interpolation(input):
     return worst
 
 def test_convergence():
-    tri = [[0,0,0],[1,0,0],[0.4999999,0.5,0]]
+    tri = [[0,0,0],[1,0,0],[0.5,0.5,0]]
     # print(adaptive_integrator.integrate("U", tri, 0.01, 0.01, 1.0, 0.25))
     res = calc(
-        "U", tri, 1e-5, 0, 2.0, 1, 1.0, 0.25
+        "U", tri, 10.0, 1.0, 2.0, 6, 1.0, 0.25
     )
     print(res[0])
     # res = calc(
@@ -144,15 +144,15 @@ def build_test_table():
     n_A = 8
     n_B = 8
     n_pr = 8
-    Ahats = cheblob(-1, 1, n_A)#minlegalA, 0.5, n_A)
-    Bhats = cheblob(-1, 1, n_B)#minlegalB, maxlegalB, n_B)
-    prhats = cheblob(-1, 1, n_pr)
+    Ahats = cheb(-1, 1, n_A)#minlegalA, 0.5, n_A)
+    Bhats = cheb(-1, 1, n_B)#minlegalB, maxlegalB, n_B)
+    prhats = cheb(-1, 1, n_pr)
     Ah,Bh,Nh = np.meshgrid(Ahats, Bhats,prhats)
     pts = np.array([Ah.ravel(),Bh.ravel(), Nh.ravel()]).T
 
-    Awts = cheblob_wts(-1,1,n_A)
-    Bwts = cheblob_wts(-1,1,n_B)
-    prwts = cheblob_wts(-1,1,n_pr)
+    Awts = cheb_wts(-1,1,n_A)
+    Bwts = cheb_wts(-1,1,n_B)
+    prwts = cheb_wts(-1,1,n_pr)
     wts = np.outer(Awts,np.outer(Bwts,prwts)).ravel()
 
     load = False
@@ -240,8 +240,8 @@ def test_rotation():
             break
 
 def main():
-    # test_convergence()
-    build_test_table()
+    test_convergence()
+    # build_test_table()
     # test_rotation()
 
 

@@ -346,6 +346,7 @@ int f(unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval)
     double Dz = yz - xz;
 
     auto K = d.K(d, Dx, Dy, Dz, nx, ny, nz, lx, ly, lz);
+    // std::cout << x[0] << " " << x[1] << " " << x[2] << " " << x[3] << std::endl;
 
     auto obsbasis = basis(obsxhat, obsyhat);
     auto srcbasis = basis(srcxhat, srcyhat);

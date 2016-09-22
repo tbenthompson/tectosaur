@@ -10,6 +10,10 @@ def cheb(a, b, n):
         out.append(to_interval(a, b, np.cos(((2 * i + 1) * np.pi) / (2 * n))))
     return out
 
+def cheb_wts(a, b, n):
+    j = np.arange(n)
+    return ((-1) ** j) * np.sin(((2 * j + 1) * np.pi) / (2 * n))
+
 def cheblob(a, b, n):
     out = []
     for i in range(n):
@@ -50,15 +54,15 @@ def barycentric_evalnd(pts, wts, vals, xhat):
     return interp_vals
 
 def test_barycentric_interp():
-    pts = cheblob(-1,1,5)
-    wts = cheblob_wts(-1,1,5)
+    pts = cheb(-1,1,5)
+    wts = cheb_wts(-1,1,5)
     vals = [0,1,0,1,0]
     xs = np.linspace(-1,1,100)
     interp_vals = [barycentric_eval(pts, wts, vals, x) for x in xs]
-    np.testing.assert_almost_equal(interp_vals[3], 0.41489441539529159)
-    # plt.plot(pts, vals, 'o')
-    # plt.plot(xs, interp_vals)
-    # plt.show()
+    import matplotlib.pyplot as plt
+    plt.plot(pts, vals, 'o')
+    plt.plot(xs, interp_vals)
+    plt.show()
 
 def test_barycentric_interp2d():
     import matplotlib.pyplot as plt
@@ -86,11 +90,11 @@ def test_barycentric_interp2d():
 
 def test_barycentric_interp3d():
     import matplotlib.pyplot as plt
-    for N in range(5,11,2):
-        pts1d = cheblob(-1,1,N)
+    for N in range(5,18,2):
+        pts1d = cheb(-1,1,N)
         X,Y,Z = np.meshgrid(pts1d, pts1d, pts1d)
         pts = np.array([X.ravel(), Y.ravel(), Z.ravel()]).T
-        wts1d = cheblob_wts(-1,1,N)
+        wts1d = cheb_wts(-1,1,N)
         wts = np.outer(wts1d, np.outer(wts1d, wts1d)).ravel()
 
         f = lambda xs: np.sin(xs[:,0] ** 3 - xs[:,1] * xs[:,2])
@@ -106,6 +110,7 @@ def test_barycentric_interp3d():
 
     import ipdb; ipdb.set_trace()
 
-# test_barycentric_interp()
-# test_barycentric_interp2d()
-# test_barycentric_interp3d()
+if __name__ == '__main__':
+    # test_barycentric_interp()
+    # test_barycentric_interp2d()
+    test_barycentric_interp3d()
