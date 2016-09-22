@@ -359,13 +359,27 @@ int f(unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval)
     return 0; 
 }
 
+// void try_integrate_log() {
+//     double val2[1],err2[1];
+//     auto f2 = [] (unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval) {
+//         fval[0] = std::log(x[0]);
+//         return 0;
+//     };
+//     const double xmin2[1] = {0};
+//     const double xmax2[1] = {1};
+//     hcubature(1, f2, nullptr, 1, xmin2, xmax2, 0, 0, 1e-4, ERROR_INDIVIDUAL, val2, err2);
+//     std::cout << val2[0] << " " << err2[0] << std::endl;
+// }
+
 std::array<double,81> integrate(Data& d) {
     d.evals = 0;
     std::array<double,81> sum{};
 
+
     for (int b1 = 0; b1 < 3; b1++) {
         for (int b2 = 0; b2 < 3; b2++) {
             for (int piece = 0; piece < 3; piece++) {
+                // std::cout << piece << " " << b1 << " " << b2 << std::endl;
                 d.set_piece(piece);
                 d.set_basis(b1, b2);
                 const double xmin[4] = {0,0,0,0};

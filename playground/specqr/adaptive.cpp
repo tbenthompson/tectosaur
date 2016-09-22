@@ -1,5 +1,5 @@
-#include "adaptive_integrate.hpp"
 #include <iostream>
+#include "adaptive_integrate.hpp"
 
 /* Chebyshev nodes in the [a,b] interval. Good for interpolation. Avoids Runge
  * phenomenon. 
@@ -106,7 +106,7 @@ int main() {
     // check("H");
     // limitU();
 
-    Data d(1e-2, false, Ukernel, Tri{{{0,0,0},{1,0,0},{0,1,0}}}, 0.01, 1.0, 0.25);
+    Data d(1e-2, false, Ukernel, Tri{{{0,0,0},{1,0,0},{0.4,0.5,0}}}, 0.01, 1.0, 0.25);
     auto I = integrate(d);
     std::cout << I[0] << std::endl;
 }
