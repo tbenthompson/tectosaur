@@ -16,15 +16,19 @@ PYBIND11_PLUGIN(adaptive_integrate) {
 
     m.def("integrate",
         [] (std::string k_name, std::array<std::array<double,3>,3> tri,
-            double tol, double eps, double sm, double pr, std::vector<double> rho_hats,
-            std::vector<double> rho_wts) 
+            double tol, double eps, double sm, double pr,
+            std::vector<double> rho_hats, std::vector<double> rho_wts,
+            std::vector<double> theta_hats, std::vector<double> theta_wts) 
         {
             std::map<std::string,Kernel> Ks;
             Ks["U"] = Ukernel;
             Ks["T"] = Tkernel;
             Ks["A"] = Akernel;
             Ks["H"] = Hkernel;
-            Data d(tol, false, Ks[k_name], tri, eps, sm, pr, rho_hats, rho_wts);
+            Data d(
+                tol, false, Ks[k_name], tri, eps, sm, pr,
+                rho_hats, rho_wts, theta_hats, theta_wts
+            );
             auto result = integrate(d);
             return result;
         }

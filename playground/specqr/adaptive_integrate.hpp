@@ -52,6 +52,8 @@ struct Data {
 
     std::vector<double> rho_hats;
     std::vector<double> rho_wts;
+    std::vector<double> theta_hats;
+    std::vector<double> theta_wts;
 
     int evals;
     std::function<double(double,double)> theta_low;
@@ -74,12 +76,15 @@ struct Data {
 
     Data(double tol, bool p, Kernel K, 
             std::array<std::array<double,3>,3> tri, double eps, double G, double nu,
-            std::vector<double> rho_hats, std::vector<double> rho_wts):
+            std::vector<double> rho_hats, std::vector<double> rho_wts,
+            std::vector<double> theta_hats, std::vector<double> theta_wts):
         tol(tol),
         p(p),
         K(K),
         rho_hats(rho_hats),
         rho_wts(rho_wts),
+        theta_hats(theta_hats),
+        theta_wts(theta_wts),
         obs_tri(tri),
         src_tri(tri),
         eps(eps),
@@ -346,57 +351,47 @@ int f(unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval)
     double obsxhat = x[0];
     double obsyhat = x[1] * (1 - obsxhat);
 
-    double thetahat = x[2];
-    double thetalow = d.theta_low(obsxhat, obsyhat);
-    double thetahigh = d.theta_high(obsxhat, obsyhat);
-    double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
+    for (size_t ti = 0; ti < d.theta_hats.size(); ti++) {
+        double thetahat = (d.theta_hats[ti] + 1.0) / 2.0;
+        double thetalow = d.theta_low(obsxhat, obsyhat);
+        double thetahigh = d.theta_high(obsxhat, obsyhat);
+        double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
+        double theta_jacobian = 0.5 * d.theta_wts[ti] * (thetahigh - thetalow) * (1 - obsxhat);
 
-    for (size_t ri = 0; ri < d.rho_hats.size(); ri++) {
-        double rhohat = (d.rho_hats[ri] + 1) / 2.0;
-        double jacobian = d.rho_wts[ri] * (1 - obsxhat) * (thetahigh - thetalow) * 0.5;
+        for (size_t ri = 0; ri < d.rho_hats.size(); ri++) {
+            double rhohat = (d.rho_hats[ri] + 1.0) / 2.0;
+            double jacobian = theta_jacobian * d.rho_wts[ri] * 0.5;
 
-        double rhohigh = d.rhohigh(obsxhat, obsyhat, theta);
-        double rho = rhohat * rhohigh;
-        jacobian *= rho * rhohigh;
+            double rhohigh = d.rhohigh(obsxhat, obsyhat, theta);
+            double rho = rhohat * rhohigh;
+            jacobian *= rho * rhohigh;
 
-        double srcxhat = obsxhat + rho * cos(theta);
-        double srcyhat = obsyhat + rho * sin(theta);
+            double srcxhat = obsxhat + rho * cos(theta);
+            double srcyhat = obsyhat + rho * sin(theta);
 
-        auto out = bem_integrand(d, obsxhat, obsyhat, srcxhat, srcyhat);
-        for (int i = 0; i < 9; i++) {
-            assert(fdim == 9);
-            fval[i] += jacobian * out[i];
+            auto out = bem_integrand(d, obsxhat, obsyhat, srcxhat, srcyhat);
+            for (int i = 0; i < 9; i++) {
+                fval[i] += jacobian * out[i];
+            }
         }
     }
 
     return 0; 
 }
 
-// void try_integrate_log() {
-//     double val2[1],err2[1];
-//     auto f2 = [] (unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval) {
-//         fval[0] = std::log(x[0]);
-//         return 0;
-//     };
-//     const double xmin2[1] = {0};
-//     const double xmax2[1] = {1};
-//     hcubature(1, f2, nullptr, 1, xmin2, xmax2, 0, 0, 1e-4, ERROR_INDIVIDUAL, val2, err2);
-//     std::cout << val2[0] << " " << err2[0] << std::endl;
-// }
-
 std::array<double,81> integrate(Data& d) {
     d.evals = 0;
     std::array<double,81> sum{};
 
 
-    for (int b1 = 0; b1 < 3; b1++) {
-        for (int b2 = 0; b2 < 3; b2++) {
+    for (int b1 = 0; b1 < 1; b1++) {
+        for (int b2 = 0; b2 < 1; b2++) {
             for (int piece = 0; piece < 3; piece++) {
                 std::cout << piece << " " << b1 << " " << b2 << std::endl;
                 d.set_piece(piece);
                 d.set_basis(b1, b2);
-                const double xmin[3] = {0,0,0};
-                const double xmax[3] = {1,1,1};
+                const double xmin[2] = {0,0};
+                const double xmax[2] = {1,1};
                 double val[81], err[81];
                 d.timer.start();
                 decltype(&pcubature) integrator;
@@ -405,7 +400,7 @@ std::array<double,81> integrate(Data& d) {
                 } else {
                     integrator = &hcubature;
                 }
-                integrator(9, f, &d, 3, xmin, xmax, 0, 0, d.tol, ERROR_INDIVIDUAL, val, err);
+                integrator(9, f, &d, 2, xmin, xmax, 0, 0, d.tol, ERROR_INDIVIDUAL, val, err);
                 d.timer.stop();
                 for (int d1 = 0; d1 < 3; d1++) {
                     for (int d2 = 0; d2 < 3; d2++) {

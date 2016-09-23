@@ -58,10 +58,13 @@ def richardson_limit(step_ratio, values):
 def calc(k_name, tri, tol, start_eps, eps_step, n_steps, sm, pr):
     eps = start_eps
     vals = []
+    theta_q = quad.gaussxw(50)
     for i in range(n_steps):
         rho_q = quad.sinh_transform(quad.gaussxw(80), -1, eps)
         res = np.array(adaptive_integrate.integrate(
-            k_name, tri, tol, eps, sm, pr, rho_q[0].tolist(), rho_q[1].tolist()
+            k_name, tri, tol, eps, sm, pr,
+            rho_q[0].tolist(), rho_q[1].tolist(),
+            theta_q[0].tolist(), theta_q[1].tolist()
         ))
         vals.append(res)
         eps /= eps_step
