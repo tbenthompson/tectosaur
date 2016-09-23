@@ -392,7 +392,7 @@ std::array<double,81> integrate(Data& d) {
     for (int b1 = 0; b1 < 3; b1++) {
         for (int b2 = 0; b2 < 3; b2++) {
             for (int piece = 0; piece < 3; piece++) {
-                // std::cout << piece << " " << b1 << " " << b2 << std::endl;
+                std::cout << piece << " " << b1 << " " << b2 << std::endl;
                 d.set_piece(piece);
                 d.set_basis(b1, b2);
                 const double xmin[3] = {0,0,0};

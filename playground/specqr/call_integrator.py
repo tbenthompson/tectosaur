@@ -59,7 +59,7 @@ def calc(k_name, tri, tol, start_eps, eps_step, n_steps, sm, pr):
     eps = start_eps
     vals = []
     for i in range(n_steps):
-        rho_q = quad.sinh_transform(quad.gaussxw(15), -1, eps)
+        rho_q = quad.sinh_transform(quad.gaussxw(80), -1, eps)
         res = np.array(adaptive_integrate.integrate(
             k_name, tri, tol, eps, sm, pr, rho_q[0].tolist(), rho_q[1].tolist()
         ))
@@ -122,10 +122,10 @@ def test_interpolation(input):
     return worst
 
 def test_convergence():
-    tri = [[0,0,0],[1,0,0],[0.49,0.5,0]]
+    tri = [[0,0,0],[1,0,0],[0.496,0.5,0]]
     # print(adaptive_integrate.integrate("U", tri, 0.01, 0.01, 1.0, 0.25))
     res = calc(
-        "U", tri, 0.1, 0.01, 2.0, 6, 1.0, 0.25
+        "H", tri, 0.0001, 0.0001, 2.0, 3, 1.0, 0.25
     )
     print(res[0])
     # res = calc(
