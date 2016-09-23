@@ -32,10 +32,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import cppimport
-adaptive_integrator = cppimport.imp('adaptive_integrator')
+adaptive_integrate = cppimport.imp('adaptive_integrate')
 
 from interpolate import cheb, cheb_wts, barycentric_evalnd, to_interval
 import standardize
+import tectosaur.quadrature as quad
 
 def richardson_limit(step_ratio, values):
     n_steps = len(values)
@@ -58,7 +59,10 @@ def calc(k_name, tri, tol, start_eps, eps_step, n_steps, sm, pr):
     eps = start_eps
     vals = []
     for i in range(n_steps):
-        res = np.array(adaptive_integrator.integrate(k_name, tri, tol, eps, sm, pr))
+        rho_q = quad.sinh_transform(quad.gaussxw(15), -1, eps)
+        res = np.array(adaptive_integrate.integrate(
+            k_name, tri, tol, eps, sm, pr, rho_q[0].tolist(), rho_q[1].tolist()
+        ))
         vals.append(res)
         eps /= eps_step
         # if i > 0:
@@ -99,9 +103,7 @@ def AB_val(Ahat, Bhat, prhat):
     return res
 
 def calc_entry(pt):
-    #TODO: Why does the integration slow to a crawl with A = 0.5?
     return AB_val(pt[0], pt[1], pt[2])
-
 
 def test_interpolation(input):
     np.random.seed()
@@ -120,10 +122,10 @@ def test_interpolation(input):
     return worst
 
 def test_convergence():
-    tri = [[0,0,0],[1,0,0],[0.5,0.5,0]]
-    # print(adaptive_integrator.integrate("U", tri, 0.01, 0.01, 1.0, 0.25))
+    tri = [[0,0,0],[1,0,0],[0.49,0.5,0]]
+    # print(adaptive_integrate.integrate("U", tri, 0.01, 0.01, 1.0, 0.25))
     res = calc(
-        "U", tri, 10.0, 1.0, 2.0, 6, 1.0, 0.25
+        "U", tri, 0.1, 0.01, 2.0, 6, 1.0, 0.25
     )
     print(res[0])
     # res = calc(

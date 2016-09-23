@@ -50,6 +50,9 @@ struct Data {
     int b1; 
     int b2;
 
+    std::vector<double> rho_hats;
+    std::vector<double> rho_wts;
+
     int evals;
     std::function<double(double,double)> theta_low;
     std::function<double(double,double)> theta_high;
@@ -70,10 +73,13 @@ struct Data {
     Timer timer;
 
     Data(double tol, bool p, Kernel K, 
-            std::array<std::array<double,3>,3> tri, double eps, double G, double nu):
+            std::array<std::array<double,3>,3> tri, double eps, double G, double nu,
+            std::vector<double> rho_hats, std::vector<double> rho_wts):
         tol(tol),
         p(p),
         K(K),
+        rho_hats(rho_hats),
+        rho_wts(rho_wts),
         obs_tri(tri),
         src_tri(tri),
         eps(eps),
@@ -273,43 +279,10 @@ std::array<double,3> ref_to_real(
     };
 }
 
-void all_zeros(double* fval) {
-    for (int idx = 0; idx < 81; idx++) {
-        fval[idx] = 0.0;
-    }
-}
-
-int f(unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval) 
+std::array<double,9> bem_integrand(Data& d, double obsxhat, double obsyhat,
+    double srcxhat, double srcyhat) 
 {
-    Data& d = *reinterpret_cast<Data*>(fdata);
-    d.evals += 1;
-
-    // std::cout << d.evals << " " << npts << std::endl;
-    double obsxhat = x[0];
-    double obsyhat = x[1] * (1 - obsxhat);
-    double jacobian = 1 - obsxhat;
-
-    double thetahat = x[2];
-    double thetalow = d.theta_low(obsxhat, obsyhat);
-    double thetahigh = d.theta_high(obsxhat, obsyhat);
-    double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
-    if (std::isnan(theta)) { 
-        // this is necessary to handle the interval endpoints used by pcubature
-        all_zeros(fval);
-        return 0; 
-    }
-    jacobian *= thetahigh - thetalow;
-
-    // tried a sinh transform here and it doesn't work well
-    double rhohat = x[3];
-
-    double rhohigh = d.rhohigh(obsxhat, obsyhat, theta);
-    double rho = rhohat * rhohigh;
-    jacobian *= rho * rhohigh;
-
-    double srcxhat = obsxhat + rho * cos(theta);
-    double srcyhat = obsyhat + rho * sin(theta);
-
+    double jacobian = 1.0;
     auto obspt = ref_to_real(obsxhat, obsyhat, d.obs_tri);
     double xx = obspt[0];
     double xy = obspt[1];
@@ -346,17 +319,56 @@ int f(unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval)
     double Dz = yz - xz;
 
     auto K = d.K(d, Dx, Dy, Dz, nx, ny, nz, lx, ly, lz);
-    // std::cout << x[0] << " " << x[1] << " " << x[2] << " " << x[3] << std::endl;
 
     auto obsbasis = basis(obsxhat, obsyhat);
     auto srcbasis = basis(srcxhat, srcyhat);
 
     auto basisprod = obsbasis[d.b1] * srcbasis[d.b2];
+    std::array<double,9> out;
     for (int d1 = 0; d1 < 3; d1++) {
         for (int d2 = 0; d2 < 3; d2++) {
-            fval[d1 * 3 + d2] = K[d1][d2] * basisprod * jacobian;
+            out[d1 * 3 + d2] = K[d1][d2] * basisprod * jacobian;
         }
     }
+    return out;
+}
+
+int f(unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval) 
+{
+    Data& d = *reinterpret_cast<Data*>(fdata);
+    d.evals += 1;
+    
+    for (int idx = 0; idx < 9; idx++) {
+        fval[idx] = 0.0;
+    }
+
+    // std::cout << d.evals << " " << npts << std::endl;
+    double obsxhat = x[0];
+    double obsyhat = x[1] * (1 - obsxhat);
+
+    double thetahat = x[2];
+    double thetalow = d.theta_low(obsxhat, obsyhat);
+    double thetahigh = d.theta_high(obsxhat, obsyhat);
+    double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
+
+    for (size_t ri = 0; ri < d.rho_hats.size(); ri++) {
+        double rhohat = (d.rho_hats[ri] + 1) / 2.0;
+        double jacobian = d.rho_wts[ri] * (1 - obsxhat) * (thetahigh - thetalow) * 0.5;
+
+        double rhohigh = d.rhohigh(obsxhat, obsyhat, theta);
+        double rho = rhohat * rhohigh;
+        jacobian *= rho * rhohigh;
+
+        double srcxhat = obsxhat + rho * cos(theta);
+        double srcyhat = obsyhat + rho * sin(theta);
+
+        auto out = bem_integrand(d, obsxhat, obsyhat, srcxhat, srcyhat);
+        for (int i = 0; i < 9; i++) {
+            assert(fdim == 9);
+            fval[i] += jacobian * out[i];
+        }
+    }
+
     return 0; 
 }
 
@@ -383,8 +395,8 @@ std::array<double,81> integrate(Data& d) {
                 // std::cout << piece << " " << b1 << " " << b2 << std::endl;
                 d.set_piece(piece);
                 d.set_basis(b1, b2);
-                const double xmin[4] = {0,0,0,0};
-                const double xmax[4] = {1,1,1,1};
+                const double xmin[3] = {0,0,0};
+                const double xmax[3] = {1,1,1};
                 double val[81], err[81];
                 d.timer.start();
                 decltype(&pcubature) integrator;
@@ -393,7 +405,7 @@ std::array<double,81> integrate(Data& d) {
                 } else {
                     integrator = &hcubature;
                 }
-                integrator(9, f, &d, 4, xmin, xmax, 0, 0, d.tol, ERROR_INDIVIDUAL, val, err);
+                integrator(9, f, &d, 3, xmin, xmax, 0, 0, d.tol, ERROR_INDIVIDUAL, val, err);
                 d.timer.stop();
                 for (int d1 = 0; d1 < 3; d1++) {
                     for (int d2 = 0; d2 < 3; d2++) {

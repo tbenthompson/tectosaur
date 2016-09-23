@@ -11,19 +11,20 @@ cfg['dependencies'] = ['adaptive_integrate.hpp']
 
 namespace py = pybind11;
 
-PYBIND11_PLUGIN(adaptive_integrator) {
-    py::module m("adaptive_integrator");
+PYBIND11_PLUGIN(adaptive_integrate) {
+    py::module m("adaptive_integrate");
 
     m.def("integrate",
         [] (std::string k_name, std::array<std::array<double,3>,3> tri,
-            double tol, double eps, double sm, double pr) 
+            double tol, double eps, double sm, double pr, std::vector<double> rho_hats,
+            std::vector<double> rho_wts) 
         {
             std::map<std::string,Kernel> Ks;
             Ks["U"] = Ukernel;
             Ks["T"] = Tkernel;
             Ks["A"] = Akernel;
             Ks["H"] = Hkernel;
-            Data d(tol, false, Ks[k_name], tri, eps, sm, pr);
+            Data d(tol, false, Ks[k_name], tri, eps, sm, pr, rho_hats, rho_wts);
             auto result = integrate(d);
             return result;
         }
