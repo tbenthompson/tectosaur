@@ -19,11 +19,16 @@ individual component so that they don't all need to take as long as the most exp
 (DONE) make sure i can get 6 digits of accuracy reasonably easily for all kernels
 (DONE) relabeling
 (DONE) write the table lookup procedure -- multidimensional barycentric lagrange interpolation
+(DONE)test the lookup by selecting random legal triangles and comparing the interpolation
+(DONE)can i explicitly model and remove the divergence? projects/archive/analytical_bem_integrals/experiments/calc_quad.py has the start of some code to do this based on a modified interpolation basis for the extrapolation process.
 
 TODO:
-can i explicitly model and remove the divergence? projects/archive/analytical_bem_integrals/experiments/calc_quad.py has the start of some code to do this based on a modified interpolation basis for the extrapolation process.
+build table for adjacent interpolation
+try nearfield point interpolation
+think about volume integrals
+try gauss for theta in coincident again?
+can i get better than ~1e-5 error?
 
-test the lookup by selecting random legal triangles and comparing the interpolation
 """
 
 import time
@@ -55,16 +60,17 @@ def richardson_limit(step_ratio, values):
         last_level = this_level
     return this_level[0]
 
-def calc(k_name, tri, tol, start_eps, eps_step, n_steps, sm, pr):
+def calc(k_name, tri, rho_order, tol, start_eps, eps_step, n_steps, sm, pr):
     eps = start_eps
     vals = []
-    theta_q = quad.gaussxw(50)
+    rho_gauss = quad.gaussxw(rho_order)
     for i in range(n_steps):
-        rho_q = quad.sinh_transform(quad.gaussxw(80), -1, eps)
-        res = np.array(adaptive_integrate.integrate(
+        # multiply eps by 2 b/c gauss quad rule is over the interval [-1, 1] whereas
+        # integration interval is [0, 1]
+        rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
+        res = np.array(adaptive_integrate.integrate_coincident(
             k_name, tri, tol, eps, sm, pr,
-            rho_q[0].tolist(), rho_q[1].tolist(),
-            theta_q[0].tolist(), theta_q[1].tolist()
+            rho_q[0].tolist(), rho_q[1].tolist()
         ))
         vals.append(res)
         eps /= eps_step
@@ -100,7 +106,7 @@ def AB_val(Ahat, Bhat, prhat):
     pr = to_interval(0.0, 0.5, prhat)
     print("starting: " + str((A,B)))
     res = calc(
-        K, [[0,0,0],[1,0,0],[A,B,0.0]], tol, eps_start, eps_step, n_steps, 1.0, pr
+        K, [[0,0,0],[1,0,0],[A,B,0.0]], rho_order, tol, eps_start, eps_step, n_steps, 1.0, pr
     )
     print("finished: " + str((A,B)))
     return res
@@ -125,22 +131,29 @@ def test_interpolation(input):
     return worst
 
 def test_convergence():
-    tri = [[0,0,0],[1,0,0],[0.496,0.5,0]]
-    # print(adaptive_integrate.integrate("U", tri, 0.01, 0.01, 1.0, 0.25))
+    tri = [[0,0,0],[1,0,0],[0.49,0.5,0]]
+    # print(adaptive_integrate.integrate_coincident("U", tri, 0.01, 0.01, 1.0, 0.25))
+    # from tectosaur.dense_integral_op import DenseIntegralOp
+    # op = DenseIntegralOp(
+    #     [0.1, 0.1 / 2, 0.1 / 4], 25, 5, 5, 5, 5, 5, "H", 1.0, 0.25,
+    #     np.array(tri), np.array([[0,1,2]])
+    # )
+    # print(op.mat[0,0])
     res = calc(
-        "H", tri, 0.0001, 0.0001, 2.0, 3, 1.0, 0.25
+        "H", tri, 80, 0.00001, 0.00001, 2.0, 3, 1.0, 0.25
     )
     print(res[0])
+    import ipdb; ipdb.set_trace()
     # res = calc(
-    #     "T", tri, 1e-3, 1e-2, 2.0, 8, 1.0, 0.25
+    #     "T", tri, 80, 1e-3, 1e-2, 2.0, 8, 1.0, 0.25
     # )
     # res = calc(
-    #     "T", tri, 1e-4, 1e-6, 2.0, 2, 1.0, 0.25
+    #     "T", tri, 80, 1e-4, 1e-6, 2.0, 2, 1.0, 0.25
     # )
     # print(res[0])
     # print("NEXT")
     # res = calc(
-    #     "T", tri, 1e-4, 1e-7, 2.0, 2, 1.0, 0.25
+    #     "T", tri, 80, 1e-4, 1e-7, 2.0, 2, 1.0, 0.25
     # )
     # print(res[0])
 
@@ -199,11 +212,11 @@ def test_rotation():
         )
 
         correct_full = calc(
-            K, tri, tol, eps_start, eps_step, n_steps, sm, pr
+            K, tri, rho_order, tol, eps_start, eps_step, n_steps, sm, pr
         ).reshape((3,3,3,3))
 
         standard_full = calc(
-            K, standard_tri.tolist(), tol, eps_start, eps_step, n_steps, 1.0, pr
+            K, standard_tri.tolist(), rho_order, tol, eps_start, eps_step, n_steps, 1.0, pr
         ).reshape((3,3,3,3))
 
         for sb1 in range(3):

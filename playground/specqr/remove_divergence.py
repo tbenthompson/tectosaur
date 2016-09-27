@@ -1,9 +1,14 @@
 import numpy as np
 import cppimport
-adaptive_integrator = cppimport.imp('adaptive_integrator')
+adaptive_integrate = cppimport.imp('adaptive_integrate')
+import tectosaur.quadrature as quad
+from coincident import richardson_limit
 
-tri = [[0,0,0],[1,0,0],[0.4,0.6,0.0]]
-tol = 1e-4
+tri1 = [[0,0,0],[1,0,0],[0,1,0.0]]
+tri2 = [[1,0,0],[0,0,0],[0,-1,0]]
+tol = 1e-6
+rho_order = 120
+rho_gauss = quad.gaussxw(rho_order)
 
 def make_terms(extrap_order):
     terms = [
@@ -14,7 +19,15 @@ def make_terms(extrap_order):
     return terms
 
 def calc_I(eps):
-    return adaptive_integrator.integrate("U", tri, tol, eps, 1.0, 0.25)[0]
+    rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
+    return adaptive_integrate.integrate_coincident(
+        "H", tri1, tol, eps, 1.0, 0.25,
+        rho_q[0].tolist(), rho_q[1].tolist()
+    )[3]
+    # return adaptive_integrate.integrate_adjacent(
+    #     "H", tri1, tri2,
+    #     tol, eps, 1.0, 0.25, rho_q[0].tolist(), rho_q[1].tolist()
+    # )[0]
 
 # for starting_eps in [0.1,0.05,0.025,0.01,0.001]:
 starting_eps = 0.1
@@ -25,8 +38,8 @@ for i in range(8):
     eps.append(eps[-1] / 2.0)
     vals.append(calc_I(eps[-1]))
 
-    terms = make_terms(i)
-    mat = [[t(e) for t in terms] for e in eps]
+    terms = make_terms(i + 1)
+    mat = [[t(e) for t in terms[:-1]] for e in eps]
     print(np.linalg.cond(mat))
     coeffs = np.linalg.solve(mat, vals)
 
@@ -34,3 +47,10 @@ for i in range(8):
     result = coeffs[1]
     print("extrap to 0: " + str(result))
 
+    mat = [[t(e) for t in terms[1:]] for e in eps]
+    print(np.linalg.cond(mat))
+    coeffs = np.linalg.solve(mat, vals)
+    print(coeffs[0])
+    print(richardson_limit(2.0, vals))
+
+correct = -0.0265258052838
