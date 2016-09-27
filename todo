@@ -1,0 +1,55 @@
+build table for adjacent interpolation
+ -- offset points need to take into account the adjacent elements and make sure there's no intersection
+try nearfield point interpolation
+think about volume integrals
+try gauss for theta in coincident again?
+can i get better than ~1e-5 error? with that error, the runtime for building the coincident table will probably be something like 12 hours on meade02.
+
+
+use FMM for okada
+-- just try it out first, make sure its accurate.
+-- condense the columns of p2m and p2l and p2p, condense rows of m2p, l2p, p2p, this should increase efficiency A LOT
+sphere test
+-- get the sphere meshing code from old 3bem stuff
+-- do two problems:
+  -- 1) impose displacement BCs and solve for traction on the boundary
+  -- 2) vice-versa
+-- interior evaluation.
+
+CODE:
+
+SCIENCE:
+fault intersecting surface -- pretty much works
+variety of boundary conditions
+gravity
+-- test the 3D kernels
+play with time stepping combined with fault friction 
+plasticity?
+
+CORRECTNESS/BLACKBOXYNESS:
+try constraining edges of okada free surface to be zero
+mostly losing accuracy from the adjacent quadrature
+if i'm still using sinh_transform, check that the b-distance(eps) is being computed properly
+
+what's needed for the triangle size ratio to be irrelevant? 
+handle eps values for which the observation point in an edge adjacent integration is on the wrong side of the source triangle
+out of proportion triangles cause pretty huge errors
+
+METHOD:
+think about cancelled singularities in the limit taking? is this possible? it would make things a lot faster
+can gauss quadrature be used for the outer observation quadrature? i don't think so, because there are still logarithmic singularities at the endpoints
+what about the taylor series stuff? did i throw that out before for good or bad reasons?
+sparse approximate inverse from FMM sparsity pattern
+
+
+OPTIMIZATIONS:
+constraint construction
+GPU coincident and adjacent integrals
+    -- optimized kernels
+    -- split each integral between multiple threads for better performance on small problems
+adjacency
+figure out preconditioning, spilu is slow, but is there a better alternative? spai-based fmm inverse.
+FMM via tree plan construction and gpu direct evaluation
+multi GPU compatibility on meade02?
+symmetric triangular quadrature rules:
+    -- http://math2.uncc.edu/~shaodeng/TEACHING/math5172/Lectures/Lect_15.PDF

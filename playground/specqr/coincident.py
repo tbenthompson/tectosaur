@@ -27,7 +27,7 @@ build table for adjacent interpolation
 try nearfield point interpolation
 think about volume integrals
 try gauss for theta in coincident again?
-can i get better than ~1e-5 error?
+can i get better than ~1e-5 error? with that error, the runtime for building the coincident table will probably be something like 12 hours on meade02.
 
 """
 

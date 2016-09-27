@@ -29,10 +29,35 @@ double adj_rholim1(double x, double t) { return -(1 - x) / cos(t); }
 
 using Tri = std::array<std::array<double,3>,3>;
 
-struct Data;
+struct Material {
+    double G;
+    double nu;
+    double CsU0;
+    double CsU1;
+    double CsT0;
+    double CsT1;
+    double CsH0;
+    double CsH1;
+    double CsH2;
+    double CsH3;
+
+    Material(double G, double nu):
+        G(G),
+        nu(nu),
+        CsU0((3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu))),
+        CsU1(1.0/(G*16.0*M_PI*(1.0-nu))),
+        CsT0((1-2.0*nu)/(8.0*M_PI*(1.0-nu))),
+        CsT1(3.0/(8.0*M_PI*(1.0-nu))),
+        CsH0(G/(4*M_PI*(1-nu))),
+        CsH1(1-2*nu),
+        CsH2(-1+4*nu),
+        CsH3(3*nu)
+    {}
+};
+
 using Kernel = std::function<
     std::array<std::array<double,3>,3>(
-        Data&,double,double,double,double,double,double,double,double,double
+        Material&,double,double,double,double,double,double,double,double,double
     )>;
 
 struct Data {
@@ -60,16 +85,7 @@ struct Data {
     Tri obs_tri;
     Tri src_tri;
     double eps;
-    double G;
-    double nu;
-    double CsU0;
-    double CsU1;
-    double CsT0;
-    double CsT1;
-    double CsH0;
-    double CsH1;
-    double CsH2;
-    double CsH3;
+    Material material;
 
     Data(double tol, bool p, Kernel K, 
             std::array<std::array<double,3>,3> obs_tri, 
@@ -84,16 +100,7 @@ struct Data {
         obs_tri(obs_tri),
         src_tri(src_tri),
         eps(eps),
-        G(G),
-        nu(nu),
-        CsU0((3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu))),
-        CsU1(1.0/(G*16.0*M_PI*(1.0-nu))),
-        CsT0((1-2.0*nu)/(8.0*M_PI*(1.0-nu))),
-        CsT1(3.0/(8.0*M_PI*(1.0-nu))),
-        CsH0(G/(4*M_PI*(1-nu))),
-        CsH1(1-2*nu),
-        CsH2(-1+4*nu),
-        CsH3(3*nu)
+        material(G, nu)
     {
         set_piece(0);
     }
@@ -121,7 +128,7 @@ struct Data {
     }
 };
 
-std::array<std::array<double,3>,3> Ukernel(Data& d, double Dx, double Dy, double Dz,
+std::array<std::array<double,3>,3> Ukernel(Material& d, double Dx, double Dy, double Dz,
     double nx, double ny, double nz, double lx, double ly, double lz)
 {
     double r2 = Dx * Dx + Dy * Dy + Dz * Dz;
@@ -141,7 +148,7 @@ std::array<std::array<double,3>,3> Ukernel(Data& d, double Dx, double Dy, double
 }
 
 
-std::array<std::array<double,3>,3> Tkernel(Data& d, double Dx, double Dy, double Dz,
+std::array<std::array<double,3>,3> Tkernel(Material& d, double Dx, double Dy, double Dz,
     double nx, double ny, double nz, double lx, double ly, double lz)
 {
     double r2 = Dx * Dx + Dy * Dy + Dz * Dz;
@@ -170,7 +177,7 @@ std::array<std::array<double,3>,3> Tkernel(Data& d, double Dx, double Dy, double
     return {{{K00,K01,K02},{K10,K11,K12},{K20,K21,K22}}};
 }
 
-std::array<std::array<double,3>,3> Akernel(Data& d, double Dx, double Dy, double Dz,
+std::array<std::array<double,3>,3> Akernel(Material& d, double Dx, double Dy, double Dz,
     double nx, double ny, double nz, double lx, double ly, double lz)
 {
     double r2 = Dx * Dx + Dy * Dy + Dz * Dz;
@@ -199,7 +206,7 @@ std::array<std::array<double,3>,3> Akernel(Data& d, double Dx, double Dy, double
     return {{{K00,K01,K02},{K10,K11,K12},{K20,K21,K22}}};
 }
 
-std::array<std::array<double,3>,3> Hkernel(Data& d, double Dx, double Dy, double Dz,
+std::array<std::array<double,3>,3> Hkernel(Material& d, double Dx, double Dy, double Dz,
     double nx, double ny, double nz, double lx, double ly, double lz)
 {
     double r2 = Dx * Dx + Dy * Dy + Dz * Dz;
@@ -326,7 +333,7 @@ std::array<double,9> bem_integrand(Data& d, double obsxhat, double obsyhat,
     double Dy = yy - xy;
     double Dz = yz - xz;
 
-    auto K = d.K(d, Dx, Dy, Dz, nx, ny, nz, lx, ly, lz);
+    auto K = d.K(d.material, Dx, Dy, Dz, nx, ny, nz, lx, ly, lz);
 
     auto obsbasis = basis(obsxhat, obsyhat);
     auto srcbasis = basis(srcxhat, srcyhat);
@@ -415,55 +422,50 @@ int f_adjacent(unsigned ndim, const double* x, void* fdata, unsigned fdim, doubl
             fval[i] += jacobian * out[i];
         }
     }
-
-    // double rhohat = x[3];
-    // double rhohigh = d.adj_rhohigh(obsxhat, theta);
-    // double rho = rhohat * rhohigh;
-
-    // double jacobian = rho * rhohigh * (thetahigh - thetalow) * (1 - obsxhat);
-    // double srcxhat = rho * cos(theta) + (1 - obsxhat);
-    // double srcyhat = rho * sin(theta);
-
-    // // double srcxhat = x[2];
-    // // double srcyhat = x[3] * (1 - srcxhat);
-
-    // // double jacobian = (1 - srcxhat) * (1 - obsxhat);
-
-    // auto out = bem_integrand(d, obsxhat, obsyhat, srcxhat, srcyhat);
-    // for (int i = 0; i < 9; i++) {
-    //     fval[i] += jacobian * out[i];
-    // }
-
-
     return 0;
 }
 
 struct InteriorData {
     std::array<double,3> obspt;
     std::array<double,3> obsn;
+    Tri src_tri;
     double tol;
-    double sm;
-    double pr;
+    Kernel K;
+    Material m;
 };
 
 int f_interior(unsigned ndim, const double* x, void* fdata, unsigned fdim, double* fval) {
-    for (int d = 0; d < 3; d++) {
-        fval[d] = 0.0;
+    InteriorData& d = *reinterpret_cast<InteriorData*>(fdata);
+
+    auto srcxhat = x[0];
+    auto srcyhat = x[1] * (1 - srcxhat);
+    auto jacobian = 1 - srcxhat;
+
+    auto srcpt = ref_to_real(srcxhat, srcyhat, d.src_tri);
+    double yx = srcpt[0];
+    double yy = srcpt[1];
+    double yz = srcpt[2];
+
+    auto srcn = get_unscaled_normal(d.src_tri);
+    auto srcnL = magnitude(srcn);
+    jacobian *= srcnL;
+    double lx = srcn[0] / srcnL;
+    double ly = srcn[1] / srcnL;
+    double lz = srcn[2] / srcnL;
+
+    double Dx = yx - d.obspt[0];
+    double Dy = yy - d.obspt[1];
+    double Dz = yz - d.obspt[2];
+
+    auto K = d.K(d.m, Dx, Dy, Dz, d.obsn[0], d.obsn[1], d.obsn[2], lx, ly, lz);
+
+    for (int d1 = 0; d1 < 3; d1++) {
+        for (int d2 = 0; d2 < 3; d2++) {
+            fval[d1 * 3 + d2] = jacobian * K[d1][d2];
+        }
     }
     return 0;
 }
-
-// void try_integrate_log() {
-//     double val2[1],err2[1];
-//     auto f2 = [] (unsigned ndim, const double *x, void *fdata, unsigned fdim, double *fval) {
-//         fval[0] = std::log(x[0]);
-//         return 0;
-//     };
-//     const double xmin2[1] = {0};
-//     const double xmax2[1] = {1};
-//     hcubature(1, f2, nullptr, 1, xmin2, xmax2, 0, 0, 1e-4, ERROR_INDIVIDUAL, val2, err2);
-//     std::cout << val2[0] << " " << err2[0] << std::endl;
-// }
 
 enum class Adjacency {
     Coincident,
@@ -559,13 +561,13 @@ PYBIND11_PLUGIN(adaptive_integrate) {
             std::array<std::array<double,3>,3> src_tri,
             double tol, double sm, double pr)
         {
-            std::array<double,3> val;
-            std::array<double,3> err;
+            std::array<double,9> val;
+            std::array<double,9> err;
             double xmin[2] = {0,0};
             double xmax[2] = {1,1};
-            InteriorData d{obs_pt, obs_n, tol, sm, pr};
+            InteriorData d{obs_pt, obs_n, src_tri, tol, get_kernel(k_name), Material(sm, pr)};
             hcubature(
-                3, f_interior, &d, 2, xmin, xmax, 0, 0, tol,
+                9, f_interior, &d, 2, xmin, xmax, 0, 0, tol,
                 ERROR_INDIVIDUAL, val.data(), err.data()
             );
             return val;
