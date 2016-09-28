@@ -18,24 +18,21 @@ maxlegalB = 0.865565992417 + 0.01
 
 # tol = 0.0001
 # rho_order = 100
-# eps_start = 0.01
-# eps_step = 2.0
-# n_steps = 7
+# starting_eps = 0.01
+# n_eps = 7
 # K = "U"
 
 # tol = 1e-4
 # rho_order = 100
-# eps_start = 1e-6
-# eps_step = 2.0
-# n_steps = 3
+# starting_eps = 1e-6
+# n_eps = 3
 # K = "T"
 # K = "A"
 
 tol = 0.0001
 rho_order = 100
-eps_start = 0.0001
-eps_step = 2.0
-n_steps = 4
+starting_eps = 0.0001
+n_eps = 4
 K = "H"
 
 n_A = 8
