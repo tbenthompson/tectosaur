@@ -27,7 +27,53 @@ double adj_thetalim2(double x) { return M_PI; }
 double adj_rholim0(double x, double t) { return x / (cos(t) + sin(t)); }
 double adj_rholim1(double x, double t) { return -(1 - x) / cos(t); }
 
-using Tri = std::array<std::array<double,3>,3>;
+double basiseval(double xhat, double yhat, std::array<double,3> vals) {
+    return (1.0 - xhat - yhat) * vals[0] + xhat * vals[1] + yhat * vals[2];
+}
+
+std::array<double,3> basis(double xhat, double yhat) {
+     return {1 - xhat - yhat, xhat, yhat};
+}
+
+std::array<double,3> cross(std::array<double,3> x, std::array<double,3> y) {
+    return {
+        x[1] * y[2] - x[2] * y[1],
+        x[2] * y[0] - x[0] * y[2],
+        x[0] * y[1] - x[1] * y[0]
+    };
+}
+
+std::array<double,3> sub(std::array<double,3> x, std::array<double,3> y) {
+    return {x[0] - y[0], x[1] - y[1], x[2] - y[2]};
+}
+
+double dot(std::array<double,3> x, std::array<double,3> y) {
+    return x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+}
+
+std::array<double,3> get_unscaled_normal(std::array<std::array<double,3>,3> tri) {
+    return cross(sub(tri[2], tri[0]), sub(tri[2], tri[1]));
+}
+
+double magnitude(std::array<double,3> v) {
+    return sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+}
+
+struct Tri {
+    std::array<std::array<double,3>,3> pts;
+    std::array<double,3> normal;
+    double size;
+
+    explicit Tri(std::array<std::array<double,3>,3> pts):
+        pts(pts)
+    {
+        auto unscaled_normal = get_unscaled_normal(pts); 
+        size = magnitude(unscaled_normal);
+        for (int d = 0; d < 3; d++) {
+            normal[d] = unscaled_normal[d] / size; 
+        }
+    }
+};
 
 struct Material {
     double G;
@@ -84,12 +130,15 @@ struct Data {
 
     Tri obs_tri;
     Tri src_tri;
+
+    std::array<double,3> offset_dir;
     double eps;
+
     Material material;
 
     Data(double tol, bool p, Kernel K, 
-            std::array<std::array<double,3>,3> obs_tri, 
-            std::array<std::array<double,3>,3> src_tri, 
+            Tri obs_tri, Tri src_tri, 
+            std::array<double,3> offset_dir,
             double eps, double G, double nu,
             std::vector<double> rho_hats, std::vector<double> rho_wts):
         tol(tol),
@@ -99,10 +148,14 @@ struct Data {
         rho_wts(rho_wts),
         obs_tri(obs_tri),
         src_tri(src_tri),
+        offset_dir(offset_dir),
         eps(eps),
         material(G, nu)
     {
         set_piece(0);
+        if (offset_dir[0] == 0 && offset_dir[1] == 0 && offset_dir[2] == 0) {
+            this->offset_dir = obs_tri.normal;
+        }
     }
 
     void set_piece(int piece) {
@@ -252,36 +305,13 @@ std::array<std::array<double,3>,3> Hkernel(Material& d, double Dx, double Dy, do
     return {{{K00,K01,K02},{K10,K11,K12},{K20,K21,K22}}};
 }
 
-double basiseval(double xhat, double yhat, std::array<double,3> vals) {
-    return (1.0 - xhat - yhat) * vals[0] + xhat * vals[1] + yhat * vals[2];
-}
 
-std::array<double,3> basis(double xhat, double yhat) {
-     return {1 - xhat - yhat, xhat, yhat};
-}
-
-std::array<double,3> cross(std::array<double,3> x, std::array<double,3> y) {
+std::array<double,3> center(const Tri& t) {
     return {
-        x[1] * y[2] - x[2] * y[1],
-        x[2] * y[0] - x[0] * y[2],
-        x[0] * y[1] - x[1] * y[0]
+        (t.pts[0][0] + t.pts[1][0] + t.pts[2][0]) / 3.0,
+        (t.pts[0][1] + t.pts[1][1] + t.pts[2][1]) / 3.0,
+        (t.pts[0][2] + t.pts[1][2] + t.pts[2][2]) / 3.0
     };
-}
-
-std::array<double,3> sub(std::array<double,3> x, std::array<double,3> y) {
-    return {x[0] - y[0], x[1] - y[1], x[2] - y[2]};
-}
-
-double dot(std::array<double,3> x, std::array<double,3> y) {
-    return x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
-}
-
-std::array<double,3> get_unscaled_normal(std::array<std::array<double,3>,3> tri) {
-    return cross(sub(tri[2], tri[0]), sub(tri[2], tri[1]));
-}
-
-double magnitude(std::array<double,3> v) {
-    return sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
 
 std::array<double,3> ref_to_real(
@@ -298,35 +328,30 @@ std::array<double,9> bem_integrand(Data& d, double obsxhat, double obsyhat,
     double srcxhat, double srcyhat) 
 {
     double jacobian = 1.0;
-    auto obspt = ref_to_real(obsxhat, obsyhat, d.obs_tri);
+    auto obspt = ref_to_real(obsxhat, obsyhat, d.obs_tri.pts);
     double xx = obspt[0];
     double xy = obspt[1];
     double xz = obspt[2];
 
-    auto obsn = get_unscaled_normal(d.obs_tri);
-    auto obsnL = magnitude(obsn);
-    jacobian *= obsnL;
-    auto inv_obsnL = 1.0 / obsnL;
-    double nx = obsn[0] * inv_obsnL;
-    double ny = obsn[1] * inv_obsnL;
-    double nz = obsn[2] * inv_obsnL;
+    jacobian *= d.obs_tri.size;
+    double nx = d.obs_tri.normal[0];
+    double ny = d.obs_tri.normal[1];
+    double nz = d.obs_tri.normal[2];
 
-    auto sqrt_obsnL = sqrt(obsnL);
-    xx -= d.eps * nx * sqrt_obsnL;
-    xy -= d.eps * ny * sqrt_obsnL;
-    xz -= d.eps * nz * sqrt_obsnL;
+    auto sqrt_obsnL = sqrt(d.obs_tri.size);
+    xx -= d.eps * d.offset_dir[0] * sqrt_obsnL;
+    xy -= d.eps * d.offset_dir[1] * sqrt_obsnL;
+    xz -= d.eps * d.offset_dir[2] * sqrt_obsnL;
 
-    auto srcpt = ref_to_real(srcxhat, srcyhat, d.src_tri);
+    auto srcpt = ref_to_real(srcxhat, srcyhat, d.src_tri.pts);
     double yx = srcpt[0];
     double yy = srcpt[1];
     double yz = srcpt[2];
 
-    auto srcn = get_unscaled_normal(d.src_tri);
-    auto srcnL = magnitude(srcn);
-    jacobian *= srcnL;
-    double lx = srcn[0] / srcnL;
-    double ly = srcn[1] / srcnL;
-    double lz = srcn[2] / srcnL;
+    jacobian *= d.src_tri.size;
+    double lx = d.src_tri.normal[0];
+    double ly = d.src_tri.normal[1];
+    double lz = d.src_tri.normal[2];
 
 
     double Dx = yx - xx;
@@ -441,17 +466,15 @@ int f_interior(unsigned ndim, const double* x, void* fdata, unsigned fdim, doubl
     auto srcyhat = x[1] * (1 - srcxhat);
     auto jacobian = 1 - srcxhat;
 
-    auto srcpt = ref_to_real(srcxhat, srcyhat, d.src_tri);
+    auto srcpt = ref_to_real(srcxhat, srcyhat, d.src_tri.pts);
     double yx = srcpt[0];
     double yy = srcpt[1];
     double yz = srcpt[2];
 
-    auto srcn = get_unscaled_normal(d.src_tri);
-    auto srcnL = magnitude(srcn);
-    jacobian *= srcnL;
-    double lx = srcn[0] / srcnL;
-    double ly = srcn[1] / srcnL;
-    double lz = srcn[2] / srcnL;
+    jacobian *= d.src_tri.size;
+    double lx = d.src_tri.normal[0];
+    double ly = d.src_tri.normal[1];
+    double lz = d.src_tri.normal[2];
 
     double Dx = yx - d.obspt[0];
     double Dy = yy - d.obspt[1];
@@ -533,7 +556,10 @@ PYBIND11_PLUGIN(adaptive_integrate) {
             double tol, double eps, double sm, double pr,
             std::vector<double> rho_hats, std::vector<double> rho_wts) 
         {
-            Data d(tol, false, get_kernel(k_name), tri, tri, eps, sm, pr, rho_hats, rho_wts);
+            Data d(
+                tol, false, get_kernel(k_name), Tri(tri),
+                Tri(tri), {0,0,0}, eps, sm, pr, rho_hats, rho_wts
+            );
             auto result = integrate(d, Adjacency::Coincident);
             return result;
         }
@@ -543,11 +569,13 @@ PYBIND11_PLUGIN(adaptive_integrate) {
         [] (std::string k_name, 
             std::array<std::array<double,3>,3> obs_tri,
             std::array<std::array<double,3>,3> src_tri,
+            std::array<double,3> offset_dir,
             double tol, double eps, double sm, double pr,
             std::vector<double> rho_hats, std::vector<double> rho_wts) 
         {
             Data d(
-                tol, false, get_kernel(k_name), obs_tri, src_tri, 
+                tol, false, get_kernel(k_name), 
+                Tri(obs_tri), Tri(src_tri), offset_dir,
                 eps, sm, pr, rho_hats, rho_wts
             );
             auto result = integrate(d, Adjacency::EdgeAdjacent);
@@ -565,7 +593,9 @@ PYBIND11_PLUGIN(adaptive_integrate) {
             std::array<double,9> err;
             double xmin[2] = {0,0};
             double xmax[2] = {1,1};
-            InteriorData d{obs_pt, obs_n, src_tri, tol, get_kernel(k_name), Material(sm, pr)};
+            InteriorData d{
+                obs_pt, obs_n, Tri(src_tri), tol, get_kernel(k_name), Material(sm, pr)
+            };
             hcubature(
                 9, f_interior, &d, 2, xmin, xmax, 0, 0, tol,
                 ERROR_INDIVIDUAL, val.data(), err.data()
