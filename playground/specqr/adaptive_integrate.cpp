@@ -479,7 +479,7 @@ std::array<double,81> integrate(Data& d, Adjacency adj) {
     std::array<double,81> sum{};
 
     for (int b1 = 0; b1 < 1; b1++) {
-        for (int b2 = 0; b2 < 3; b2++) {
+        for (int b2 = 0; b2 < 1; b2++) {
             for (int piece = 0; piece < 3; piece++) {
                 std::cout << b1 << " " << b2 << " " << piece << std::endl;
                 d.set_piece(piece);

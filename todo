@@ -1,16 +1,22 @@
 build table for adjacent interpolation
+ -- should i remove the divergence? if yes, then the offset points don't need to be consistent between the adjacent and coincident integrals, i should check if different epsilon values give relatively consistent final results once the divergence is removed
  -- offset points need to take into account the adjacent elements and make sure there's no intersection
-try nearfield point interpolation
-think about volume integrals
-try gauss for theta in coincident again?
+
+think about volume integrals -- only ever need to do volume integrals with U and A kernels --> no divergences, not even cauchy principal value integrals because the extra source dimension reduces the order of the singularity by one, still should do transformations to reduce the order of the singularity -- probably can remove it completely, in which case there are only some big 5 dimensional low order gauss integrals to do. alternatively, i could do another interpolation table... the adjacent trick would work
+
+interior evaluation -- this is easy except near the surface, use sinh quadrature? test it against the adaptive quadrature. also, maybe i can just interpolate from one element length away to the surface value and avoid nearfield integrals?
+
+try gauss for theta in coincident again? could speed things up.
 can i get better than ~1e-5 error? with that error, the runtime for building the coincident table will probably be something like 12 hours on meade02.
+
+actually use the interpolation table based integrals in an okada problem
 
 
 use FMM for okada
 -- just try it out first, make sure its accurate.
--- condense the columns of p2m and p2l and p2p, condense rows of m2p, l2p, p2p, this should increase efficiency A LOT
+-- condense the columns of p2m and p2l and p2p, condense rows of m2p, l2p, p2p, this should increase efficiency A LOT (HUH??)
+
 sphere test
--- get the sphere meshing code from old 3bem stuff
 -- do two problems:
   -- 1) impose displacement BCs and solve for traction on the boundary
   -- 2) vice-versa
@@ -24,29 +30,18 @@ variety of boundary conditions
 gravity
 -- test the 3D kernels
 play with time stepping combined with fault friction 
-plasticity?
+plasticity? the plastic opening condition, maybe a viscoplastic opening condition? the kinematic consistency idea from brendan is really interesting! compare with a FEM model of explicit volumetric plasticity
 
 CORRECTNESS/BLACKBOXYNESS:
-try constraining edges of okada free surface to be zero
-mostly losing accuracy from the adjacent quadrature
-if i'm still using sinh_transform, check that the b-distance(eps) is being computed properly
-
-what's needed for the triangle size ratio to be irrelevant? 
-handle eps values for which the observation point in an edge adjacent integration is on the wrong side of the source triangle
-out of proportion triangles cause pretty huge errors
+if i'm still using sinh_transform for interior evaluation, check that the b-distance(eps) is being computed properly
+limit triangles to having angles > 20 degrees
 
 METHOD:
-think about cancelled singularities in the limit taking? is this possible? it would make things a lot faster
-can gauss quadrature be used for the outer observation quadrature? i don't think so, because there are still logarithmic singularities at the endpoints
-what about the taylor series stuff? did i throw that out before for good or bad reasons?
 sparse approximate inverse from FMM sparsity pattern
-
+interior integrals for spatially varying body forces
 
 OPTIMIZATIONS:
 constraint construction
-GPU coincident and adjacent integrals
-    -- optimized kernels
-    -- split each integral between multiple threads for better performance on small problems
 adjacency
 figure out preconditioning, spilu is slow, but is there a better alternative? spai-based fmm inverse.
 FMM via tree plan construction and gpu direct evaluation

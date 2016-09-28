@@ -22,13 +22,6 @@ individual component so that they don't all need to take as long as the most exp
 (DONE)test the lookup by selecting random legal triangles and comparing the interpolation
 (DONE)can i explicitly model and remove the divergence? projects/archive/analytical_bem_integrals/experiments/calc_quad.py has the start of some code to do this based on a modified interpolation basis for the extrapolation process.
 
-TODO:
-build table for adjacent interpolation
-try nearfield point interpolation
-think about volume integrals
-try gauss for theta in coincident again?
-can i get better than ~1e-5 error? with that error, the runtime for building the coincident table will probably be something like 12 hours on meade02.
-
 """
 
 import time
