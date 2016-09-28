@@ -42,15 +42,24 @@ def test_aimi_diligenti():
     exact = -1.10155082811
     np.testing.assert_almost_equal(est, exact, 6)
 
-def test_gauss2d_tri():
+def test_gauss2d_tri1():
     q = gauss2d_tri(2)
     result = quadrature(lambda x: 1, q)
     np.testing.assert_almost_equal(result, 0.5)
 
-def test_gauss2d_tri():
+def test_gauss2d_tri2():
     q = gauss2d_tri(5)
     result = quadrature(lambda x: x[:,0] ** 3 * x[:,1] ** 4, q)
     np.testing.assert_almost_equal(result, 1.0 / 2520.0, 12)
+
+def test_gauss2d_tri3():
+    q = gauss2d_tri(7)
+    result = quadrature(lambda x: np.sin(np.exp(x[:,0] * x[:,1] * 5)), q)
+    np.testing.assert_almost_equal(result, 0.426659055902, 4)
+
+def test_gauss2d_tri_using_symmetric_rules():
+    q = gauss2d_tri(3)
+    assert(q[0].shape[0] == 7)
 
 def test_gauss4d_tri():
     q = gauss4d_tri(3, 3)

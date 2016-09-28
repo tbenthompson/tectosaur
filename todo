@@ -4,6 +4,8 @@
 speed up the integration a little bit
 build table for adjacent interpolation
 
+
+
 think about volume integrals -- only ever need to do volume integrals with U and A kernels --> no divergences, not even cauchy principal value integrals because the extra source dimension reduces the order of the singularity by one, still should do transformations to reduce the order of the singularity -- probably can remove it completely, in which case there are only some big 5 dimensional low order gauss integrals to do. alternatively, i could do another interpolation table... the adjacent trick would work
 
 interior evaluation -- this is easy except near the surface, use sinh quadrature? test it against the adaptive quadrature. also, maybe i can just interpolate from one element length away to the surface value and avoid nearfield integrals?
@@ -12,6 +14,7 @@ try gauss for theta in coincident again? could speed things up.
 can i get better than ~1e-5 error? with that error, the runtime for building the coincident table will probably be something like 12 hours on meade02.
 
 actually use the interpolation table based integrals in an okada problem
+    -- code to split the edge adjacent integrals up into vertex adj integrals and one edge component
 
 
 use FMM for okada
@@ -35,7 +38,6 @@ play with time stepping combined with fault friction
 plasticity? the plastic opening condition, maybe a viscoplastic opening condition? the kinematic consistency idea from brendan is really interesting! compare with a FEM model of explicit volumetric plasticity
 
 CORRECTNESS/BLACKBOXYNESS:
-if i'm still using sinh_transform for interior evaluation, check that the b-distance(eps) is being computed properly
 limit triangles to having angles > 20 degrees
 
 METHOD:

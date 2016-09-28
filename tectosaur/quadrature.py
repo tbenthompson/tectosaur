@@ -3,6 +3,8 @@ import scipy.linalg
 import scipy.interpolate
 from math import factorial
 
+from tectosaur.tri_gauss import get_tri_gauss
+
 # Derives the n-point gauss quadrature rule
 def gaussxw(n):
     k = np.arange(1.0, n)
@@ -124,6 +126,9 @@ def poly_transform01(quad_rule):
     return np.array(x), np.array(w)
 
 def gauss2d_tri(N):
+    pts, wts = get_tri_gauss(N * 2 - 1)
+    if pts is not None:
+        return np.array(pts), np.array(wts) * 0.5
     qg = gaussxw(N)
 
     q_rect_x, q_rect_y = np.meshgrid(qg[0], qg[0])
