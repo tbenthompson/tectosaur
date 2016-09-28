@@ -131,14 +131,12 @@ struct Data {
     Tri obs_tri;
     Tri src_tri;
 
-    std::array<double,3> offset_dir;
     double eps;
 
     Material material;
 
     Data(double tol, bool p, Kernel K, 
             Tri obs_tri, Tri src_tri, 
-            std::array<double,3> offset_dir,
             double eps, double G, double nu,
             std::vector<double> rho_hats, std::vector<double> rho_wts):
         tol(tol),
@@ -148,14 +146,10 @@ struct Data {
         rho_wts(rho_wts),
         obs_tri(obs_tri),
         src_tri(src_tri),
-        offset_dir(offset_dir),
         eps(eps),
         material(G, nu)
     {
         set_piece(0);
-        if (offset_dir[0] == 0 && offset_dir[1] == 0 && offset_dir[2] == 0) {
-            this->offset_dir = obs_tri.normal;
-        }
     }
 
     void set_piece(int piece) {
@@ -339,9 +333,9 @@ std::array<double,9> bem_integrand(Data& d, double obsxhat, double obsyhat,
     double nz = d.obs_tri.normal[2];
 
     auto sqrt_obsnL = sqrt(d.obs_tri.size);
-    xx -= d.eps * d.offset_dir[0] * sqrt_obsnL;
-    xy -= d.eps * d.offset_dir[1] * sqrt_obsnL;
-    xz -= d.eps * d.offset_dir[2] * sqrt_obsnL;
+    xx -= d.eps * nx * sqrt_obsnL;
+    xy -= d.eps * ny * sqrt_obsnL;
+    xz -= d.eps * nz * sqrt_obsnL;
 
     auto srcpt = ref_to_real(srcxhat, srcyhat, d.src_tri.pts);
     double yx = srcpt[0];
@@ -391,16 +385,20 @@ int f_coincident(unsigned ndim, const double* x, void* fdata, unsigned fdim, dou
     double thetahigh = d.co_theta_high(obsxhat, obsyhat);
     double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
 
+    double outer_jacobian = (1 - obsxhat) * (thetahigh - thetalow) * 0.5;
+    double costheta = cos(theta);
+    double sintheta = sin(theta);
+
     for (size_t ri = 0; ri < d.rho_hats.size(); ri++) {
         double rhohat = (d.rho_hats[ri] + 1) / 2.0;
-        double jacobian = d.rho_wts[ri] * (1 - obsxhat) * (thetahigh - thetalow) * 0.5;
+        double jacobian = d.rho_wts[ri] * outer_jacobian;
 
         double rhohigh = d.co_rhohigh(obsxhat, obsyhat, theta);
         double rho = rhohat * rhohigh;
         jacobian *= rho * rhohigh;
 
-        double srcxhat = obsxhat + rho * cos(theta);
-        double srcyhat = obsyhat + rho * sin(theta);
+        double srcxhat = obsxhat + rho * costheta;
+        double srcyhat = obsyhat + rho * sintheta;
 
         auto out = bem_integrand(d, obsxhat, obsyhat, srcxhat, srcyhat);
         for (int i = 0; i < 9; i++) {
@@ -431,16 +429,20 @@ int f_adjacent(unsigned ndim, const double* x, void* fdata, unsigned fdim, doubl
     double thetahigh = d.adj_theta_high(obsxhat);
     double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
 
+    double outer_jacobian = (1 - obsxhat) * (thetahigh - thetalow) * 0.5;
+    double costheta = cos(theta);
+    double sintheta = sin(theta);
+
     for (size_t ri = 0; ri < d.rho_hats.size(); ri++) {
         double rhohat = (d.rho_hats[ri] + 1) / 2.0;
-        double jacobian = d.rho_wts[ri] * (1 - obsxhat) * (thetahigh - thetalow) * 0.5;
+        double jacobian = d.rho_wts[ri] * outer_jacobian;
 
         double rhohigh = d.adj_rhohigh(obsxhat, theta);
         double rho = rhohat * rhohigh;
         jacobian *= rho * rhohigh;
 
-        double srcxhat = rho * cos(theta) + (1 - obsxhat);
-        double srcyhat = rho * sin(theta);
+        double srcxhat = rho * costheta + (1 - obsxhat);
+        double srcyhat = rho * sintheta;
 
         auto out = bem_integrand(d, obsxhat, obsyhat, srcxhat, srcyhat);
         for (int i = 0; i < 9; i++) {
@@ -501,10 +503,10 @@ std::array<double,81> integrate(Data& d, Adjacency adj) {
     d.evals = 0;
     std::array<double,81> sum{};
 
-    for (int b1 = 0; b1 < 1; b1++) {
-        for (int b2 = 0; b2 < 1; b2++) {
+    for (int b1 = 0; b1 < 3; b1++) {
+        for (int b2 = 0; b2 < 3; b2++) {
             for (int piece = 0; piece < 3; piece++) {
-                std::cout << b1 << " " << b2 << " " << piece << std::endl;
+                // std::cout << b1 << " " << b2 << " " << piece << std::endl;
                 d.set_piece(piece);
                 d.set_basis(b1, b2);
                 double val[81], err[81];
@@ -558,7 +560,7 @@ PYBIND11_PLUGIN(adaptive_integrate) {
         {
             Data d(
                 tol, false, get_kernel(k_name), Tri(tri),
-                Tri(tri), {0,0,0}, eps, sm, pr, rho_hats, rho_wts
+                Tri(tri), eps, sm, pr, rho_hats, rho_wts
             );
             auto result = integrate(d, Adjacency::Coincident);
             return result;
@@ -569,13 +571,12 @@ PYBIND11_PLUGIN(adaptive_integrate) {
         [] (std::string k_name, 
             std::array<std::array<double,3>,3> obs_tri,
             std::array<std::array<double,3>,3> src_tri,
-            std::array<double,3> offset_dir,
             double tol, double eps, double sm, double pr,
             std::vector<double> rho_hats, std::vector<double> rho_wts) 
         {
             Data d(
                 tol, false, get_kernel(k_name), 
-                Tri(obs_tri), Tri(src_tri), offset_dir,
+                Tri(obs_tri), Tri(src_tri), 
                 eps, sm, pr, rho_hats, rho_wts
             );
             auto result = integrate(d, Adjacency::EdgeAdjacent);
