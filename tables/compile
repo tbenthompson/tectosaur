@@ -1,7 +1,0 @@
-#!/bin/bash
-
-ARGS="-O3 -g -std=c++14 -Wall -fopenmp"
-$CXX $ARGS -c adaptive.cpp
-$CXX $ARGS -c cubature/hcubature.c
-$CXX $ARGS -c cubature/pcubature.c
-$CXX $ARGS adaptive.o hcubature.o pcubature.o -o adaptive

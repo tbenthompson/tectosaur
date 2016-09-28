@@ -10,11 +10,15 @@ tol = 1e-5
 rho_order = 80
 rho_gauss = quad.gaussxw(rho_order)
 
-def make_terms(extrap_order):
-    terms = [
-        lambda e: np.log(e),
-    ]
-    for i in range(extrap_order + 1):
+def make_terms(n_terms, include_log):
+    poly_terms = n_terms
+    terms = []
+    if include_log:
+        poly_terms -= 1
+        terms = [
+            lambda e: np.log(e),
+        ]
+    for i in range(poly_terms):
         terms.append(lambda e, i=i: e ** i)
     return terms
 
@@ -36,7 +40,7 @@ def calc_I(eps):
     # )[0]
 
 # for starting_eps in [0.1,0.05,0.025,0.01,0.001]:
-def run(starting_eps, n_steps):
+def play(starting_eps, n_steps):
     eps = [starting_eps]
     vals = [calc_I(eps[0])]
     print("START")
@@ -61,5 +65,6 @@ def run(starting_eps, n_steps):
 
 # run(0.1, 7)
 # run(0.01, 5)
-run(0.001, 5)
-run(0.0001, 3)
+if __name__ == '__main__':
+    run(0.001, 5)
+    run(0.0001, 3)
