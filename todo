@@ -1,6 +1,8 @@
+(DONE) -- offset points need to take into account the adjacent elements and make sure there's no intersection
+(DONE, YES) -- should i remove the divergence? if yes, then the offset points don't need to be consistent between the adjacent and coincident integrals, i should check if different epsilon values give relatively consistent final results once the divergence is removed
+
+speed up the integration a little bit
 build table for adjacent interpolation
- -- should i remove the divergence? if yes, then the offset points don't need to be consistent between the adjacent and coincident integrals, i should check if different epsilon values give relatively consistent final results once the divergence is removed
- -- offset points need to take into account the adjacent elements and make sure there's no intersection
 
 think about volume integrals -- only ever need to do volume integrals with U and A kernels --> no divergences, not even cauchy principal value integrals because the extra source dimension reduces the order of the singularity by one, still should do transformations to reduce the order of the singularity -- probably can remove it completely, in which case there are only some big 5 dimensional low order gauss integrals to do. alternatively, i could do another interpolation table... the adjacent trick would work
 

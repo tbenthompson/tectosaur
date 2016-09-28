@@ -6,27 +6,6 @@ from tectosaur.geometry import tri_normal
 import interpolate
 adaptive_integrate = cppimport.imp('adaptive_integrate')
 
-
-
-def plot_offset():
-    C = [0,0,0]
-    eps = 0.05
-    for theta in interpolate.cheb(0,2 * np.pi,10):
-        print(theta)
-        p = [np.cos(theta), np.sin(theta),0]
-        q = [1,0,0]
-        v = [0, 1, 0]
-        if theta < np.pi / 1.5:
-            v = (np.array(p) + np.array(q)) / 2.0
-        v /= np.linalg.norm(v)
-        print(v)
-        plt.plot([0, p[0]], [0, p[1]])
-        plt.plot([0, q[0]], [0, q[1]])
-        plt.plot([v[0] * eps, q[0] + v[0] * eps], [v[1] * eps, q[1] + v[1] * eps])
-        plt.xlim([-1.1,1.1])
-        plt.ylim([-0.1,1.1])
-        plt.show()
-
 tri1 = [[0,0,0],[1,0,0],[0,1,0]]
 
 n_theta = 13
@@ -56,9 +35,16 @@ def get_offset(tri1, tri2):
     if not samedir and theta < np.pi * 1.5:
         v = -(L1 + L2) / 2.0
         v /= np.linalg.norm(v)
-
-    print(theta, samedir, v)
     return v
+
+def plot_offset(Y, Z, offset):
+    eps = 0.05
+    plt.plot([0, Y], [0, Z])
+    plt.plot([0, 1], [0, 0])
+    plt.plot([-offset[1] * eps, 1 - offset[1] * eps], [-offset[2] * eps, -offset[2] * eps])
+    plt.xlim([-1.1,1.1])
+    plt.ylim([-0.1,1.1])
+    plt.show()
 
 for i in range(theta.shape[0]):
     Y = y[i]
@@ -68,33 +54,27 @@ for i in range(theta.shape[0]):
     tri2 = [[1,0,0],[0,0,0],[0,Y,Z]]
     offset = get_offset(np.array(tri1), np.array(tri2))
 
-    eps = 0.05
-    plt.plot([0, Y], [0, Z])
-    plt.plot([0, 1], [0, 0])
-    plt.plot([-offset[1] * eps, 1 - offset[1] * eps], [-offset[2] * eps, -offset[2] * eps])
-    plt.xlim([-1.1,1.1])
-    plt.ylim([-0.1,1.1])
-    plt.show()
-
+    K = "U"
     rho_order = 40
-    eps = 0.01
+    eps = 0.1
     tol = 0.01
     rho_gauss = quad.gaussxw(rho_order)
     rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
 
     res = np.array(adaptive_integrate.integrate_adjacent(
-        "H", tri1, tri2, offset.tolist(),
+        K, tri1, tri2, offset.tolist(),
         tol, eps, 1.0, 0.25, rho_q[0].tolist(), rho_q[1].tolist()
     ))
     print(res[0])
 
-# from tectosaur.dense_integral_op import DenseIntegralOp
-# op = DenseIntegralOp(
-#     [eps], 5, 20, 5, 5, 5, 5, "H", 1.0, 0.25,
-#     np.vstack((tri1, tri2)), np.array([[0,1,2],[1,0,5]])
-# )
-#
-# A = op.mat[:9,9:].reshape((81))
-# B = res.reshape((81))
-# for i in range(81):
-#     print(A[i], B[i], A[i] - B[i])
+    from tectosaur.dense_integral_op import DenseIntegralOp
+    op = DenseIntegralOp(
+        [eps], 5, 20, 5, 5, 5, 5, K, 1.0, 0.25,
+        np.vstack((tri1, tri2)), np.array([[0,1,2],[1,0,5]])
+    )
+    print(op.mat[0,9])
+    #
+    # A = op.mat[:9,9:].reshape((81))
+    # B = res.reshape((81))
+    # for i in range(81):
+    #     print(A[i], B[i], A[i] - B[i])

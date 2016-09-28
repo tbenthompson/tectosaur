@@ -65,6 +65,8 @@ def richardson_quad(h_vals, quad_builder):
     return xs, ws
 
 # Sinh transform for integrals of the form \int_{-1}^1 f(x)<F12>
+# check that the b-distance(eps) is being computed properly, i think it should
+# be in transformed coordinates rather than the [-1,1] initial domain
 def sinh_transform(quad_rule, a, b, iterated = False):
     n_q = len(quad_rule[0])
     mu_0 = 0.5 * (np.arcsinh((1.0 + a) / b) + np.arcsinh((1.0 - a) / b))
