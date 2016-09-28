@@ -1,14 +1,4 @@
 import numpy as np
-import cppimport
-adaptive_integrate = cppimport.imp('adaptive_integrate')
-import tectosaur.quadrature as quad
-from coincident import richardson_limit
-
-tri1 = [[0,0,0],[1,0,0],[0,1,0.0]]
-tri2 = [[1,0,0],[0,0,0],[0,-1,0]]
-tol = 1e-5
-rho_order = 80
-rho_gauss = quad.gaussxw(rho_order)
 
 def make_terms(n_terms, include_log):
     poly_terms = n_terms
@@ -22,7 +12,30 @@ def make_terms(n_terms, include_log):
         terms.append(lambda e, i=i: e ** i)
     return terms
 
+def limit(eps_vals, f_vals, include_log):
+    terms = make_terms(len(eps_vals), include_log)
+    mat = [[t(e) for t in terms] for e in eps_vals]
+    coeffs = np.linalg.solve(mat, f_vals)
+    if include_log:
+        return coeffs[1]
+    else:
+        return coeffs[0]
+
+
+
+
+
+
 def calc_I(eps):
+    tri1 = [[0,0,0],[1,0,0],[0,1,0.0]]
+    tri2 = [[1,0,0],[0,0,0],[0,-1,0]]
+    tol = 1e-5
+    rho_order = 80
+
+    import cppimport
+    adaptive_integrate = cppimport.imp('adaptive_integrate')
+    import tectosaur.quadrature as quad
+    rho_gauss = quad.gaussxw(rho_order)
     rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
     return adaptive_integrate.integrate_coincident(
         "H", tri1, tol, eps, 1.0, 0.25,
@@ -48,8 +61,8 @@ def play(starting_eps, n_steps):
         eps.append(eps[-1] / 2.0)
         vals.append(calc_I(eps[-1]))
 
-        terms = make_terms(i + 1)
-        mat = [[t(e) for t in terms[:-1]] for e in eps]
+        terms = make_terms(i + 2, True)
+        mat = [[t(e) for t in terms] for e in eps]
         print(np.linalg.cond(mat))
         coeffs = np.linalg.solve(mat, vals)
 
@@ -57,14 +70,6 @@ def play(starting_eps, n_steps):
         result = coeffs[1]
         print("extrap to 0: " + str(result))
 
-    # mat = [[t(e) for t in terms[1:]] for e in eps]
-    # print(np.linalg.cond(mat))
-    # coeffs = np.linalg.solve(mat, vals)
-    # print(coeffs[0])
-    # print(richardson_limit(2.0, vals))
-
-# run(0.1, 7)
-# run(0.01, 5)
 if __name__ == '__main__':
-    run(0.001, 5)
-    run(0.0001, 3)
+    play(0.001, 5)
+    play(0.0001, 3)
