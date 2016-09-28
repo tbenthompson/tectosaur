@@ -150,7 +150,7 @@ def test_convergence():
     # )
     # print(res[0])
 
-def build_test_table():
+def build_table():
     # n_A = n_B = 8 seems sufficient
     n_A = 8
     n_B = 8

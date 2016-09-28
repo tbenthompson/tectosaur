@@ -1,7 +1,6 @@
 (DONE) -- offset points need to take into account the adjacent elements and make sure there's no intersection
 (DONE, YES) -- should i remove the divergence? if yes, then the offset points don't need to be consistent between the adjacent and coincident integrals, i should check if different epsilon values give relatively consistent final results once the divergence is removed
 
-speed up the integration a little bit
 build table for adjacent interpolation
 
 
@@ -50,5 +49,3 @@ adjacency
 figure out preconditioning, spilu is slow, but is there a better alternative? spai-based fmm inverse.
 FMM via tree plan construction and gpu direct evaluation
 multi GPU compatibility on meade02?
-symmetric triangular quadrature rules:
-    -- http://math2.uncc.edu/~shaodeng/TEACHING/math5172/Lectures/Lect_15.PDF

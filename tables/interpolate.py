@@ -26,7 +26,6 @@ def cheblob_wts(a, b, n):
     wts[-1] *= 0.5
     return wts
 
-#a vectorized matlab version of this: https://www.mathworks.com/matlabcentral/fileexchange/5511-2d-barycentric-lagrange-interpolation/content/barylag2d.m
 def barycentric_eval(pts, wts, vals, x_hat):
     denom = 0.0
     numer = 0.0
