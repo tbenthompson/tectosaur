@@ -40,14 +40,14 @@ n_B = 8
 n_pr = 8
 
 # play parameters
-# K = "H"
-# rho_order = 80
-# starting_eps = 0.01
-# n_eps = 3
-# tol = 0.01
-# n_A = 2
-# n_B = 2
-# n_pr = 2
+K = "H"
+rho_order = 80
+starting_eps = 0.01
+n_eps = 3
+tol = 0.01
+n_A = 2
+n_B = 2
+n_pr = 2
 
 all_eps = starting_eps * 2.0 ** -np.arange(n_eps)
 rho_gauss = quad.gaussxw(rho_order)
@@ -100,7 +100,7 @@ def test_f(input):
     np.random.seed(seed)
     pt = np.random.rand(3) * 2 - 1.0
     correct = take_limits(np.array(eval(pt)))
-    for i in range(1):
+    for i in range(81):
         interp = barycentric_evalnd(pts, wts, limits[:,i], np.array([pt]))[0]
         print("testing:  " + str(i) + "     " + str(
             (correct[i], interp, np.abs((correct[i] - interp) / correct[i]), correct[i] - interp)
@@ -115,4 +115,4 @@ filename = K + 'coincidenttable.npy'
 pool = multiprocessing.Pool()
 results = np.array(pool.map(eval, pts.tolist()))
 np.save(filename, results)
-pool.map(test_f, [results for i in range(12)])
+pool.map(test_f, zip(range(12), [results for i in range(12)]))
