@@ -5,7 +5,7 @@ import numpy as np
 import tectosaur.quadrature as quad
 
 from interpolate import cheb, cheb_wts, to_interval, barycentric_evalnd
-from limit import limit
+from limit import limit, richardson_limit
 
 import cppimport
 adaptive_integrate = cppimport.imp('adaptive_integrate')
@@ -20,13 +20,13 @@ n_pr = 8
 n_theta = 8
 
 # play parameters
-# K = "H"
-# rho_order = 40
-# starting_eps = 0.1
-# n_eps = 3
-# tol = 0.1
-# n_pr = 4
-# n_theta = 4
+K = "H"
+rho_order = 40
+starting_eps = 0.01
+n_eps = 2
+tol = 0.001
+n_pr = 5
+n_theta = 5
 
 all_eps = starting_eps * 2.0 ** -np.arange(n_eps)
 rho_gauss = quad.gaussxw(rho_order)
@@ -42,6 +42,8 @@ prwts = cheb_wts(-1, 1, n_pr)
 wts = np.outer(thetawts, prwts).ravel()
 
 rho = 0.5 * np.tan(np.deg2rad(20))
+
+n_dims = 2
 
 def eval(pt):
     thetahat, prhat = pt
@@ -61,19 +63,29 @@ def eval(pt):
             tol, eps, 1.0, pr, rho_q[0].tolist(), rho_q[1].tolist()
         )
         integrals.append(res)
-    integrals = np.array(integrals)
+    return integrals
 
+def take_limits(integrals):
     out = np.empty(81)
+    remove_divergence = False
     for i in range(81):
-        out[i] = limit(all_eps, integrals[:, i], True)
+        out[i] = limit(all_eps, integrals[:, i], remove_divergence)
+    if not remove_divergence:
+        np.testing.assert_almost_equal(out, richardson_limit(2.0, integrals))
     return out
 
-def test_f(results):
-    np.random.seed()
-    pt = np.random.rand(2) * 2 - 1.0
-    correct = eval(pt)
-    for i in range(4):
-        interp = barycentric_evalnd(pts, wts, results[:,i], np.array([pt]))[0]
+def test_f(input):
+    seed, results = input
+    limits = np.empty((results.shape[0], results.shape[2]))
+    for i in range(results.shape[0]):
+        limits[i,:] = take_limits(results[i,:,:])
+    np.random.seed(seed)
+    pt = np.random.rand(n_dims) * 2 - 1.0
+    correct = take_limits(np.array(eval(pt)))
+    for i in range(81):
+        if correct[i] < 1e-5:
+            continue
+        interp = barycentric_evalnd(pts, wts, limits[:,i], np.array([pt]))[0]
         print("testing:  " + str(i) + "     " + str(
             (correct[i], interp, np.abs((correct[i] - interp) / correct[i]), correct[i] - interp)
         ))
@@ -83,4 +95,4 @@ filename = K + 'adjacenttable.npy'
 pool = multiprocessing.Pool()
 results = np.array(pool.map(eval, pts.tolist()))
 np.save(filename, results)
-pool.map(test_f, [results for i in range(12)])
+pool.map(test_f, zip(range(12), [results for i in range(12)]))

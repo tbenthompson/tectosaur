@@ -63,6 +63,8 @@ Bwts = cheb_wts(-1,1,n_B)
 prwts = cheb_wts(-1,1,n_pr)
 wts = np.outer(Awts,np.outer(Bwts,prwts)).ravel()
 
+n_dims = 3
+
 def eval(pt):
     Ahat,Bhat,prhat = pt
     A = to_interval(minlegalA, 0.5, Ahat)
@@ -98,7 +100,7 @@ def test_f(input):
     for i in range(results.shape[0]):
         limits[i,:] = take_limits(results[i,:,:])
     np.random.seed(seed)
-    pt = np.random.rand(3) * 2 - 1.0
+    pt = np.random.rand(n_dims) * 2 - 1.0
     correct = take_limits(np.array(eval(pt)))
     for i in range(81):
         interp = barycentric_evalnd(pts, wts, limits[:,i], np.array([pt]))[0]
