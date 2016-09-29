@@ -21,10 +21,22 @@ def limit(eps_vals, f_vals, include_log):
     else:
         return coeffs[0]
 
+def richardson_limit(step_ratio, values):
+    n_steps = len(values)
+    last_level = values
+    this_level = None
 
-
-
-
+    for m in range(1, n_steps):
+        this_level = []
+        for i in range(n_steps - m):
+            mult = step_ratio ** m
+            factor = 1.0 / (mult - 1.0)
+            low = last_level[i]
+            high = last_level[i + 1]
+            moreacc = factor * (mult * high - low)
+            this_level.append(moreacc)
+        last_level = this_level
+    return this_level[0]
 
 def calc_I(eps):
     tri1 = [[0,0,0],[1,0,0],[0,1,0.0]]
