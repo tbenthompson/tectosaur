@@ -40,14 +40,14 @@ n_B = 8
 n_pr = 8
 
 # play parameters
-K = "H"
-rho_order = 80
-starting_eps = 0.01
-n_eps = 3
-tol = 0.01
-n_A = 2
-n_B = 2
-n_pr = 2
+# K = "H"
+# rho_order = 80
+# starting_eps = 0.01
+# n_eps = 3
+# tol = 0.01
+# n_A = 2
+# n_B = 2
+# n_pr = 2
 
 all_eps = starting_eps * 2.0 ** -np.arange(n_eps)
 rho_gauss = quad.gaussxw(rho_order)
