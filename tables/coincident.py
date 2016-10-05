@@ -29,10 +29,10 @@ maxlegalB = 0.865565992417 + 0.01
 # K = "T"
 # K = "A"
 
-tol = 0.0001
+tol = 1e-5
 rho_order = 100
-starting_eps = 0.0001
-n_eps = 4
+starting_eps = 1e-5
+n_eps = 3
 K = "H"
 
 n_A = 8
@@ -41,9 +41,9 @@ n_pr = 8
 
 # play parameters
 # K = "H"
-# rho_order = 80
-# starting_eps = 0.01
-# n_eps = 3
+# rho_order = 100
+# starting_eps = 0.001
+# n_eps = 2
 # tol = 0.01
 # n_A = 2
 # n_B = 2
