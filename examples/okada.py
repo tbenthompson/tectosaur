@@ -128,17 +128,17 @@ def test_okada():
         # iop = FMMIntegralOp(
         #     eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
         # )
-        iop = SparseIntegralOp(
-            eps, 18, 16, 6, 3, 6, 4.0,
-            'H', sm, pr, all_mesh[0], all_mesh[1]
-        )
-        # iop2 = DenseIntegralOp(
-        #     eps, 18, 16, 6, 3, 6, 4.0, 'H', sm, pr, all_mesh[0], all_mesh[1]
+        # iop = SparseIntegralOp(
+        #     eps, 18, 16, 6, 3, 6, 4.0,
+        #     'H', sm, pr, all_mesh[0], all_mesh[1]
         # )
+        iop = DenseIntegralOp(
+            eps, 18, 16, 6, 3, 6, 4.0, 'H', sm, pr, all_mesh[0], all_mesh[1]
+        )
         timer.report("Integrals")
 
-        soln = iterative_solve(iop, cs)
-        # soln = direct_solve(iop, cs)
+        # soln = iterative_solve(iop, cs)
+        soln = direct_solve(iop, cs)
         timer.report("Solve")
 
         disp = soln[:iop.shape[0]].reshape(

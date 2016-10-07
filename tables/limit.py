@@ -24,6 +24,10 @@ def limit(eps_vals, f_vals, include_log):
 
 def richardson_limit(step_ratio, values):
     n_steps = len(values)
+
+    if n_steps == 1:
+        return values[0]
+
     last_level = values
     this_level = None
 

@@ -3,6 +3,9 @@ import numpy as np
 def to_interval(a, b, x):
     return a + (b - a) * (x + 1.0) / 2.0
 
+def from_interval(a, b, x):
+    return ((x - a) / (b - a)) * 2.0 - 1.0
+
 """Chebyshev nodes in the [a,b] interval. Good for interpolation. Avoids Runge phenomenon."""
 def cheb(a, b, n):
     out = []

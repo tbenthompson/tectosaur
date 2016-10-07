@@ -5,7 +5,7 @@ import numpy as np
 
 import tectosaur.quadrature as quad
 
-from interpolate import cheb, cheb_wts, barycentric_evalnd, to_interval
+from tectosaur.interpolate import cheb, cheb_wts, barycentric_evalnd, to_interval
 from limit import limit, richardson_limit
 
 import cppimport
@@ -40,14 +40,14 @@ n_B = 8
 n_pr = 8
 
 # play parameters
-# K = "H"
-# rho_order = 100
-# starting_eps = 0.001
-# n_eps = 2
-# tol = 0.01
-# n_A = 2
-# n_B = 2
-# n_pr = 2
+K = "H"
+rho_order = 50
+starting_eps = 0.1
+n_eps = 1
+tol = 0.04
+n_A = 3
+n_B = 3
+n_pr = 3
 
 all_eps = starting_eps * 2.0 ** -np.arange(n_eps)
 rho_gauss = quad.gaussxw(rho_order)
