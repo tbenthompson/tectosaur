@@ -20,13 +20,13 @@ n_pr = 8
 n_theta = 8
 
 # play parameters
-K = "H"
-rho_order = 40
-starting_eps = 0.01
-n_eps = 2
-tol = 0.001
-n_pr = 5
-n_theta = 5
+# K = "H"
+# rho_order = 40
+# starting_eps = 0.01
+# n_eps = 2
+# tol = 0.001
+# n_pr = 5
+# n_theta = 5
 
 all_eps = starting_eps * 2.0 ** -np.arange(n_eps)
 rho_gauss = quad.gaussxw(rho_order)

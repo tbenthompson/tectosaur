@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 
 def make_terms(n_terms, include_log):
@@ -38,50 +39,19 @@ def richardson_limit(step_ratio, values):
         last_level = this_level
     return this_level[0]
 
-def calc_I(eps):
-    tri1 = [[0,0,0],[1,0,0],[0,1,0.0]]
-    tri2 = [[1,0,0],[0,0,0],[0,-1,0]]
-    tol = 1e-5
-    rho_order = 80
+def take_all_limits(integrals):
+    limits = np.empty((integrals.shape[0], integrals.shape[2]))
+    for i in range(integrals.shape[0]):
+        limits[i,:] = richardson_limit(2.0, integrals[i,:,:])
+    return limits
 
-    import cppimport
-    adaptive_integrate = cppimport.imp('adaptive_integrate')
-    import tectosaur.quadrature as quad
-    rho_gauss = quad.gaussxw(rho_order)
-    rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-    return adaptive_integrate.integrate_coincident(
-        "H", tri1, tol, eps, 1.0, 0.25,
-        rho_q[0].tolist(), rho_q[1].tolist()
-    )[0]
-
-    # Basis 1 and 0 divergence should cancel between coincident and adjacent
-    # return adaptive_integrate.integrate_coincident(
-    #     "H", tri1, tol, eps, 1.0, 0.25,
-    #     rho_q[0].tolist(), rho_q[1].tolist()
-    # )[3]
-    # return adaptive_integrate.integrate_adjacent(
-    #     "H", tri1, tri2,
-    #     tol, eps, 1.0, 0.25, rho_q[0].tolist(), rho_q[1].tolist()
-    # )[0]
-
-# for starting_eps in [0.1,0.05,0.025,0.01,0.001]:
-def play(starting_eps, n_steps):
-    eps = [starting_eps]
-    vals = [calc_I(eps[0])]
-    print("START")
-    for i in range(n_steps):
-        eps.append(eps[-1] / 2.0)
-        vals.append(calc_I(eps[-1]))
-
-        terms = make_terms(i + 2, True)
-        mat = [[t(e) for t in terms] for e in eps]
-        print(np.linalg.cond(mat))
-        coeffs = np.linalg.solve(mat, vals)
-
-        print("log coeff: " + str(coeffs[0]))
-        result = coeffs[1]
-        print("extrap to 0: " + str(result))
+def main():
+    inname = sys.argv[1]
+    integrals = np.load(inname)
+    outname = sys.argv[2]
+    np.save(outname, take_all_limits(np.load(inname)))
 
 if __name__ == '__main__':
-    play(0.001, 5)
-    play(0.0001, 3)
+    main()
+    # play(0.001, 5)
+    # play(0.0001, 3)

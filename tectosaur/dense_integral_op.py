@@ -9,6 +9,7 @@ from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
     get_gpu_module, get_gpu_config
 from tectosaur.quadrature import gauss4d_tri
 from tectosaur.util.timer import Timer
+from tectosaur.table_lookup import coincident_table
 
 def farfield(kernel, sm, pr, pts, obs_tris, src_tris, n_q):
     q = gauss4d_tri(n_q, n_q)
@@ -92,12 +93,15 @@ def gpu_mvp(A, x):
 
 class DenseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris):
+            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris, use_tables = False):
         near_gauss = gauss4d_tri(nq_near, nq_near)
 
         timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])
-        co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris)
+        if not use_tables:
+            co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris)
+        else:
+            co_mat = coincident_table(kernel, sm, pr, pts, tris)
         timer.report("Coincident")
 
         va, ea = find_adjacents(tris)
