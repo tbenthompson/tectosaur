@@ -134,33 +134,33 @@ def test_cancellation():
         result.append(nondivergent)
     assert(abs(result[2] - result[1]) < 0.5 * abs(result[1] - result[0]))
 
-def check_simple(q):
+def check_simple(q, digits):
     est = quad.quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q)
     correct = 1.0 / 576.0
-    np.testing.assert_almost_equal(est, correct)
+    np.testing.assert_almost_equal(est, correct, digits)
 
     est = quad.quadrature(lambda p: p[:,0]**6*p[:,1]*p[:,3], q)
     correct = 1.0 / 3024.0
-    np.testing.assert_almost_equal(est, correct)
+    np.testing.assert_almost_equal(est, correct, digits)
 
     est = quad.quadrature(lambda p: p[:,0]*p[:,2]**6*p[:,3], q)
     correct = 1.0 / 3024.0
-    np.testing.assert_almost_equal(est, correct)
+    np.testing.assert_almost_equal(est, correct, digits)
 
 def test_edge_adjacent_simple():
     nq = 11
-    q = triangle_rules.edge_adj_quad(1.0, nq, nq, nq)
-    check_simple(q)
+    q = triangle_rules.edge_adj_quad(1.0, nq, nq, nq, nq, False)
+    check_simple(q, 6)
 
 def test_vertex_adjacent_simple():
     nq = 8
     q = triangle_rules.vertex_adj_quad(nq, nq, nq)
-    check_simple(q)
+    check_simple(q, 7)
 
 def test_coincident_simple():
     nq = 12
-    q = triangle_rules.coincident_quad(1.0, nq, nq, nq)
-    check_simple(q)
+    q = triangle_rules.coincident_quad(1.0, nq, nq, nq, nq)
+    check_simple(q, 5)
 
 @slow
 def test_coincident_laplace():
@@ -188,4 +188,13 @@ def test_coincident_laplace():
 def test_mass_op():
     m = mesh.rect_surface(2, 2, [[0,0,0],[1,0,0],[1,1,0],[0,1,0]])
     op = mass_op.MassOp(3, m[0], m[1])
-    print(op.data)
+    exact00 = quad.quadrature(
+        lambda x: (1 - x[:,0] - x[:,1]) * (1 - x[:,0] - x[:,1]),
+        quad.gauss2d_tri(10)
+    )
+    exact03 = quad.quadrature(
+        lambda x: (1 - x[:,0] - x[:,1]) * x[:,0],
+        quad.gauss2d_tri(10)
+    )
+    np.testing.assert_almost_equal(op.mat[0,0], exact00)
+    np.testing.assert_almost_equal(op.mat[0,3], exact03)

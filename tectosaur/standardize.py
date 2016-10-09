@@ -49,7 +49,8 @@ def relabel(tri, ov, longest_edge):
     return np.array([tri[L] for L in labels]), labels
 
 def translate(tri):
-    return tri - tri[0,:]
+    translation = -tri[0,:]
+    return tri + translation, translation
 
 def rotation_matrix(axis, theta):
     cross_mat = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]])
@@ -98,14 +99,14 @@ def check_bad_tri(tri, angle_lim):
     a = tri[2][0]
     b = tri[2][1]
 
-    # filter out when L2 < 1
+    # filter out when L2 > 1
     L2 = np.sqrt((a-1)**2 + b**2)
-    if L2 > 1:
+    if L2 > 1 + 1e-15:
         return 1
 
-    # filter out when L3 < 1
+    # filter out when L3 > 1
     L3 = np.sqrt(a**2 + b**2)
-    if L3 > 1:
+    if L3 >= 1 + 1e-15:
         return 2
 
     # filter out when T1 < 20
@@ -129,11 +130,19 @@ def standardize(tri):
     longest = get_longest_edge(ls)
     ov = get_origin_vertex(ls)
     relabeled, labels = relabel(tri, ov, longest)
-    trans = translate(relabeled)
+    trans, translation = translate(relabeled)
     rot1, rot_mat1 = rotate1_to_xaxis(trans)
     rot2, rot_mat2 = rotate2_to_xyplane(rot1)
     np.testing.assert_almost_equal(0, rot2[2][2])
     sc, factor = scale(rot2)
-    if check_bad_tri(sc, 20) > 0:
-        raise Exception("Bad tri!")
-    return sc, labels, rot_mat2.dot(rot_mat1), factor
+    code = check_bad_tri(sc, 20)
+    if code > 0:
+        raise Exception("Bad tri: " + str(code))
+    return sc, labels, translation, rot_mat2.dot(rot_mat1), factor
+
+def execute_transformations(tri, labels, translation, R, factor):
+    relabeled = tri[labels,:]
+    trans = relabeled + translation
+    rot = R.dot(trans.T).T
+    scaled = factor * rot
+    return scaled

@@ -1,3 +1,4 @@
+import time
 import numpy as np
 from tectosaur.interpolate import barycentric_evalnd, cheb, cheb_wts, from_interval
 from tectosaur.standardize import standardize
@@ -24,7 +25,8 @@ def coincident_table(kernel, sm, pr, pts, tris):
     tri_pts = pts[tris]
     out = np.empty((tris.shape[0], 3, 3, 3, 3))
     for i in range(tris.shape[0]):
-        standard_tri, labels, R, scale = standardize(tri_pts[i,:,:])
+        start = time.time()
+        standard_tri, labels, translation, R, scale = standardize(tri_pts[i,:,:])
         print(standard_tri)
         A, B = standard_tri[2][0:2]
         interp_vals = np.empty(81)
@@ -44,4 +46,8 @@ def coincident_table(kernel, sm, pr, pts, tris):
                 cb2 = labels[sb2]
                 correct = R.T.dot(interp_vals[sb1,:,sb2,:]).dot(R) / (sm * scale ** 1)
                 out[i,cb1,:,cb2,:] = correct
+        T3 = time.time() - start; start = time.time()
+        print(T3)
     return out
+
+# def adjacent_table(kernel,

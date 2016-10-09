@@ -55,6 +55,7 @@ def continuity_constraints(surface_tris, fault_tris, pts):
                 constraints.append(ConstraintEQ(
                     [Term(1.0, dependent_dof), Term(-1.0, indepedent_dof)], 0.0
                 ))
+    assert(len(touching_pt) == surface_tris.size - len(constraints) / 3)
     return constraints
 
 def constant_bc_constraints(start_tri, end_tri, value):

@@ -1,8 +1,9 @@
 (DONE) -- offset points need to take into account the adjacent elements and make sure there's no intersection
 (DONE, YES) -- should i remove the divergence? if yes, then the offset points don't need to be consistent between the adjacent and coincident integrals, i should check if different epsilon values give relatively consistent final results once the divergence is removed
+(DONE)build coincident table
+(YES,TRY TAYLOR SERIES)can i get better than ~1e-5 error? with that error, the runtime for building the coincident table will probably be something like 12 hours on meade02.
 
 build adjacent table
-build coincident table
 
 actually use the interpolation table based integrals in an okada problem
     -- code to split the edge adjacent integrals up into vertex adj integrals and one edge component
@@ -10,9 +11,6 @@ actually use the interpolation table based integrals in an okada problem
 think about volume integrals -- only ever need to do volume integrals with U and A kernels --> no divergences, not even cauchy principal value integrals because the extra source dimension reduces the order of the singularity by one, still should do transformations to reduce the order of the singularity -- probably can remove it completely, in which case there are only some big 5 dimensional low order gauss integrals to do. alternatively, i could do another interpolation table... the adjacent trick would work
 
 interior evaluation -- this is easy except near the surface, use sinh quadrature? test it against the adaptive quadrature. also, maybe i can just interpolate from one element length away to the surface value and avoid nearfield integrals?
-
-can i get better than ~1e-5 error? with that error, the runtime for building the coincident table will probably be something like 12 hours on meade02.
-
 
 
 use FMM for okada

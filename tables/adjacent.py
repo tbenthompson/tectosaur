@@ -4,7 +4,7 @@ import numpy as np
 
 import tectosaur.quadrature as quad
 
-from interpolate import cheb, cheb_wts, to_interval, barycentric_evalnd
+from tectosaur.interpolate import cheb, cheb_wts, to_interval, barycentric_evalnd
 from limit import limit, richardson_limit
 
 import cppimport
@@ -20,13 +20,13 @@ n_pr = 8
 n_theta = 8
 
 # play parameters
-# K = "H"
-# rho_order = 40
-# starting_eps = 0.01
-# n_eps = 2
-# tol = 0.001
-# n_pr = 5
-# n_theta = 5
+K = "H"
+rho_order = 50
+starting_eps = 0.08
+n_eps = 4
+tol = 0.01
+n_pr = 3
+n_theta = 3
 
 all_eps = starting_eps * 2.0 ** -np.arange(n_eps)
 rho_gauss = quad.gaussxw(rho_order)
@@ -52,7 +52,7 @@ def eval(pt):
     Y = rho * np.cos(theta)
     Z = rho * np.sin(theta)
 
-    tri1 = [[0,0,0],[1,0,0],[0,rho,0]]
+    tri1 = [[0,0,0],[1,0,0],[0.5,rho,0]]
     tri2 = [[1,0,0],[0,0,0],[0,Y,Z]]
     integrals = []
     for eps in all_eps:

@@ -27,3 +27,13 @@ def test_refine():
     refined = mesh.refine((pts, tris))
     assert(refined[0].shape[0] == 9)
 
+# def test_sanitize():
+#     pts = np.array([[0,0,0],[1,0,0],[0,1,0]])
+#     tris = np.array([[0,1,2]])
+#     sanitized = mesh.sanitize((pts, tris))
+#     assert(sanitized[1].shape[0] == 1)
+#
+#     pts = np.array([[0,0,0],[1,0,0],[0.5,0.1,0]])
+#     tris = np.array([[0,1,2]])
+#     sanitized = mesh.sanitize((pts, tris))
+#     assert(sanitized[1].shape[0] == 1)

@@ -13,6 +13,7 @@ import tectosaur.geometry as geometry
 #TODO: Split the cuda code into nearfield integrals and farfield.
 from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
     get_gpu_module, get_gpu_config
+from tectosaur.table_lookup import coincident_table
 
 from tectosaur.util.timer import Timer
 
@@ -102,13 +103,16 @@ def build_nearfield(co_data, ea_data, va_data, near_data):
 
 class NearfieldIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris):
+            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris, use_tables = False):
         near_gauss = gauss4d_tri(nq_near, nq_near)
         far_quad = gauss4d_tri(nq_far, nq_far)
 
         timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])
-        co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris)
+        if not use_tables:
+            co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris)
+        else:
+            co_mat = coincident_table(kernel, sm, pr, pts, tris)
         co_mat_correction = pairs_quad(
             kernel, sm, pr, pts, tris, tris, far_quad, False
         )
@@ -177,10 +181,11 @@ class NearfieldIntegralOp:
 
 class SparseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris):
+            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris, use_tables = False):
         self.nearfield = NearfieldIntegralOp(
             eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris
+            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
+            use_tables
         )
 
         far_quad2d = gauss2d_tri(nq_far)
@@ -227,8 +232,8 @@ class FMMIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris):
         self.nearfield = NearfieldIntegralOp(
-            eps, nq_near, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, near_threshold, sm, pr, pts, tris
+            eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
+            nq_far, nq_near, near_threshold, sm, pr, pts, tris
         )
 
         far_quad2d = gauss2d_tri(nq_far)

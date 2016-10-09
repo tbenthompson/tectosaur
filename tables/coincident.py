@@ -42,9 +42,9 @@ n_pr = 8
 # play parameters
 K = "H"
 rho_order = 50
-starting_eps = 0.1
-n_eps = 1
-tol = 0.04
+starting_eps = 0.08
+n_eps = 4
+tol = 0.01
 n_A = 3
 n_B = 3
 n_pr = 3
