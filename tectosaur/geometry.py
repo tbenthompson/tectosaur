@@ -37,6 +37,12 @@ def tri_normal(tri, normalize = False):
         n = n / np.linalg.norm(n)
     return n
 
+def remove_proj(V, b):
+    return V - (V.dot(b) * b) / np.linalg.norm(b)
+
+def vec_angle(v1, v2):
+    return np.arccos(v1.dot(v2) / np.linalg.norm(v1) / np.linalg.norm(v2))
+
 class Side:
     front = 0
     behind = 1

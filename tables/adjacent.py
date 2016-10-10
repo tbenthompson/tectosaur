@@ -41,7 +41,8 @@ thetawts = cheb_wts(-1, 1, n_theta)
 prwts = cheb_wts(-1, 1, n_pr)
 wts = np.outer(thetawts, prwts).ravel()
 
-rho = 0.5 * np.tan(np.deg2rad(20))
+min_angle = 20
+rho = 0.5 * np.tan(np.deg2rad(min_angle))
 
 n_dims = 2
 
@@ -53,7 +54,7 @@ def eval(pt):
     Z = rho * np.sin(theta)
 
     tri1 = [[0,0,0],[1,0,0],[0.5,rho,0]]
-    tri2 = [[1,0,0],[0,0,0],[0,Y,Z]]
+    tri2 = [[1,0,0],[0,0,0],[0.5,Y,Z]]
     integrals = []
     for eps in all_eps:
         print('running: ' + str((pt, eps)))
@@ -95,4 +96,4 @@ filename = K + 'adjacenttable.npy'
 pool = multiprocessing.Pool()
 results = np.array(pool.map(eval, pts.tolist()))
 np.save(filename, results)
-pool.map(test_f, zip(range(12), [results for i in range(12)]))
+# pool.map(test_f, zip(range(12), [results for i in range(12)]))

@@ -125,11 +125,15 @@ def check_bad_tri(tri, angle_lim):
         return 5
     return 0
 
-def standardize(tri):
+def relabel_longest_edge01_and_shortestedge02(tri):
     ls = get_edge_lens(tri)
     longest = get_longest_edge(ls)
     ov = get_origin_vertex(ls)
-    relabeled, labels = relabel(tri, ov, longest)
+    return relabel(tri, ov, longest)
+
+
+def standardize(tri):
+    relabeled, labels = relabel_longest_edge01_and_shortestedge02(tri)
     trans, translation = translate(relabeled)
     rot1, rot_mat1 = rotate1_to_xaxis(trans)
     rot2, rot_mat2 = rotate2_to_xyplane(rot1)
