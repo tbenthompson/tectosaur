@@ -42,10 +42,3 @@ def test_standardize():
     # np.testing.assert_almost_equal(out, [[0,0,0],[0.4,0.5,0],[0.2,0,0]])
     out,_,_,_,_ = standardize(np.array([[0,0,0],[1,0.0,0],[0.0,0.5,0]]))
     np.testing.assert_almost_equal(out, [[0,0,0],[1.0,0.0,0],[0.2,0.4,0]])
-
-def test_execute():
-    tri = np.array([[0,0,0],[1,0,0.1],[0,0.5,0]])
-    out,L,T,R,S = standardize(tri)
-    out2 = execute_transformations(tri, L, T, R, S)
-    np.testing.assert_almost_equal(out, out2)
-

@@ -2,7 +2,7 @@ import time
 import numpy as np
 from tectosaur.interpolate import barycentric_evalnd, cheb, cheb_wts, from_interval
 from tectosaur.standardize import standardize
-from tectosaur.geometry import tri_normal, remove_proj, vec_angle
+from tectosaur.geometry import tri_normal
 
 minlegalA = 0.0939060848748 - 0.01
 minlegalB = 0.233648154379 - 0.01
@@ -24,6 +24,7 @@ def coincident_interp_pts_wts(n_A, n_B, n_pr):
     return interp_pts, interp_wts
 
 def coincident_lookup(table_and_pts_wts, sm, pr, tri):
+    table, interp_pts, interp_wts = table_and_pts_wts
 
     standard_tri, labels, translation, R, scale = standardize(tri)
 
@@ -64,12 +65,18 @@ def coincident_table(kernel, sm, pr, pts, tris):
 
     return out
 
+def projection(V, b):
+    return (V.dot(b) * b) / (np.linalg.norm(b) ** 2)
+
+def vec_angle(v1, v2):
+    return np.arccos(v1.dot(v2) / np.linalg.norm(v1) / np.linalg.norm(v2))
+
 def get_adjacent_theta(obs_tri, src_tri):
     p = obs_tri[1] - obs_tri[0]
     L1 = obs_tri[2] - obs_tri[0]
     L2 = src_tri[2] - src_tri[0]
-    T1 = remove_proj(L1, p)
-    T2 = remove_proj(L2, p)
+    T1 = L1 - projection(L1, p)
+    T2 = L2 - projection(L2, p)
 
     n1 = tri_normal(obs_tri, normalize = True)
     samedir = n1.dot(T2 - T1) > 0
@@ -92,33 +99,93 @@ def adjacent_interp_pts_wts(n_theta, n_pr):
     interp_wts = np.outer(thetawts, prwts).ravel()
     return interp_pts, interp_wts
 
-min_angle = 20
-rho = 0.5 * np.tan(np.deg2rad(min_angle))
-def separate_tris(obs_tri, src_tri):
-    A,B = obs_tri[2][:2]
-    obs_split_pt = [0.5, rho, 0.0]
-    obs_tris = (
-        [obs_tri[0], obs_tri[1], obs_split_pt]
-        [obs_tri[1], obs_tri[2], obs_split_pt]
-        [obs_tri[2], obs_tri[0], obs_split_pt]
-    )
+table_min_internal_angle = 20 + 1e-14
+min_angle_isoceles_height = 0.5 * np.tan(np.deg2rad(table_min_internal_angle))
 
-    src_split_pt = [0.5, rho * V[0], rho * V[1]]
-    src_tris = (
-        [src_tri[0], src_tri[1], src_split_pt]
-        [src_tri[1], src_tri[2], src_split_pt]
+def triangle_internal_angles(tri):
+    v01 = tri[1] - tri[0]
+    v02 = tri[2] - tri[0]
+    v12 = tri[2] - tri[1]
+
+    L01 = np.linalg.norm(v01)
+    L02 = np.linalg.norm(v02)
+    L12 = np.linalg.norm(v12)
+
+    A1 = np.arccos(v01.dot(v02) / (L01 * L02))
+    A2 = np.arccos(-v01.dot(v12) / (L01 * L12))
+    A3 = np.pi - A1 - A2
+
+    return A1, A2, A3
+
+def get_split_pt(tri):
+    base_vec = tri[1] - tri[0]
+    midpt = base_vec / 2.0 + tri[0]
+    to2 = tri[2] - midpt
+    V = to2 - projection(to2, base_vec)
+    V = (V / np.linalg.norm(V)) * np.linalg.norm(base_vec) * min_angle_isoceles_height
+    return midpt + V
+
+def separate_tris(obs_tri, src_tri):
+    obs_split_pt = get_split_pt(obs_tri)
+    obs_tris = np.array([
+        [obs_tri[0], obs_tri[1], obs_split_pt],
+        [obs_tri[1], obs_tri[2], obs_split_pt],
+        [obs_tri[2], obs_tri[0], obs_split_pt]
+    ])
+
+    src_split_pt = get_split_pt(src_tri)
+    src_tris = np.array([
+        [src_tri[0], src_tri[1], src_split_pt],
+        [src_tri[1], src_tri[2], src_split_pt],
         [src_tri[2], src_tri[0], src_split_pt]
-    )
+    ])
     return obs_tris, src_tris
+
+def adjacent_lookup(table_and_pts_wts, sm, pr, obs_tri, src_tri):
+    table, interp_pts, interp_wts = table_and_pts_wts
+
+    standard_tri, _, translation, R, scale = standardize(obs_tri, should_relabel = False)
+
+    theta = get_adjacent_theta(obs_tri, src_tri)
+
+    thetahat = from_interval(0, np.pi, theta)
+    prhat = from_interval(0, 0.5, pr)
+
+    interp_vals = np.empty(81)
+    for j in range(81):
+        interp_vals[j] = barycentric_evalnd(
+            interp_pts, interp_wts, table[:, j], np.array([[thetahat, prhat]])
+        )[0]
+    interp_vals = interp_vals.reshape((3,3,3,3))
+
+    out = np.empty((3,3,3,3))
+    for b1 in range(3):
+        for b2 in range(3):
+            correct = R.T.dot(interp_vals[b1,:,b2,:]).dot(R) / (sm * scale ** 1)
+            out[b1,:,b2,:] = correct
+    return out
 
 def adjacent_table(kernel, sm, pr, pts, obs_tris, src_tris):
     n_theta = n_pr = 3
     interp_pts, interp_wts = adjacent_interp_pts_wts(n_theta, n_pr)
 
-    tri_pts = pts[tris]
+    table = np.load(kernel + '_adj_' + filename)
 
+    out = np.empty((obs_tris.shape[0], 3, 3, 3, 3))
+
+    vert_adj_pairs = []
     for i in range(obs_tris.shape[0]):
-        theta = get_adjacent_theta(tri_pts[obs_tris[i]], tri_pts[src_tris[i]])
-        thetahat = from_interval(0, np.pi, theta)
-        prhat = from_interval(0, 0.5, pr)
-        print(theta, thetahat, prhat)
+        obs_tri = pts[obs_tris[i]]
+        src_tri = pts[src_tris[i]]
+        split_obs, split_src = separate_tris(obs_tri, src_tri)
+        out[i,:,:,:,:] = adjacent_lookup(
+            (table, interp_pts, interp_wts), sm, pr, split_obs[0], split_src[0]
+        )
+        for j in range(3):
+            for k in range(3):
+                if k == 0 and j == 0:
+                    continue
+                vert_adj_pairs.append((i, split_obs[j], split_src[k]))
+
+    return out, vert_adj_pairs
+        #Perform vertex adjacent for all other pairs

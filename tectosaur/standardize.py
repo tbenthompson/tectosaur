@@ -131,9 +131,12 @@ def relabel_longest_edge01_and_shortestedge02(tri):
     ov = get_origin_vertex(ls)
     return relabel(tri, ov, longest)
 
-
-def standardize(tri):
-    relabeled, labels = relabel_longest_edge01_and_shortestedge02(tri)
+def standardize(tri, should_relabel = True):
+    if should_relabel:
+        relabeled, labels = relabel_longest_edge01_and_shortestedge02(tri)
+    else:
+        relabeled = tri
+        labels = [0,1,2]
     trans, translation = translate(relabeled)
     rot1, rot_mat1 = rotate1_to_xaxis(trans)
     rot2, rot_mat2 = rotate2_to_xyplane(rot1)
@@ -141,12 +144,5 @@ def standardize(tri):
     sc, factor = scale(rot2)
     code = check_bad_tri(sc, 20)
     if code > 0:
-        raise Exception("Bad tri: " + str(code))
+        return None
     return sc, labels, translation, rot_mat2.dot(rot_mat1), factor
-
-def execute_transformations(tri, labels, translation, R, factor):
-    relabeled = tri[labels,:]
-    trans = relabeled + translation
-    rot = R.dot(trans.T).T
-    scaled = factor * rot
-    return scaled
