@@ -66,11 +66,11 @@ float ${prefix}b1 = ${prefix}xhat;
 float ${prefix}b2 = ${prefix}yhat;
 </%def>
 
-<%def name="pts_from_basis(pt_pfx,basis_pfx,tri_name)">
-% for dim in range(3):
+<%def name="pts_from_basis(pt_pfx,basis_pfx,tri_name,ndims)">
+% for dim in range(ndims):
 float ${pt_pfx}${dn(dim)} = 0;
 % for basis in range(3):
-${pt_pfx}${dn(dim)} += ${basis_pfx}b${basis} * ${tri_name}[${basis}][${dim}];
+${pt_pfx}${dn(dim)} += ${basis_pfx}b${basis} * ${tri_name(basis,dim)};
 % endfor
 % endfor
 </%def>
@@ -79,7 +79,7 @@ ${pt_pfx}${dn(dim)} += ${basis_pfx}b${basis} * ${tri_name}[${basis}][${dim}];
 ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 </%def>
 
-<%def name="integrate_pair(k_name, limit)">
+<%def name="integrate_pair(k_name, limit, separate_bases)">
     ${tri_info("obs", "n")}
     ${tri_info("src", "l")}
 
@@ -99,27 +99,45 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
     float CsH1 = 1-2*nu;
     float CsH2 = -1+4*nu;
     float CsH3 = 3*nu;
-
+    
     for (int iq = 0; iq < n_quad_pts; iq++) {
         <% 
         qd = 4
         if limit:
             qd = 5
         %>
-        float obsxhat = quad_pts[iq * ${qd} + 0];
-        float obsyhat = quad_pts[iq * ${qd} + 1];
-        float srcxhat = quad_pts[iq * ${qd} + 2];
-        float srcyhat = quad_pts[iq * ${qd} + 3];
+        float obs_geom_xhat = quad_pts[iq * ${qd} + 0];
+        float obs_geom_yhat = quad_pts[iq * ${qd} + 1];
+        float src_geom_xhat = quad_pts[iq * ${qd} + 2];
+        float src_geom_yhat = quad_pts[iq * ${qd} + 3];
         % if limit:
             float eps = quad_pts[iq * ${qd} + 4];
         % endif
         float quadw = quad_wts[iq];
 
-        ${basis("obs")}
-        ${pts_from_basis("x", "obs", "obs_tri")}
+        % for which, ptname in [("obs", "x"), ("src", "y")]:
+            ${basis(which + "_geom_")}
+            ${pts_from_basis(
+                ptname, which + "_geom_",
+                lambda b, d: which + "_tri[" + str(b) + "][" + str(d) + "]", 3
+            )}
+            % if separate_bases:
+                ${pts_from_basis(
+                    which + "_basis", which + "_geom_",
+                    lambda b, d: which + \
+                        "_basis_tris[i * 6 + " + str(b) + " * 2 + " + str(d) + "]",
+                    2
+                )}
+                float ${which}xhat = ${which}_basisx;
+                float ${which}yhat = ${which}_basisy;
 
-        ${basis("src")}
-        ${pts_from_basis("y", "src", "src_tri")}
+                ${basis(which)}
+            % else:
+                % for d in range(3):
+                    float ${which}b${d} = ${which}_geom_b${d};
+                % endfor
+            % endif
+        % endfor
 
         % if limit:
             % for dim in range(3):
@@ -247,13 +265,15 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 __global__
 void ${pairs_func_name(limit, k_name)}(float* result, 
     int n_quad_pts, float* quad_pts, float* quad_wts,
-    float* pts, int* obs_tris, int* src_tris, float G, float nu)
+    float* pts, int* obs_tris, int* src_tris, 
+    float* obs_basis_tris, float* src_basis_tris,
+    float G, float nu)
 {
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "i")}
-    ${integrate_pair(k_name, limit)}
+    ${integrate_pair(k_name, limit, separate_bases = True)}
     
     for (int iresult = 0; iresult < 81; iresult++) {
         result[i * 81 + iresult] = result_temp[iresult];
@@ -272,7 +292,7 @@ void farfield_tris${k_name}(float* result, int n_quad_pts, float* quad_pts,
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "j")}
-    ${integrate_pair(k_name, limit = False)}
+    ${integrate_pair(k_name, limit = False, separate_bases = False)}
 
     % for d_obs in range(3):
     % for d_src in range(3):

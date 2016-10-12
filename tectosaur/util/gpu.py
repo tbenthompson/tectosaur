@@ -30,6 +30,7 @@ def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None)
 
     try:
         code = tmpl.render(**tmpl_args)
+        # print(code)
     except:
         print(mako.exceptions.text_error_template().render())
 

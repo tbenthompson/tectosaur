@@ -198,3 +198,27 @@ def test_mass_op():
     )
     np.testing.assert_almost_equal(op.mat[0,0], exact00)
     np.testing.assert_almost_equal(op.mat[0,3], exact03)
+
+def test_vert_adj_separate_bases():
+    obs_tris = np.array([[0,1,2]])
+    src_tris = np.array([[0,4,3]])
+
+    nq = 4
+
+    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[-1,0,0],[0,-1,0]])
+    I = nearfield_op.vert_adj(nq, 'H', 1.0, 0.25, pts, obs_tris, src_tris)
+    correct = I[0,0,0,0,0]
+
+    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[-1,0,0],[0,-1,0],[0.5,0.5,0]])
+    obs_basis_trissub = np.array([
+        [[0,0],[0.5,0.5],[0,1]], [[0,0],[1,0],[0.5,0.5]]
+    ])
+    obs_tris = np.array([[0,5,2], [0,1,5]])
+    src_tris = np.array([[0,4,3],[0,4,3]])
+    Isub = nearfield_op.vert_adj(
+        nq, 'H', 1.0, 0.25, pts, obs_tris, src_tris,
+        obs_basis_trissub
+    )
+
+    est = Isub[0,0,0,0,0] + Isub[1,0,0,0,0]
+    np.testing.assert_almost_equal(correct, est, 5)

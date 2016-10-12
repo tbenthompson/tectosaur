@@ -24,7 +24,16 @@ def get_pairs_integrator(kernel, singular):
         pairs_func_name(singular, kernel)
     )
 
-def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular):
+def pairs_quad(
+        kernel, sm, pr, pts, obs_tris, src_tris, q, singular,
+        obs_basis_tris = None, src_basis_tris = None):
+
+    #Performance opportunity: don't use basis_tris when unnecessary
+    if obs_basis_tris is None:
+        obs_basis_tris = np.tile([[[0,0],[1,0],[0,1]]], (obs_tris.shape[0],1,1))
+    if src_basis_tris is None:
+        src_basis_tris = np.tile([[[0,0],[1,0],[0,1]]], (src_tris.shape[0],1,1))
+
     integrator = get_pairs_integrator(kernel, singular)
 
     result = np.empty((obs_tris.shape[0], 3, 3, 3, 3)).astype(np.float32)
@@ -50,6 +59,8 @@ def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular):
             drv.In(pts.astype(np.float32)),
             drv.In(obs_tris[tri_start:tri_end].astype(np.int32)),
             drv.In(src_tris[tri_start:tri_end].astype(np.int32)),
+            drv.In(obs_basis_tris[tri_start:tri_end].astype(np.float32)),
+            drv.In(src_basis_tris[tri_start:tri_end].astype(np.float32)),
             np.float32(sm),
             np.float32(pr),
             block = block, grid = grid
@@ -101,7 +112,10 @@ def edge_adj(nq, eps, kernel, sm, pr, pts, obs_tris, src_tris):
 def cached_vert_adj_quad(nq):
     return triangle_rules.vertex_adj_quad(nq, nq, nq)
 
-def vert_adj(nq, kernel, sm, pr, pts, obs_tris, src_tris):
+def vert_adj(nq, kernel, sm, pr, pts, obs_tris, src_tris,
+        obs_basis_tris = None, src_basis_tris = None):
     q = cached_vert_adj_quad(nq)
-    out = pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, False)
+    out = pairs_quad(
+        kernel, sm, pr, pts, obs_tris, src_tris, q, False, obs_basis_tris, src_basis_tris
+    )
     return out
