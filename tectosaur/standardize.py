@@ -96,32 +96,34 @@ def lawcos(a, b, c):
 
 # Checks for acceptable edge lengths and internal angles
 def check_bad_tri(tri, angle_lim):
+    eps = 1e-10
+
     a = tri[2][0]
     b = tri[2][1]
 
     # filter out when L2 > 1
     L2 = np.sqrt((a-1)**2 + b**2)
-    if L2 > 1 + 1e-15:
+    if L2 > 1 + eps:
         return 1
 
     # filter out when L3 > 1
     L3 = np.sqrt(a**2 + b**2)
-    if L3 >= 1 + 1e-15:
+    if L3 >= 1 + eps:
         return 2
 
     # filter out when T1 < 20
     A1 = lawcos(1.0, L3, L2)
-    if np.rad2deg(A1) < angle_lim:
+    if np.rad2deg(A1) < angle_lim - eps:
         return 3
 
     # filter out when A2 < 20
     A2 = lawcos(1.0, L2, L3)
-    if np.rad2deg(A2) < angle_lim:
+    if np.rad2deg(A2) < angle_lim - eps:
         return 4
 
     # filter out when A3 < 20
     A3 = lawcos(L2, L3, 1.0)
-    if np.rad2deg(A3) < angle_lim:
+    if np.rad2deg(A3) < angle_lim - eps:
         return 5
     return 0
 
@@ -131,7 +133,7 @@ def relabel_longest_edge01_and_shortestedge02(tri):
     ov = get_origin_vertex(ls)
     return relabel(tri, ov, longest)
 
-def standardize(tri, should_relabel = True):
+def standardize(tri, angle_lim, should_relabel = True):
     if should_relabel:
         relabeled, labels = relabel_longest_edge01_and_shortestedge02(tri)
     else:
@@ -142,7 +144,8 @@ def standardize(tri, should_relabel = True):
     rot2, rot_mat2 = rotate2_to_xyplane(rot1)
     np.testing.assert_almost_equal(0, rot2[2][2])
     sc, factor = scale(rot2)
-    code = check_bad_tri(sc, 20)
+    code = check_bad_tri(sc, angle_lim)
     if code > 0:
+        print("Bad tri: " + str(code))
         return None
     return sc, labels, translation, rot_mat2.dot(rot_mat1), factor

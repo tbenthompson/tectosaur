@@ -4,11 +4,15 @@ from tectosaur.interpolate import barycentric_evalnd, cheb, cheb_wts, from_inter
 from tectosaur.standardize import standardize
 from tectosaur.geometry import tri_normal
 
+table_min_internal_angle = 20 + 1e-11
+min_angle_isoceles_height = 0.5 * np.tan(np.deg2rad(table_min_internal_angle))
+
 minlegalA = 0.0939060848748 - 0.01
 minlegalB = 0.233648154379 - 0.01
 maxlegalB = 0.865565992417 + 0.01
 filename, n_A, n_B, n_pr = ('coincidenttable_limits.npy', 8, 8, 8)
 filename, n_A, n_B, n_pr = ('testtable.npy', 3, 3, 3)
+
 
 def coincident_interp_pts_wts(n_A, n_B, n_pr):
     Ahats = cheb(-1, 1, n_A)
@@ -26,7 +30,9 @@ def coincident_interp_pts_wts(n_A, n_B, n_pr):
 def coincident_lookup(table_and_pts_wts, sm, pr, tri):
     table, interp_pts, interp_wts = table_and_pts_wts
 
-    standard_tri, labels, translation, R, scale = standardize(tri)
+    standard_tri, labels, translation, R, scale = standardize(
+        tri, table_min_internal_angle
+    )
 
     A, B = standard_tri[2][0:2]
 
@@ -99,9 +105,6 @@ def adjacent_interp_pts_wts(n_theta, n_pr):
     interp_wts = np.outer(thetawts, prwts).ravel()
     return interp_pts, interp_wts
 
-table_min_internal_angle = 20 + 1e-14
-min_angle_isoceles_height = 0.5 * np.tan(np.deg2rad(table_min_internal_angle))
-
 def triangle_internal_angles(tri):
     v01 = tri[1] - tri[0]
     v02 = tri[2] - tri[0]
@@ -144,9 +147,15 @@ def separate_tris(obs_tri, src_tri):
 def adjacent_lookup(table_and_pts_wts, sm, pr, obs_tri, src_tri):
     table, interp_pts, interp_wts = table_and_pts_wts
 
-    standard_tri, _, translation, R, scale = standardize(obs_tri, should_relabel = False)
+    standard_tri, _, translation, R, scale = standardize(
+        obs_tri, table_min_internal_angle, should_relabel = False
+    )
 
     theta = get_adjacent_theta(obs_tri, src_tri)
+
+    #TODO: HANDLE FLIPPING!
+    if theta > np.pi:
+        theta = 2 * np.pi - theta
 
     thetahat = from_interval(0, np.pi, theta)
     prhat = from_interval(0, 0.5, pr)

@@ -1,4 +1,6 @@
-from tectosaur.table_lookup import *
+import numpy as np
+
+from tectosaur.table_lookup import adjacent_table, min_angle_isoceles_height
 from tectosaur.standardize import standardize, rotation_matrix
 
 # Most of the tests for the table lookup are indirect through the integral op tests,
@@ -87,21 +89,34 @@ def test_separate():
     # print(res[0])
 
 def test_adjacent_table_lookup():
-    rho = 0.5 * np.tan(np.deg2rad(20))
-    theta = 2.93114584997056#0.9
-    pr = 0.4665063509461097#0.25
 
-    factor = 2.0
-    translation =
+    for i in range(1):
+        # We want theta in [0, 3*pi/2] because the old method doesn't work for
+        # theta >= 3*np.pi/2
+        theta = np.random.rand(1)[0] * 1.4 * np.pi
+        print(theta)
+        pr = np.random.rand(1)[0] * 0.5
+        scale = np.random.rand(1)[0]
+        translation = np.random.rand(3)
+        R = random_rotation()
 
-    pts = factor * np.array([[0,0,0],[1,0,0],[0.5,rho,0.0],[0.5,rho*np.cos(theta),rho*np.sin(theta)]])
-    tris = np.array([[0,1,2],[1,0,3]])
+        H = min_angle_isoceles_height
+        pre_pts = np.array([[0,0,0], [1,0,0], [0.5,H,0.0], [0.5,H*np.cos(theta),H*np.sin(theta)]])
+        pts = (translation + R.dot(pre_pts.T).T * scale).copy()
+        tris = np.array([[0,1,2],[1,0,3]])
 
-    from tectosaur.table_lookup import adjacent_table
+        from tectosaur.dense_integral_op import DenseIntegralOp
+        eps = 0.08 * (2.0 ** -np.arange(4))
+        op = DenseIntegralOp(eps, 15, 16, 10, 3, 10, 3.0, 'H', 1.0, pr, pts, tris)
 
-    result, pairs = adjacent_table('H', 1.0, pr, pts, np.array([tris[0]]), np.array([tris[1]]))
-    print(result[0,0,0,0,0])
+        result, pairs = adjacent_table(
+            'H', 1.0, pr, pts, np.array([tris[0]]), np.array([tris[1]])
+        )
+        import ipdb; ipdb.set_trace()
 
-    eps = 0.08 * (2.0 ** -np.arange(4))
-    op = DenseIntegralOp(eps, 15, 16, 10, 3, 10, 3.0, 'H', 1.0, pr, pts, tris)
-    print(op.mat[0,9])
+        est = result[0,0,0,0,0]
+        correct = op.mat[0,9]
+        err = np.abs((est - correct) / correct)
+        print(est, correct, err)
+        assert(err < 0.07)
+
