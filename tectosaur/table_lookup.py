@@ -196,19 +196,6 @@ def sub_basis(I, obs_basis_tri, src_basis_tri):
                     out[ob1,:,sb1,:] += I[ob2,:,sb2,:] * obv * sbv
     return out
 
-def sub_basis_simple(I, obs_basis_tri, src_basis_tri):
-    out = np.zeros((3,3,3,3))
-    bfncs = [
-        lambda x,y: 1 - x - y,
-        lambda x,y: x,
-        lambda x,y: y
-    ]
-
-    for ob1 in range(3):
-        for ob2 in range(3):
-            out[ob1] += I[ob2] * bfncs[ob1](*obs_basis_tri[ob2,:])
-    return out
-
 def adjacent_table(kernel, sm, pr, pts, obs_tris, src_tris):
     n_theta = n_pr = 3
     interp_pts, interp_wts = adjacent_interp_pts_wts(n_theta, n_pr)

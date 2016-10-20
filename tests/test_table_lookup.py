@@ -2,7 +2,7 @@ import numpy as np
 
 import tectosaur.geometry as geometry
 import tectosaur.nearfield_op as nearfield_op
-from tectosaur.table_lookup import adjacent_table, min_angle_isoceles_height, sub_basis, sub_basis_simple
+from tectosaur.table_lookup import adjacent_table, min_angle_isoceles_height, sub_basis
 from tectosaur.standardize import standardize, rotation_matrix
 from tectosaur.dense_integral_op import DenseIntegralOp
 
@@ -99,18 +99,27 @@ def test_adjacent_table_lookup():
         H = min_angle_isoceles_height
         pts = np.array([
             [0,0,0],[1,0,0],
-            [0.5,H*np.cos(theta),H*np.sin(theta)],
-            [0.0,2 * H,0]
+            [0.5,3*H*np.cos(theta),4*H*np.sin(theta)],
+            [0.5,3*H,0]
         ])
         # pts = (translation + R.dot(pts.T).T * scale).copy()
         tris = np.array([[0,1,3],[1,0,2]])
 
-        eps = 0.08 * (2.0 ** -np.arange(4))
-        op = DenseIntegralOp(eps, 15, 19, 10, 3, 10, 3.0, K, 1.0, pr, pts, tris)
+
 
         result, pairs = adjacent_table(
             K, 1.0, pr, pts, np.array([tris[0]]), np.array([tris[1]])
         )
+
+        full_tri = pts[tris[0]]
+        full_tri_area = np.linalg.norm(geometry.tri_normal(full_tri))
+        edge_adj_sub_tri = pairs[0][1][pairs[0][2]]
+        edge_adj_sub_tri_area = np.linalg.norm(geometry.tri_normal(edge_adj_sub_tri))
+
+        area_ratio = np.sqrt(edge_adj_sub_tri_area / full_tri_area)
+
+        eps = 0.08 * (2.0 ** -np.arange(4)) * area_ratio
+        op = DenseIntegralOp(eps, 15, 19, 10, 3, 10, 3.0, K, 1.0, pr, pts, tris)
 
         nq = 6
         from tectosaur.adjacency import rotate_tri
@@ -137,10 +146,9 @@ def test_adjacent_table_lookup():
             Iv = nearfield_op.vert_adj(
                 nq, K, 1.0, pr, pts.copy(),
                 np.array([ot[ot_rot]]),
-                np.array([st[st_rot]]),
-                np.array([obt[ot_rot]]),
-                np.array([sbt[st_rot]])
+                np.array([st[st_rot]])
             )
+            Iv = sub_basis(Iv[0], obt[ot_rot], sbt[st_rot])
             result += Iv
 
         est = result[0,0,0,0,0]
@@ -171,22 +179,6 @@ def test_sub_basis_rotation():
     B = sub_basis(A, np.array([[0,0],[1,0],[0,1]]), np.array([[0,1],[0,0],[1,0]]))
     np.testing.assert_almost_equal(A[:,:,[1,2,0],:], B)
 
-def test_sub_basis_simple1():
-    A = np.random.rand(81).reshape((3,3,3,3))
-    obs_basis = np.array([[0,0],[0.5,0.5],[0.0,1.0]])
-    src_basis = np.array([[0,0],[1,0],[0,1]])
-    B = sub_basis(A, obs_basis, src_basis)
-    C = sub_basis_simple(A, obs_basis, src_basis)
-    np.testing.assert_almost_equal(C, B)
-
-def test_sub_basis_simple2():
-    A = np.random.rand(81).reshape((3,3,3,3))
-    obs_basis = np.array([[0,0],[0.5,0.5],[0.0,1.0]])
-    src_basis = np.array([[1,0],[0,1],[0,0]])
-    B = sub_basis(A, obs_basis, src_basis)
-    C = sub_basis_simple(A, obs_basis, src_basis)
-    np.testing.assert_almost_equal(C[:,:,[2,0,1],:], B)
-
 def test_summation():
     K = 'H'
 
@@ -215,7 +207,7 @@ def test_summation():
     # obs_v_adj_tri = [0,1,3]
     # src_v_adj_tri = [0,4,5]
     opE = nearfield_op.edge_adj(
-        nqe, eps, K, 1.0, 0.25, pts,
+        nqe, eps * np.sqrt(1.0 / (1 - abc)), K, 1.0, 0.25, pts,
         np.array([obs_e_adj_tri]), np.array([src_e_adj_tri]),
     )
     opV = nearfield_op.vert_adj(
@@ -223,13 +215,8 @@ def test_summation():
         np.array([obs_v_adj_tri]), np.array([src_v_adj_tri]),
     )
 
-    # opEsub = sub_basis(opE[0], obs_basis[obs_e_adj_tri], src_basis[src_e_adj_tri])
-    # opVsub = sub_basis(opV[0], obs_basis[obs_v_adj_tri], src_basis[src_v_adj_tri])
-
-    import ipdb; ipdb.set_trace()
-    opEsub = sub_basis_simple(opE[0], obs_basis[obs_e_adj_tri], src_basis[src_e_adj_tri])
-    opVsub = sub_basis_simple(opV[0], obs_basis[obs_v_adj_tri], src_basis[src_v_adj_tri])
-    opVsub = opVsub[:,:,[2,0,1],:]
+    opEsub = sub_basis(opE[0], obs_basis[obs_e_adj_tri], src_basis[src_e_adj_tri])
+    opVsub = sub_basis(opV[0], obs_basis[obs_v_adj_tri], src_basis[src_v_adj_tri])
 
     A = op.mat[:9,9:].reshape((3,3,3,3))
     B = opEsub + opVsub
@@ -238,35 +225,24 @@ def test_summation():
     print(B[:,0,:,0])
     print(A[:,0,:,0])
 
-def test_summation2():
+def test_edge_adj_split():
     K = 'H'
-    nqe = 20
-    nqv = 10
+    nqe = 15
+    nqv = 7
 
-    eps = 0.08 * (2.0 ** -np.arange(1))
-    abc = 0.5
-    pts = np.array([[0,0,0],[1,0,0],[0.5,0.5,0],[0,1,0],[0,-1,0],[0.5,-0.5,0],[0.25,0.75,0]])
-    obs_basis = pts[:,:2]
-    src_basis = np.array([[1,0],[0,0],[0,0],[0,0],[0,1],[0.0,0.5]])
+    eps = 0.08 * (2.0 ** -np.arange(4))
+    for abc in np.linspace(0.1,0.9,5):
+        pts = np.array([[0,0,0],[1,0,0],[abc,1-abc,0],[0,1,0],[0,-1,0],[0.5,-0.5,0],[0.25,0.75,0]])
+        obs_basis = pts[:,:2]
+        src_basis = np.array([[1,0],[0,0],[0,0],[0,0],[0,1],[0.0,0.5]])
 
-    tris = np.array([[0,1,3],[0,4,1]])
-    op = DenseIntegralOp(eps, 15, nqe, nqv, nqv, nqv, 3.0, K, 1.0, 0.25, pts, tris)
+        tris = np.array([[0,1,3],[0,4,1]])
+        op = DenseIntegralOp(eps, 15, nqe, nqv, nqv, nqv, 3.0, K, 1.0, 0.25, pts, tris)
 
-    tris2 = np.array([[0,1,2],[0,2,3],[0,4,1]])
-    op2 = DenseIntegralOp(eps, 15, nqe, nqv, nqv, nqv, 3.0, K, 1.0, 0.25, pts, tris2)
+        tris2 = np.array([[0,1,2],[0,2,3],[0,4,1]])
+        op2 = DenseIntegralOp(eps * np.sqrt(1.0 / (1 - abc)), 15, nqe, nqv, nqv, nqv, 3.0, K, 1.0, 0.25, pts, tris2)
 
-    tris3 = np.array([[0,1,2],[0,2,6],[0,6,3],[0,4,1]])
-    op3 = DenseIntegralOp(eps, 15, nqe, nqv, nqv, nqv, 3.0, K, 1.0, 0.25, pts, tris3)
-
-    A = op.mat[0,9]
-    B = op2.mat[0,18]
-    C = op2.mat[9,18]/2.0
-    print(A,B,C,B+C)
-    import ipdb; ipdb.set_trace()
-
-    # constraints = []
-    # from tectosaur.constraints import ConstraintEQ, build_constraint_matrix
-    # constraints.append(ConstraintEQ([Term(1.0, 0), Term(-1.0, 9)], 0.0))
-    # cm, rhs = build_constraint_matrix(constraints, 27)
-    # constrained_mat = cm.T.dot(op2.mat).dot(cm)
-    # import ipdb; ipdb.set_trace()
+        A = op.mat[0,9]
+        B = op2.mat[0,18] + op2.mat[9,18]
+        err = np.abs((A - B) / A)
+        assert(err < 0.01)

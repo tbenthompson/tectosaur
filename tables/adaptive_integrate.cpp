@@ -417,37 +417,53 @@ int f_edge_adj(unsigned ndim, const double* x, void* fdata, unsigned fdim, doubl
         fval[idx] = 0.0;
     }
 
-    if (d.piece > 1) {
+    // if (d.piece > 1) {
+    //     return 0;
+    // }
+
+    // double obsxhat = x[0];
+    // double obsyhat = x[1] * (1 - obsxhat);
+
+    // double thetahat = x[2];
+    // double thetalow = d.adj_theta_low(obsxhat);
+    // double thetahigh = d.adj_theta_high(obsxhat);
+    // double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
+
+    // double outer_jacobian = (1 - obsxhat) * (thetahigh - thetalow) * 0.5;
+    // double costheta = cos(theta);
+    // double sintheta = sin(theta);
+
+    // for (size_t ri = 0; ri < d.rho_hats.size(); ri++) {
+    //     double rhohat = (d.rho_hats[ri] + 1) / 2.0;
+    //     double jacobian = d.rho_wts[ri] * outer_jacobian;
+
+    //     double rhohigh = d.adj_rhohigh(obsxhat, theta);
+    //     double rho = rhohat * rhohigh;
+    //     jacobian *= rho * rhohigh;
+
+    //     double srcxhat = rho * costheta + (1 - obsxhat);
+    //     double srcyhat = rho * sintheta;
+
+    //     auto out = bem_integrand(d, obsxhat, obsyhat, srcxhat, srcyhat);
+    //     for (int i = 0; i < 9; i++) {
+    //         fval[i] += jacobian * out[i];
+    //     }
+    // }
+
+    if (d.piece > 0) {
         return 0;
     }
 
     double obsxhat = x[0];
     double obsyhat = x[1] * (1 - obsxhat);
+    double srcxhat = x[2];
+    double srcyhat = x[3] * (1 - srcxhat);
+    double jacobian = (1 - obsxhat) * (1 - srcxhat);
 
-    double thetahat = x[2];
-    double thetalow = d.adj_theta_low(obsxhat);
-    double thetahigh = d.adj_theta_high(obsxhat);
-    double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
+    auto out = bem_integrand(d, obsxhat, obsyhat, srcxhat, srcyhat);
 
-    double outer_jacobian = (1 - obsxhat) * (thetahigh - thetalow) * 0.5;
-    double costheta = cos(theta);
-    double sintheta = sin(theta);
-
-    for (size_t ri = 0; ri < d.rho_hats.size(); ri++) {
-        double rhohat = (d.rho_hats[ri] + 1) / 2.0;
-        double jacobian = d.rho_wts[ri] * outer_jacobian;
-
-        double rhohigh = d.adj_rhohigh(obsxhat, theta);
-        double rho = rhohat * rhohigh;
-        jacobian *= rho * rhohigh;
-
-        double srcxhat = rho * costheta + (1 - obsxhat);
-        double srcyhat = rho * sintheta;
-
-        auto out = bem_integrand(d, obsxhat, obsyhat, srcxhat, srcyhat);
-        for (int i = 0; i < 9; i++) {
-            fval[i] += jacobian * out[i];
-        }
+    for (int i = 0; i < 9; i++) {
+        fval[i] = out[i] * jacobian;
     }
     return 0;
 }
@@ -475,6 +491,8 @@ int f_no_limit(unsigned ndim, const double* x, void* fdata, unsigned fdim, doubl
     for (int i = 0; i < 9; i++) {
         fval[i] = out[i] * jacobian;
     }
+
+    return 0;
 }
 
 struct InteriorData {
@@ -544,10 +562,10 @@ std::array<double,81> integrate(Data& d, Adjacency adj) {
                         d.tol, ERROR_INDIVIDUAL, val, err
                     );
                 } else if (adj == Adjacency::EdgeAdjacent) {
-                    const double xmin[3] = {0,0,0};
-                    const double xmax[3] = {1,1,1};
+                    const double xmin[4] = {0,0,0,0};
+                    const double xmax[4] = {1,1,1,1};
                     d.integrator(
-                        9, f_edge_adj, &d, 3, xmin, xmax, 0, 0,
+                        9, f_edge_adj, &d, 4, xmin, xmax, 0, 0,
                         d.tol, ERROR_INDIVIDUAL, val, err
                     );
                 } else if (adj == Adjacency::VertAdjacent || adj == Adjacency::Separated) {
@@ -579,6 +597,7 @@ Kernel get_kernel(std::string k_name) {
     Ks["T"] = Tkernel;
     Ks["A"] = Akernel;
     Ks["H"] = Hkernel;
+    // Ks["one"] = OneKernel;
     return Ks[k_name];
 }
 
@@ -625,7 +644,7 @@ PYBIND11_PLUGIN(adaptive_integrate) {
             Data d(
                 tol, false, get_kernel(k_name), 
                 Tri(obs_tri), Tri(src_tri), 
-                0.0, sm, pr, {}, {}
+                0.01, sm, pr, {}, {}
             );
             auto result = integrate(d, Adjacency::VertAdjacent);
             return result;
