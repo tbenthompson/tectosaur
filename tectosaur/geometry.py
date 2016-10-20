@@ -1,5 +1,11 @@
 import numpy as np
 
+def projection(V, b):
+    return (V.dot(b) * b) / (np.linalg.norm(b) ** 2)
+
+def vec_angle(v1, v2):
+    return np.arccos(v1.dot(v2) / np.linalg.norm(v1) / np.linalg.norm(v2))
+
 def linear_basis_tri(xhat, yhat):
     return np.array([1.0 - xhat - yhat, xhat, yhat])
 
@@ -20,6 +26,17 @@ def tri_pt(basis, tri):
         sum([basis[j] * tri[j][i] for j in range(3)])
         for i in range(3)
     ])
+
+def xyhat_from_pt(pt, tri):
+    v1 = tri[1] - tri[0]
+    v2 = tri[2] - tri[0]
+    pt_trans = pt - tri[0]
+    xhat, yhat = np.linalg.lstsq(np.array([v1,v2]).T, pt_trans)[0]
+    assert(xhat + yhat <= 1.0 + 1e-15)
+    assert(xhat >= -1e-15)
+    assert(yhat >= -1e-15)
+
+    return xhat, yhat
 
 def cross(x, y):
     return np.array([

@@ -79,7 +79,7 @@ ${pt_pfx}${dn(dim)} += ${basis_pfx}b${basis} * ${tri_name(basis,dim)};
 ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 </%def>
 
-<%def name="integrate_pair(k_name, limit, separate_bases)">
+<%def name="integrate_pair(k_name, limit)">
     ${tri_info("obs", "n")}
     ${tri_info("src", "l")}
 
@@ -121,22 +121,9 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
                 ptname, which + "_geom_",
                 lambda b, d: which + "_tri[" + str(b) + "][" + str(d) + "]", 3
             )}
-            % if separate_bases:
-                ${pts_from_basis(
-                    which + "_basis", which + "_geom_",
-                    lambda b, d: which + \
-                        "_basis_tris[i * 6 + " + str(b) + " * 2 + " + str(d) + "]",
-                    2
-                )}
-                float ${which}xhat = ${which}_basisx;
-                float ${which}yhat = ${which}_basisy;
-
-                ${basis(which)}
-            % else:
-                % for d in range(3):
-                    float ${which}b${d} = ${which}_geom_b${d};
-                % endfor
-            % endif
+            % for d in range(3):
+                float ${which}b${d} = ${which}_geom_b${d};
+            % endfor
         % endfor
 
         % if limit:
@@ -266,14 +253,13 @@ __global__
 void ${pairs_func_name(limit, k_name)}(float* result, 
     int n_quad_pts, float* quad_pts, float* quad_wts,
     float* pts, int* obs_tris, int* src_tris, 
-    float* obs_basis_tris, float* src_basis_tris,
     float G, float nu)
 {
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "i")}
-    ${integrate_pair(k_name, limit, separate_bases = True)}
+    ${integrate_pair(k_name, limit)}
     
     for (int iresult = 0; iresult < 81; iresult++) {
         result[i * 81 + iresult] = result_temp[iresult];
@@ -292,7 +278,7 @@ void farfield_tris${k_name}(float* result, int n_quad_pts, float* quad_pts,
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "j")}
-    ${integrate_pair(k_name, limit = False, separate_bases = False)}
+    ${integrate_pair(k_name, limit = False)}
 
     % for d_obs in range(3):
     % for d_src in range(3):

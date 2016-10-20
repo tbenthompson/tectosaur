@@ -1,12 +1,17 @@
+import numpy as np
+
+import tectosaur.quadrature as quad
+from tectosaur.dense_integral_op import DenseIntegralOp
+
+import cppimport
+adaptive_integrate = cppimport.imp('adaptive_integrate')
+
 def calc_I(eps):
     tri1 = [[0,0,0],[1,0,0],[0,1,0.0]]
     tri2 = [[1,0,0],[0,0,0],[0,-1,0]]
     tol = 1e-5
     rho_order = 80
 
-    import cppimport
-    adaptive_integrate = cppimport.imp('adaptive_integrate')
-    import tectosaur.quadrature as quad
     rho_gauss = quad.gaussxw(rho_order)
     rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
     return adaptive_integrate.integrate_coincident(
@@ -138,7 +143,7 @@ def test_rotation():
         ,[[1.0,0.0,0.0], [0.0,-0.3,0.45], [0.0,0.35,1.1]]
     ]
     for t in test_tris:
-        test_tri(t):
+        test_tri(t)
 
     n_checks = 10
     while True:
@@ -154,3 +159,39 @@ def test_rotation():
         n_checks -= 1
         if n_checks == 0:
             break
+
+def test_vert_adj():
+    K = 'H'
+    for abc in np.linspace(0.1, 0.9, 10):
+        pts = np.array([[0,0,0],[1,0,0],[abc,1 - abc,0],[0,1,0],[0,-1,0],[0.5,-0.5,0]])
+        tris = np.array([[0,2,3],[0,4,1]])
+        op = DenseIntegralOp([0.01], 10, 10, 13, 10, 10, 3.0, K, 1.0, 0.25, pts, tris)
+        res = adaptive_integrate.integrate_no_limit(
+            K, pts[tris[0]].tolist(), pts[tris[1]].tolist(), 0.0001, 1.0, 0.25
+        )
+        np.testing.assert_almost_equal(res, op.mat[:9,9:].reshape(81), 5)
+        print("PASS: " + str(abc))
+
+def test_edge_adj():
+    K = 'H'
+    for abc in np.linspace(0.1, 0.9, 10):
+        eps = 0.08
+        pts = np.array([[0,0,0],[1,0,0],[abc,1 - abc,0],[0,1,0],[0,-1,0],[0.5,-0.5,0]])
+        tris = np.array([[0,1,2],[1,0,4]])
+        op = DenseIntegralOp([eps], 10, 15, 10, 10, 10, 3.0, K, 1.0, 0.25, pts, tris)
+
+        rho_order = 100
+        tol = 0.005
+        rho_gauss = quad.gaussxw(rho_order)
+        rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
+        res = adaptive_integrate.integrate_adjacent(
+            K, pts[tris[0]].tolist(), pts[tris[1]].tolist(), tol, eps, 1.0, 0.25,
+            rho_q[0].tolist(), rho_q[1].tolist()
+        )
+        np.testing.assert_almost_equal(res, op.mat[:9,9:].reshape(81), 4)
+        print("PASS: " + str(abc))
+
+
+if __name__ == '__main__':
+    # test_vert_adj()
+    test_edge_adj()

@@ -2,7 +2,7 @@ import time
 import numpy as np
 from tectosaur.interpolate import barycentric_evalnd, cheb, cheb_wts, from_interval
 from tectosaur.standardize import standardize
-from tectosaur.geometry import tri_normal
+from tectosaur.geometry import tri_normal, xyhat_from_pt, projection, vec_angle
 
 table_min_internal_angle = 20 + 1e-11
 min_angle_isoceles_height = 0.5 * np.tan(np.deg2rad(table_min_internal_angle))
@@ -57,11 +57,11 @@ def coincident_lookup(table_and_pts_wts, sm, pr, tri):
     return out
 
 def coincident_table(kernel, sm, pr, pts, tris):
-    interp_pts, interp_wts = coincident_interp_pts(n_A, n_B, n_pr)
+    interp_pts, interp_wts = coincident_interp_pts_wts(n_A, n_B, n_pr)
 
     tri_pts = pts[tris]
 
-    table = np.load(kernel + filename)
+    table = np.load('data/' + kernel + filename)
     out = np.empty((tris.shape[0], 3, 3, 3, 3))
 
     for i in range(tris.shape[0]):
@@ -70,12 +70,6 @@ def coincident_table(kernel, sm, pr, pts, tris):
         )
 
     return out
-
-def projection(V, b):
-    return (V.dot(b) * b) / (np.linalg.norm(b) ** 2)
-
-def vec_angle(v1, v2):
-    return np.arccos(v1.dot(v2) / np.linalg.norm(v1) / np.linalg.norm(v2))
 
 def get_adjacent_theta(obs_tri, src_tri):
     p = obs_tri[1] - obs_tri[0]
@@ -129,20 +123,31 @@ def get_split_pt(tri):
     return midpt + V
 
 def separate_tris(obs_tri, src_tri):
+    np.testing.assert_almost_equal(obs_tri[0], src_tri[1])
+    np.testing.assert_almost_equal(obs_tri[1], src_tri[0])
+
     obs_split_pt = get_split_pt(obs_tri)
-    obs_tris = np.array([
-        [obs_tri[0], obs_tri[1], obs_split_pt],
-        [obs_tri[1], obs_tri[2], obs_split_pt],
-        [obs_tri[2], obs_tri[0], obs_split_pt]
-    ])
+    obs_split_pt_xyhat = xyhat_from_pt(obs_split_pt, obs_tri)
 
     src_split_pt = get_split_pt(src_tri)
-    src_tris = np.array([
-        [src_tri[0], src_tri[1], src_split_pt],
-        [src_tri[1], src_tri[2], src_split_pt],
-        [src_tri[2], src_tri[0], src_split_pt]
+    src_split_pt_xyhat = xyhat_from_pt(src_split_pt, src_tri)
+
+    pts = np.array(
+        [obs_tri[0], obs_tri[1], obs_tri[2], src_tri[2], obs_split_pt, src_split_pt]
+    )
+    obs_tris = np.array([[0, 1, 4], [4, 1, 2], [0, 4, 2]])
+    src_tris = np.array([[1, 0, 5], [5, 0, 3], [1, 5, 3]])
+    obs_basis_tris = np.array([
+        [[0,0],[1,0],obs_split_pt_xyhat],
+        [obs_split_pt_xyhat, [1,0],[0,1]],
+        [[0,0],obs_split_pt_xyhat,[0,1]]
     ])
-    return obs_tris, src_tris
+    src_basis_tris = np.array([
+        [[0,0],[1,0],src_split_pt_xyhat],
+        [src_split_pt_xyhat, [1,0],[0,1]],
+        [[0,0],src_split_pt_xyhat,[0,1]]
+    ])
+    return pts, obs_tris, src_tris, obs_basis_tris, src_basis_tris
 
 def adjacent_lookup(table_and_pts_wts, sm, pr, obs_tri, src_tri):
     table, interp_pts, interp_wts = table_and_pts_wts
@@ -174,6 +179,36 @@ def adjacent_lookup(table_and_pts_wts, sm, pr, obs_tri, src_tri):
             out[b1,:,b2,:] = correct
     return out
 
+def sub_basis(I, obs_basis_tri, src_basis_tri):
+    out = np.zeros((3,3,3,3))
+    bfncs = [
+        lambda x,y: 1 - x - y,
+        lambda x,y: x,
+        lambda x,y: y
+    ]
+
+    for ob1 in range(3):
+        for sb1 in range(3):
+            for ob2 in range(3):
+                for sb2 in range(3):
+                    obv = bfncs[ob1](*obs_basis_tri[ob2,:])
+                    sbv = bfncs[sb1](*src_basis_tri[sb2,:])
+                    out[ob1,:,sb1,:] += I[ob2,:,sb2,:] * obv * sbv
+    return out
+
+def sub_basis_simple(I, obs_basis_tri, src_basis_tri):
+    out = np.zeros((3,3,3,3))
+    bfncs = [
+        lambda x,y: 1 - x - y,
+        lambda x,y: x,
+        lambda x,y: y
+    ]
+
+    for ob1 in range(3):
+        for ob2 in range(3):
+            out[ob1] += I[ob2] * bfncs[ob1](*obs_basis_tri[ob2,:])
+    return out
+
 def adjacent_table(kernel, sm, pr, pts, obs_tris, src_tris):
     n_theta = n_pr = 3
     interp_pts, interp_wts = adjacent_interp_pts_wts(n_theta, n_pr)
@@ -186,15 +221,23 @@ def adjacent_table(kernel, sm, pr, pts, obs_tris, src_tris):
     for i in range(obs_tris.shape[0]):
         obs_tri = pts[obs_tris[i]]
         src_tri = pts[src_tris[i]]
-        split_obs, split_src = separate_tris(obs_tri, src_tri)
-        out[i,:,:,:,:] = adjacent_lookup(
-            (table, interp_pts, interp_wts), sm, pr, split_obs[0], split_src[0]
+        split_pts, split_obs, split_src, obs_basis_tris, src_basis_tris = separate_tris(
+            obs_tri, src_tri
         )
+        lookup_result = adjacent_lookup(
+            (table, interp_pts, interp_wts), sm, pr,
+            split_pts[split_obs[0]], split_pts[split_src[0]]
+        )
+        out[i] = sub_basis(lookup_result, obs_basis_tris[0], src_basis_tris[0])
+
         for j in range(3):
             for k in range(3):
                 if k == 0 and j == 0:
                     continue
-                vert_adj_pairs.append((i, split_obs[j], split_src[k]))
+                vert_adj_pairs.append((
+                    i, split_pts, split_obs[j], split_src[k],
+                    obs_basis_tris[j], src_basis_tris[k]
+                ))
 
     return out, vert_adj_pairs
         #Perform vertex adjacent for all other pairs

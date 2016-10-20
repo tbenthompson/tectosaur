@@ -200,25 +200,26 @@ def test_mass_op():
     np.testing.assert_almost_equal(op.mat[0,3], exact03)
 
 def test_vert_adj_separate_bases():
+    K = 'H'
     obs_tris = np.array([[0,1,2]])
     src_tris = np.array([[0,4,3]])
+    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[-0.5,0,0],[0,0,-2],[0.5,0.5,0]])
 
-    nq = 4
+    nq = 6
 
-    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[-1,0,0],[0,-1,0]])
-    I = nearfield_op.vert_adj(nq, 'H', 1.0, 0.25, pts, obs_tris, src_tris)
-    correct = I[0,0,0,0,0]
+    I = nearfield_op.vert_adj(nq, K, 1.0, 0.25, pts, obs_tris, src_tris)
 
-    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[-1,0,0],[0,-1,0],[0.5,0.5,0]])
-    obs_basis_trissub = np.array([
+    obs_basis_tris = np.array([
         [[0,0],[0.5,0.5],[0,1]], [[0,0],[1,0],[0.5,0.5]]
     ])
+    src_basis_tris = np.array([
+        [[0,0],[1,0],[0,1]], [[0,0],[1,0],[0,1]]
+    ])
     obs_tris = np.array([[0,5,2], [0,1,5]])
-    src_tris = np.array([[0,4,3],[0,4,3]])
-    Isub = nearfield_op.vert_adj(
-        nq, 'H', 1.0, 0.25, pts, obs_tris, src_tris,
-        obs_basis_trissub
-    )
+    src_tris = np.array([[0,4,3], [0,4,3]])
+    I0 = nearfield_op.vert_adj(nq, K, 1.0, 0.25, pts, obs_tris, src_tris)
 
-    est = Isub[0,0,0,0,0] + Isub[1,0,0,0,0]
-    np.testing.assert_almost_equal(correct, est, 5)
+    from tectosaur.table_lookup import sub_basis
+    I1 = np.array([sub_basis(I0[i], obs_basis_tris[i], src_basis_tris[i]) for i in range(2)])
+    print(I[0,:,0,:,0], I1[0,:,0,:,0] + I1[1,:,0,:,0])
+    np.testing.assert_almost_equal(I[0], I1[0] + I1[1], 6)

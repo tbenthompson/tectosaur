@@ -409,7 +409,7 @@ int f_coincident(unsigned ndim, const double* x, void* fdata, unsigned fdim, dou
     return 0; 
 }
 
-int f_adjacent(unsigned ndim, const double* x, void* fdata, unsigned fdim, double* fval) {
+int f_edge_adj(unsigned ndim, const double* x, void* fdata, unsigned fdim, double* fval) {
     Data& d = *reinterpret_cast<Data*>(fdata);
     d.evals += 1;
 
@@ -450,6 +450,31 @@ int f_adjacent(unsigned ndim, const double* x, void* fdata, unsigned fdim, doubl
         }
     }
     return 0;
+}
+
+int f_no_limit(unsigned ndim, const double* x, void* fdata, unsigned fdim, double* fval) {
+    Data& d = *reinterpret_cast<Data*>(fdata);
+    d.evals += 1;
+
+    for (int i = 0; i < 9; i++) {
+        fval[i] = 0.0;
+    }
+
+    if (d.piece > 0) {
+        return 0;
+    }
+
+    double obsxhat = x[0];
+    double obsyhat = x[1] * (1 - obsxhat);
+    double srcxhat = x[2];
+    double srcyhat = x[3] * (1 - srcxhat);
+    double jacobian = (1 - obsxhat) * (1 - srcxhat);
+
+    auto out = bem_integrand(d, obsxhat, obsyhat, srcxhat, srcyhat);
+
+    for (int i = 0; i < 9; i++) {
+        fval[i] = out[i] * jacobian;
+    }
 }
 
 struct InteriorData {
@@ -522,7 +547,14 @@ std::array<double,81> integrate(Data& d, Adjacency adj) {
                     const double xmin[3] = {0,0,0};
                     const double xmax[3] = {1,1,1};
                     d.integrator(
-                        9, f_adjacent, &d, 3, xmin, xmax, 0, 0,
+                        9, f_edge_adj, &d, 3, xmin, xmax, 0, 0,
+                        d.tol, ERROR_INDIVIDUAL, val, err
+                    );
+                } else if (adj == Adjacency::VertAdjacent || adj == Adjacency::Separated) {
+                    const double xmin[4] = {0,0,0,0};
+                    const double xmax[4] = {1,1,1,1};
+                    d.integrator(
+                        9, f_no_limit, &d, 4, xmin, xmax, 0, 0,
                         d.tol, ERROR_INDIVIDUAL, val, err
                     );
                 }
@@ -580,6 +612,22 @@ PYBIND11_PLUGIN(adaptive_integrate) {
                 eps, sm, pr, rho_hats, rho_wts
             );
             auto result = integrate(d, Adjacency::EdgeAdjacent);
+            return result;
+        }
+    );
+
+    m.def("integrate_no_limit",
+        [] (std::string k_name, 
+            std::array<std::array<double,3>,3> obs_tri,
+            std::array<std::array<double,3>,3> src_tri,
+            double tol, double sm, double pr)
+        {
+            Data d(
+                tol, false, get_kernel(k_name), 
+                Tri(obs_tri), Tri(src_tri), 
+                0.0, sm, pr, {}, {}
+            );
+            auto result = integrate(d, Adjacency::VertAdjacent);
             return result;
         }
     );
