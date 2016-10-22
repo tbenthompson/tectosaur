@@ -3,75 +3,12 @@ import matplotlib.pyplot as plt
 
 import tectosaur.quadrature as quad
 import tectosaur.geometry as geometry
-from tectosaur.interpolate import cheb, cheb_wts, barycentric_evalnd
 from tectosaur.dense_integral_op import DenseIntegralOp
 import tectosaur.standardize as standardize
 
 import limit
 import cppimport
 adaptive_integrate = cppimport.imp('adaptive_integrate')
-
-def test_barycentric_interp3d():
-    for i, N in enumerate(range(5,18,2)):
-        pts1d = cheb(-1,1,N)
-        X,Y,Z = np.meshgrid(pts1d, pts1d, pts1d)
-        pts = np.array([X.ravel(), Y.ravel(), Z.ravel()]).T
-        wts1d = cheb_wts(-1,1,N)
-        wts = np.outer(wts1d, np.outer(wts1d, wts1d)).ravel()
-
-        f = lambda xs: np.sin(xs[:,0] ** 3 - xs[:,1] * xs[:,2])
-        vals = f(pts)
-
-        ne = 30
-        xs = np.linspace(-1, 1, ne)
-        xe,ye,ze = np.meshgrid(xs, xs, xs)
-        xhat = np.array([xe.ravel(), ye.ravel(), ze.ravel()]).T
-        correct = f(xhat)
-        interp_vals = barycentric_evalnd(pts, wts, vals, xhat).reshape((ne,ne,ne))
-        log_err = np.log10(np.max(correct - interp_vals.flatten()))
-        print(log_err)
-        assert(np.log10(np.max(correct - interp_vals.flatten())) < -(i+1))
-
-# def calc_I(eps):
-#     tri1 = [[0,0,0],[1,0,0],[0,1,0.0]]
-#     tri2 = [[1,0,0],[0,0,0],[0,-1,0]]
-#     tol = 1e-5
-#     rho_order = 80
-#
-#     rho_gauss = quad.gaussxw(rho_order)
-#     rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-#     return adaptive_integrate.integrate_coincident(
-#         "H", tri1, tol, eps, 1.0, 0.25,
-#         rho_q[0].tolist(), rho_q[1].tolist()
-#     )[0]
-#
-#     # Basis 1 and 0 divergence should cancel between coincident and adjacent
-#     # return adaptive_integrate.integrate_coincident(
-#     #     "H", tri1, tol, eps, 1.0, 0.25,
-#     #     rho_q[0].tolist(), rho_q[1].tolist()
-#     # )[3]
-#     # return adaptive_integrate.integrate_adjacent(
-#     #     "H", tri1, tri2,
-#     #     tol, eps, 1.0, 0.25, rho_q[0].tolist(), rho_q[1].tolist()
-#     # )[0]
-#
-# # for starting_eps in [0.1,0.05,0.025,0.01,0.001]:
-# def play(starting_eps, n_steps):
-#     eps = [starting_eps]
-#     vals = [calc_I(eps[0])]
-#     print("START")
-#     for i in range(n_steps):
-#         eps.append(eps[-1] / 2.0)
-#         vals.append(calc_I(eps[-1]))
-#
-#         terms = make_terms(i + 2, True)
-#         mat = [[t(e) for t in terms] for e in eps]
-#         print(np.linalg.cond(mat))
-#         coeffs = np.linalg.solve(mat, vals)
-#
-#         print("log coeff: " + str(coeffs[0]))
-#         result = coeffs[1]
-#         print("extrap to 0: " + str(result))
 
 def calc_integrals(K, tri, rho_order, tol, eps_start, n_steps, sm, pr):
     epsvs = eps_start * (2.0 ** (-np.arange(n_steps)))
@@ -103,19 +40,25 @@ def standardized_tri_tester(K, sm, pr, rho_order, tol, eps_start, n_steps, tri):
         K, tri, rho_order, tol, eps_start / scale, n_steps, sm, pr
     ).reshape((3,3,3,3))
 
+    # 1) calculate the standardized integrals
     epsvs, standard_vals = calc_integrals(
         K, standard_tri.tolist(), rho_order, tol, eps_start, n_steps, 1.0, pr
     )
+
+    # 2) convert them to the appropriate values for true triangles
     unstandardized_vals = np.array([
         standardize.transform_from_standard(
             standard_vals[i,:].reshape((3,3,3,3)), K, sm, labels, translation, R, scale
         ).reshape(81)
         for i in range(standard_vals.shape[0])
     ])
-    unstandardized = np.array(
-        [limit.limit(epsvs / scale, unstandardized_vals[:, i], True) for i in range(81)]
-    ).reshape((3,3,3,3))
-    import ipdb; ipdb.set_trace()
+
+    # 3) take the limit in true space, not standardized space
+    true_epsvs = epsvs / scale
+    unstandardized = np.array([
+        limit.limit(true_epsvs, unstandardized_vals[:, i], True)
+        for i in range(81)
+    ]).reshape((3,3,3,3))
 
     np.testing.assert_almost_equal(unstandardized, correct_full, 4)
 

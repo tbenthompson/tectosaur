@@ -46,20 +46,3 @@ def richardson_limit(step_ratio, values):
             this_level.append(moreacc)
         last_level = this_level
     return this_level[0]
-
-def take_all_limits(integrals):
-    limits = np.empty((integrals.shape[0], integrals.shape[2]))
-    for i in range(integrals.shape[0]):
-        limits[i,:] = richardson_limit(2.0, integrals[i,:,:])
-    return limits
-
-def main():
-    inname = sys.argv[1]
-    integrals = np.load(inname)
-    outname = sys.argv[2]
-    np.save(outname, take_all_limits(np.load(inname)))
-
-if __name__ == '__main__':
-    main()
-    # play(0.001, 5)
-    # play(0.0001, 3)
