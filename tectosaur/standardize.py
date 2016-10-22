@@ -149,3 +149,33 @@ def standardize(tri, angle_lim, should_relabel = True):
         print("Bad tri: " + str(code))
         return None
     return sc, labels, translation, rot_mat2.dot(rot_mat1), factor
+
+kernel_properties = dict()
+kernel_properties['U'] = (1, -3)
+kernel_properties['T'] = (0, -2)
+kernel_properties['A'] = (0, -2)
+kernel_properties['H'] = (-1, -1)
+
+def transform_from_standard(I, K, sm, labels, translation, R, scale):
+    is_flipped = not (labels[1] == ((labels[0] + 1) % 3))
+    sm_power = kernel_properties[K][0]
+    scale_power = kernel_properties[K][1]
+
+    out = np.empty((3,3,3,3))
+    for sb1 in range(3):
+        for sb2 in range(3):
+            cb1 = labels[sb1]
+            cb2 = labels[sb2]
+            I_rot = R.T.dot(I[sb1,:,sb2,:]).dot(R)
+            I_scale = I_rot * (scale ** scale_power)
+            I_sm = I_scale * (sm ** sm_power)
+
+            # Why does flipping the (1,0),(2,0),(0,1),(0,2) work?
+            if is_flipped:
+                d1 = np.tile(np.arange(3), (3, 1)).T
+                d2 = d1.T
+                I_final = I_sm * np.where(np.logical_xor(d1 == 0, d2 == 0), -1, 1)
+            else:
+                I_final = I_sm
+            out[cb1,:,cb2,:] = I_final
+    return out

@@ -332,10 +332,9 @@ std::array<double,9> bem_integrand(Data& d, double obsxhat, double obsyhat,
     double ny = d.obs_tri.normal[1];
     double nz = d.obs_tri.normal[2];
 
-    auto sqrt_obsnL = sqrt(d.obs_tri.size);
-    xx -= d.eps * nx * sqrt_obsnL;
-    xy -= d.eps * ny * sqrt_obsnL;
-    xz -= d.eps * nz * sqrt_obsnL;
+    xx -= d.eps * nx;
+    xy -= d.eps * ny;
+    xz -= d.eps * nz;
 
     auto srcpt = ref_to_real(srcxhat, srcyhat, d.src_tri.pts);
     double yx = srcpt[0];
@@ -644,7 +643,7 @@ PYBIND11_PLUGIN(adaptive_integrate) {
             Data d(
                 tol, false, get_kernel(k_name), 
                 Tri(obs_tri), Tri(src_tri), 
-                0.01, sm, pr, {}, {}
+                0.0, sm, pr, {}, {}
             );
             auto result = integrate(d, Adjacency::VertAdjacent);
             return result;

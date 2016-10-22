@@ -157,10 +157,12 @@ def adjacent_lookup(table_and_pts_wts, sm, pr, obs_tri, src_tri):
     )
 
     theta = get_adjacent_theta(obs_tri, src_tri)
+    factor = 1
 
     #TODO: HANDLE FLIPPING!
     if theta > np.pi:
         theta = 2 * np.pi - theta
+        # factor *= -1
 
     thetahat = from_interval(0, np.pi, theta)
     prhat = from_interval(0, 0.5, pr)
@@ -176,7 +178,7 @@ def adjacent_lookup(table_and_pts_wts, sm, pr, obs_tri, src_tri):
     for b1 in range(3):
         for b2 in range(3):
             correct = R.T.dot(interp_vals[b1,:,b2,:]).dot(R) / (sm * scale ** 1)
-            out[b1,:,b2,:] = correct
+            out[b1,:,b2,:] = correct * factor
     return out
 
 def sub_basis(I, obs_basis_tri, src_basis_tri):

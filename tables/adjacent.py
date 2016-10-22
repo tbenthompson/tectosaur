@@ -20,7 +20,7 @@ n_pr = 8
 n_theta = 8
 
 # play parameters
-K = "T"
+K = "H"
 rho_order = 50
 starting_eps = 0.08
 n_eps = 4

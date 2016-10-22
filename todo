@@ -4,12 +4,14 @@
 (YES,TRY TAYLOR SERIES)can i get better than ~1e-5 error? with that error, the runtime for building the coincident table will probably be something like 12 hours on meade02.
 
 actually use the interpolation table based integrals in an okada problem
+efficient edge adjacent table lookup + vert adjacent calculation
 
 think about volume integrals -- only ever need to do volume integrals with U and A kernels --> no divergences, not even cauchy principal value integrals because the extra source dimension reduces the order of the singularity by one, still should do transformations to reduce the order of the singularity -- probably can remove it completely, in which case there are only some big 5 dimensional low order gauss integrals to do. alternatively, i could do another interpolation table... the adjacent trick would work
 
 interior evaluation -- this is easy except near the surface, use sinh quadrature? test it against the adaptive quadrature. also, maybe i can just interpolate from one element length away to the surface value and avoid nearfield integrals?
 
 how to deal with triangles that have internal angles less than 20 degrees? see comments in the overleaf doc
+deal with low angle vertex adjacent cases -- these can be very expensive!
 
 
 use FMM for okada

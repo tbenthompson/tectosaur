@@ -2,7 +2,8 @@ import numpy as np
 
 import tectosaur.geometry as geometry
 import tectosaur.nearfield_op as nearfield_op
-from tectosaur.table_lookup import adjacent_table, min_angle_isoceles_height, sub_basis
+from tectosaur.adjacency import rotate_tri
+from tectosaur.table_lookup import *
 from tectosaur.standardize import standardize, rotation_matrix
 from tectosaur.dense_integral_op import DenseIntegralOp
 
@@ -52,14 +53,14 @@ def test_separate():
         src_tri = pts[[1,0,3],:]
 
         # ensure the random triangles are legal triangles
-        if standardize(obs_tri) is None:
+        if standardize(obs_tri, 20) is None:
             continue
-        if standardize(src_tri) is None:
+        if standardize(src_tri, 20) is None:
             continue
 
-        obs_set, src_set = separate_tris(obs_tri, src_tri)
-        obs0_angles = triangle_internal_angles(obs_set[0])
-        src0_angles = triangle_internal_angles(src_set[0])
+        pts, obs_set, src_set, obs_basis_tris, src_basis_tris = separate_tris(obs_tri, src_tri)
+        obs0_angles = triangle_internal_angles(pts[obs_set[0]])
+        src0_angles = triangle_internal_angles(pts[src_set[0]])
 
         np.testing.assert_almost_equal(obs0_angles[0], np.deg2rad(table_min_internal_angle))
         np.testing.assert_almost_equal(obs0_angles[1], np.deg2rad(table_min_internal_angle))
@@ -85,11 +86,10 @@ def test_coincident_lookup():
 
 def test_adjacent_table_lookup():
     K = 'H'
-    np.random.seed(1)
     for i in range(1):
         # We want theta in [0, 3*pi/2] because the old method doesn't work for
         # theta >= 3*np.pi/2
-        theta = np.random.rand(1)[0] * 1.4 * np.pi
+        theta = np.random.rand(1)[0] * 1.3 * np.pi + 0.2
         pr = np.random.rand(1)[0] * 0.5
         scale = np.random.rand(1)[0] * 3
         translation = np.random.rand(3)
@@ -105,8 +105,6 @@ def test_adjacent_table_lookup():
         # pts = (translation + R.dot(pts.T).T * scale).copy()
         tris = np.array([[0,1,3],[1,0,2]])
 
-
-
         result, pairs = adjacent_table(
             K, 1.0, pr, pts, np.array([tris[0]]), np.array([tris[1]])
         )
@@ -121,8 +119,7 @@ def test_adjacent_table_lookup():
         eps = 0.08 * (2.0 ** -np.arange(4)) * area_ratio
         op = DenseIntegralOp(eps, 15, 19, 10, 3, 10, 3.0, K, 1.0, pr, pts, tris)
 
-        nq = 6
-        from tectosaur.adjacency import rotate_tri
+        nq = 7
         for i,pts,ot,st,obt,sbt in pairs:
             otA = np.linalg.norm(geometry.tri_normal(pts[ot]))
             stA = np.linalg.norm(geometry.tri_normal(pts[st]))
@@ -155,7 +152,7 @@ def test_adjacent_table_lookup():
         correct = op.mat[0,9]
         err = np.abs((est - correct) / correct)
         print(est, correct, err)
-        # assert(err < 0.07)
+        assert(err < 0.05)
 
         # print(opE[0,0,0,0,0] + opV[0,0,0,0,0])
         # print(op.mat[0,9])

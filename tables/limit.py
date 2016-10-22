@@ -13,10 +13,14 @@ def make_terms(n_terms, include_log):
         terms.append(lambda e, i=i: e ** i)
     return terms
 
-def limit(eps_vals, f_vals, include_log):
+def limit_coeffs(eps_vals, f_vals, include_log):
     terms = make_terms(len(eps_vals), include_log)
     mat = [[t(e) for t in terms] for e in eps_vals]
     coeffs = np.linalg.solve(mat, f_vals)
+    return coeffs
+
+def limit(eps_vals, f_vals, include_log):
+    coeffs = limit_coeffs(eps_vals, f_vals, include_log)
     if include_log:
         return coeffs[1]
     else:
