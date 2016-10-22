@@ -4,6 +4,7 @@ import scipy.interpolate
 from math import factorial
 
 from tectosaur.tri_gauss import get_tri_gauss
+from tectosaur.limit import limit
 
 # Derives the n-point gauss quadrature rule
 def gaussxw(n):
@@ -25,31 +26,23 @@ def map_to(qr, interval):
 def quadrature(f, qr):
     return sum(f(qr[0]) * qr[1])
 
-# Perform richardson extrapolation, lim h->0 of y(h)
-def richardson(h_vals, y_vals):
-    rich = [y_vals]
-    h_vals_ratio = h_vals[:-1] / h_vals[1:]
-    error_order = 1
-    for m in range(1, len(y_vals)):
-        prev_rich = rich[m - 1]
-        mult = h_vals_ratio[(m - 1):] ** error_order
-        error_order += 1
-        factor = (1.0 / (mult - 1.0))
-        next_rich = factor * (mult * prev_rich[1:] - prev_rich[:-1])
-        rich.append(next_rich)
-    return rich
+# def generalized_richardson_quad(h_vals, terms, quad_builder):
+#     n = len(h_vals)
+#     xs = None
+#     ws = None
+#     A = [[t(h) for t in terms] for h in h_vals]
+#     for i in range(n):
+#         y = [0] * n
+#         y[i] = 1.0
+#         limit(h_vals, y, include_log)
 
-def richardson_quad(h_vals, quad_builder):
+def richardson_quad(h_vals, include_log, quad_builder):
     n = len(h_vals)
     I = scipy.interpolate.BarycentricInterpolator(h_vals)
     xs = None
     ws = None
     for i in range(n):
-        y = [0] * n
-        y[i] = 1.0
-        I.set_yi(np.array(y))
         inner_xs, inner_ws = quad_builder(h_vals[i])
-
         if len(inner_xs.shape) == 1:
             inner_xs = inner_xs.reshape((inner_xs.shape[0], 1))
         inner_xs = np.hstack((
@@ -57,7 +50,11 @@ def richardson_quad(h_vals, quad_builder):
             np.array([[h_vals[i]]] * inner_xs.shape[0])
         ))
 
-        inner_ws *= I(0.0)
+        y = [0] * n
+        y[i] = 1.0
+        I0 = limit(h_vals, y, include_log)
+        inner_ws *= I0
+
         if xs is None:
             xs = inner_xs
             ws = inner_ws

@@ -7,16 +7,11 @@ def test_gauss():
     exact = 1.0 / 8.0
     np.testing.assert_almost_equal(est, exact)
 
-def test_richardson():
-    hs = 2 ** np.linspace(2, -2, 5)
-    xs = hs ** 4
-    est = richardson(hs, xs)
-    np.testing.assert_almost_equal(est[-1][-1], 0.0)
-
 def test_richardson_quad():
     gauss_q = gaussxw(11)
     q = richardson_quad(
         2 ** np.linspace(0, -5, 5),
+        False,
         lambda e: map_to(sinh_transform(gauss_q, -1, e), [0, 1])
     )
     f = lambda x: 2 * x[:, 1] / (x[:, 0] ** 2 + x[:, 1] ** 2)
@@ -25,8 +20,15 @@ def test_richardson_quad():
 
 def test_richardson10():
     h = np.array([1.0, 0.1, 0.01])
-    q = richardson_quad(h, lambda h: (np.array([0.0]), np.array([1.0])))
+    q = richardson_quad(h, False, lambda h: (np.array([0.0]), np.array([1.0])))
     est = np.sum((h ** 2) * q[1])
+    np.testing.assert_almost_equal(est, 0.0)
+
+def test_log_richardson():
+    h = 2.0 ** -np.arange(5)
+    q = richardson_quad(h, True, lambda h: (np.array([0.0]), np.array([1.0])))
+    vals = np.log(h) + h ** 2
+    est = np.sum(vals * q[1])
     np.testing.assert_almost_equal(est, 0.0)
 
 def test_sinh():

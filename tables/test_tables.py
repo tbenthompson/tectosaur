@@ -5,8 +5,8 @@ import tectosaur.quadrature as quad
 import tectosaur.geometry as geometry
 from tectosaur.dense_integral_op import DenseIntegralOp
 import tectosaur.standardize as standardize
+import tectosaur.limit as limit
 
-import limit
 import cppimport
 adaptive_integrate = cppimport.imp('adaptive_integrate')
 
@@ -60,6 +60,7 @@ def standardized_tri_tester(K, sm, pr, rho_order, tol, eps_start, n_steps, tri):
         for i in range(81)
     ]).reshape((3,3,3,3))
 
+    print(unstandardized[0,0,0,0])
     np.testing.assert_almost_equal(unstandardized, correct_full, 4)
 
 def kernel_properties_tester(K, sm, pr):
@@ -103,6 +104,13 @@ def test_A_properties():
 
 def test_H_properties():
     kernel_properties_tester('H', 1.0, 0.25)
+
+def test_sing_removal_conv():
+    t = [[0,0,0],[1,0,0],[0.4,0.3,0]]
+    standardized_tri_tester('H', 1.0, 0.25, 60, 0.0001, 0.001, 3, t)
+    standardized_tri_tester('H', 1.0, 0.25, 60, 0.0001, 0.0001, 3, t)
+    standardized_tri_tester('H', 1.0, 0.25, 60, 0.0001, 0.0001, 4, t)
+    standardized_tri_tester('H', 1.0, 0.25, 80, 0.0001, 0.0001, 4, t)
 
 def test_coincident():
     K = 'H'
@@ -149,14 +157,6 @@ def test_edge_adj():
         rho_q[0].tolist(), rho_q[1].tolist()
     )
     np.testing.assert_almost_equal(res, op.mat[:9,9:].reshape(81), 4)
-
-def test_limit_log():
-    npts = 3
-    xs = 2.0 ** -np.arange(npts)
-    vals = np.log(xs) + xs ** 1 + np.random.rand(npts) * 0.001
-    coeffs = limit.limit_coeffs(xs, vals, False)
-    print(coeffs)
-    # np.testing.assert_almost_equal(coeffs, [1.0, 0.0, 1.0])
 
 if __name__ == '__main__':
     test_vert_adj()
