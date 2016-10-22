@@ -31,4 +31,9 @@ def test_edge_adj_prep():
     va, ea = find_adjacents(tris)
     result = edge_adj_prep(tris, ea)
 
-
+def test_find_free_edges():
+    tris = np.array([[0,1,2],[2,1,3]])
+    free_es = find_free_edges(tris)
+    assert(len(free_es) == 4)
+    for e in [(0,0), (0,2), (1,1), (1,2)]:
+        assert(e in free_es)

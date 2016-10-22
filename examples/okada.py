@@ -26,6 +26,7 @@ def build_constraints(surface_tris, fault_tris, pts):
         n_surf_tris, n_surf_tris + n_fault_tris, [1, 0, 0]
     ))
     cs = sorted(cs, key = lambda x: x[0][0][1])
+
     return cs
 
 def refined_free_surface():

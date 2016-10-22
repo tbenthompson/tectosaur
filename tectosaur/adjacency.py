@@ -40,6 +40,26 @@ def find_adjacents(tris):
 
     return vert_adjacents, edge_adjs
 
+def find_free_edges(tris):
+    edges = dict()
+    for i, t in enumerate(tris):
+        for d in range(3):
+            pt1_idx = t[d]
+            pt2_idx = t[(d + 1) % 3]
+            if pt1_idx > pt2_idx:
+                pt2_idx,pt1_idx = pt1_idx,pt2_idx
+            pt_pair = (pt1_idx, pt2_idx)
+            edges[pt_pair] = edges.get(pt_pair, []) + [(i, d)]
+
+    free_edges = []
+    for k,e in edges.items():
+        if len(e) > 1:
+            continue
+        free_edges.append(e[0])
+
+    return free_edges
+
+
 def rotate_tri(clicks):
     return [np.mod(clicks, 3), np.mod((1 + clicks), 3), np.mod((2 + clicks), 3)]
 
