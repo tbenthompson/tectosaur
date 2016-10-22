@@ -98,8 +98,8 @@ def make_fault(L, top_depth):
     ])
 
 def make_meshes(fault_L, top_depth):
-    # surface = make_free_surface()
-    surface = refined_free_surface()
+    surface = make_free_surface()
+    # surface = refined_free_surface()
     fault = make_fault(fault_L, top_depth)
     all_mesh = mesh.concat(surface, fault)
     surface_tris = all_mesh[1][:surface[1].shape[0]]
@@ -130,8 +130,8 @@ def test_okada():
         # )
         iop = SparseIntegralOp(
             eps, 18, 16, 6, 3, 6, 4.0,
-            'H', sm, pr, all_mesh[0], all_mesh[1],
-            use_tables = True
+            'H', sm, pr, all_mesh[0], all_mesh[1]
+            # use_tables = True
         )
         # iop = DenseIntegralOp(
         #     eps, 18, 16, 6, 3, 6, 4.0, 'H', sm, pr, all_mesh[0], all_mesh[1]

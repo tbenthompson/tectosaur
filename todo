@@ -1,9 +1,15 @@
-(DONE) -- offset points need to take into account the adjacent elements and make sure there's no intersection
-(DONE, YES) -- should i remove the divergence? if yes, then the offset points don't need to be consistent between the adjacent and coincident integrals, i should check if different epsilon values give relatively consistent final results once the divergence is removed
-(DONE)build coincident table
-(YES,TRY TAYLOR SERIES)can i get better than ~1e-5 error? with that error, the runtime for building the coincident table will probably be something like 12 hours on meade02.
+what to do about free edges that get wild when divergences are removed?
+
+build tables that include the individual integrals rather than a limit.
+
+what to do about the crazyness that happens near the edges when the singularity is removed?
+-- 1) i could add back in the singularity with an appropriate epsilon based on the obs triangle coincident case
+-- 2) i could leave the singularity in for the coincident integrals, but explicitly calculate it for the adjacent integrals. Then, subtract that value from the relevant coincident integrals, leaving behind any remaining singular component for sides where there is no edge adjacent integral. This is essentially the opposite of suggestion 1.
+
+what to do about interelement angles that are greater than pi, for adjacent table lookup?
 
 actually use the interpolation table based integrals in an okada problem
+
 efficient edge adjacent table lookup + vert adjacent calculation
 
 think about volume integrals -- only ever need to do volume integrals with U and A kernels --> no divergences, not even cauchy principal value integrals because the extra source dimension reduces the order of the singularity by one, still should do transformations to reduce the order of the singularity -- probably can remove it completely, in which case there are only some big 5 dimensional low order gauss integrals to do. alternatively, i could do another interpolation table... the adjacent trick would work
@@ -11,8 +17,8 @@ think about volume integrals -- only ever need to do volume integrals with U and
 interior evaluation -- this is easy except near the surface, use sinh quadrature? test it against the adaptive quadrature. also, maybe i can just interpolate from one element length away to the surface value and avoid nearfield integrals?
 
 how to deal with triangles that have internal angles less than 20 degrees? see comments in the overleaf doc
-deal with low angle vertex adjacent cases -- these can be very expensive!
 
+deal with low angle vertex adjacent cases -- these can be very expensive!
 
 use FMM for okada
 -- just try it out first, make sure its accurate.

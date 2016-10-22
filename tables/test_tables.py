@@ -60,7 +60,7 @@ def standardized_tri_tester(K, sm, pr, rho_order, tol, eps_start, n_steps, tri):
         for i in range(81)
     ]).reshape((3,3,3,3))
 
-    print(unstandardized[0,0,0,0])
+    print(str(tol) + " " + str(eps_start) + " " + str(n_steps) + " " + unstandardized[0,0,0,0])
     np.testing.assert_almost_equal(unstandardized, correct_full, 4)
 
 def kernel_properties_tester(K, sm, pr):
@@ -105,12 +105,22 @@ def test_A_properties():
 def test_H_properties():
     kernel_properties_tester('H', 1.0, 0.25)
 
-def test_sing_removal_conv():
+def runner(i):
     t = [[0,0,0],[1,0,0],[0.4,0.3,0]]
-    standardized_tri_tester('H', 1.0, 0.25, 60, 0.0001, 0.001, 3, t)
-    standardized_tri_tester('H', 1.0, 0.25, 60, 0.0001, 0.0001, 3, t)
-    standardized_tri_tester('H', 1.0, 0.25, 60, 0.0001, 0.0001, 4, t)
-    standardized_tri_tester('H', 1.0, 0.25, 80, 0.0001, 0.0001, 4, t)
+    if i == 0:
+        standardized_tri_tester('H', 1.0, 0.25, 60, 0.1, 0.0001, 4, t)
+    elif i == 1:
+        standardized_tri_tester('H', 1.0, 0.25, 60, 0.1, 0.00001, 3, t)
+    elif i == 2:
+        standardized_tri_tester('H', 1.0, 0.25, 60, 0.1, 0.00001, 4, t)
+
+def test_sing_removal_conv():
+    # standardized_tri_tester('H', 1.0, 0.25, 60, 0.0001, 0.001, 3, t)
+    # standardized_tri_tester('H', 1.0, 0.25, 60, 0.0001, 0.0001, 3, t)
+    # standardized_tri_tester('H', 1.0, 0.25, 60, 0.0001, 0.0001, 4, t)
+    # standardized_tri_tester('H', 1.0, 0.25, 80, 0.0001, 0.0001, 4, t)
+    import multiprocessing
+    multiprocessing.Pool().map(runner, range(3))
 
 def test_coincident():
     K = 'H'

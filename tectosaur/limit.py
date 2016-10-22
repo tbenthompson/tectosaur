@@ -6,9 +6,7 @@ def make_terms(n_terms, include_log):
     terms = []
     if include_log:
         poly_terms -= 1
-        terms = [
-            lambda e: np.log(e),
-        ]
+        terms = [lambda e: np.log(e)]
     for i in range(poly_terms):
         terms.append(lambda e, i=i: e ** i)
     return terms

@@ -76,7 +76,8 @@ def cached_coincident_quad(nq, eps):
     if type(nq) is int:
         nq = (nq, nq, nq, nq)
     return richardson_quad(
-        eps, lambda e: triangle_rules.coincident_quad(e, nq[0], nq[1], nq[2], nq[3])
+        eps, True,
+        lambda e: triangle_rules.coincident_quad(e, nq[0], nq[1], nq[2], nq[3])
     )
 
 def coincident(nq, eps, kernel, sm, pr, pts, tris):
@@ -89,7 +90,8 @@ def cached_edge_adj_quad(nq, eps):
     if type(nq) is int:
         nq = (nq, nq, nq, nq)
     return richardson_quad(
-        eps, lambda e: triangle_rules.edge_adj_quad(e, nq[0], nq[1], nq[2], nq[3], False)
+        eps, True,
+        lambda e: triangle_rules.edge_adj_quad(e, nq[0], nq[1], nq[2], nq[3], False)
     )
 
 def edge_adj(nq, eps, kernel, sm, pr, pts, obs_tris, src_tris):
