@@ -2,6 +2,8 @@ what to do about free edges that get wild when divergences are removed?
 
 build tables that include the individual integrals rather than a limit.
 
+run all vert adjacent subtris at once
+
 what to do about the crazyness that happens near the edges when the singularity is removed?
 -- 1) i could add back in the singularity with an appropriate epsilon based on the obs triangle coincident case
 -- 2) i could leave the singularity in for the coincident integrals, but explicitly calculate it for the adjacent integrals. Then, subtract that value from the relevant coincident integrals, leaving behind any remaining singular component for sides where there is no edge adjacent integral. This is essentially the opposite of suggestion 1.

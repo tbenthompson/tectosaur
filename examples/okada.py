@@ -6,13 +6,13 @@ import okada_wrapper
 import scipy.spatial
 
 import tectosaur.mesh as mesh
+import tectosaur.adjacency as adjacency
+import tectosaur.constraints as constraints
 from tectosaur.sparse_integral_op import SparseIntegralOp, FMMIntegralOp
 from tectosaur.dense_integral_op import DenseIntegralOp
-
-from solve import iterative_solve, direct_solve
-import tectosaur.constraints as constraints
 from tectosaur.util.timer import Timer
 
+from solve import iterative_solve, direct_solve
 
 def build_constraints(surface_tris, fault_tris, pts):
     n_surf_tris = surface_tris.shape[0]
@@ -25,6 +25,16 @@ def build_constraints(surface_tris, fault_tris, pts):
     cs.extend(constraints.constant_bc_constraints(
         n_surf_tris, n_surf_tris + n_fault_tris, [1, 0, 0]
     ))
+
+    free_edges = adjacency.find_free_edges(surface_tris)
+    for tri_idx, edge_idx in free_edges:
+        for v in range(2):
+            for d in range(3):
+                dof = tri_idx * 9 + ((edge_idx + v) % 3) * 3 + d
+                cs.append(constraints.ConstraintEQ(
+                    [constraints.Term(1.0, dof)], 0.0
+                ))
+
     cs = sorted(cs, key = lambda x: x[0][0][1])
 
     return cs
