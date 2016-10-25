@@ -93,15 +93,16 @@ def gpu_mvp(A, x):
 
 class DenseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris, use_tables = False):
+            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
+            use_tables = False, remove_sing = False):
         near_gauss = gauss4d_tri(nq_near, nq_near)
 
         timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])
         if not use_tables:
-            co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris)
+            co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris, remove_sing)
         else:
-            co_mat = coincident_table(kernel, sm, pr, pts, tris)
+            co_mat = coincident_table(kernel, sm, pr, pts, tris, remove_sing)
         timer.report("Coincident")
 
         va, ea = find_adjacents(tris)
@@ -111,7 +112,7 @@ class DenseIntegralOp:
             edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
         ea_mat_rot = edge_adj(
-            nq_edge_adjacent, eps, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris
+            nq_edge_adjacent, eps, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris, remove_sing
         )
         timer.report("Edge adjacent")
 

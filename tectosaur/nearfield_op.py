@@ -72,30 +72,30 @@ def cached_in(name, creator):
     return np.load(filename)
 
 @cache
-def cached_coincident_quad(nq, eps):
+def cached_coincident_quad(nq, eps, remove_sing):
     if type(nq) is int:
         nq = (nq, nq, nq, nq)
     return richardson_quad(
-        eps, True,
+        eps, remove_sing,
         lambda e: triangle_rules.coincident_quad(e, nq[0], nq[1], nq[2], nq[3])
     )
 
-def coincident(nq, eps, kernel, sm, pr, pts, tris):
-    q = cached_coincident_quad(nq, eps)
+def coincident(nq, eps, kernel, sm, pr, pts, tris, remove_sing):
+    q = cached_coincident_quad(nq, eps, remove_sing)
     out = pairs_quad(kernel, sm, pr, pts, tris, tris, q, True)
     return out
 
 @cache
-def cached_edge_adj_quad(nq, eps):
+def cached_edge_adj_quad(nq, eps, remove_sing):
     if type(nq) is int:
         nq = (nq, nq, nq, nq)
     return richardson_quad(
-        eps, True,
+        eps, remove_sing,
         lambda e: triangle_rules.edge_adj_quad(e, nq[0], nq[1], nq[2], nq[3], False)
     )
 
-def edge_adj(nq, eps, kernel, sm, pr, pts, obs_tris, src_tris):
-    q = cached_edge_adj_quad(nq, eps)
+def edge_adj(nq, eps, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
+    q = cached_edge_adj_quad(nq, eps, remove_sing)
     out = pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, True)
     return out
 

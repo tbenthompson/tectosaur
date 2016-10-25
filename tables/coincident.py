@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import tectosaur.quadrature as quad
-
+import tectosaur.geometry as geometry
 from tectosaur.interpolate import cheb, cheb_wts, barycentric_evalnd, to_interval
-from limit import limit, richardson_limit
+from tectosaur.limit import limit, richardson_limit
 
 import cppimport
 adaptive_integrate = cppimport.imp('adaptive_integrate')
@@ -49,6 +49,12 @@ n_A = 3
 n_B = 3
 n_pr = 3
 
+filename = (
+    '%s_%i_%f_%i_%f_%i_%i_%i_coincidenttable.npy' %
+    (K, rho_order, starting_eps, n_eps, tol, n_A, n_B, n_pr)
+)
+print(filename)
+
 all_eps = starting_eps * 2.0 ** -np.arange(n_eps)
 rho_gauss = quad.gaussxw(rho_order)
 
@@ -72,6 +78,7 @@ def eval(pt):
     pr = to_interval(0.0, 0.5, prhat)
 
     tri = [[0,0,0],[1,0,0],[A,B,0.0]]
+    eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(tri)))
 
     start = time.time()
     integrals = []
@@ -79,7 +86,7 @@ def eval(pt):
         print('running: ' + str((pt, eps)))
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
         res = adaptive_integrate.integrate_coincident(
-            K, tri, tol, eps, 1.0, pr,
+            K, tri, tol, eps * eps_scale, 1.0, pr,
             rho_q[0].tolist(), rho_q[1].tolist()
         )
         integrals.append(res)
@@ -107,8 +114,6 @@ def test_f(input):
         print("testing:  " + str(i) + "     " + str(
             (correct[i], interp, np.abs((correct[i] - interp) / correct[i]), correct[i] - interp)
         ))
-
-filename = K + 'coincidenttable.npy'
 
 # results = np.load(filename)
 # for i in range(12):

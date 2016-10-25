@@ -103,14 +103,15 @@ def build_nearfield(co_data, ea_data, va_data, near_data):
 
 class NearfieldIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris, use_tables = False):
+            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
+            use_tables = False, remove_sing = False):
         near_gauss = gauss4d_tri(nq_near, nq_near)
         far_quad = gauss4d_tri(nq_far, nq_far)
 
         timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])
         if not use_tables:
-            co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris)
+            co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris, remove_sing)
         else:
             co_mat = coincident_table(kernel, sm, pr, pts, tris)
         co_mat_correction = pairs_quad(
@@ -125,7 +126,7 @@ class NearfieldIntegralOp:
             edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
         ea_mat_rot = edge_adj(
-            nq_edge_adjacent, eps, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris
+            nq_edge_adjacent, eps, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris, remove_sing
         )
         ea_mat_correction = pairs_quad(
             kernel, sm, pr, pts,
@@ -181,11 +182,12 @@ class NearfieldIntegralOp:
 
 class SparseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris, use_tables = False):
+            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
+            use_tables = False, remove_sing = False):
         self.nearfield = NearfieldIntegralOp(
             eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
-            use_tables
+            use_tables, remove_sing
         )
 
         far_quad2d = gauss2d_tri(nq_far)

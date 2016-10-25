@@ -54,3 +54,9 @@ def test_constraint_matrix_rhs():
     ]
     cm, rhs = build_constraint_matrix(cs, 7)
     np.testing.assert_almost_equal(rhs, [0,0,0,1.0,3.0,0,0])
+
+def test_free_edge_constraints():
+    cs = free_edge_constraints([[0,1,2],[0,2,3],[0,3,4],[0,4,1]])
+    dofs = [c.terms[0].dof for c in cs]
+    assert(0 not in dofs)
+    assert(len(dofs) == 8 * 3)

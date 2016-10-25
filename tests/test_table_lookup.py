@@ -69,22 +69,29 @@ def test_separate():
         i -= 1
 
 def test_coincident_lookup():
+    np.random.seed(10)
     A = 0.4
     B = 0.6
     pr = np.random.rand(1)[0] * 0.5
 
     pts = np.array([[0,0,0],[1,0,0],[A,B,0]], dtype = np.float64)
     tris = np.array([[0,1,2]])
-    eps = 0.08 * (2.0 ** -np.arange(4))
-    import time
-    op = DenseIntegralOp(eps, 15, 15, 10, 3, 10, 3.0, 'H', 1.0, pr, pts, tris)
-    op2 = DenseIntegralOp(
-        eps, 15, 15, 10, 3, 10, 3.0, 'H', 1.0, pr, pts, tris, use_tables = True
-    )
-    np.testing.assert_almost_equal(op.mat[0,0], op2.mat[0,0], 2)
+    eps = 0.08 * (2.0 ** -np.arange(4))# / eps_scale
+    for remove_sing in [False, True]:
+        op = DenseIntegralOp(
+            eps, 15, 15, 10, 3, 10, 3.0, 'H', 1.0, pr,
+            pts, tris, remove_sing = remove_sing
+        )
+        op2 = DenseIntegralOp(
+            eps, 15, 15, 10, 3, 10, 3.0, 'H', 1.0, pr,
+            pts, tris, use_tables = True, remove_sing = remove_sing
+        )
+        print(op.mat[0,0], op2.mat[0,0])
+        np.testing.assert_almost_equal(op.mat[0,0], op2.mat[0,0], 2)
 
 
 def test_adjacent_table_lookup():
+    np.random.seed(1)
     K = 'H'
     for i in range(1):
         # We want theta in [0, 3*pi/2] because the old method doesn't work for
@@ -99,25 +106,29 @@ def test_adjacent_table_lookup():
         H = min_angle_isoceles_height
         pts = np.array([
             [0,0,0],[1,0,0],
-            [0.5,3*H*np.cos(theta),4*H*np.sin(theta)],
-            [0.5,3*H,0]
+            [0.5,H*np.cos(theta),H*np.sin(theta)],
+            [0.0,2*H,0]
         ])
         # pts = (translation + R.dot(pts.T).T * scale).copy()
         tris = np.array([[0,1,3],[1,0,2]])
 
         result, pairs = adjacent_table(
-            K, 1.0, pr, pts, np.array([tris[0]]), np.array([tris[1]])
+            K, 1.0, pr, pts, np.array([tris[0]]), np.array([tris[1]]), True
         )
 
         full_tri = pts[tris[0]]
         full_tri_area = np.linalg.norm(geometry.tri_normal(full_tri))
         edge_adj_sub_tri = pairs[0][1][pairs[0][2]]
         edge_adj_sub_tri_area = np.linalg.norm(geometry.tri_normal(edge_adj_sub_tri))
-
+        # print(edge_adj_sub_tri, edge_adj_sub_tri_area)
         area_ratio = np.sqrt(edge_adj_sub_tri_area / full_tri_area)
 
-        eps = 0.08 * (2.0 ** -np.arange(4)) * area_ratio
-        op = DenseIntegralOp(eps, 15, 19, 10, 3, 10, 3.0, K, 1.0, pr, pts, tris)
+        eps = 0.08 * (2.0 ** -np.arange(4))
+        print(eps)
+        op = DenseIntegralOp(
+            eps, 15, 19, 10, 3, 10, 3.0, K, 1.0, pr,
+            pts, tris, remove_sing = True
+        )
 
         nq = 7
         for i,pts,ot,st,obt,sbt in pairs:

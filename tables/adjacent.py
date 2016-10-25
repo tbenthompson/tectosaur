@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import tectosaur.quadrature as quad
-
+import tectosaur.geometry as geometry
 from tectosaur.interpolate import cheb, cheb_wts, to_interval, barycentric_evalnd
-from limit import limit, richardson_limit
+from tectosaur.limit import limit, richardson_limit
 
 import cppimport
 adaptive_integrate = cppimport.imp('adaptive_integrate')
@@ -28,9 +28,14 @@ tol = 0.01
 n_pr = 3
 n_theta = 3
 
+filename = (
+    '%s_%i_%f_%i_%f_%i_%i_adjacenttable.npy' %
+    (K, rho_order, starting_eps, n_eps, tol, n_theta, n_pr)
+)
+print(filename)
+
 all_eps = starting_eps * 2.0 ** -np.arange(n_eps)
 rho_gauss = quad.gaussxw(rho_order)
-
 
 thetahats = cheb(-1, 1, n_theta)
 prhats = cheb(-1, 1, n_pr)
@@ -54,14 +59,16 @@ def eval(pt):
     Z = rho * np.sin(theta)
 
     tri1 = [[0,0,0],[1,0,0],[0.5,rho,0]]
+    eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(tri1)))
+    print(eps_scale, all_eps, all_eps * eps_scale)
     tri2 = [[1,0,0],[0,0,0],[0.5,Y,Z]]
     integrals = []
     for eps in all_eps:
         print('running: ' + str((pt, eps)))
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
         res = adaptive_integrate.integrate_adjacent(
-            K, tri1, tri2,
-            tol, eps, 1.0, pr, rho_q[0].tolist(), rho_q[1].tolist()
+            K, tri1, tri2, tol, eps * eps_scale,
+            1.0, pr, rho_q[0].tolist(), rho_q[1].tolist()
         )
         integrals.append(res)
     return integrals
@@ -91,9 +98,7 @@ def test_f(input):
             (correct[i], interp, np.abs((correct[i] - interp) / correct[i]), correct[i] - interp)
         ))
 
-filename = K + 'adjacenttable.npy'
-
 pool = multiprocessing.Pool()
 results = np.array(pool.map(eval, pts.tolist()))
 np.save(filename, results)
-# pool.map(test_f, zip(range(12), [results for i in range(12)]))
+pool.map(test_f, zip(range(12), [results for i in range(12)]))

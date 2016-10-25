@@ -10,7 +10,7 @@ import tectosaur.limit as limit
 import cppimport
 adaptive_integrate = cppimport.imp('adaptive_integrate')
 
-def calc_integrals(K, tri, rho_order, tol, eps_start, n_steps, sm, pr):
+def co_integrals(K, tri, rho_order, tol, eps_start, n_steps, sm, pr):
     epsvs = eps_start * (2.0 ** (-np.arange(n_steps)))
     vals = []
     for eps in epsvs:
@@ -22,12 +22,37 @@ def calc_integrals(K, tri, rho_order, tol, eps_start, n_steps, sm, pr):
     vals = np.array(vals)
     return epsvs, vals
 
-def calc_limit(K, tri, rho_order, tol, eps_start, n_steps, sm, pr):
-    epsvs, vals = calc_integrals(K, tri, rho_order, tol, eps_start, n_steps, sm, pr)
-    return np.array([limit.limit(epsvs, vals[:, i], True) for i in range(81)])
+def co_limit(K, tri, rho_order, tol, eps_start, n_steps,
+        eps_scale, sm, pr, include_log = True):
+    epsvs, vals = co_integrals(
+        K, tri, rho_order, tol, eps_start * eps_scale, n_steps, sm, pr
+    )
+    return np.array([
+        limit.limit(epsvs / eps_scale, vals[:, i], include_log) for i in range(81)
+    ])
+
+def adj_integrals(K, obs_tri, src_tri, rho_order, tol, eps_start, n_steps, sm, pr):
+    epsvs = eps_start * (2.0 ** (-np.arange(n_steps)))
+    vals = []
+    for eps in epsvs:
+        rho_gauss = quad.gaussxw(rho_order)
+        rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
+        vals.append(adaptive_integrate.integrate_adjacent(
+            K, obs_tri, src_tri, tol, eps, sm, pr, rho_q[0].tolist(), rho_q[1].tolist()
+        ))
+    vals = np.array(vals)
+    return epsvs, vals
+
+def adj_limit(K, obs_tri, src_tri, rho_order, tol, eps_start, n_steps,
+        eps_scale, sm, pr, include_log = True):
+    epsvs, vals = adj_integrals(
+        K, obs_tri, src_tri, rho_order, tol, eps_start * eps_scale, n_steps, sm, pr
+    )
+    return np.array([
+        limit.limit(epsvs / eps_scale, vals[:, i], include_log) for i in range(81)
+    ])
 
 def standardized_tri_tester(K, sm, pr, rho_order, tol, eps_start, n_steps, tri):
-
     standard_tri, labels, translation, R, scale = standardize.standardize(np.array(tri), 20)
     is_flipped = not (labels[1] == ((labels[0] + 1) % 3))
 
@@ -36,12 +61,12 @@ def standardized_tri_tester(K, sm, pr, rho_order, tol, eps_start, n_steps, tri):
         [[0,0,0],[1,0,0],[standard_tri[2][0],standard_tri[2][1],0]]
     )
 
-    correct_full = calc_limit(
-        K, tri, rho_order, tol, eps_start / scale, n_steps, sm, pr
+    correct_full = co_limit(
+        K, tri, rho_order, tol, eps_start, n_steps, scale, sm, pr
     ).reshape((3,3,3,3))
 
     # 1) calculate the standardized integrals
-    epsvs, standard_vals = calc_integrals(
+    epsvs, standard_vals = co_integrals(
         K, standard_tri.tolist(), rho_order, tol, eps_start, n_steps, 1.0, pr
     )
 
@@ -60,7 +85,12 @@ def standardized_tri_tester(K, sm, pr, rho_order, tol, eps_start, n_steps, tri):
         for i in range(81)
     ]).reshape((3,3,3,3))
 
-    print(str(tol) + " " + str(eps_start) + " " + str(n_steps) + " " + unstandardized[0,0,0,0])
+    print(
+        str(tol) +
+        " " + str(eps_start) +
+        " " + str(n_steps) +
+        " " + str(unstandardized[0,0,0,0])
+    )
     np.testing.assert_almost_equal(unstandardized, correct_full, 4)
 
 def kernel_properties_tester(K, sm, pr):
@@ -107,12 +137,8 @@ def test_H_properties():
 
 def runner(i):
     t = [[0,0,0],[1,0,0],[0.4,0.3,0]]
-    if i == 0:
-        standardized_tri_tester('H', 1.0, 0.25, 60, 0.1, 0.0001, 4, t)
-    elif i == 1:
-        standardized_tri_tester('H', 1.0, 0.25, 60, 0.1, 0.00001, 3, t)
-    elif i == 2:
-        standardized_tri_tester('H', 1.0, 0.25, 60, 0.1, 0.00001, 4, t)
+    standardized_tri_tester('H', 1.0, 0.25, 60, 0.01, 10 ** (-i), 3, t)
+    return 0
 
 def test_sing_removal_conv():
     # standardized_tri_tester('H', 1.0, 0.25, 60, 0.0001, 0.001, 3, t)
@@ -120,22 +146,25 @@ def test_sing_removal_conv():
     # standardized_tri_tester('H', 1.0, 0.25, 60, 0.0001, 0.0001, 4, t)
     # standardized_tri_tester('H', 1.0, 0.25, 80, 0.0001, 0.0001, 4, t)
     import multiprocessing
-    multiprocessing.Pool().map(runner, range(3))
+    p = multiprocessing.Pool()
+    runner(2)
+    p.map(runner, [2,3,4,5,6,7])
 
 def test_coincident():
     K = 'H'
-    eps = 0.01
-    pts = np.array([[0,0,0],[1,0,0],[0,1,0]])
+    eps = 0.08
+    pts = np.array([[0,0,0],[1,0,0],[0.4,0.3,0]])
+    eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(pts)))
     tris = np.array([[0,1,2]])
 
-    op = DenseIntegralOp([eps], 20, 10, 13, 10, 10, 3.0, K, 1.0, 0.25, pts, tris)
+    op = DenseIntegralOp(
+        [eps, eps / 2], 17, 10, 13, 10, 10, 3.0,
+        K, 1.0, 0.25, pts, tris, remove_sing = True
+    )
 
-    rho_order = 100
-    rho_gauss = quad.gaussxw(rho_order)
-    rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-    res = adaptive_integrate.integrate_coincident(
-        K, pts[tris[0]].tolist(), 0.001, eps, 1.0, 0.25,
-        rho_q[0].tolist(), rho_q[1].tolist()
+    res = co_limit(
+        K, pts[tris[0]].tolist(), 100, 0.001, eps, 2, eps_scale,
+        1.0, 0.25, include_log = True
     )
     np.testing.assert_almost_equal(res, op.mat.reshape(81), 3)
 
@@ -156,15 +185,15 @@ def test_edge_adj():
     eps = 0.08
     pts = np.array([[0,0,0],[1,0,0],[0.5,0.5,0],[0,1,0],[0,-1,0],[0.5,-0.5,0]])
     tris = np.array([[0,1,2],[1,0,4]])
-    op = DenseIntegralOp([eps], 10, 15, 10, 10, 10, 3.0, K, 1.0, 0.25, pts, tris)
+    eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(pts[tris[0]])))
+    op = DenseIntegralOp(
+        [eps, eps / 2], 10, 15, 10, 10, 10, 3.0, K, 1.0, 0.25, pts, tris,
+        remove_sing = True
+    )
 
-    rho_order = 100
-    tol = 0.005
-    rho_gauss = quad.gaussxw(rho_order)
-    rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-    res = adaptive_integrate.integrate_adjacent(
-        K, pts[tris[0]].tolist(), pts[tris[1]].tolist(), tol, eps * np.sqrt(0.5), 1.0, 0.25,
-        rho_q[0].tolist(), rho_q[1].tolist()
+    res = adj_limit(
+        K, pts[tris[0]].tolist(), pts[tris[1]].tolist(), 100, 0.001,
+        eps, 2, eps_scale, 1.0, 0.25, include_log = True
     )
     np.testing.assert_almost_equal(res, op.mat[:9,9:].reshape(81), 4)
 

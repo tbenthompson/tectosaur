@@ -3,6 +3,7 @@ import numpy as np
 from tectosaur.interpolate import barycentric_evalnd, cheb, cheb_wts, from_interval
 from tectosaur.standardize import standardize
 from tectosaur.geometry import tri_normal, xyhat_from_pt, projection, vec_angle
+import tectosaur.limit as limit
 
 table_min_internal_angle = 20 + 1e-11
 min_angle_isoceles_height = 0.5 * np.tan(np.deg2rad(table_min_internal_angle))
@@ -10,9 +11,6 @@ min_angle_isoceles_height = 0.5 * np.tan(np.deg2rad(table_min_internal_angle))
 minlegalA = 0.0939060848748 - 0.01
 minlegalB = 0.233648154379 - 0.01
 maxlegalB = 0.865565992417 + 0.01
-filename, n_A, n_B, n_pr = ('coincidenttable_limits.npy', 8, 8, 8)
-filename, n_A, n_B, n_pr = ('testtable.npy', 3, 3, 3)
-
 
 def coincident_interp_pts_wts(n_A, n_B, n_pr):
     Ahats = cheb(-1, 1, n_A)
@@ -27,7 +25,19 @@ def coincident_interp_pts_wts(n_A, n_B, n_pr):
     interp_wts = np.outer(Awts,np.outer(Bwts,prwts)).ravel()
     return interp_pts, interp_wts
 
-def coincident_lookup(table_and_pts_wts, sm, pr, tri):
+def interp_limit(eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt):
+    out = np.empty(81)
+    epsvs = eps_start * (2.0 ** -np.arange(n_steps))
+    for j in range(81):
+        sequence_vals = []
+        for eps_idx in range(4):
+            sequence_vals.append(barycentric_evalnd(
+                interp_pts, interp_wts, table[:, eps_idx, j], pt
+            )[0])
+        out[j] = limit.limit(epsvs, sequence_vals, remove_sing)
+    return out
+
+def coincident_lookup(table_and_pts_wts, sm, pr, tri, eps_start, n_steps, remove_sing):
     table, interp_pts, interp_wts = table_and_pts_wts
 
     standard_tri, labels, translation, R, scale = standardize(
@@ -40,12 +50,10 @@ def coincident_lookup(table_and_pts_wts, sm, pr, tri):
     Bhat = from_interval(minlegalB, maxlegalB, B)
     prhat = from_interval(0.0, 0.5, pr)
 
-    interp_vals = np.empty(81)
-    for j in range(81):
-        interp_vals[j] = barycentric_evalnd(
-            interp_pts, interp_wts, table[:, j], np.array([[Ahat, Bhat, prhat]])
-        )[0]
-    interp_vals = interp_vals.reshape((3,3,3,3))
+    pt = np.array([[Ahat, Bhat, prhat]])
+    interp_vals = interp_limit(
+        eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt
+    ).reshape((3,3,3,3))
 
     out = np.empty((3,3,3,3))
     for sb1 in range(3):
@@ -56,7 +64,12 @@ def coincident_lookup(table_and_pts_wts, sm, pr, tri):
             out[cb1,:,cb2,:] = correct
     return out
 
-def coincident_table(kernel, sm, pr, pts, tris):
+def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
+    filename, eps_start, n_steps, n_A, n_B, n_pr = (
+        '_50_0.080000_4_0.010000_3_3_3_coincidenttable.npy',
+        0.08, 4, 3, 3, 3
+    )
+
     interp_pts, interp_wts = coincident_interp_pts_wts(n_A, n_B, n_pr)
 
     tri_pts = pts[tris]
@@ -66,7 +79,8 @@ def coincident_table(kernel, sm, pr, pts, tris):
 
     for i in range(tris.shape[0]):
         out[i,:,:,:,:] = coincident_lookup(
-            (table, interp_pts, interp_wts), sm, pr, tri_pts[i,:,:]
+            (table, interp_pts, interp_wts), sm, pr, tri_pts[i,:,:],
+            eps_start, n_steps, remove_sing
         )
 
     return out
@@ -149,7 +163,8 @@ def separate_tris(obs_tri, src_tri):
     ])
     return pts, obs_tris, src_tris, obs_basis_tris, src_basis_tris
 
-def adjacent_lookup(table_and_pts_wts, sm, pr, obs_tri, src_tri):
+def adjacent_lookup(table_and_pts_wts, sm, pr, obs_tri, src_tri,
+        eps_start, n_steps, remove_sing):
     table, interp_pts, interp_wts = table_and_pts_wts
 
     standard_tri, _, translation, R, scale = standardize(
@@ -166,13 +181,11 @@ def adjacent_lookup(table_and_pts_wts, sm, pr, obs_tri, src_tri):
 
     thetahat = from_interval(0, np.pi, theta)
     prhat = from_interval(0, 0.5, pr)
+    pt = np.array([[thetahat, prhat]])
 
-    interp_vals = np.empty(81)
-    for j in range(81):
-        interp_vals[j] = barycentric_evalnd(
-            interp_pts, interp_wts, table[:, j], np.array([[thetahat, prhat]])
-        )[0]
-    interp_vals = interp_vals.reshape((3,3,3,3))
+    interp_vals = interp_limit(
+        eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt
+    ).reshape((3,3,3,3))
 
     out = np.empty((3,3,3,3))
     for b1 in range(3):
@@ -198,11 +211,14 @@ def sub_basis(I, obs_basis_tri, src_basis_tri):
                     out[ob1,:,sb1,:] += I[ob2,:,sb2,:] * obv * sbv
     return out
 
-def adjacent_table(kernel, sm, pr, pts, obs_tris, src_tris):
-    n_theta = n_pr = 3
+def adjacent_table(kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
+    filename, eps_start, n_steps, n_theta, n_pr = (
+        '_50_0.080000_4_0.010000_3_3_adjacenttable.npy',
+        0.08, 4, 3, 3
+    )
     interp_pts, interp_wts = adjacent_interp_pts_wts(n_theta, n_pr)
 
-    table = np.load(kernel + '_adj_' + filename)
+    table = np.load('data/' + kernel + filename)
 
     out = np.empty((obs_tris.shape[0], 3, 3, 3, 3))
 
@@ -215,7 +231,8 @@ def adjacent_table(kernel, sm, pr, pts, obs_tris, src_tris):
         )
         lookup_result = adjacent_lookup(
             (table, interp_pts, interp_wts), sm, pr,
-            split_pts[split_obs[0]], split_pts[split_src[0]]
+            split_pts[split_obs[0]], split_pts[split_src[0]],
+            eps_start, n_steps, remove_sing
         )
         out[i] = sub_basis(lookup_result, obs_basis_tris[0], src_basis_tris[0])
 

@@ -1,6 +1,6 @@
 import scipy.sparse
 import numpy as np
-from tectosaur.adjacency import find_touching_pts
+from tectosaur.adjacency import find_touching_pts, find_free_edges
 import tectosaur.geometry as geom
 from collections import namedtuple
 
@@ -57,6 +57,16 @@ def continuity_constraints(surface_tris, fault_tris, pts):
                 ))
     assert(len(touching_pt) == surface_tris.size - len(constraints) / 3)
     return constraints
+
+def free_edge_constraints(tris):
+    free_edges = find_free_edges(tris)
+    cs = []
+    for tri_idx, edge_idx in free_edges:
+        for v in range(2):
+            for d in range(3):
+                dof = tri_idx * 9 + ((edge_idx + v) % 3) * 3 + d
+                cs.append(ConstraintEQ([Term(1.0, dof)], 0.0))
+    return cs
 
 def constant_bc_constraints(start_tri, end_tri, value):
     cs = []
