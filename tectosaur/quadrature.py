@@ -26,16 +26,6 @@ def map_to(qr, interval):
 def quadrature(f, qr):
     return sum(f(qr[0]) * qr[1])
 
-# def generalized_richardson_quad(h_vals, terms, quad_builder):
-#     n = len(h_vals)
-#     xs = None
-#     ws = None
-#     A = [[t(h) for t in terms] for h in h_vals]
-#     for i in range(n):
-#         y = [0] * n
-#         y[i] = 1.0
-#         limit(h_vals, y, include_log)
-
 def richardson_quad(h_vals, include_log, quad_builder):
     n = len(h_vals)
     I = scipy.interpolate.BarycentricInterpolator(h_vals)
@@ -52,7 +42,10 @@ def richardson_quad(h_vals, include_log, quad_builder):
 
         y = [0] * n
         y[i] = 1.0
-        I0 = limit(h_vals, y, include_log)
+        if include_log:
+            I0 = limit(h_vals, y, include_log)[0]
+        else:
+            I0 = limit(h_vals, y, include_log)
         inner_ws *= I0
 
         if xs is None:

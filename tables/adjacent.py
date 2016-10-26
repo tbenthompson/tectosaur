@@ -22,11 +22,11 @@ n_theta = 8
 # play parameters
 K = "H"
 rho_order = 50
-starting_eps = 0.08
+starting_eps = 0.004
 n_eps = 4
-tol = 0.01
-n_pr = 3
-n_theta = 3
+tol = 0.001
+n_pr = 4
+n_theta = 4
 
 filename = (
     '%s_%i_%f_%i_%f_%i_%i_adjacenttable.npy' %
@@ -55,19 +55,18 @@ def eval(pt):
     thetahat, prhat = pt
     theta = to_interval(0, np.pi, thetahat)
     pr = to_interval(0.0, 0.5, prhat)
+    print(theta, pr)
     Y = rho * np.cos(theta)
     Z = rho * np.sin(theta)
 
     tri1 = [[0,0,0],[1,0,0],[0.5,rho,0]]
-    eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(tri1)))
-    print(eps_scale, all_eps, all_eps * eps_scale)
     tri2 = [[1,0,0],[0,0,0],[0.5,Y,Z]]
     integrals = []
     for eps in all_eps:
         print('running: ' + str((pt, eps)))
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
         res = adaptive_integrate.integrate_adjacent(
-            K, tri1, tri2, tol, eps * eps_scale,
+            K, tri1, tri2, tol, eps,
             1.0, pr, rho_q[0].tolist(), rho_q[1].tolist()
         )
         integrals.append(res)

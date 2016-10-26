@@ -78,7 +78,6 @@ def eval(pt):
     pr = to_interval(0.0, 0.5, prhat)
 
     tri = [[0,0,0],[1,0,0],[A,B,0.0]]
-    eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(tri)))
 
     start = time.time()
     integrals = []
@@ -86,7 +85,7 @@ def eval(pt):
         print('running: ' + str((pt, eps)))
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
         res = adaptive_integrate.integrate_coincident(
-            K, tri, tol, eps * eps_scale, 1.0, pr,
+            K, tri, tol, eps, 1.0, pr,
             rho_q[0].tolist(), rho_q[1].tolist()
         )
         integrals.append(res)

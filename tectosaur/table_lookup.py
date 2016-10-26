@@ -27,6 +27,7 @@ def coincident_interp_pts_wts(n_A, n_B, n_pr):
 
 def interp_limit(eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt):
     out = np.empty(81)
+    log_coeffs = np.empty(81)
     epsvs = eps_start * (2.0 ** -np.arange(n_steps))
     for j in range(81):
         sequence_vals = []
@@ -34,8 +35,14 @@ def interp_limit(eps_start, n_steps, remove_sing, interp_pts, interp_wts, table,
             sequence_vals.append(barycentric_evalnd(
                 interp_pts, interp_wts, table[:, eps_idx, j], pt
             )[0])
-        out[j] = limit.limit(epsvs, sequence_vals, remove_sing)
-    return out
+        if remove_sing:
+            out[j], log_coeffs[j] = limit.limit(epsvs, sequence_vals, remove_sing)
+        else:
+            out[j] = limit.limit(epsvs, sequence_vals, remove_sing)
+    if remove_sing:
+        return out, log_coeffs
+    else:
+        return out
 
 def coincident_lookup(table_and_pts_wts, sm, pr, tri, eps_start, n_steps, remove_sing):
     table, interp_pts, interp_wts = table_and_pts_wts
@@ -49,11 +56,16 @@ def coincident_lookup(table_and_pts_wts, sm, pr, tri, eps_start, n_steps, remove
     Ahat = from_interval(minlegalA, 0.5, A)
     Bhat = from_interval(minlegalB, maxlegalB, B)
     prhat = from_interval(0.0, 0.5, pr)
-
     pt = np.array([[Ahat, Bhat, prhat]])
-    interp_vals = interp_limit(
+
+    interp_vals, log_coeffs = interp_limit(
         eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt
-    ).reshape((3,3,3,3))
+    )
+
+    standard_scale = np.sqrt(np.linalg.norm(tri_normal(standard_tri)))
+    interp_vals += np.log(standard_scale) * log_coeffs
+
+    interp_vals = interp_vals.reshape((3,3,3,3))
 
     out = np.empty((3,3,3,3))
     for sb1 in range(3):
@@ -172,26 +184,38 @@ def adjacent_lookup(table_and_pts_wts, sm, pr, obs_tri, src_tri,
     )
 
     theta = get_adjacent_theta(obs_tri, src_tri)
-    factor = 1
 
-    #TODO: HANDLE FLIPPING!
-    if theta > np.pi:
-        theta = 2 * np.pi - theta
-        # factor *= -1
+    # factor = 1
+    # #TODO: HANDLE FLIPPING!
+    # if theta > np.pi:
+    #     theta = 2 * np.pi - theta
+    #     # factor *= -1
 
     thetahat = from_interval(0, np.pi, theta)
     prhat = from_interval(0, 0.5, pr)
     pt = np.array([[thetahat, prhat]])
 
-    interp_vals = interp_limit(
-        eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt
-    ).reshape((3,3,3,3))
+
+    if remove_sing:
+        standard_scale = np.sqrt(np.linalg.norm(tri_normal(standard_tri)))
+        interp_vals, log_coeffs = interp_limit(
+            eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt
+        )
+
+        print("standard_scale: " + str(standard_scale))
+        interp_vals += np.log(standard_scale) * log_coeffs
+    else:
+        interp_vals = interp_limit(
+            eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt
+        )
+
+    interp_vals = interp_vals.reshape((3,3,3,3))
 
     out = np.empty((3,3,3,3))
     for b1 in range(3):
         for b2 in range(3):
             correct = R.T.dot(interp_vals[b1,:,b2,:]).dot(R) / (sm * scale ** 1)
-            out[b1,:,b2,:] = correct * factor
+            out[b1,:,b2,:] = correct
     return out
 
 def sub_basis(I, obs_basis_tri, src_basis_tri):
@@ -213,8 +237,9 @@ def sub_basis(I, obs_basis_tri, src_basis_tri):
 
 def adjacent_table(kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
     filename, eps_start, n_steps, n_theta, n_pr = (
-        '_50_0.080000_4_0.010000_3_3_adjacenttable.npy',
-        0.08, 4, 3, 3
+        # '_50_0.080000_4_0.010000_3_3_adjacenttable.npy',
+        '_50_0.080000_4_0.001000_4_4_adjacenttable.npy',
+        0.08, 4, 4, 4
     )
     interp_pts, interp_wts = adjacent_interp_pts_wts(n_theta, n_pr)
 

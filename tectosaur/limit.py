@@ -20,7 +20,7 @@ def limit_coeffs(eps_vals, f_vals, include_log):
 def limit(eps_vals, f_vals, include_log):
     coeffs = limit_coeffs(eps_vals, f_vals, include_log)
     if include_log:
-        return coeffs[1]
+        return coeffs[1], coeffs[0]
     else:
         return coeffs[0]
 
