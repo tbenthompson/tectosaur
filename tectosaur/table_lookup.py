@@ -3,7 +3,9 @@ import numpy as np
 from tectosaur.interpolate import barycentric_evalnd, cheb, cheb_wts, from_interval
 from tectosaur.standardize import standardize
 from tectosaur.geometry import tri_normal, xyhat_from_pt, projection, vec_angle
+from tectosaur.adjacency import rotate_tri
 import tectosaur.limit as limit
+import tectosaur.nearfield_op as nearfield_op
 
 table_min_internal_angle = 20 + 1e-11
 min_angle_isoceles_height = 0.5 * np.tan(np.deg2rad(table_min_internal_angle))
@@ -175,12 +177,12 @@ def separate_tris(obs_tri, src_tri):
     ])
     return pts, obs_tris, src_tris, obs_basis_tris, src_basis_tris
 
-def adjacent_lookup(table_and_pts_wts, sm, pr, obs_tri, src_tri,
+def adjacent_lookup(table_and_pts_wts, sm, pr, orig_obs_tri, obs_tri, src_tri,
         eps_start, n_steps, remove_sing):
     table, interp_pts, interp_wts = table_and_pts_wts
 
     standard_tri, _, translation, R, scale = standardize(
-        obs_tri, table_min_internal_angle, should_relabel = False
+        orig_obs_tri, table_min_internal_angle, should_relabel = False
     )
 
     theta = get_adjacent_theta(obs_tri, src_tri)
@@ -197,11 +199,11 @@ def adjacent_lookup(table_and_pts_wts, sm, pr, obs_tri, src_tri,
 
 
     if remove_sing:
-        standard_scale = np.sqrt(np.linalg.norm(tri_normal(standard_tri)))
         interp_vals, log_coeffs = interp_limit(
             eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt
         )
 
+        standard_scale = np.sqrt(np.linalg.norm(tri_normal(standard_tri)))
         print("standard_scale: " + str(standard_scale))
         interp_vals += np.log(standard_scale) * log_coeffs
     else:
@@ -235,7 +237,22 @@ def sub_basis(I, obs_basis_tri, src_basis_tri):
                     out[ob1,:,sb1,:] += I[ob2,:,sb2,:] * obv * sbv
     return out
 
-def adjacent_table(kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
+def find_va_rotations(ot, st):
+    ot_clicks = 0
+    st_clicks = 0
+    for d in range(3):
+        matching_vert = np.where(st == ot[d])[0]
+        if matching_vert.shape[0] > 0:
+            ot_clicks = d
+            st_clicks = matching_vert[0]
+            break
+        if d == 2:
+            print("NOTTOUCHING")
+    ot_rot = rotate_tri(ot_clicks)
+    st_rot = rotate_tri(st_clicks)
+    return ot_rot, st_rot
+
+def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
     filename, eps_start, n_steps, n_theta, n_pr = (
         # '_50_0.080000_4_0.010000_3_3_adjacenttable.npy',
         '_50_0.080000_4_0.001000_4_4_adjacenttable.npy',
@@ -248,6 +265,12 @@ def adjacent_table(kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
     out = np.empty((obs_tris.shape[0], 3, 3, 3, 3))
 
     vert_adj_pairs = []
+    va_pts = []
+    va_which_pair = []
+    va_obs_tris = []
+    va_src_tris = []
+    va_obs_basis = []
+    va_src_basis = []
     for i in range(obs_tris.shape[0]):
         obs_tri = pts[obs_tris[i]]
         src_tri = pts[src_tris[i]]
@@ -256,19 +279,41 @@ def adjacent_table(kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
         )
         lookup_result = adjacent_lookup(
             (table, interp_pts, interp_wts), sm, pr,
-            split_pts[split_obs[0]], split_pts[split_src[0]],
+            obs_tri, split_pts[split_obs[0]], split_pts[split_src[0]],
             eps_start, n_steps, remove_sing
         )
         out[i] = sub_basis(lookup_result, obs_basis_tris[0], src_basis_tris[0])
 
+        va_pts.extend(split_pts.tolist())
         for j in range(3):
             for k in range(3):
                 if k == 0 and j == 0:
                     continue
+                otA = np.linalg.norm(tri_normal(split_pts[split_obs[j]]))
+                stA = np.linalg.norm(tri_normal(split_pts[split_src[k]]))
+                if otA * stA < 1e-10:
+                    continue
+
+                ot = split_obs[j]
+                st = split_src[k]
+                ot_rot, st_rot = find_va_rotations(ot, st)
+
+                va_obs_tris.append((ot[ot_rot] + 6 * i).tolist())
+                va_src_tris.append((st[st_rot] + 6 * i).tolist())
+                va_which_pair.append(i)
+                va_obs_basis.append(obs_basis_tris[j][ot_rot])
+                va_src_basis.append(src_basis_tris[k][st_rot])
                 vert_adj_pairs.append((
                     i, split_pts, split_obs[j], split_src[k],
                     obs_basis_tris[j], src_basis_tris[k]
                 ))
 
+    Iv = nearfield_op.vert_adj(
+        nq_va, kernel, sm, pr,
+        np.array(va_pts), np.array(va_obs_tris), np.array(va_src_tris)
+    )
+    for i in range(Iv.shape[0]):
+        Iv[i] = sub_basis(Iv[i], va_obs_basis[i], va_src_basis[i])
+        out[va_which_pair[i]] += Iv[i]
+
     return out, vert_adj_pairs
-        #Perform vertex adjacent for all other pairs

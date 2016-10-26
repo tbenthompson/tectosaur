@@ -1,11 +1,3 @@
-there's limit epsilon and real-world epsilon... the difference seems to matter a lot when dealing with divergent integrals!
-
-test divergence removal between table method and old method.
-
-build tables that include the individual integrals rather than a limit.
-
-run all vert adjacent subtris at once
-
 what to do about interelement angles that are greater than pi, for adjacent table lookup?
 
 actually use the interpolation table based integrals in an okada problem
