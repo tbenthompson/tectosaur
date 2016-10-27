@@ -9,7 +9,7 @@ from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
     get_gpu_module, get_gpu_config
 from tectosaur.quadrature import gauss4d_tri
 from tectosaur.util.timer import Timer
-from tectosaur.table_lookup import coincident_table
+from tectosaur.table_lookup import coincident_table, adjacent_table
 
 def farfield(kernel, sm, pr, pts, obs_tris, src_tris, n_q):
     q = gauss4d_tri(n_q, n_q)
@@ -111,9 +111,14 @@ class DenseIntegralOp:
         ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
             edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
-        ea_mat_rot = edge_adj(
-            nq_edge_adjacent, eps, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris, remove_sing
-        )
+        if not use_tables:
+            ea_mat_rot = edge_adj(
+                nq_edge_adjacent, eps, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris, remove_sing
+            )
+        else:
+            ea_mat_rot = adjacent_table(
+                nq_vert_adjacent, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris, remove_sing
+            )
         timer.report("Edge adjacent")
 
         va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\

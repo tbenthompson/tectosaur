@@ -30,3 +30,6 @@ def test_xyhat_from_pt():
     xhat2, yhat2 = xyhat_from_pt(P, T)
     np.testing.assert_almost_equal(xhat, xhat2)
     np.testing.assert_almost_equal(yhat, yhat2)
+
+def test_vec_angle180():
+    np.testing.assert_almost_equal(vec_angle(np.array([1,1]),np.array([-1,-1])), np.pi)

@@ -144,10 +144,11 @@ def standardize(tri, angle_lim, should_relabel = True):
     rot2, rot_mat2 = rotate2_to_xyplane(rot1)
     np.testing.assert_almost_equal(0, rot2[2][2])
     sc, factor = scale(rot2)
-    code = check_bad_tri(sc, angle_lim)
-    if code > 0:
-        print("Bad tri: " + str(code))
-        return None
+    if should_relabel:
+        code = check_bad_tri(sc, angle_lim)
+        if code > 0:
+            print("Bad tri: " + str(code))
+            return None
     return sc, labels, translation, rot_mat2.dot(rot_mat1), factor
 
 kernel_properties = dict()

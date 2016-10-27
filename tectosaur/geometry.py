@@ -4,7 +4,11 @@ def projection(V, b):
     return (V.dot(b) * b) / (np.linalg.norm(b) ** 2)
 
 def vec_angle(v1, v2):
-    return np.arccos(v1.dot(v2) / np.linalg.norm(v1) / np.linalg.norm(v2))
+    v1L = np.linalg.norm(v1)
+    v2L = np.linalg.norm(v2)
+    v1d2 = v1.dot(v2)
+    arg = min(max(v1d2 / (v1L * v2L),-1),1)
+    return np.arccos(arg)
 
 def linear_basis_tri(xhat, yhat):
     return np.array([1.0 - xhat - yhat, xhat, yhat])

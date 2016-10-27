@@ -47,6 +47,7 @@ def interp_limit(eps_start, n_steps, remove_sing, interp_pts, interp_wts, table,
         return out
 
 def coincident_lookup(table_and_pts_wts, sm, pr, tri, eps_start, n_steps, remove_sing):
+    print("colookup")
     table, interp_pts, interp_wts = table_and_pts_wts
 
     standard_tri, labels, translation, R, scale = standardize(
@@ -79,10 +80,17 @@ def coincident_lookup(table_and_pts_wts, sm, pr, tri, eps_start, n_steps, remove
     return out
 
 def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
-    filename, eps_start, n_steps, n_A, n_B, n_pr = (
-        '_50_0.080000_4_0.010000_3_3_3_coincidenttable.npy',
-        0.08, 4, 3, 3, 3
-    )
+    filename = '_50_0.080000_4_0.010000_3_3_3_coincidenttable.npy'
+
+    params = filename.split('_')
+
+    rho_order = int(params[1])
+    eps_start = float(params[2])
+    n_steps = int(params[3])
+    tol = float(params[4])
+    n_A = int(params[5])
+    n_B = int(params[6])
+    n_pr = int(params[7])
 
     interp_pts, interp_wts = coincident_interp_pts_wts(n_A, n_B, n_pr)
 
@@ -108,7 +116,6 @@ def get_adjacent_theta(obs_tri, src_tri):
 
     n1 = tri_normal(obs_tri, normalize = True)
     samedir = n1.dot(T2 - T1) > 0
-
     theta = vec_angle(T1, T2)
 
     if samedir:
@@ -179,6 +186,7 @@ def separate_tris(obs_tri, src_tri):
 
 def adjacent_lookup(table_and_pts_wts, sm, pr, orig_obs_tri, obs_tri, src_tri,
         eps_start, n_steps, remove_sing):
+    print("adjlookup")
     table, interp_pts, interp_wts = table_and_pts_wts
 
     standard_tri, _, translation, R, scale = standardize(
@@ -204,7 +212,6 @@ def adjacent_lookup(table_and_pts_wts, sm, pr, orig_obs_tri, obs_tri, src_tri,
         )
 
         standard_scale = np.sqrt(np.linalg.norm(tri_normal(standard_tri)))
-        print("standard_scale: " + str(standard_scale))
         interp_vals += np.log(standard_scale) * log_coeffs
     else:
         interp_vals = interp_limit(
@@ -246,25 +253,32 @@ def find_va_rotations(ot, st):
             ot_clicks = d
             st_clicks = matching_vert[0]
             break
-        if d == 2:
-            print("NOTTOUCHING")
+    # If the loop finds no shared vertices, then the triangles are not touching
+    # and no rotations will be performed.
     ot_rot = rotate_tri(ot_clicks)
     st_rot = rotate_tri(st_clicks)
     return ot_rot, st_rot
 
 def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
-    filename, eps_start, n_steps, n_theta, n_pr = (
-        # '_50_0.080000_4_0.010000_3_3_adjacenttable.npy',
-        '_50_0.080000_4_0.001000_4_4_adjacenttable.npy',
-        0.08, 4, 4, 4
-    )
+    # filename = '_50_0.080000_4_0.010000_3_3_adjacenttable.npy'
+    filename = '_50_0.080000_4_0.001000_4_4_adjacenttable.npy'
+    # filename = '_50_0.010000_4_0.010000_4_4_adjacenttable.npy'
+    # filename = '_50_0.004000_4_0.001000_4_4_adjacenttable.npy'
+
+    params = filename.split('_')
+    rho_order = int(params[1])
+    eps_start = float(params[2])
+    n_steps = int(params[3])
+    tol = float(params[4])
+    n_theta = int(params[5])
+    n_pr = int(params[6])
+
     interp_pts, interp_wts = adjacent_interp_pts_wts(n_theta, n_pr)
 
     table = np.load('data/' + kernel + filename)
 
     out = np.empty((obs_tris.shape[0], 3, 3, 3, 3))
 
-    vert_adj_pairs = []
     va_pts = []
     va_which_pair = []
     va_obs_tris = []
@@ -303,10 +317,6 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
                 va_which_pair.append(i)
                 va_obs_basis.append(obs_basis_tris[j][ot_rot])
                 va_src_basis.append(src_basis_tris[k][st_rot])
-                vert_adj_pairs.append((
-                    i, split_pts, split_obs[j], split_src[k],
-                    obs_basis_tris[j], src_basis_tris[k]
-                ))
 
     Iv = nearfield_op.vert_adj(
         nq_va, kernel, sm, pr,
@@ -316,4 +326,4 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
         Iv[i] = sub_basis(Iv[i], va_obs_basis[i], va_src_basis[i])
         out[va_which_pair[i]] += Iv[i]
 
-    return out, vert_adj_pairs
+    return out

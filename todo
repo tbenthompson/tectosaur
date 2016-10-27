@@ -1,10 +1,10 @@
-what to do about interelement angles that are greater than pi, for adjacent table lookup?
+gpu, hp-adaptive, kahan summation quadrature tool to replace "cubature"
 
 actually use the interpolation table based integrals in an okada problem
 
-optimize the table lookup stuff
+what to do about interelement angles that are greater than pi, for adjacent table lookup?
 
-think about volume integrals -- only ever need to do volume integrals with U and A kernels --> no divergences, not even cauchy principal value integrals because the extra source dimension reduces the order of the singularity by one, still should do transformations to reduce the order of the singularity -- probably can remove it completely, in which case there are only some big 5 dimensional low order gauss integrals to do. alternatively, i could do another interpolation table... the adjacent trick would work
+optimize the table lookup stuff
 
 interior evaluation -- this is easy except near the surface, use sinh quadrature? test it against the adaptive quadrature. also, maybe i can just interpolate from one element length away to the surface value and avoid nearfield integrals?
 
@@ -15,6 +15,8 @@ deal with low angle vertex adjacent cases -- these can be very expensive!
 use FMM for okada
 -- just try it out first, make sure its accurate.
 -- condense the columns of p2m and p2l and p2p, condense rows of m2p, l2p, p2p, this should increase efficiency A LOT (HUH??)
+
+think about volume integrals -- only ever need to do volume integrals with U and A kernels --> no divergences, not even cauchy principal value integrals because the extra source dimension reduces the order of the singularity by one, still should do transformations to reduce the order of the singularity -- probably can remove it completely, in which case there are only some big 5 dimensional low order gauss integrals to do. alternatively, i could do another interpolation table... the adjacent trick would work
 
 sphere test
 -- do two problems:

@@ -13,7 +13,7 @@ import tectosaur.geometry as geometry
 #TODO: Split the cuda code into nearfield integrals and farfield.
 from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
     get_gpu_module, get_gpu_config
-from tectosaur.table_lookup import coincident_table
+from tectosaur.table_lookup import coincident_table, adjacent_table
 
 from tectosaur.util.timer import Timer
 
@@ -113,7 +113,7 @@ class NearfieldIntegralOp:
         if not use_tables:
             co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris, remove_sing)
         else:
-            co_mat = coincident_table(kernel, sm, pr, pts, tris)
+            co_mat = coincident_table(kernel, sm, pr, pts, tris, remove_sing)
         co_mat_correction = pairs_quad(
             kernel, sm, pr, pts, tris, tris, far_quad, False
         )
@@ -125,9 +125,14 @@ class NearfieldIntegralOp:
         ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
             edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
-        ea_mat_rot = edge_adj(
-            nq_edge_adjacent, eps, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris, remove_sing
-        )
+        if not use_tables:
+            ea_mat_rot = edge_adj(
+                nq_edge_adjacent, eps, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris, remove_sing
+            )
+        else:
+            ea_mat_rot = adjacent_table(
+                nq_vert_adjacent, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris, remove_sing
+            )
         ea_mat_correction = pairs_quad(
             kernel, sm, pr, pts,
             tris[ea_tri_indices[:,0]], tris[ea_tri_indices[:,1]],
