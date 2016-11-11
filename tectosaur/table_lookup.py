@@ -80,7 +80,8 @@ def coincident_lookup(table_and_pts_wts, sm, pr, tri, eps_start, n_steps, remove
     return out
 
 def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
-    filename = '_50_0.080000_4_0.010000_3_3_3_coincidenttable.npy'
+    # filename = '_50_0.080000_4_0.010000_3_3_3_coincidenttable.npy'
+    filename = '_50_0.001000_4_0.000100_4_4_4_coincidenttable.npy'
 
     params = filename.split('_')
 
@@ -261,7 +262,8 @@ def find_va_rotations(ot, st):
 
 def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
     # filename = '_50_0.080000_4_0.010000_3_3_adjacenttable.npy'
-    filename = '_50_0.080000_4_0.001000_4_4_adjacenttable.npy'
+    # filename = '_50_0.080000_4_0.001000_4_4_adjacenttable.npy'
+    filename = '_50_0.001000_4_0.000100_4_4_adjacenttable.npy'
     # filename = '_50_0.010000_4_0.010000_4_4_adjacenttable.npy'
     # filename = '_50_0.004000_4_0.001000_4_4_adjacenttable.npy'
 

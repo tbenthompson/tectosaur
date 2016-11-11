@@ -6,26 +6,34 @@ import tectosaur.geometry as geometry
 from tectosaur.dense_integral_op import DenseIntegralOp
 import tectosaur.standardize as standardize
 import tectosaur.limit as limit
+import tectosaur.util.gpu as gpu
 
 import cppimport
 adaptive_integrate = cppimport.imp('adaptive_integrate')
 
-def co_integrals(K, tri, rho_order, tol, eps_start, n_steps, sm, pr):
+from gpu_integrator import new_integrate_coincident
+
+def co_integrals(K, tri, rho_order, tol, eps_start, n_steps, sm, pr, new_method = False):
     epsvs = eps_start * (2.0 ** (-np.arange(n_steps)))
     vals = []
     for eps in epsvs:
         rho_gauss = quad.gaussxw(rho_order)
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-        vals.append(adaptive_integrate.integrate_coincident(
-            K, tri, tol, eps, sm, pr, rho_q[0].tolist(), rho_q[1].tolist()
-        ))
+        if new_method:
+            vals.append(new_integrate_coincident(
+                K, tri, tol, eps, sm, pr, rho_q[0].tolist(), rho_q[1].tolist()
+            ))
+        else:
+            vals.append(adaptive_integrate.integrate_coincident(
+                K, tri, tol, eps, sm, pr, rho_q[0].tolist(), rho_q[1].tolist()
+            ))
     vals = np.array(vals)
     return epsvs, vals
 
 def co_limit(K, tri, rho_order, tol, eps_start, n_steps,
-        eps_scale, sm, pr, include_log = True):
+        eps_scale, sm, pr, include_log = True, new_method = False):
     epsvs, vals = co_integrals(
-        K, tri, rho_order, tol, eps_start * eps_scale, n_steps, sm, pr
+        K, tri, rho_order, tol, eps_start * eps_scale, n_steps, sm, pr, new_method
     )
     return np.array([
         limit.limit(epsvs / eps_scale, vals[:, i], include_log) for i in range(81)
@@ -196,6 +204,22 @@ def test_edge_adj():
         eps, 2, eps_scale, 1.0, 0.25, include_log = True
     )
     np.testing.assert_almost_equal(res, op.mat[:9,9:].reshape(81), 4)
+
+def test_new_mthd_coincident():
+    K = 'H'
+    eps = 0.08
+    pts = np.array([[0,0,0],[1,0,0],[0.4,0.3,0]])
+    eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(pts)))
+    tris = np.array([[0,1,2]])
+    res_new = co_limit(
+        K, pts[tris[0]].tolist(), 100, 0.01, eps, 2, eps_scale,
+        1.0, 0.25, include_log = True, new_method = True
+    )
+    res_old = co_limit(
+        K, pts[tris[0]].tolist(), 100, 0.01, eps, 2, eps_scale,
+        1.0, 0.25, include_log = True
+    )
+    np.testing.assert_almost_equal(res_new, res_old, 3)
 
 if __name__ == '__main__':
     test_vert_adj()
