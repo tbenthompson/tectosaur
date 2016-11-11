@@ -1,5 +1,6 @@
 import numpy as np
 import ndadapt
+import tectosaur.util.gpu as gpu
 import pycuda.driver as drv
 
 gpu_module = gpu.load_gpu('kernels.cu', print_code = True)
@@ -13,8 +14,8 @@ def get_gpu_integrator(p, K, tri, tol, eps, sm, pr, rho_qx, rho_qw):
         grid_main = (mins.shape[0] // block[0], 1, 1)
         grid_rem = (remaining, 1, 1)
 
-        out = np.empty(mins.shape[0]).astype(np.float64)
-        out_rem = np.empty(grid_rem[0]).astype(np.float64)
+        out = np.empty((mins.shape[0],81)).astype(np.float64)
+        out_rem = np.empty((grid_rem[0],81)).astype(np.float64)
 
         def call_integrator(block, grid, result_buf, start_idx, end_idx):
             if grid[0] == 0:
@@ -29,8 +30,14 @@ def get_gpu_integrator(p, K, tri, tol, eps, sm, pr, rho_qx, rho_qw):
                     drv.In(q_unmapped[1].astype(np.float64)),
                     drv.In(mins[start_idx:end_idx].astype(np.float64)),
                     drv.In(maxs[start_idx:end_idx].astype(np.float64)),
+                    drv.In(np.array(tri)),
+                    np.float64(sm), np.float64(pr),
+                    np.int32(len(rho_qx)),
+                    drv.In(np.array(rho_qx)),
+                    drv.In(np.array(rho_qw)),
                     block = block, grid = grid
                 )
+                np.testing.assert_almost_equal(temp_result, 0)
                 result_buf += temp_result
 
         call_integrator(block, grid_main, out, 0, mins.shape[0] - remaining)
@@ -50,4 +57,4 @@ def get_gpu_integrator(p, K, tri, tol, eps, sm, pr, rho_qx, rho_qw):
 def new_integrate_coincident(K, tri, tol, eps, sm, pr, rho_qx, rho_qw):
     p = 7
     integrator = get_gpu_integrator(p, K, tri, tol, eps, sm, pr, rho_qx, rho_qw)
-    result = ndadapt.hadapt_nd_iterative(integrator, (0,0,0), (1,1,1), tol)
+    result = ndadapt.hadapt_nd_iterative(integrator, (0,0,0), (1,1,1), tol, max_refinements = 3)

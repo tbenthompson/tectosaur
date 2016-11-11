@@ -62,6 +62,7 @@ struct Cells {
     std::vector<std::array<double,D>> mins;
     std::vector<std::array<double,D>> maxs;
     std::vector<double> ests;
+    int vector_dim;
 
     size_t size() const {
         return mins.size();
@@ -69,8 +70,14 @@ struct Cells {
 };
 
 template <size_t D>
-Cells<D> initial_cell(std::array<double,D> min, std::array<double,D> max, double est) {
-    return Cells<D>{{min}, {max}, {est}};
+Cells<D> initial_cell(std::array<double,D> min, std::array<double,D> max, NPArray<double> est) {
+    int ests_size = est.request().size;
+    std::vector<double> ests_vec(ests_size);
+    auto* first_est = reinterpret_cast<double*>(est.request().ptr);
+    for (int i = 0; i < ests_size; i++) {
+        ests_vec[i] = first_est[i];
+    }
+    return Cells<D>{{min}, {max}, ests_vec, ests_size};
 }
 
 template <size_t D>
@@ -115,58 +122,79 @@ py::tuple get_subcell_mins_maxs(const Cells<D>& cells) {
 template <size_t D>
 py::tuple refine(const Cells<D>& cells,
     NPArray<double> cell_mins, NPArray<double> cell_maxs,
-    NPArray<double> cell_integrals, double iguess) 
+    NPArray<double> cell_integrals, NPArray<double> iguess) 
 {
     int splits = 1 << D;
 
     auto* first_integral = reinterpret_cast<double*>(cell_integrals.request().ptr);
     auto* first_min = reinterpret_cast<double*>(cell_mins.request().ptr);
     auto* first_max = reinterpret_cast<double*>(cell_maxs.request().ptr);
+    auto* iguess_ptr = reinterpret_cast<double*>(iguess.request().ptr);
 
     auto n_cells = cells.mins.size();
 
     Cells<D> out_cells;
-    double result = 0;
+    out_cells.vector_dim = cells.vector_dim;
+
+    auto results = make_array<double>({size_t(cells.vector_dim)});
+    auto* results_ptr = reinterpret_cast<double*>(results.request().ptr);
+    for (int vec_dim = 0; vec_dim < cells.vector_dim; vec_dim++) {
+        results_ptr[vec_dim] = 0;
+    }
+
+    std::vector<double> sums(cells.vector_dim);
     for (size_t i = 0; i < n_cells; i++) {
         auto idx_begin = i * splits;
 
-        double sum = 0.0;
-        for (int ci = 0; ci < splits; ci++) {
-            sum += first_integral[idx_begin + ci];
+        bool should_refine = false;
+        for (int vec_dim = 0; vec_dim < cells.vector_dim; vec_dim++) {
+            sums[vec_dim] = 0.0;
+            for (int ci = 0; ci < splits; ci++) {
+                sums[vec_dim] += first_integral[(idx_begin + ci) * cells.vector_dim + vec_dim];
+            }
+            double diff = cells.ests[i * cells.vector_dim + vec_dim] - sums[vec_dim];
+            double iguess_val = iguess_ptr[vec_dim];
+            if (iguess_val + diff != iguess_val) {
+                should_refine = true;
+                break; 
+            }
         }
 
-        double diff = cells.ests[i] - sum;
-        if (iguess + diff == iguess) {
-            result += sum;
+        if (!should_refine) {
+            for (int vec_dim = 0; vec_dim < cells.vector_dim; vec_dim++) {
+                results_ptr[vec_dim] += sums[vec_dim];
+            }
             continue;
         }
 
         for (int ci = 0; ci < splits; ci++) {
-            out_cells.mins.push_back({
-                first_min[(idx_begin + ci) * 3 + 0],
-                first_min[(idx_begin + ci) * 3 + 1],
-                first_min[(idx_begin + ci) * 3 + 2]
-            });
+            std::array<double,D> min;
+            std::array<double,D> max;
+            for (size_t dim = 0; dim < D; dim++) {
+                min[dim] = first_min[(idx_begin + ci) * D + dim];
+                max[dim] = first_max[(idx_begin + ci) * D + dim];
+            }
+            out_cells.mins.push_back(min);
+            out_cells.maxs.push_back(max);
 
-            out_cells.maxs.push_back({
-                first_max[(idx_begin + ci) * 3 + 0],
-                first_max[(idx_begin + ci) * 3 + 1],
-                first_max[(idx_begin + ci) * 3 + 2]
-            });
-
-            out_cells.ests.push_back(first_integral[idx_begin + ci]);
+            for (int vec_dim = 0; vec_dim < cells.vector_dim; vec_dim++) {
+                double val = first_integral[(idx_begin + ci) * cells.vector_dim + vec_dim];
+                out_cells.ests.push_back(val);
+            }
         }
     }
 
-    return py::make_tuple(result, out_cells);
+    return py::make_tuple(results, out_cells);
 }
 
 PYBIND11_PLUGIN(adapt_logic) {
     py::module m("adapt_logic", "");
-    py::class_<Cells<3>>(m, "Cells3")
-        .def("size", &Cells<3>::size);
-    m.def("initial_cell", initial_cell<3>);
-    m.def("get_subcell_mins_maxs", get_subcell_mins_maxs<3>);
-    m.def("refine", refine<3>);
+    % for d in [1,2,3]:
+    py::class_<Cells<${d}>>(m, "Cells${d}")
+        .def("size", &Cells<${d}>::size);
+    m.def("initial_cell${d}", initial_cell<${d}>);
+    m.def("get_subcell_mins_maxs${d}", get_subcell_mins_maxs<${d}>);
+    m.def("refine${d}", refine<${d}>);
+    % endfor
     return m.ptr();
 }

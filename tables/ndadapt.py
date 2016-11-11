@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.integrate
 import scipy.linalg
+import time
 
 import cppimport
 adapt_logic = cppimport.imp('adapt_logic')
@@ -43,8 +44,7 @@ def tensor_gauss(nqs):
 
 def calc_iguess(initial_est, tol, mins, maxs):
     iguess = (tol / eps) * initial_est
-    if iguess < tol:
-        iguess = np.prod(maxs - mins)
+    iguess = np.where(iguess < tol, np.prod(maxs - mins), iguess)
     return iguess
 
 # Kahan, Babuska, Neumaier summation
@@ -60,13 +60,17 @@ def kbnsum(xs):
         s = t
     return s, comp
 
-def hadapt_nd_iterative(integrate, mins, maxs, tol):
+def hadapt_nd_iterative(integrate, mins, maxs, tol, max_refinements = 10000):
     d = len(mins)
     assert(len(maxs) == d)
+
+    initial_cell = getattr(adapt_logic, 'initial_cell' + str(d))
+    get_subcell_mins_maxs = getattr(adapt_logic, 'get_subcell_mins_maxs' + str(d))
+    refine = getattr(adapt_logic, 'refine' + str(d))
+
     mins = np.array(mins, dtype = np.float64)
     maxs = np.array(maxs, dtype = np.float64)
 
-    import time
     start = time.time()
     int_time = 0
 
@@ -76,21 +80,21 @@ def hadapt_nd_iterative(integrate, mins, maxs, tol):
     initial_est = integrate(np.array([mins]), np.array([maxs]))[0]
     iguess = calc_iguess(initial_est, tol, mins, maxs)
 
-    cells_left = adapt_logic.initial_cell(mins.tolist(), maxs.tolist(), initial_est)
-    result = 0
+    cells_left = initial_cell(mins.tolist(), maxs.tolist(), initial_est)
+    result = np.zeros_like(iguess)
     count = 1
 
-    while True:
-        print(cells_left.size())
+    for i in range(max_refinements):
+        print("cells to compute: " + str(cells_left.size()))
 
-        cell_mins, cell_maxs = adapt_logic.get_subcell_mins_maxs(cells_left)
+        cell_mins, cell_maxs = get_subcell_mins_maxs(cells_left)
 
         int_start = time.time()
         cell_integrals = integrate(cell_mins, cell_maxs)
         int_time += time.time() - int_start
         count += len(cell_mins)
 
-        add_to_result, new_cells_left = adapt_logic.refine(
+        add_to_result, new_cells_left = refine(
             cells_left, cell_mins, cell_maxs, cell_integrals, iguess
         )
         result += add_to_result
@@ -99,5 +103,6 @@ def hadapt_nd_iterative(integrate, mins, maxs, tol):
             break
         cells_left = new_cells_left
 
-    print(int_time, time.time() - start)
+    print("integrals runtime: " + str(int_time))
+    print("logic runtime: " + str(time.time() - start))
     return result, count

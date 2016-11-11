@@ -108,7 +108,7 @@ void compute_integrals${chunk}(double* result, int n_quad_pts,
     for (int i = 0; i < 81; i++) {
         sum[i] = 0;
     }
-    for (int i = 0; i < n_quad_pts; i++) {
+    for (int i = 0; i < 1; i++) {
         double obsxhat = minx + deltax * (quad_pts[i] + 1);
         double obsyhat = miny + deltay * (quad_pts[n_quad_pts * 1 + i] + 1) * (1 - obsxhat);
         double thetahat = mintheta + deltatheta * (quad_pts[n_quad_pts * 2 + i] + 1);
@@ -121,7 +121,7 @@ void compute_integrals${chunk}(double* result, int n_quad_pts,
         double outer_jacobian = (1 - obsxhat) * (thetahigh - thetalow) * 0.5;
         double costheta = cos(theta);
         double sintheta = sin(theta);
-        for (size_t ri = 0; ri < n_rho_quad_pts; ri++) {
+        for (size_t ri = 0; ri < 1; ri++) {
             double rhohat = (rho_qx[ri] + 1) / 2.0;
             double jacobian = rho_qw[ri] * outer_jacobian;
 
@@ -137,6 +137,9 @@ void compute_integrals${chunk}(double* result, int n_quad_pts,
             /*    fval[i] += jacobian * out[i];*/
             /*}*/
         }
+    }
+    for (int i = 0; i < 81; i++) {
+        result[cell_idx * 81 + i] = sum[i];
     }
 }
 </%def>

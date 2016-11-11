@@ -6,7 +6,6 @@ import tectosaur.geometry as geometry
 from tectosaur.dense_integral_op import DenseIntegralOp
 import tectosaur.standardize as standardize
 import tectosaur.limit as limit
-import tectosaur.util.gpu as gpu
 
 import cppimport
 adaptive_integrate = cppimport.imp('adaptive_integrate')
