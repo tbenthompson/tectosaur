@@ -3,7 +3,8 @@ import ndadapt
 import tectosaur.util.gpu as gpu
 import pycuda.driver as drv
 
-gpu_module = gpu.load_gpu('kernels.cu', print_code = True)
+def get_gpu_module():
+    return gpu.load_gpu('kernels.cu')#, print_code = True)
 
 def get_gpu_integrator(p, K, tri, tol, eps, sm, pr, rho_qx, rho_qw):
     ps = [p] * 3
@@ -20,24 +21,23 @@ def get_gpu_integrator(p, K, tri, tol, eps, sm, pr, rho_qx, rho_qw):
         def call_integrator(block, grid, result_buf, start_idx, end_idx):
             if grid[0] == 0:
                 return
-            result_buf = 0
+            result_buf[:] = 0
             for chunk in range(3):
                 temp_result = np.empty_like(result_buf)
-                gpu_module.get_function('compute_integrals' + str(chunk))(
+                get_gpu_module().get_function('compute_integrals' + str(chunk))(
                     drv.Out(temp_result),
                     np.int32(q_unmapped[0].shape[0]),
-                    drv.In(q_unmapped[0].astype(np.float64)),
+                    drv.In(q_unmapped[0].flatten().astype(np.float64)),
                     drv.In(q_unmapped[1].astype(np.float64)),
                     drv.In(mins[start_idx:end_idx].astype(np.float64)),
                     drv.In(maxs[start_idx:end_idx].astype(np.float64)),
-                    drv.In(np.array(tri)),
-                    np.float64(sm), np.float64(pr),
-                    np.int32(len(rho_qx)),
-                    drv.In(np.array(rho_qx)),
-                    drv.In(np.array(rho_qw)),
+                    drv.In(np.array(tri).astype(np.float64)),
+                    np.float64(eps), np.float64(sm), np.float64(pr),
+                    np.int32(rho_qx.shape[0]),
+                    drv.In(rho_qx.astype(np.float64)),
+                    drv.In(rho_qw.astype(np.float64)),
                     block = block, grid = grid
                 )
-                np.testing.assert_almost_equal(temp_result, 0)
                 result_buf += temp_result
 
         call_integrator(block, grid_main, out, 0, mins.shape[0] - remaining)
@@ -45,16 +45,13 @@ def get_gpu_integrator(p, K, tri, tol, eps, sm, pr, rho_qx, rho_qw):
             (1,1,1), grid_rem, out_rem, mins.shape[0] - remaining, mins.shape[0]
         )
         out[(mins.shape[0] - remaining):] = out_rem
-        # out2 = []
-        # for i in range(mins.shape[0]):
-        #     q = map_to(q_unmapped, mins[i,:], maxs[i,:])
-        #     out2.append(np.sum(f(q[0]) * q[1]))
-        # # np.testing.assert_almost_equal(out2, out, 2)
-        # return out2
+        print(np.sum(out[:,0]), np.sum(out[:,0]) * 2)
+        import ipdb; ipdb.set_trace()
         return out
     return integrator
 
 def new_integrate_coincident(K, tri, tol, eps, sm, pr, rho_qx, rho_qw):
     p = 7
     integrator = get_gpu_integrator(p, K, tri, tol, eps, sm, pr, rho_qx, rho_qw)
-    result = ndadapt.hadapt_nd_iterative(integrator, (0,0,0), (1,1,1), tol, max_refinements = 3)
+    result, count = ndadapt.hadapt_nd_iterative(integrator, (0,0,0), (1,1,1), tol)
+    return result

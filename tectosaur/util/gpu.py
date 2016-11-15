@@ -11,13 +11,14 @@ from tectosaur.util.timer import Timer
 
 gpu_module = dict()
 def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None):
+    global gpu_module
+    if filepath in gpu_module and not no_caching and not print_code:
+        return gpu_module[filepath]
+
+    timer = Timer(silent = True)
     if tmpl_args is None:
         tmpl_args = dict()
 
-    timer = Timer(silent = True)
-    global gpu_module
-    if filepath in gpu_module and no_caching and not print_code:
-        return gpu_module[filepath]
     lookup = mako.lookup.TemplateLookup(
         directories = [os.path.dirname(filepath)]
     )

@@ -189,7 +189,7 @@ py::tuple refine(const Cells<D>& cells,
 
 PYBIND11_PLUGIN(adapt_logic) {
     py::module m("adapt_logic", "");
-    % for d in [1,2,3]:
+    % for d in [1,2,3,4]:
     py::class_<Cells<${d}>>(m, "Cells${d}")
         .def("size", &Cells<${d}>::size);
     m.def("initial_cell${d}", initial_cell<${d}>);

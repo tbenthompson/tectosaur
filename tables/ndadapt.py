@@ -40,7 +40,7 @@ def tensor_gauss(nqs):
     wts = np.outer(base_rules[1][1], base_rules[0][1]).flatten()
     for i in range(2, d):
         wts = np.outer(wts, base_rules[i][1]).flatten()
-    return pts, wts
+    return pts.reshape(pts.shape, order='C'), wts
 
 def calc_iguess(initial_est, tol, mins, maxs):
     iguess = (tol / eps) * initial_est

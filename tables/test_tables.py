@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -20,7 +21,7 @@ def co_integrals(K, tri, rho_order, tol, eps_start, n_steps, sm, pr, new_method 
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
         if new_method:
             vals.append(new_integrate_coincident(
-                K, tri, tol, eps, sm, pr, rho_q[0].tolist(), rho_q[1].tolist()
+                K, tri, tol, eps, sm, pr, rho_q[0], rho_q[1]
             ))
         else:
             vals.append(adaptive_integrate.integrate_coincident(
@@ -211,13 +212,19 @@ def test_new_mthd_coincident():
     eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(pts)))
     tris = np.array([[0,1,2]])
     res_new = co_limit(
-        K, pts[tris[0]].tolist(), 100, 0.01, eps, 2, eps_scale,
+        K, pts[tris[0]].tolist(), 1, 0.01, eps, 2, eps_scale,
         1.0, 0.25, include_log = True, new_method = True
     )
-    res_old = co_limit(
-        K, pts[tris[0]].tolist(), 100, 0.01, eps, 2, eps_scale,
-        1.0, 0.25, include_log = True
-    )
+    save_filename = 'test_new_mthd_coincident-res_old.npy'
+    file_exists = os.path.exists(save_filename)
+    if not file_exists:
+        res_old = co_limit(
+            K, pts[tris[0]].tolist(), 100, 0.01, eps, 2, eps_scale,
+            1.0, 0.25, include_log = True
+        )
+        np.save(save_filename, res_old)
+    else:
+        res_old = np.load(save_filename)
     np.testing.assert_almost_equal(res_new, res_old, 3)
 
 if __name__ == '__main__':
