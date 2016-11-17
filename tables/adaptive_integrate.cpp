@@ -155,17 +155,23 @@ struct Data {
     void set_piece(int piece) {
         this->piece = piece;
         if (piece == 0) {
-            co_theta_low = co_thetalim0; co_theta_high = co_thetalim1; co_rhohigh = co_rholim1;
+            co_theta_low = co_thetalim0; 
+            co_theta_high = co_thetalim1;
+            co_rhohigh = co_rholim1;
             adj_theta_low = adj_thetalim0;
             adj_theta_high = adj_thetalim1;
             adj_rhohigh = adj_rholim0;
         } else if (piece == 1) {
-            co_theta_low = co_thetalim1; co_theta_high = co_thetalim2a; co_rhohigh = co_rholim2;
+            co_theta_low = co_thetalim1;
+            co_theta_high = co_thetalim2a;
+            co_rhohigh = co_rholim2;
             adj_theta_low = adj_thetalim1;
             adj_theta_high = adj_thetalim2;
             adj_rhohigh = adj_rholim1;
         } else if (piece == 2) {
-            co_theta_low = co_thetalim2b; co_theta_high = co_thetalim0; co_rhohigh = co_rholim0;
+            co_theta_low = co_thetalim2b; 
+            co_theta_high = co_thetalim0;
+            co_rhohigh = co_rholim0;
         }
     }
 

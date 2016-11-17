@@ -122,7 +122,8 @@ py::tuple get_subcell_mins_maxs(const Cells<D>& cells) {
 template <size_t D>
 py::tuple refine(const Cells<D>& cells,
     NPArray<double> cell_mins, NPArray<double> cell_maxs,
-    NPArray<double> cell_integrals, NPArray<double> iguess) 
+    NPArray<double> cell_integrals, NPArray<double> iguess,
+    int refine_step, int max_refinements) 
 {
     int splits = 1 << D;
 
@@ -150,17 +151,17 @@ py::tuple refine(const Cells<D>& cells,
         for (int vec_dim = 0; vec_dim < cells.vector_dim; vec_dim++) {
             sums[vec_dim] = 0.0;
             for (int ci = 0; ci < splits; ci++) {
-                sums[vec_dim] += first_integral[(idx_begin + ci) * cells.vector_dim + vec_dim];
+                sums[vec_dim] += first_integral[(idx_begin + ci) 
+                    * cells.vector_dim + vec_dim];
             }
             double diff = cells.ests[i * cells.vector_dim + vec_dim] - sums[vec_dim];
             double iguess_val = iguess_ptr[vec_dim];
             if (iguess_val + diff != iguess_val) {
                 should_refine = true;
-                break; 
             }
         }
 
-        if (!should_refine) {
+        if (!should_refine || refine_step >= max_refinements - 1) {
             for (int vec_dim = 0; vec_dim < cells.vector_dim; vec_dim++) {
                 results_ptr[vec_dim] += sums[vec_dim];
             }

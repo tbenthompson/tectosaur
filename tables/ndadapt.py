@@ -95,7 +95,7 @@ def hadapt_nd_iterative(integrate, mins, maxs, tol, max_refinements = 10000):
         count += len(cell_mins)
 
         add_to_result, new_cells_left = refine(
-            cells_left, cell_mins, cell_maxs, cell_integrals, iguess
+            cells_left, cell_mins, cell_maxs, cell_integrals, iguess, i, max_refinements
         )
         result += add_to_result
 

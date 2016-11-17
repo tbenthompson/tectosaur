@@ -208,23 +208,26 @@ def test_edge_adj():
 def test_new_mthd_coincident():
     K = 'H'
     eps = 0.08
-    pts = np.array([[0,0,0],[1,0,0],[0.4,0.3,0]])
+    pts = np.array([[0,0,0],[1,0,0],[0,0.3,0]])
     eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(pts)))
     tris = np.array([[0,1,2]])
+
+    #TODO: Fix include_log
     res_new = co_limit(
-        K, pts[tris[0]].tolist(), 1, 0.01, eps, 2, eps_scale,
-        1.0, 0.25, include_log = True, new_method = True
+        K, pts[tris[0]].tolist(), 100, 0.00000001, eps, 1, eps_scale,
+        1.0, 0.25, include_log = False, new_method = True
     )
     save_filename = 'test_new_mthd_coincident-res_old.npy'
     file_exists = os.path.exists(save_filename)
     if not file_exists:
         res_old = co_limit(
-            K, pts[tris[0]].tolist(), 100, 0.01, eps, 2, eps_scale,
-            1.0, 0.25, include_log = True
+            K, pts[tris[0]].tolist(), 100, 0.001, eps, 1, eps_scale,
+            1.0, 0.25, include_log = False
         )
         np.save(save_filename, res_old)
     else:
         res_old = np.load(save_filename)
+    print((res_new / res_old).reshape((3,3,3,3)))
     np.testing.assert_almost_equal(res_new, res_old, 3)
 
 if __name__ == '__main__':

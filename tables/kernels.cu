@@ -142,30 +142,29 @@ void compute_integrals${chunk}(double* result, int n_quad_pts,
     for (int i = 0; i < 81; i++) {
         sum[i] = 0;
     }
-    for (int i = 0; i < n_quad_pts; i++) {
-        double obsxhat = minx + deltax * (quad_pts[i * 3] + 1);
-        double obsyhat = (miny + deltay * (quad_pts[i * 3 + 1] + 1)) * (1 - obsxhat);
-        double thetahat = mintheta + deltatheta * (quad_pts[i * 3 + 2] + 1);
-        double w = quad_wts[i] * deltax * deltay * deltatheta;
+    for (int qi = 0; qi < n_quad_pts; qi++) {
+        double obsxhat = minx + deltax * (quad_pts[qi * 3] + 1);
+        double obsyhat = (miny + deltay * (quad_pts[qi * 3 + 1] + 1)) * (1 - obsxhat);
+        double thetahat = mintheta + deltatheta * (quad_pts[qi * 3 + 2] + 1);
+        double w = quad_wts[qi] * deltax * deltay * deltatheta;
 
         double thetalow = ${co_theta_low(chunk)}
         double thetahigh = ${co_theta_high(chunk)}
         double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
 
         double outer_jacobian = w * (1 - obsxhat) * (thetahigh - thetalow) * 
-                                0.5 * obs_jacobian * src_jacobian;;
+                                0.5 * obs_jacobian * src_jacobian;
         double costheta = cos(theta);
         double sintheta = sin(theta);
 
-        /*for (int ri = 0; ri < n_rho_quad_pts; ri++) {*/
-        for (int ri = 0; ri < 1; ri++) {
+        for (int ri = 0; ri < n_rho_quad_pts; ri++) {
             double rhohat = (rho_qx[ri] + 1) / 2.0;
             double rhohigh = ${co_rhohigh(chunk)}
             double rho = rhohat * rhohigh;
-            double jacobian = rho_qw[i] * rho * rhohigh * outer_jacobian;
+            double jacobian = rho_qw[ri] * rho * rhohigh * outer_jacobian;
 
-            double srcxhat = rho * costheta + (1 - obsxhat);
-            double srcyhat = rho * sintheta;
+            double srcxhat = obsxhat + rho * costheta;
+            double srcyhat = obsyhat + rho * sintheta;
 
             % for which, ptname in [("obs", "x"), ("src", "y")]:
                 ${basis(which + "")}
@@ -234,7 +233,7 @@ void compute_integrals${chunk}(double* result, int n_quad_pts,
                             % for b_src in range(3):
                                 {
                                     int idx = ${temp_result_idx(d_obs, d_src, b_obs, b_src)};
-                                    sum[idx] += obsb${b_obs} * srcb${b_src} * kernel_val;
+                                    sum[idx] += kernel_val * obsb${b_obs} * srcb${b_src};
                                 }
                             % endfor
                         % endfor
