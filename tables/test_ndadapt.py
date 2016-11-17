@@ -39,16 +39,6 @@ def test_map_to():
     correct = np.prod([1.0 ** (idx + 1) / (float(idx) + 1) for idx in (i, j, k)])
     np.testing.assert_almost_equal(est, correct)
 
-def test_2d_adapt():
-    res, count = hadapt_nd(
-        lambda pts: np.cos(pts[:,0] * 100) * np.cos(pts[:,1] * 100), (0,0), (1,1), 1e-15
-    )
-    print(res, count)
-    res, count = hadapt_nd(
-        lambda pts: np.cos(pts[:,0] * 100), (0,), (1,), 1e-6
-    )
-    print(res ** 2, count)
-
 def make_integrator(d, p, f):
     ps = [p] * d
     q_unmapped = tensor_gauss(ps)
@@ -97,13 +87,7 @@ def make_gpu_integrator(p, f):
             (1,1,1), grid_rem, out_rem, mins.shape[0] - remaining, mins.shape[0]
         )
         out[(mins.shape[0] - remaining):] = out_rem
-        # out2 = []
-        # for i in range(mins.shape[0]):
-        #     q = map_to(q_unmapped, mins[i,:], maxs[i,:])
-        #     out2.append(np.sum(f(q[0]) * q[1]))
-        # # np.testing.assert_almost_equal(out2, out, 2)
-        # return out2
-        return out
+        return out[:, np.newaxis]
     return integrator
 
 def adapt_tester(f, correct):
@@ -145,7 +129,25 @@ def test_3d_adapt_nearly_sing():
 
     p = 7
     res, count = hadapt_nd_iterative(make_gpu_integrator(p, f), (0,0,0), (1,1,1), 1e-14)
-    print(res, count * p ** 3)
+    np.testing.assert_almost_equal(res, 6247.34637748)
+
+def test_limit_depth():
+    res, count = hadapt_nd_iterative(
+        make_integrator(1, 5, lambda pts: np.sin(1000 * pts[:,0])),
+        (0,), (1,), 1e-14,
+        max_refinements = 2
+    )
+    assert(count == 7)
+
+def test_negative_value():
+    # Checks that the calculation of iguess is accounting for potentially negative
+    # values of the integrals.
+    res, count = hadapt_nd_iterative(
+        make_integrator(1, 5, lambda pts: -1e10 * pts[:,0] ** 4),
+        (0,), (1,), 1e-14
+    )
+    assert(count == 3)
+    np.testing.assert_almost_equal(res, -0.2 * 1e10)
 
 
 if __name__ == '__main__':

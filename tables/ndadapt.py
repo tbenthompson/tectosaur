@@ -44,7 +44,7 @@ def tensor_gauss(nqs):
 
 def calc_iguess(initial_est, tol, mins, maxs):
     iguess = (tol / eps) * initial_est
-    iguess = np.where(iguess < tol, np.prod(maxs - mins), iguess)
+    iguess = np.where(np.abs(iguess) < tol, np.prod(maxs - mins), iguess)
     return iguess
 
 # Kahan, Babuska, Neumaier summation
@@ -60,7 +60,7 @@ def kbnsum(xs):
         s = t
     return s, comp
 
-def hadapt_nd_iterative(integrate, mins, maxs, tol, max_refinements = 10000):
+def hadapt_nd_iterative(integrate, mins, maxs, tol, max_refinements = 10000, quiet = True):
     d = len(mins)
     assert(len(maxs) == d)
 
@@ -85,7 +85,8 @@ def hadapt_nd_iterative(integrate, mins, maxs, tol, max_refinements = 10000):
     count = 1
 
     for i in range(max_refinements):
-        print("cells to compute: " + str(cells_left.size()))
+        if not quiet:
+            print("cells to compute: " + str(cells_left.size()))
 
         cell_mins, cell_maxs = get_subcell_mins_maxs(cells_left)
 
@@ -103,6 +104,7 @@ def hadapt_nd_iterative(integrate, mins, maxs, tol, max_refinements = 10000):
             break
         cells_left = new_cells_left
 
-    print("integrals runtime: " + str(int_time))
-    print("logic runtime: " + str(time.time() - start))
+    if not quiet:
+        print("integrals runtime: " + str(int_time))
+        print("logic runtime: " + str(time.time() - start))
     return result, count

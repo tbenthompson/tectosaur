@@ -45,7 +45,6 @@ def get_gpu_integrator(p, K, tri, tol, eps, sm, pr, rho_qx, rho_qw):
             (1,1,1), grid_rem, out_rem, mins.shape[0] - remaining, mins.shape[0]
         )
         out[(mins.shape[0] - remaining):] = out_rem
-        out[:,1:] = 0
         return out
     return integrator
 
@@ -54,6 +53,6 @@ def new_integrate_coincident(K, tri, tol, eps, sm, pr, rho_qx, rho_qw):
     integrator = get_gpu_integrator(p, K, tri, tol, eps, sm, pr, rho_qx, rho_qw)
     result, count = ndadapt.hadapt_nd_iterative(
         integrator, (0,0,0), (1,1,1), tol,
-        max_refinements = 7
+        # max_refinements = 7
     )
     return result
