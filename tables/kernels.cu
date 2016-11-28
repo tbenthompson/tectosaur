@@ -336,8 +336,8 @@ ${func_def("coincident", k_name, chunk)}
         ${float_type} costheta = cos(theta);
         ${float_type} sintheta = sin(theta);
 
+        ${float_type} rhohigh = ${co_rhohigh(chunk)}
         for (int ri = 0; ri < n_rho_quad_pts; ri++) {
-            ${float_type} rhohigh = ${co_rhohigh(chunk)}
             ${rho_quad_eval(chunk)}
 
             ${float_type} srcxhat = obsxhat + rho * costheta;
@@ -371,8 +371,8 @@ ${func_def("adjacent", k_name, chunk)}
             ${float_type} costheta = cos(theta);
             ${float_type} sintheta = sin(theta);
 
+            ${float_type} rhohigh = ${adj_rhohigh(chunk)}
             for (int ri = 0; ri < n_rho_quad_pts; ri++) {
-                ${float_type} rhohigh = ${adj_rhohigh(chunk)}
                 ${rho_quad_eval(chunk)}
 
                 ${float_type} srcxhat = rho * costheta + (1 - obsxhat);

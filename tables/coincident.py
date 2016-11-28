@@ -10,11 +10,6 @@ from tectosaur.limit import limit, richardson_limit
 
 from gpu_integrator import new_integrate
 
-# These A, B limits come from ablims.py
-minlegalA = 0.0939060848748 - 0.01
-minlegalB = 0.233648154379 - 0.01
-maxlegalB = 0.865565992417 + 0.01
-
 # tol = 0.0001
 # rho_order = 100
 # starting_eps = 0.01
@@ -59,8 +54,10 @@ rho_gauss = quad.gaussxw(rho_order)
 
 def eval(pt):
     Ahat,Bhat,prhat = pt
-    A = to_interval(minlegalA, 0.5, Ahat)
-    B = to_interval(minlegalB, maxlegalB, Bhat)
+    # From symmetry and enforcing that the edge (0,0)-(1,0) is always longest,
+    # A,B can be limited to (0,0.5)x(0,1).
+    A = to_interval(0.0, 0.5, Ahat)
+    B = to_interval(0.0, 1.0, Bhat)
     pr = to_interval(0.0, 0.5, prhat)
 
     tri = [[0,0,0],[1,0,0],[A,B,0.0]]
@@ -72,6 +69,7 @@ def eval(pt):
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
         res = new_integrate('coincident', K, tri, tri, tol, eps, 1.0, pr, rho_q[0], rho_q[1])
         integrals.append(res)
+    print(integrals)
     return integrals
 
 def take_limits(integrals):
