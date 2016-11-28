@@ -48,8 +48,9 @@ def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None)
     gpu_module[filepath]['tmpl_args'] = tmpl_args
     gpu_module[filepath]['module'] = SourceModule(
         code,
-        options = ['--use_fast_math', '--restrict'],
-        include_dirs = [os.getcwd() + '/' + os.path.dirname(filepath)]
+        options = ['--use_fast_math', '--restrict', '--std=c++11'],
+        include_dirs = [os.getcwd() + '/' + os.path.dirname(filepath)],
+        no_extern_c = True #TODO: This will break some other modules!
     )
     timer.report("Compiling cuda")
     return gpu_module[filepath]['module']

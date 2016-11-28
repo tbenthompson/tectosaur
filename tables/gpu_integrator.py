@@ -3,8 +3,10 @@ import ndadapt
 import tectosaur.util.gpu as gpu
 import pycuda.driver as drv
 
-def get_gpu_module(n_rho):
-    return gpu.load_gpu('kernels.cu', tmpl_args = dict(n_rho = n_rho))#, print_code = True)
+def get_gpu_module(n_rho, taylor_order):
+    return gpu.load_gpu('kernels.cu', tmpl_args = dict(
+            n_rho = n_rho, taylor_order = taylor_order
+        ))#, print_code = True)
 
 
 float_type = np.float32
@@ -13,7 +15,12 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_q
     q_unmapped = ndadapt.tensor_gauss(ps)
     main_block = (32, 1, 1)
 
-    module = get_gpu_module(rho_qx.shape[0])
+    taylor_order = 5 #TODO: Make this an input parameter
+    module = get_gpu_module(rho_qx.shape[0], taylor_order)
+    funcs = [
+        module.get_function(type + '_integrals' + K + str(chunk))
+        for chunk in range(3)
+    ]
 
     def integrator(mins, maxs):
         remaining = mins.shape[0] % main_block[0]
@@ -30,7 +37,7 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_q
             result_buf[:] = 0
             for chunk in range(3):
                 temp_result = np.empty_like(result_buf).astype(float_type)
-                module.get_function(type + '_integrals' + K + str(chunk))(
+                funcs[chunk](
                     drv.Out(temp_result),
                     np.int32(q_unmapped[0].shape[0]),
                     drv.In(q_unmapped[0].flatten().astype(float_type)),

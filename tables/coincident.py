@@ -37,8 +37,8 @@ n_pr = 8
 K = "H"
 rho_order = 50
 starting_eps = 0.08
-n_eps = 2
-tol = 0.0001
+n_eps = 1
+tol = 0.1
 n_A = 2
 n_B = 2
 n_pr = 2
@@ -97,7 +97,7 @@ def build_tables(eval_fnc, pts, wts):
     pool = multiprocessing.Pool()
     results = np.array([eval_fnc(p) for p in pts.tolist()])
     np.save(filename, results)
-    for i in range(10):
+    for i in range(3):
         test_f(results, eval_fnc, pts, wts)
 
 if __name__ == '__main__':

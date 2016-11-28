@@ -1,9 +1,16 @@
-#include <stdio.h>
 <%
 def dn(dim):
     return ['x', 'y', 'z'][dim]
 float_type = "float"
+taylor_type = "Taylor<" + str(float_type) + ", " + str(taylor_order) + ">";
 %>
+
+#include <stdio.h>
+
+#define DEVICE __device__
+#include "taylor.hpp"
+
+extern "C" {
 
 __device__
 void cross(${float_type} x[3], ${float_type} y[3], ${float_type} out[3]) {
@@ -230,48 +237,15 @@ const float CsH3 = 3*nu;
 % endif
 </%def>
 
-<%def name="add_to_sum()">
-    % for d_obs in range(3):
-        % for d_src in range(3):
-            {
-                ${float_type} kernel_val = jacobian * K${d_obs}${d_src};
-                % for b_obs in range(3):
-                    % for b_src in range(3):
-                        {
-                            int idx = ${temp_result_idx(d_obs, d_src, b_obs, b_src)};
-                            sum[idx] += kernel_val * obsb${b_obs} * srcb${b_src};
-                        }
-                    % endfor
-                % endfor
-            }
-        % endfor
-    % endfor
-</%def>
-
-<%def name="setup_kernel_inputs()">
-    % for which, ptname in [("obs", "x"), ("src", "y")]:
-        ${basis(which + "")}
-        ${pts_from_basis(
-            ptname, which + "",
-            lambda b, d: which + "_tri[" + str(b) + "][" + str(d) + "]", 3
-        )}
-    % endfor
-
-    % for dim in range(3):
-        x${dn(dim)} -= eps * n${dn(dim)};
-    % endfor
-
-    ${float_type} Dx = yx - xx;
-    ${float_type} Dy = yy - xy; 
-    ${float_type} Dz = yz - xz;
-    ${float_type} r2 = Dx * Dx + Dy * Dy + Dz * Dz;
-    if (r2 == 0.0) {
-        continue;
+<%def name="zero_output()">
+    const int cell_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    ${float_type} sum[81];
+    for (int i = 0; i < 81; i++) {
+        sum[i] = 0;
     }
 </%def>
 
 <%def name="integral_setup(obs_tri_name, src_tri_name)">
-    const int cell_idx = blockIdx.x * blockDim.x + threadIdx.x;
     ${float_type} minx = mins[cell_idx * 3 + 0];
     ${float_type} miny = mins[cell_idx * 3 + 1];
     ${float_type} mintheta = mins[cell_idx * 3 + 2];
@@ -290,10 +264,6 @@ const float CsH3 = 3*nu;
     }
     ${tri_info("obs", "n")}
     ${tri_info("src", "l")}
-    ${float_type} sum[81];
-    for (int i = 0; i < 81; i++) {
-        sum[i] = 0;
-    }
 
     __shared__ ${float_type} sh_rho_qx[${n_rho}];
     __shared__ ${float_type} sh_rho_qw[${n_rho}];
@@ -302,6 +272,8 @@ const float CsH3 = 3*nu;
         sh_rho_qw[i] = rho_qw[i];
     }
     __syncthreads();
+
+    auto taylor_var = Tf<${taylor_order}>::var(1.0);
 </%def>
 
 <%def name="func_def(type, k_name, chunk)">
@@ -327,9 +299,50 @@ ${float_type} rho = rhohat * rhohigh;
 ${float_type} jacobian = sh_rho_qw[ri] * rho * rhohigh * outer_jacobian;
 </%def>
 
+<%def name="setup_kernel_inputs()">
+    % for which, ptname in [("obs", "x_no_offset_"), ("src", "y")]:
+        ${basis(which + "")}
+        ${pts_from_basis(
+            ptname, which + "",
+            lambda b, d: which + "_tri[" + str(b) + "][" + str(d) + "]", 3
+        )}
+    % endfor
+
+    % for dim in range(3):
+        ${float_type} x${dn(dim)} = x_no_offset_${dn(dim)} - eps * n${dn(dim)};
+    % endfor
+
+    ${float_type} Dx = yx - xx;
+    ${float_type} Dy = yy - xy; 
+    ${float_type} Dz = yz - xz;
+    ${float_type} r2 = Dx * Dx + Dy * Dy + Dz * Dz;
+    if (r2 == 0.0) {
+        continue;
+    }
+</%def>
+
+<%def name="add_to_sum()">
+    % for d_obs in range(3):
+        % for d_src in range(3):
+            {
+                ${float_type} kernel_val = jacobian * K${d_obs}${d_src};
+                % for b_obs in range(3):
+                    % for b_src in range(3):
+                        {
+                            int idx = ${temp_result_idx(d_obs, d_src, b_obs, b_src)};
+                            sum[idx] += kernel_val * obsb${b_obs} * srcb${b_src};
+                        }
+                    % endfor
+                % endfor
+            }
+        % endfor
+    % endfor
+</%def>
+
 <%def name="coincident_integrals(k_name, chunk)">
 ${func_def("coincident", k_name, chunk)}
 {
+    ${zero_output()}
     ${integral_setup("in_obs_tri", "in_src_tri")}
 
     for (int qi = 0; qi < n_quad_pts; qi++) {
@@ -365,8 +378,9 @@ ${func_def("coincident", k_name, chunk)}
 <%def name="adjacent_integrals(k_name, chunk)">
 ${func_def("adjacent", k_name, chunk)}
 {
-    ${integral_setup("in_obs_tri", "in_src_tri")}
+    ${zero_output()}
     %if chunk < 2:
+        ${integral_setup("in_obs_tri", "in_src_tri")}
         for (int qi = 0; qi < n_quad_pts; qi++) {
             ${eval_hatvars()}
 
@@ -404,3 +418,5 @@ ${coincident_integrals(k_name, chunk)}
 ${adjacent_integrals(k_name, chunk)}
 % endfor
 % endfor
+
+} // End extern "C"
