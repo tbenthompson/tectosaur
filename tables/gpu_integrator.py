@@ -3,22 +3,26 @@ import ndadapt
 import tectosaur.util.gpu as gpu
 import pycuda.driver as drv
 
-def get_gpu_module():
-    return gpu.load_gpu('kernels.cu')#, print_code = True)
+def get_gpu_module(n_rho):
+    return gpu.load_gpu('kernels.cu', tmpl_args = dict(n_rho = n_rho))#, print_code = True)
 
 
 float_type = np.float32
 def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_qw):
     ps = [p] * 3
     q_unmapped = ndadapt.tensor_gauss(ps)
+    main_block = (32, 1, 1)
+
+    module = get_gpu_module(rho_qx.shape[0])
+
     def integrator(mins, maxs):
-        block = (32, 1, 1)
-        remaining = mins.shape[0] % block[0]
-        grid_main = (mins.shape[0] // block[0], 1, 1)
+        remaining = mins.shape[0] % main_block[0]
+        grid_main = (mins.shape[0] // main_block[0], 1, 1)
         grid_rem = (remaining, 1, 1)
 
         out = np.empty((mins.shape[0],81)).astype(float_type)
         out_rem = np.empty((grid_rem[0],81)).astype(float_type)
+
 
         def call_integrator(block, grid, result_buf, start_idx, end_idx):
             if grid[0] == 0:
@@ -26,7 +30,7 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_q
             result_buf[:] = 0
             for chunk in range(3):
                 temp_result = np.empty_like(result_buf).astype(float_type)
-                get_gpu_module().get_function(type + '_integrals' + K + str(chunk))(
+                module.get_function(type + '_integrals' + K + str(chunk))(
                     drv.Out(temp_result),
                     np.int32(q_unmapped[0].shape[0]),
                     drv.In(q_unmapped[0].flatten().astype(float_type)),
@@ -36,17 +40,15 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_q
                     drv.In(np.array(obs_tri).astype(float_type)),
                     drv.In(np.array(src_tri).astype(float_type)),
                     float_type(eps), float_type(sm), float_type(pr),
-                    np.int32(rho_qx.shape[0]),
                     drv.In(rho_qx.astype(float_type)),
                     drv.In(rho_qw.astype(float_type)),
+                    np.int32(block[0]),
                     block = block, grid = grid
                 )
                 result_buf += temp_result
 
-        call_integrator(block, grid_main, out, 0, mins.shape[0] - remaining)
-        call_integrator(
-            (1,1,1), grid_rem, out_rem, mins.shape[0] - remaining, mins.shape[0]
-        )
+        call_integrator(main_block, grid_main, out, 0, mins.shape[0] - remaining)
+        call_integrator((1,1,1), grid_rem, out_rem, mins.shape[0] - remaining, mins.shape[0])
         out[(mins.shape[0] - remaining):] = out_rem
         return out
     return integrator

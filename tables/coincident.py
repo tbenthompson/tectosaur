@@ -38,7 +38,7 @@ K = "H"
 rho_order = 50
 starting_eps = 0.08
 n_eps = 2
-tol = 0.01
+tol = 0.0001
 n_A = 2
 n_B = 2
 n_pr = 2
@@ -69,7 +69,6 @@ def eval(pt):
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
         res = new_integrate('coincident', K, tri, tri, tol, eps, 1.0, pr, rho_q[0], rho_q[1])
         integrals.append(res)
-    print(integrals)
     return integrals
 
 def take_limits(integrals):
@@ -89,11 +88,12 @@ def test_f(results, eval_fnc, pts, wts):
     correct = take_limits(np.array(eval_fnc(P)))
     for i in range(81):
         interp = barycentric_evalnd(pts, wts, limits[:,i], np.array([P]))[0]
-        print("testing:  " + str(i) + "     " + str(
-            (correct[i], interp, np.abs((correct[i] - interp) / correct[i]), correct[i] - interp)
-        ))
+        # print("testing:  " + str(i) + "     " + str(
+        #     (correct[i], interp, np.abs((correct[i] - interp) / correct[i]), correct[i] - interp)
+        # ))
 
 def build_tables(eval_fnc, pts, wts):
+    np.random.seed(15)
     pool = multiprocessing.Pool()
     results = np.array([eval_fnc(p) for p in pts.tolist()])
     np.save(filename, results)

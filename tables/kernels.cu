@@ -294,6 +294,14 @@ const float CsH3 = 3*nu;
     for (int i = 0; i < 81; i++) {
         sum[i] = 0;
     }
+
+    __shared__ ${float_type} sh_rho_qx[${n_rho}];
+    __shared__ ${float_type} sh_rho_qw[${n_rho}];
+    for (int i = threadIdx.x; i < ${n_rho}; i += block_size) {
+        sh_rho_qx[i] = rho_qx[i];
+        sh_rho_qw[i] = rho_qw[i];
+    }
+    __syncthreads();
 </%def>
 
 <%def name="func_def(type, k_name, chunk)">
@@ -302,7 +310,7 @@ void ${type}_integrals${k_name}${chunk}(${float_type}* result, int n_quad_pts,
     ${float_type}* quad_pts, ${float_type}* quad_wts, ${float_type}* mins, ${float_type}* maxs,
     ${float_type}* in_obs_tri, ${float_type}* in_src_tri,
     ${float_type} eps, ${float_type} G, ${float_type} nu,
-    int n_rho_quad_pts, ${float_type}* rho_qx, ${float_type}* rho_qw)
+    ${float_type}* rho_qx, ${float_type}* rho_qw, int block_size)
 </%def>
 
 
@@ -314,9 +322,9 @@ ${float_type} w = quad_wts[qi] * deltax * deltay * deltatheta;
 </%def>
 
 <%def name="rho_quad_eval(chunk)">
-${float_type} rhohat = (rho_qx[ri] + 1) / 2.0;
+${float_type} rhohat = (sh_rho_qx[ri] + 1) / 2.0;
 ${float_type} rho = rhohat * rhohigh;
-${float_type} jacobian = rho_qw[ri] * rho * rhohigh * outer_jacobian;
+${float_type} jacobian = sh_rho_qw[ri] * rho * rhohigh * outer_jacobian;
 </%def>
 
 <%def name="coincident_integrals(k_name, chunk)">
@@ -337,7 +345,7 @@ ${func_def("coincident", k_name, chunk)}
         ${float_type} sintheta = sin(theta);
 
         ${float_type} rhohigh = ${co_rhohigh(chunk)}
-        for (int ri = 0; ri < n_rho_quad_pts; ri++) {
+        for (int ri = 0; ri < ${n_rho}; ri++) {
             ${rho_quad_eval(chunk)}
 
             ${float_type} srcxhat = obsxhat + rho * costheta;
@@ -372,7 +380,7 @@ ${func_def("adjacent", k_name, chunk)}
             ${float_type} sintheta = sin(theta);
 
             ${float_type} rhohigh = ${adj_rhohigh(chunk)}
-            for (int ri = 0; ri < n_rho_quad_pts; ri++) {
+            for (int ri = 0; ri < ${n_rho}; ri++) {
                 ${rho_quad_eval(chunk)}
 
                 ${float_type} srcxhat = rho * costheta + (1 - obsxhat);
