@@ -8,8 +8,7 @@ import tectosaur.geometry as geometry
 from tectosaur.interpolate import cheb, cheb_wts, barycentric_evalnd, to_interval
 from tectosaur.limit import limit, richardson_limit
 
-import cppimport
-adaptive_integrate = cppimport.imp('adaptive_integrate')
+from gpu_integrator import new_integrate
 
 # These A, B limits come from ablims.py
 minlegalA = 0.0939060848748 - 0.01
@@ -43,11 +42,11 @@ n_pr = 8
 K = "H"
 rho_order = 50
 starting_eps = 0.08
-n_eps = 4
+n_eps = 2
 tol = 0.01
-n_A = 3
-n_B = 3
-n_pr = 3
+n_A = 2
+n_B = 2
+n_pr = 2
 
 filename = (
     '%s_%i_%f_%i_%f_%i_%i_%i_coincidenttable.npy' %
@@ -57,19 +56,6 @@ print(filename)
 
 all_eps = starting_eps * 2.0 ** -np.arange(n_eps)
 rho_gauss = quad.gaussxw(rho_order)
-
-Ahats = cheb(-1, 1, n_A)
-Bhats = cheb(-1, 1, n_B)
-prhats = cheb(-1, 1, n_pr)
-Ah,Bh,Nh = np.meshgrid(Ahats, Bhats,prhats)
-pts = np.array([Ah.ravel(),Bh.ravel(), Nh.ravel()]).T
-
-Awts = cheb_wts(-1,1,n_A)
-Bwts = cheb_wts(-1,1,n_B)
-prwts = cheb_wts(-1,1,n_pr)
-wts = np.outer(Awts,np.outer(Bwts,prwts)).ravel()
-
-n_dims = 3
 
 def eval(pt):
     Ahat,Bhat,prhat = pt
@@ -84,10 +70,7 @@ def eval(pt):
     for eps in all_eps:
         print('running: ' + str((pt, eps)))
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-        res = adaptive_integrate.integrate_coincident(
-            K, tri, tol, eps, 1.0, pr,
-            rho_q[0].tolist(), rho_q[1].tolist()
-        )
+        res = new_integrate('coincident', K, tri, tri, tol, eps, 1.0, pr, rho_q[0], rho_q[1])
         integrals.append(res)
     return integrals
 
@@ -100,25 +83,35 @@ def take_limits(integrals):
         np.testing.assert_almost_equal(out, richardson_limit(2.0, integrals))
     return out
 
-def test_f(input):
-    seed, results = input
+def test_f(results, eval_fnc, pts, wts):
     limits = np.empty((results.shape[0], results.shape[2]))
     for i in range(results.shape[0]):
         limits[i,:] = take_limits(results[i,:,:])
-    np.random.seed(seed)
-    pt = np.random.rand(n_dims) * 2 - 1.0
-    correct = take_limits(np.array(eval(pt)))
+    P = np.random.rand(pts.shape[1]) * 2 - 1.0
+    correct = take_limits(np.array(eval_fnc(P)))
     for i in range(81):
-        interp = barycentric_evalnd(pts, wts, limits[:,i], np.array([pt]))[0]
+        interp = barycentric_evalnd(pts, wts, limits[:,i], np.array([P]))[0]
         print("testing:  " + str(i) + "     " + str(
             (correct[i], interp, np.abs((correct[i] - interp) / correct[i]), correct[i] - interp)
         ))
 
-# results = np.load(filename)
-# for i in range(12):
-#     test_f((i, results))
+def build_tables(eval_fnc, pts, wts):
+    pool = multiprocessing.Pool()
+    results = np.array([eval_fnc(p) for p in pts.tolist()])
+    np.save(filename, results)
+    for i in range(10):
+        test_f(results, eval_fnc, pts, wts)
 
-pool = multiprocessing.Pool()
-results = np.array(pool.map(eval, pts.tolist()))
-np.save(filename, results)
-pool.map(test_f, zip(range(12), [results for i in range(12)]))
+if __name__ == '__main__':
+    Ahats = cheb(-1, 1, n_A)
+    Bhats = cheb(-1, 1, n_B)
+    prhats = cheb(-1, 1, n_pr)
+    Ah,Bh,Nh = np.meshgrid(Ahats, Bhats,prhats)
+    pts = np.array([Ah.ravel(),Bh.ravel(), Nh.ravel()]).T
+
+    Awts = cheb_wts(-1,1,n_A)
+    Bwts = cheb_wts(-1,1,n_B)
+    prwts = cheb_wts(-1,1,n_pr)
+    wts = np.outer(Awts,np.outer(Bwts,prwts)).ravel()
+
+    build_tables(eval, pts, wts)

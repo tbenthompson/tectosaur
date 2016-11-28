@@ -7,6 +7,10 @@ import tectosaur.geometry as geometry
 from tectosaur.interpolate import cheb, cheb_wts, to_interval, barycentric_evalnd
 from tectosaur.limit import limit, richardson_limit
 
+from coincident import build_tables
+
+from gpu_integrator import new_integrate
+
 import cppimport
 adaptive_integrate = cppimport.imp('adaptive_integrate')
 
@@ -23,10 +27,10 @@ n_theta = 8
 K = "H"
 rho_order = 50
 starting_eps = 0.01
-n_eps = 4
+n_eps = 2
 tol = 0.01
-n_pr = 4
-n_theta = 4
+n_pr = 2
+n_theta = 2
 
 filename = (
     '%s_%i_%f_%i_%f_%i_%i_adjacenttable.npy' %
@@ -37,19 +41,8 @@ print(filename)
 all_eps = starting_eps * 2.0 ** -np.arange(n_eps)
 rho_gauss = quad.gaussxw(rho_order)
 
-thetahats = cheb(-1, 1, n_theta)
-prhats = cheb(-1, 1, n_pr)
-Th,Nh = np.meshgrid(thetahats,prhats)
-pts = np.array([Th.ravel(), Nh.ravel()]).T
-
-thetawts = cheb_wts(-1, 1, n_theta)
-prwts = cheb_wts(-1, 1, n_pr)
-wts = np.outer(thetawts, prwts).ravel()
-
 min_angle = 20
 rho = 0.5 * np.tan(np.deg2rad(min_angle))
-
-n_dims = 2
 
 def eval(pt):
     thetahat, prhat = pt
@@ -65,39 +58,18 @@ def eval(pt):
     for eps in all_eps:
         print('running: ' + str((pt, eps)))
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-        res = adaptive_integrate.integrate_adjacent(
-            K, tri1, tri2, tol, eps,
-            1.0, pr, rho_q[0].tolist(), rho_q[1].tolist()
-        )
+        res = new_integrate('adjacent', K, tri1, tri2, tol, eps, 1.0, pr, rho_q[0], rho_q[1])
         integrals.append(res)
     return integrals
 
-def take_limits(integrals):
-    out = np.empty(81)
-    remove_divergence = False
-    for i in range(81):
-        out[i] = limit(all_eps, integrals[:, i], remove_divergence)
-    if not remove_divergence:
-        np.testing.assert_almost_equal(out, richardson_limit(2.0, integrals))
-    return out
+if __name__ == '__main__':
+    thetahats = cheb(-1, 1, n_theta)
+    prhats = cheb(-1, 1, n_pr)
+    Th,Nh = np.meshgrid(thetahats,prhats)
+    pts = np.array([Th.ravel(), Nh.ravel()]).T
 
-def test_f(input):
-    seed, results = input
-    limits = np.empty((results.shape[0], results.shape[2]))
-    for i in range(results.shape[0]):
-        limits[i,:] = take_limits(results[i,:,:])
-    np.random.seed(seed)
-    pt = np.random.rand(n_dims) * 2 - 1.0
-    correct = take_limits(np.array(eval(pt)))
-    for i in range(81):
-        if correct[i] < 1e-5:
-            continue
-        interp = barycentric_evalnd(pts, wts, limits[:,i], np.array([pt]))[0]
-        print("testing:  " + str(i) + "     " + str(
-            (correct[i], interp, np.abs((correct[i] - interp) / correct[i]), correct[i] - interp)
-        ))
+    thetawts = cheb_wts(-1, 1, n_theta)
+    prwts = cheb_wts(-1, 1, n_pr)
+    wts = np.outer(thetawts, prwts).ravel()
 
-pool = multiprocessing.Pool()
-results = np.array(pool.map(eval, pts.tolist()))
-np.save(filename, results)
-pool.map(test_f, zip(range(12), [results for i in range(12)]))
+    build_tables(eval, pts, wts)
