@@ -36,9 +36,9 @@ n_pr = 8
 # play parameters
 K = "H"
 rho_order = 50
-starting_eps = 0.08
+starting_eps = 0.01
 n_eps = 1
-tol = 0.1
+tol = 0.01
 n_A = 2
 n_B = 2
 n_pr = 2
@@ -67,8 +67,14 @@ def eval(pt):
     for eps in all_eps:
         print('running: ' + str((pt, eps)))
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-        res = new_integrate('coincident', K, tri, tri, tol, eps, 1.0, pr, rho_q[0], rho_q[1])
+        res = new_integrate(
+            'coincident', K, tri, tri, tol, eps,
+            1.0, pr, rho_q[0], rho_q[1], 0
+        )
         integrals.append(res)
+    import ipdb; ipdb.set_trace()
+    np.testing.assert_almost_equal(integrals[0][0], -8.55494514e-02, 4)
+    import sys;sys.exit()
     return integrals
 
 def take_limits(integrals):
@@ -93,10 +99,10 @@ def test_f(results, eval_fnc, pts, wts):
         # ))
 
 def build_tables(eval_fnc, pts, wts):
-    np.random.seed(15)
     pool = multiprocessing.Pool()
     results = np.array([eval_fnc(p) for p in pts.tolist()])
     np.save(filename, results)
+    np.random.seed(15)
     for i in range(3):
         test_f(results, eval_fnc, pts, wts)
 

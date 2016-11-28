@@ -3,6 +3,10 @@ def dn(dim):
     return ['x', 'y', 'z'][dim]
 float_type = "float"
 taylor_type = "Taylor<" + str(float_type) + ", " + str(taylor_order) + ">";
+if use_taylor:
+    kernel_type = taylor_type
+else:
+    kernel_type = float_type
 %>
 
 #include <stdio.h>
@@ -154,86 +158,86 @@ const float CsH3 = 3*nu;
 
 <%def name="kernel(k_name)">
 % if k_name is 'U':
-    ${float_type} invr = 1.0 / sqrt(r2);
-    ${float_type} Q1 = CsU0 * invr;
-    ${float_type} Q2 = CsU1 * invr / r2;
-    ${float_type} K00 = Q2*Dx*Dx + Q1;
-    ${float_type} K01 = Q2*Dx*Dy;
-    ${float_type} K02 = Q2*Dx*Dz;
-    ${float_type} K10 = Q2*Dy*Dx;
-    ${float_type} K11 = Q2*Dy*Dy + Q1;
-    ${float_type} K12 = Q2*Dy*Dz;
-    ${float_type} K20 = Q2*Dz*Dx;
-    ${float_type} K21 = Q2*Dz*Dy;
-    ${float_type} K22 = Q2*Dz*Dz + Q1;
+    ${kernel_type} invr = 1.0 / sqrt(r2);
+    ${kernel_type} Q1 = CsU0 * invr;
+    ${kernel_type} Q2 = CsU1 * invr / r2;
+    ${kernel_type} K00 = Q2*Dx*Dx + Q1;
+    ${kernel_type} K01 = Q2*Dx*Dy;
+    ${kernel_type} K02 = Q2*Dx*Dz;
+    ${kernel_type} K10 = Q2*Dy*Dx;
+    ${kernel_type} K11 = Q2*Dy*Dy + Q1;
+    ${kernel_type} K12 = Q2*Dy*Dz;
+    ${kernel_type} K20 = Q2*Dz*Dx;
+    ${kernel_type} K21 = Q2*Dz*Dy;
+    ${kernel_type} K22 = Q2*Dz*Dz + Q1;
 % elif k_name is 'T' or k_name is 'A':
     <%
         minus_or_plus = '-' if k_name is 'T' else '+'
         plus_or_minus = '+' if k_name is 'T' else '-'
         n_name = 'l' if k_name is 'T' else 'n'
     %>
-    ${float_type} invr = 1.0 / sqrt(r2);
-    ${float_type} invr2 = invr * invr;
-    ${float_type} invr3 = invr2 * invr;
+    ${kernel_type} invr = 1.0 / sqrt(r2);
+    ${kernel_type} invr2 = invr * invr;
+    ${kernel_type} invr3 = invr2 * invr;
 
-    ${float_type} rn = ${n_name}x * Dx + ${n_name}y * Dy + ${n_name}z * Dz;
+    ${kernel_type} rn = ${n_name}x * Dx + ${n_name}y * Dy + ${n_name}z * Dz;
 
-    ${float_type} A = ${plus_or_minus}CsT0 * invr3;
-    ${float_type} C = ${minus_or_plus}CsT1 * invr3 * invr2;
+    ${kernel_type} A = ${plus_or_minus}CsT0 * invr3;
+    ${kernel_type} C = ${minus_or_plus}CsT1 * invr3 * invr2;
 
-    ${float_type} nxdy = ${n_name}x*Dy-${n_name}y*Dx;
-    ${float_type} nzdx = ${n_name}z*Dx-${n_name}x*Dz;
-    ${float_type} nzdy = ${n_name}z*Dy-${n_name}y*Dz;
+    ${kernel_type} nxdy = ${n_name}x*Dy-${n_name}y*Dx;
+    ${kernel_type} nzdx = ${n_name}z*Dx-${n_name}x*Dz;
+    ${kernel_type} nzdy = ${n_name}z*Dy-${n_name}y*Dz;
 
-    ${float_type} K00 = A * -rn                  + C*Dx*rn*Dx;
-    ${float_type} K01 = A * ${minus_or_plus}nxdy + C*Dx*rn*Dy;
-    ${float_type} K02 = A * ${plus_or_minus}nzdx + C*Dx*rn*Dz;
-    ${float_type} K10 = A * ${plus_or_minus}nxdy + C*Dy*rn*Dx;
-    ${float_type} K11 = A * -rn                  + C*Dy*rn*Dy;
-    ${float_type} K12 = A * ${plus_or_minus}nzdy + C*Dy*rn*Dz;
-    ${float_type} K20 = A * ${minus_or_plus}nzdx + C*Dz*rn*Dx;
-    ${float_type} K21 = A * ${minus_or_plus}nzdy + C*Dz*rn*Dy;
-    ${float_type} K22 = A * -rn                  + C*Dz*rn*Dz;
+    ${kernel_type} K00 = A * -rn                  + C*Dx*rn*Dx;
+    ${kernel_type} K01 = A * ${minus_or_plus}nxdy + C*Dx*rn*Dy;
+    ${kernel_type} K02 = A * ${plus_or_minus}nzdx + C*Dx*rn*Dz;
+    ${kernel_type} K10 = A * ${plus_or_minus}nxdy + C*Dy*rn*Dx;
+    ${kernel_type} K11 = A * -rn                  + C*Dy*rn*Dy;
+    ${kernel_type} K12 = A * ${plus_or_minus}nzdy + C*Dy*rn*Dz;
+    ${kernel_type} K20 = A * ${minus_or_plus}nzdx + C*Dz*rn*Dx;
+    ${kernel_type} K21 = A * ${minus_or_plus}nzdy + C*Dz*rn*Dy;
+    ${kernel_type} K22 = A * -rn                  + C*Dz*rn*Dz;
 % elif k_name is 'H':
-    ${float_type} invr = 1.0 / sqrt(r2);
-    ${float_type} invr2 = invr * invr;
-    ${float_type} invr3 = invr2 * invr;
-    ${float_type} Dorx = invr * Dx;
-    ${float_type} Dory = invr * Dy;
-    ${float_type} Dorz = invr * Dz;
+    ${kernel_type} invr = 1.0 / sqrt(r2);
+    ${kernel_type} invr2 = invr * invr;
+    ${kernel_type} invr3 = invr2 * invr;
+    ${kernel_type} Dorx = invr * Dx;
+    ${kernel_type} Dory = invr * Dy;
+    ${kernel_type} Dorz = invr * Dz;
 
-    ${float_type} rn = lx * Dorx + ly * Dory + lz * Dorz;
-    ${float_type} rm = nx * Dorx + ny * Dory + nz * Dorz;
-    ${float_type} mn = nx * lx + ny * ly + nz * lz;
+    ${kernel_type} rn = lx * Dorx + ly * Dory + lz * Dorz;
+    ${kernel_type} rm = nx * Dorx + ny * Dory + nz * Dorz;
+    ${kernel_type} mn = nx * lx + ny * ly + nz * lz;
 
-    ${float_type} Q = CsH0 * invr3;
-    ${float_type} A = Q * 3 * rn;
-    ${float_type} B = Q * CsH1;
-    ${float_type} C = Q * CsH3;
+    ${kernel_type} Q = CsH0 * invr3;
+    ${kernel_type} A = Q * 3 * rn;
+    ${kernel_type} B = Q * CsH1;
+    ${kernel_type} C = Q * CsH3;
 
-    ${float_type} MTx = Q*CsH2*lx + A*CsH1*Dorx;
-    ${float_type} MTy = Q*CsH2*ly + A*CsH1*Dory;
-    ${float_type} MTz = Q*CsH2*lz + A*CsH1*Dorz;
+    ${kernel_type} MTx = Q*CsH2*lx + A*CsH1*Dorx;
+    ${kernel_type} MTy = Q*CsH2*ly + A*CsH1*Dory;
+    ${kernel_type} MTz = Q*CsH2*lz + A*CsH1*Dorz;
 
-    ${float_type} NTx = B*nx + C*Dorx*rm;
-    ${float_type} NTy = B*ny + C*Dory*rm;
-    ${float_type} NTz = B*nz + C*Dorz*rm;
+    ${kernel_type} NTx = B*nx + C*Dorx*rm;
+    ${kernel_type} NTy = B*ny + C*Dory*rm;
+    ${kernel_type} NTz = B*nz + C*Dorz*rm;
 
-    ${float_type} DTx = B*3*lx*rm + C*Dorx*mn + A*(nu*nx - 5*Dorx*rm);
-    ${float_type} DTy = B*3*ly*rm + C*Dory*mn + A*(nu*ny - 5*Dory*rm);
-    ${float_type} DTz = B*3*lz*rm + C*Dorz*mn + A*(nu*nz - 5*Dorz*rm);
+    ${kernel_type} DTx = B*3*lx*rm + C*Dorx*mn + A*(nu*nx - 5*Dorx*rm);
+    ${kernel_type} DTy = B*3*ly*rm + C*Dory*mn + A*(nu*ny - 5*Dory*rm);
+    ${kernel_type} DTz = B*3*lz*rm + C*Dorz*mn + A*(nu*nz - 5*Dorz*rm);
 
-    ${float_type} ST = A*nu*rm + B*mn;
+    ${kernel_type} ST = A*nu*rm + B*mn;
 
-    ${float_type} K00 = lx*NTx + nx*MTx + Dorx*DTx + ST;
-    ${float_type} K01 = lx*NTy + nx*MTy + Dorx*DTy;
-    ${float_type} K02 = lx*NTz + nx*MTz + Dorx*DTz;
-    ${float_type} K10 = ly*NTx + ny*MTx + Dory*DTx;
-    ${float_type} K11 = ly*NTy + ny*MTy + Dory*DTy + ST;
-    ${float_type} K12 = ly*NTz + ny*MTz + Dory*DTz;
-    ${float_type} K20 = lz*NTx + nz*MTx + Dorz*DTx;
-    ${float_type} K21 = lz*NTy + nz*MTy + Dorz*DTy;
-    ${float_type} K22 = lz*NTz + nz*MTz + Dorz*DTz + ST;
+    ${kernel_type} K00 = lx*NTx + nx*MTx + Dorx*DTx + ST;
+    ${kernel_type} K01 = lx*NTy + nx*MTy + Dorx*DTy;
+    ${kernel_type} K02 = lx*NTz + nx*MTz + Dorx*DTz;
+    ${kernel_type} K10 = ly*NTx + ny*MTx + Dory*DTx;
+    ${kernel_type} K11 = ly*NTy + ny*MTy + Dory*DTy + ST;
+    ${kernel_type} K12 = ly*NTz + ny*MTz + Dory*DTz;
+    ${kernel_type} K20 = lz*NTx + nz*MTx + Dorz*DTx;
+    ${kernel_type} K21 = lz*NTy + nz*MTy + Dorz*DTy;
+    ${kernel_type} K22 = lz*NTz + nz*MTz + Dorz*DTz + ST;
 % endif
 </%def>
 
@@ -273,7 +277,12 @@ const float CsH3 = 3*nu;
     }
     __syncthreads();
 
-    auto taylor_var = Tf<${taylor_order}>::var(1.0);
+    % if use_taylor:
+        auto taylor_var = Tf<${taylor_order}>::var(1.0);
+        auto log_taylor_var = log(taylor_var);
+    % else:
+        ${float_type} taylor_var = 1.0;
+    % endif
 </%def>
 
 <%def name="func_def(type, k_name, chunk)">
@@ -309,23 +318,33 @@ ${float_type} jacobian = sh_rho_qw[ri] * rho * rhohigh * outer_jacobian;
     % endfor
 
     % for dim in range(3):
-        ${float_type} x${dn(dim)} = x_no_offset_${dn(dim)} - eps * n${dn(dim)};
+        ${kernel_type} x${dn(dim)} = x_no_offset_${dn(dim)} - eps * n${dn(dim)} * taylor_var;
     % endfor
 
-    ${float_type} Dx = yx - xx;
-    ${float_type} Dy = yy - xy; 
-    ${float_type} Dz = yz - xz;
-    ${float_type} r2 = Dx * Dx + Dy * Dy + Dz * Dz;
-    if (r2 == 0.0) {
-        continue;
-    }
+    ${kernel_type} Dx = yx - xx;
+    ${kernel_type} Dy = yy - xy; 
+    ${kernel_type} Dz = yz - xz;
+    ${kernel_type} r2 = Dx * Dx + Dy * Dy + Dz * Dz;
+    // if (r2 == 0.0) { TODO: This might be necessary, but makes for trouble with the
+    // taylor series stuff.
+    //     continue;
+    // }
 </%def>
 
 <%def name="add_to_sum()">
     % for d_obs in range(3):
         % for d_src in range(3):
             {
-                ${float_type} kernel_val = jacobian * K${d_obs}${d_src};
+                % if use_taylor:
+                    ${kernel_type} series = K${d_obs}${d_src};
+                    ${float_type} last_coeff = series.c[${taylor_order}];
+                    ${float_type} last_log_coeff = log_taylor_var.c[${taylor_order}];
+                    ${float_type} log_factor = last_coeff / last_log_coeff;
+                    ${float_type} limit = (series - log_factor * log_taylor_var).eval(-1.0);
+                    ${float_type} kernel_val = jacobian * limit;
+                % else: 
+                    ${float_type} kernel_val = jacobian * K${d_obs}${d_src};
+                % endif
                 % for b_obs in range(3):
                     % for b_src in range(3):
                         {

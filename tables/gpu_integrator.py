@@ -3,20 +3,26 @@ import ndadapt
 import tectosaur.util.gpu as gpu
 import pycuda.driver as drv
 
-def get_gpu_module(n_rho, taylor_order):
+def get_gpu_module(n_rho, taylor_order, use_taylor):
     return gpu.load_gpu('kernels.cu', tmpl_args = dict(
-            n_rho = n_rho, taylor_order = taylor_order
+            n_rho = n_rho, taylor_order = taylor_order, use_taylor = use_taylor
         ))#, print_code = True)
 
 
 float_type = np.float32
-def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_qw):
+def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
+        sm, pr, rho_qx, rho_qw, taylor_order):
     ps = [p] * 3
     q_unmapped = ndadapt.tensor_gauss(ps)
     main_block = (32, 1, 1)
 
-    taylor_order = 5 #TODO: Make this an input parameter
-    module = get_gpu_module(rho_qx.shape[0], taylor_order)
+    if taylor_order > 0:
+        use_taylor = True
+    else:
+        use_taylor = False
+
+    module = get_gpu_module(rho_qx.shape[0], taylor_order, use_taylor)
+
     funcs = [
         module.get_function(type + '_integrals' + K + str(chunk))
         for chunk in range(3)
@@ -60,9 +66,12 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_q
         return out
     return integrator
 
-def new_integrate(type, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_qw):
+def new_integrate(type, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_qw, taylor_order):
     p = 7
-    integrator = gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_qw)
+    integrator = gpu_integrator(
+        type, p, K, obs_tri, src_tri, tol, eps,
+        sm, pr, rho_qx, rho_qw, taylor_order
+    )
     result, count = ndadapt.hadapt_nd_iterative(
         integrator, (0,0,0), (1,1,1), tol,
         quiet = False,

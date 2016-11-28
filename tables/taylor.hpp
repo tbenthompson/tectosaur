@@ -40,6 +40,7 @@ struct Taylor {
         c[0] = x;
     }
 
+    DEVICE
     T eval(const T& x) {
         T res = 0.0;
         for (int i = n_coeffs - 1; i >= 0; i--) {
@@ -48,6 +49,7 @@ struct Taylor {
         return res;
     }
 
+    DEVICE
     void sqrt() {
         n_coeffs = M + 1;     
         c[0] = std::sqrt(c[0]);
@@ -59,6 +61,7 @@ struct Taylor {
         }
     }
 
+    DEVICE
     void log() {
         n_coeffs = M + 1;     
 
@@ -76,6 +79,7 @@ struct Taylor {
         }
     }
 
+    DEVICE
     void exp() {
         n_coeffs = M + 1;
 
@@ -94,6 +98,7 @@ struct Taylor {
         }
     }
 
+    DEVICE
     void pow(const T& r) {
         n_coeffs = M + 1;
 
@@ -118,6 +123,7 @@ struct Taylor {
     }
 
 
+    DEVICE
     void operator/=(const Taylor<T,M>& b) {
         n_coeffs = M + 1;
         for (int i = 0; i < n_coeffs; i++) {
@@ -128,8 +134,9 @@ struct Taylor {
         }
     }
 
+    DEVICE
     void operator*=(const Taylor<T,M>& b) {
-        n_coeffs = std::min(n_coeffs + b.n_coeffs - 1, M + 1);
+        n_coeffs = min(n_coeffs + b.n_coeffs - 1, M + 1);
 
         T temp_c[M+1];
         for (int i = 0; i < M + 1; i++) {
@@ -144,17 +151,20 @@ struct Taylor {
         }
     }
 
+    DEVICE
     void operator+=(const Taylor<T,M>& b) {
-        n_coeffs = std::max(n_coeffs, b.n_coeffs);
+        n_coeffs = max(n_coeffs, b.n_coeffs);
         for (int i = 0; i < b.n_coeffs; i++) {
             c[i] += b.c[i];
         }
     }
 
+    DEVICE
     void operator-=(const Taylor<T,M>& b) {
         (*this) += -b;
     }
 
+    DEVICE
     Taylor<T,M> operator-() const {
         Taylor<T,M> res = *this;
         for (int i = 0; i < n_coeffs; i++) {
@@ -163,30 +173,41 @@ struct Taylor {
         return res;
     }
 
+    DEVICE
+    Taylor<T,M> operator+() const {
+        Taylor<T,M> res = *this;
+        return res;
+    }
+
+    DEVICE
     Taylor<T,M> operator/(const Taylor<T,M>& b) const {
         Taylor<T,M> res = *this;
         res /= b;
         return res;
     }
 
+    DEVICE
     Taylor<T,M> operator*(const Taylor<T,M>& b) const {
         Taylor<T,M> res = *this;
         res *= b;
         return res;
     }
     
+    DEVICE
     Taylor<T,M> operator+(const Taylor<T,M>& b) const {
         Taylor<T,M> res = *this;
         res += b;
         return res;
     }
 
+    DEVICE
     Taylor<T,M> operator-(const Taylor<T,M>& b) const {
         Taylor<T,M> res = *this;
         res += -b;
         return res;
     }
 
+    DEVICE
     friend std::ostream& operator<<(std::ostream& os, const Taylor<T,M>& t) {
         os << "(";
         for (int i = 0; i < t.n_coeffs - 1; i++) {
@@ -197,6 +218,7 @@ struct Taylor {
         return os;
     }
 
+    DEVICE
     static Taylor<T,M> constant(const T& x) {
         return Taylor<T,M>(x);
     }
@@ -211,26 +233,31 @@ struct Taylor {
 };
 
 template <typename U, typename T, int M>
+DEVICE
 Taylor<T,M> operator+(const U& x, const Taylor<T,M>& y) {
     return Taylor<T,M>::constant(x) + y;
 }
 
 template <typename U, typename T, int M>
+DEVICE
 Taylor<T,M> operator-(const U& x, const Taylor<T,M>& y) {
     return Taylor<T,M>::constant(x) - y;
 }
 
 template <typename U, typename T, int M>
+DEVICE
 Taylor<T,M> operator*(const U& x, const Taylor<T,M>& y) {
     return Taylor<T,M>::constant(x) * y;
 }
 
 template <typename U, typename T, int M>
+DEVICE
 Taylor<T,M> operator/(const U& x, const Taylor<T,M>& y) {
     return Taylor<T,M>::constant(x) / y;
 }
 
 template <typename T, int M>
+DEVICE
 Taylor<T,M> sqrt(const Taylor<T,M>& t) {
     auto res = t;
     res.sqrt();
@@ -238,6 +265,7 @@ Taylor<T,M> sqrt(const Taylor<T,M>& t) {
 }
 
 template <typename T, int M>
+DEVICE
 Taylor<T,M> log(const Taylor<T,M>& t) {
     auto res = t;
     res.log();
@@ -245,6 +273,7 @@ Taylor<T,M> log(const Taylor<T,M>& t) {
 }
 
 template <typename T, int M>
+DEVICE
 Taylor<T,M> exp(const Taylor<T,M>& t) {
     auto res = t;
     res.exp();
@@ -252,6 +281,7 @@ Taylor<T,M> exp(const Taylor<T,M>& t) {
 }
 
 template <typename U, typename T, int M>
+DEVICE
 Taylor<T,M> pow(const Taylor<T,M>& t, const U& r) {
     auto res = t;
     res.pow(r);

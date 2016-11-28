@@ -262,8 +262,9 @@ def test_new_mthd_adjacent():
         new_mthd_adjacent_tester(K)
 
 def test_taylor_series():
-    from test_taylor import run_tests
-    run_tests()
+    import cppimport
+    test_taylor = cppimport.imp("taylor_tests")
+    test_taylor.run_tests([])
 
 if __name__ == '__main__':
     test_vert_adj()

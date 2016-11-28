@@ -110,8 +110,7 @@ TEST_CASE("Pow") {
 TEST_CASE("Eval") {
     auto t = Td<3>::var(1);
     auto t2 = pow(t, 2);
-    std::cout << t2 << std::endl;
-    std::cout << t2.eval(3) << std::endl; 
+    REQUIRE(t2.eval(3) == 16);
 }
 
 template <typename T>
@@ -140,6 +139,16 @@ TEST_CASE("Hypersingular") {
     }
     auto correct = -0.31830989;
     REQUIRE_CLOSE(result.eval(-dist), correct, 1e-5);
+}
+
+TEST_CASE("Log removal") {
+    auto x = Td<4>::var(1);
+    auto f = [] (auto x) { return 1.07 * log(x) + pow(x, 2) + 0.3 * pow(x, 3); };
+    auto y = f(x);
+    auto logx = log(x);
+    double log_factor = y.c[4] / logx.c[4];
+    auto y_minus_logterm = y - log_factor * logx;
+    REQUIRE_CLOSE(y_minus_logterm.eval(-1.0), 0.0, 1e-14);
 }
 
 PYBIND11_PLUGIN(taylor_tests) {
