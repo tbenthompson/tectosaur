@@ -36,7 +36,7 @@ n_pr = 8
 # play parameters
 K = "H"
 rho_order = 50
-starting_eps = 0.01
+starting_eps = 0.08
 n_eps = 1
 tol = 0.01
 n_A = 2
@@ -69,12 +69,9 @@ def eval(pt):
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
         res = new_integrate(
             'coincident', K, tri, tri, tol, eps,
-            1.0, pr, rho_q[0], rho_q[1], 0
+            1.0, pr, rho_q[0], rho_q[1]
         )
         integrals.append(res)
-    import ipdb; ipdb.set_trace()
-    np.testing.assert_almost_equal(integrals[0][0], -8.55494514e-02, 4)
-    import sys;sys.exit()
     return integrals
 
 def take_limits(integrals):
