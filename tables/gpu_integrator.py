@@ -7,7 +7,7 @@ def get_gpu_module(n_rho):
     return gpu.load_gpu('kernels.cu', tmpl_args = dict(n_rho = n_rho))#, print_code = True)
 
 
-float_type = np.float32
+float_type = np.float64
 def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
         sm, pr, rho_qx, rho_qw):
     ps = [p] * 3
@@ -26,16 +26,13 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
         grid_main = (mins.shape[0] // main_block[0], 1, 1)
         grid_rem = (remaining, 1, 1)
 
-        out = np.empty((mins.shape[0],81)).astype(float_type)
-        out_rem = np.empty((grid_rem[0],81)).astype(float_type)
+        out = np.zeros((mins.shape[0],81)).astype(float_type)
 
-
-        def call_integrator(block, grid, result_buf, start_idx, end_idx):
+        def call_integrator(block, grid, start_idx, end_idx):
             if grid[0] == 0:
                 return
-            result_buf[:] = 0
             for chunk in range(3):
-                temp_result = np.empty_like(result_buf).astype(float_type)
+                temp_result = np.empty((end_idx-start_idx, 81)).astype(float_type)
                 funcs[chunk](
                     drv.Out(temp_result),
                     np.int32(q_unmapped[0].shape[0]),
@@ -51,16 +48,29 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
                     np.int32(block[0]),
                     block = block, grid = grid
                 )
-                result_buf += temp_result
+                out[start_idx:end_idx] += temp_result
 
-        call_integrator(main_block, grid_main, out, 0, mins.shape[0] - remaining)
-        call_integrator((1,1,1), grid_rem, out_rem, mins.shape[0] - remaining, mins.shape[0])
-        out[(mins.shape[0] - remaining):] = out_rem
+        last_large_block_idx = mins.shape[0] - remaining
+        n_blocks_per_call = 512
+        call_size = main_block[0] * n_blocks_per_call
+        next_call_start = 0
+        next_call_end = call_size
+        while next_call_end < last_large_block_idx + call_size:
+            this_call_end = min(next_call_end, last_large_block_idx)
+            call_integrator(
+                main_block,
+                ((this_call_end - next_call_start) // main_block[0], 1, 1),
+                next_call_start,
+                this_call_end
+            )
+            next_call_start += call_size
+            next_call_end += call_size
+        call_integrator((1,1,1), grid_rem, mins.shape[0] - remaining, mins.shape[0])
         return out
     return integrator
 
 def new_integrate(type, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_qw):
-    p = 7
+    p = 6
     integrator = gpu_integrator(
         type, p, K, obs_tri, src_tri, tol, eps,
         sm, pr, rho_qx, rho_qw

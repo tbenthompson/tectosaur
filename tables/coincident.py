@@ -9,6 +9,8 @@ from tectosaur.interpolate import cheb, cheb_wts, barycentric_evalnd, to_interva
 from tectosaur.limit import limit, richardson_limit
 
 from gpu_integrator import new_integrate
+import cppimport
+adaptive_integrate = cppimport.imp('adaptive_integrate')
 
 # tol = 0.0001
 # rho_order = 100
@@ -36,9 +38,9 @@ n_pr = 8
 # play parameters
 K = "H"
 rho_order = 50
-starting_eps = 0.08
+starting_eps = 0.00001
 n_eps = 1
-tol = 0.01
+tol = 0.0001
 n_A = 2
 n_B = 2
 n_pr = 2
@@ -71,6 +73,11 @@ def eval(pt):
             'coincident', K, tri, tri, tol, eps,
             1.0, pr, rho_q[0], rho_q[1]
         )
+        print(res[0])
+        res2 = adaptive_integrate.integrate_coincident(
+            K, tri, tol, eps, 1.0, pr, rho_q[0].tolist(), rho_q[1].tolist()
+        )
+        print(res2[0])
         integrals.append(res)
     return integrals
 

@@ -1,7 +1,7 @@
 <%
 def dn(dim):
     return ['x', 'y', 'z'][dim]
-float_type = "float"
+float_type = "double"
 %>
 
 #include <stdio.h>
@@ -51,8 +51,8 @@ get_unscaled_normal(${prefix}_tri, ${prefix}_unscaled_normal);
 ${float_type} ${prefix}_normal_length = magnitude(${prefix}_unscaled_normal);
 ${float_type} ${prefix}_jacobian = ${prefix}_normal_length;
 % for dim in range(3):
-${float_type} ${normal_prefix}${dn(dim)} = 
-    ${prefix}_unscaled_normal[${dim}] / ${prefix}_normal_length;
+    ${float_type} ${normal_prefix}${dn(dim)} = 
+        ${prefix}_unscaled_normal[${dim}] / ${prefix}_normal_length;
 % endfor
 </%def>
 
