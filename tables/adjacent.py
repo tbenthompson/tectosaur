@@ -58,7 +58,11 @@ def eval(pt):
     for eps in all_eps:
         print('running: ' + str((pt, eps)))
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-        res = new_integrate('adjacent', K, tri1, tri2, tol, eps, 1.0, pr, rho_q[0], rho_q[1])
+        res = adaptive_integrate.integrate_adjacent(
+            K, tri1, tri2, tol, eps,
+            1.0, pr, rho_q[0].tolist(), rho_q[1].tolist()
+        )
+        # res = new_integrate('adjacent', K, tri1, tri2, tol, eps, 1.0, pr, rho_q[0], rho_q[1])
         integrals.append(res)
     return integrals
 

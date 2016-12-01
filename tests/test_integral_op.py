@@ -28,7 +28,9 @@ def test_gpu_edge_adjacent():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
     obs_tris = np.array([[0,1,2]]).astype(np.int32)
     src_tris = np.array([[1,0,3]]).astype(np.int32)
-    out = nearfield_op.edge_adj(8, [0.1, 0.01], 'H', 1.0, 0.25, pts, obs_tris, src_tris)
+    out = nearfield_op.edge_adj(
+        8, [0.1, 0.01], 'H', 1.0, 0.25, pts, obs_tris, src_tris, remove_sing = False
+    )
     return out
 
 @golden_master
@@ -44,7 +46,9 @@ def test_coincident_gpu():
     n = 4
     w = 4
     pts, tris = mesh.rect_surface(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
-    out = nearfield_op.coincident(8, [0.1, 0.01], 'H', 1.0, 0.25, pts, tris)
+    out = nearfield_op.coincident(
+        8, [0.1, 0.01], 'H', 1.0, 0.25, pts, tris, remove_sing = False
+    )
     return out
 
 def full_integral_op_tester(k):
@@ -221,5 +225,5 @@ def test_vert_adj_separate_bases():
 
     from tectosaur.table_lookup import sub_basis
     I1 = np.array([sub_basis(I0[i], obs_basis_tris[i], src_basis_tris[i]) for i in range(2)])
-    print(I[0,:,0,:,0], I1[0,:,0,:,0] + I1[1,:,0,:,0])
+    # print(I[0,:,0,:,0], I1[0,:,0,:,0] + I1[1,:,0,:,0])
     np.testing.assert_almost_equal(I[0], I1[0] + I1[1], 6)

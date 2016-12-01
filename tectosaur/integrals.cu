@@ -10,6 +10,8 @@ def dn(dim):
 kronecker = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 %>
 
+extern "C" {
+
 #include <stdio.h>
 
 __device__
@@ -480,3 +482,5 @@ ${farfield_tris(k_name)}
 ${single_pairs(k_name, limit = True)}
 ${single_pairs(k_name, limit = False)}
 % endfor
+
+} //End extern "C"

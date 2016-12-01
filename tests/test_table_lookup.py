@@ -101,39 +101,69 @@ def test_adjacent_table_lookup():
     # theta=2.1719140566792428,pr=0.34567085809127246
     # is a node of the interpolation, so using this
     # theta eliminates any inteporlation error for the moment.
-    theta = 2.1719140566792428#np.random.rand(1)[0] * 1.3 * np.pi + 0.2
-    pr = 0.34567085809127246#np.random.rand(1)[0] * 0.5
+    theta = np.random.rand(1)[0] * 1.3 * np.pi + 0.2
+    pr = np.random.rand(1)[0] * 0.5
+    non_standard_loc = True
+    alpha = 2
+    beta = 2
 
-    # scale = np.random.rand(1)[0] * 3
-    # translation = np.random.rand(3)
-    # R = random_rotation()
-    # print(theta, pr, scale, translation)
+    theta = 2.902453144249991
+    pr = 0.461939765
 
     H = min_angle_isoceles_height
     pts = np.array([
         [0,0,0],[1,0,0],
-        [0.5,3*H*np.cos(theta),4*H*np.sin(theta)],
-        [0.5,2*H,0]
+        [0.5,alpha*H*np.cos(theta),alpha*H*np.sin(theta)],
+        [0.5,beta*H,0]
     ])
-    # pts = (translation + R.dot(pts.T).T * scale).copy()
+
+    if non_standard_loc:
+        scale = np.random.rand(1)[0] * 3
+        translation = np.random.rand(3)
+        R = random_rotation()
+        print(theta, pr, scale, translation)
+        pts = (translation + R.dot(pts.T).T * scale).copy()
+
     tris = np.array([[0,1,3],[1,0,2]])
 
-    eps = 0.08 * (2.0 ** -np.arange(4))
+    eps = 0.01 * (2.0 ** -np.arange(4))
+    eps_scale = np.sqrt(np.linalg.norm(tri_normal(pts[tris[0]])))
+
     op2 = DenseIntegralOp(
         eps, 3, 3, 10, 3, 10, 3.0, K, 1.0, pr,
         pts, tris, use_tables = True, remove_sing = True
     )
-    print(op2.mat[0,9])
-
-    eps_scale = np.sqrt(np.linalg.norm(tri_normal(pts[tris[0]])))
+    print(op2.mat[0:9,9])
     op = DenseIntegralOp(
-        eps, 15, 20, 10, 3, 10, 3.0, K, 1.0, pr,
+        eps, 15, 23, 10, 3, 10, 3.0, K, 1.0, pr,
         pts, tris, remove_sing = True
     )
-    print(op.mat[0,9])
-
+    print(op.mat[0:9,9])
     err = np.abs((op.mat[0,9] - op2.mat[0,9]) / op.mat[0,9])
-    assert(err < 0.05)
+
+    # import cppimport
+    # adaptive_integrate = cppimport.imp('tables.adaptive_integrate').adaptive_integrate
+    # import tectosaur.quadrature as quad
+    # from tectosaur.limit import limit
+    # rho_order = 50
+    # rho_gauss = quad.gaussxw(rho_order)
+    # Is = []
+    # for e in eps:
+    #     rho_q = quad.sinh_transform(rho_gauss, -1, e * 2)
+    #     Is.append(adaptive_integrate.integrate_adjacent(
+    #         K, pts[tris[1]].tolist(), pts[tris[0]].tolist(), 0.001, e,
+    #         1.0, pr, rho_q[0].tolist(), rho_q[1].tolist()
+    #     ))
+    # Is = np.array(Is)
+    # limits = np.empty(81)
+    # for i in range(81):
+    #     # limits[i] = limit(eps, Is[:, i], False)
+    #     val, log_coeff = limit(eps, Is[:, i], True)
+    #     limits[i] = val + np.log(eps_scale) * log_coeff
+    # print(limits[:9].tolist())
+    # import ipdb; ipdb.set_trace()
+
+    # assert(err < 0.05)
 
 def test_sub_basis():
     xs = np.linspace(0.0, 1.0, 11)

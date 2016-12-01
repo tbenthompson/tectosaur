@@ -47,7 +47,6 @@ def interp_limit(eps_start, n_steps, remove_sing, interp_pts, interp_wts, table,
         return out
 
 def coincident_lookup(table_and_pts_wts, sm, pr, tri, eps_start, n_steps, remove_sing):
-    print("colookup")
     table, interp_pts, interp_wts = table_and_pts_wts
 
     standard_tri, labels, translation, R, scale = standardize(
@@ -187,7 +186,6 @@ def separate_tris(obs_tri, src_tri):
 
 def adjacent_lookup(table_and_pts_wts, sm, pr, orig_obs_tri, obs_tri, src_tri,
         eps_start, n_steps, remove_sing):
-    print("adjlookup")
     table, interp_pts, interp_wts = table_and_pts_wts
 
     standard_tri, _, translation, R, scale = standardize(
