@@ -7,7 +7,7 @@ def get_gpu_module(n_rho):
     return gpu.load_gpu('kernels.cu', tmpl_args = dict(n_rho = n_rho))#, print_code = True)
 
 
-float_type = np.float64
+float_type = np.float32
 def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
         sm, pr, rho_qx, rho_qw):
     ps = [p] * 3
@@ -23,8 +23,6 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
 
     def integrator(mins, maxs):
         remaining = mins.shape[0] % main_block[0]
-        grid_main = (mins.shape[0] // main_block[0], 1, 1)
-        grid_rem = (remaining, 1, 1)
 
         out = np.zeros((mins.shape[0],81)).astype(float_type)
 
@@ -65,12 +63,12 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
             )
             next_call_start += call_size
             next_call_end += call_size
-        call_integrator((1,1,1), grid_rem, mins.shape[0] - remaining, mins.shape[0])
-        return out
+        call_integrator((1,1,1), (remaining, 1, 1), mins.shape[0] - remaining, mins.shape[0])
+        return out[np.newaxis,:,0]
     return integrator
 
 def new_integrate(type, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_qw):
-    p = 6
+    p = 3
     integrator = gpu_integrator(
         type, p, K, obs_tri, src_tri, tol, eps,
         sm, pr, rho_qx, rho_qw

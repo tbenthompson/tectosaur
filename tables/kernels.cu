@@ -1,7 +1,7 @@
 <%
 def dn(dim):
     return ['x', 'y', 'z'][dim]
-float_type = "double"
+float_type = "float"
 %>
 
 #include <stdio.h>
@@ -346,8 +346,7 @@ ${func_def("coincident", k_name, chunk)}
         ${float_type} thetahigh = ${co_theta_high(chunk)}
         ${float_type} theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
 
-        ${float_type} outer_jacobian = w * (1 - obsxhat) * (thetahigh - thetalow) * 
-                                0.5 * obs_jacobian * src_jacobian;
+        ${float_type} outer_jacobian = w * (1 - obsxhat) * (thetahigh - thetalow);
         ${float_type} costheta = cos(theta);
         ${float_type} sintheta = sin(theta);
 
@@ -363,8 +362,9 @@ ${func_def("coincident", k_name, chunk)}
             ${add_to_sum()}
         }
     }
+    ${float_type} const_jacobian = 0.5 * obs_jacobian * src_jacobian;
     for (int i = 0; i < 81; i++) {
-        result[cell_idx * 81 + i] = sum[i];
+        result[cell_idx * 81 + i] = const_jacobian * sum[i];
     }
 }
 </%def>
@@ -399,9 +399,12 @@ ${func_def("adjacent", k_name, chunk)}
                 ${add_to_sum()}
             }
         }
+        ${float_type} const_jacobian = 0.5 * obs_jacobian * src_jacobian;
+    %else:
+        ${float_type} const_jacobian = 1.0;
     %endif
     for (int i = 0; i < 81; i++) {
-        result[cell_idx * 81 + i] = sum[i];
+        result[cell_idx * 81 + i] = const_jacobian * sum[i];
     }
 }
 </%def>

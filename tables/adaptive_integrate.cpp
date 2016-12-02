@@ -205,28 +205,28 @@ std::array<std::array<double,3>,3> Tkernel(Material& d, double Dx, double Dy, do
     double nx, double ny, double nz, double lx, double ly, double lz)
 {
     double r2 = Dx * Dx + Dy * Dy + Dz * Dz;
-    float invr = 1.0 / sqrt(r2);
-    float invr2 = invr * invr;
-    float invr3 = invr2 * invr;
+    double invr = 1.0 / sqrt(r2);
+    double invr2 = invr * invr;
+    double invr3 = invr2 * invr;
 
-    float rn = lx * Dx + ly * Dy + lz * Dz;
+    double rn = lx * Dx + ly * Dy + lz * Dz;
 
-    float A = +d.CsT0 * invr3;
-    float C = -d.CsT1 * invr3 * invr2;
+    double A = +d.CsT0 * invr3;
+    double C = -d.CsT1 * invr3 * invr2;
 
-    float nxdy = lx*Dy-ly*Dx;
-    float nzdx = lz*Dx-lx*Dz;
-    float nzdy = lz*Dy-ly*Dz;
+    double nxdy = lx*Dy-ly*Dx;
+    double nzdx = lz*Dx-lx*Dz;
+    double nzdy = lz*Dy-ly*Dz;
 
-    float K00 = A * -rn                  + C*Dx*rn*Dx;
-    float K01 = A * -nxdy + C*Dx*rn*Dy;
-    float K02 = A * +nzdx + C*Dx*rn*Dz;
-    float K10 = A * +nxdy + C*Dy*rn*Dx;
-    float K11 = A * -rn                  + C*Dy*rn*Dy;
-    float K12 = A * +nzdy + C*Dy*rn*Dz;
-    float K20 = A * -nzdx + C*Dz*rn*Dx;
-    float K21 = A * -nzdy + C*Dz*rn*Dy;
-    float K22 = A * -rn                  + C*Dz*rn*Dz;
+    double K00 = A * -rn                  + C*Dx*rn*Dx;
+    double K01 = A * -nxdy + C*Dx*rn*Dy;
+    double K02 = A * +nzdx + C*Dx*rn*Dz;
+    double K10 = A * +nxdy + C*Dy*rn*Dx;
+    double K11 = A * -rn                  + C*Dy*rn*Dy;
+    double K12 = A * +nzdy + C*Dy*rn*Dz;
+    double K20 = A * -nzdx + C*Dz*rn*Dx;
+    double K21 = A * -nzdy + C*Dz*rn*Dy;
+    double K22 = A * -rn                  + C*Dz*rn*Dz;
     return {{{K00,K01,K02},{K10,K11,K12},{K20,K21,K22}}};
 }
 
@@ -234,28 +234,28 @@ std::array<std::array<double,3>,3> Akernel(Material& d, double Dx, double Dy, do
     double nx, double ny, double nz, double lx, double ly, double lz)
 {
     double r2 = Dx * Dx + Dy * Dy + Dz * Dz;
-    float invr = 1.0 / sqrt(r2);
-    float invr2 = invr * invr;
-    float invr3 = invr2 * invr;
+    double invr = 1.0 / sqrt(r2);
+    double invr2 = invr * invr;
+    double invr3 = invr2 * invr;
 
-    float rn = nx * Dx + ny * Dy + nz * Dz;
+    double rn = nx * Dx + ny * Dy + nz * Dz;
 
-    float A = -d.CsT0 * invr3;
-    float C = +d.CsT1 * invr3 * invr2;
+    double A = -d.CsT0 * invr3;
+    double C = +d.CsT1 * invr3 * invr2;
 
-    float nxdy = nx*Dy-ny*Dx;
-    float nzdx = nz*Dx-nx*Dz;
-    float nzdy = nz*Dy-ny*Dz;
+    double nxdy = nx*Dy-ny*Dx;
+    double nzdx = nz*Dx-nx*Dz;
+    double nzdy = nz*Dy-ny*Dz;
 
-    float K00 = A * -rn                  + C*Dx*rn*Dx;
-    float K01 = A * +nxdy + C*Dx*rn*Dy;
-    float K02 = A * -nzdx + C*Dx*rn*Dz;
-    float K10 = A * -nxdy + C*Dy*rn*Dx;
-    float K11 = A * -rn                  + C*Dy*rn*Dy;
-    float K12 = A * -nzdy + C*Dy*rn*Dz;
-    float K20 = A * +nzdx + C*Dz*rn*Dx;
-    float K21 = A * +nzdy + C*Dz*rn*Dy;
-    float K22 = A * -rn                  + C*Dz*rn*Dz;
+    double K00 = A * -rn                  + C*Dx*rn*Dx;
+    double K01 = A * +nxdy + C*Dx*rn*Dy;
+    double K02 = A * -nzdx + C*Dx*rn*Dz;
+    double K10 = A * -nxdy + C*Dy*rn*Dx;
+    double K11 = A * -rn                  + C*Dy*rn*Dy;
+    double K12 = A * -nzdy + C*Dy*rn*Dz;
+    double K20 = A * +nzdx + C*Dz*rn*Dx;
+    double K21 = A * +nzdy + C*Dz*rn*Dy;
+    double K22 = A * -rn                  + C*Dz*rn*Dz;
     return {{{K00,K01,K02},{K10,K11,K12},{K20,K21,K22}}};
 }
 

@@ -78,6 +78,7 @@ def hadapt_nd_iterative(integrate, mins, maxs, tol, max_refinements = 10000, qui
     # order of magnitude than the final result, meaning that the tolerance
     # is violated. What to do?
     initial_est = integrate(np.array([mins]), np.array([maxs]))[0]
+    print(initial_est)
     iguess = calc_iguess(initial_est, tol, mins, maxs)
 
     cells_left = initial_cell(mins.tolist(), maxs.tolist(), initial_est)
