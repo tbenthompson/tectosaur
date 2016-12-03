@@ -36,11 +36,11 @@ n_B = 8
 n_pr = 8
 
 # play parameters
-K = "H"
+K = "T"
 rho_order = 50
-starting_eps = 0.0001
-n_eps = 1
-tol = 0.001
+starting_eps = 0.1
+n_eps = 5
+tol = 0.00000000001
 n_A = 2
 n_B = 2
 n_pr = 2
@@ -111,6 +111,21 @@ def build_tables(eval_fnc, pts, wts):
         test_f(results, eval_fnc, pts, wts)
 
 if __name__ == '__main__':
+    print("")
+    print("")
+    print("")
+    print("")
+    print("GO")
+    integrals = eval([0.0, 1.0, 0.5])
+    print(limit(all_eps, integrals, True))
+    print("DONE")
+    print("")
+    print("")
+    print("")
+    print("")
+    import sys;sys.exit()
+
+
     Ahats = cheb(-1, 1, n_A)
     Bhats = cheb(-1, 1, n_B)
     prhats = cheb(-1, 1, n_pr)

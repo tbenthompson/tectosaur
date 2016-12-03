@@ -261,11 +261,6 @@ def test_new_mthd_adjacent():
     for K in ['U', 'T', 'A', 'H']:
         new_mthd_adjacent_tester(K)
 
-def test_taylor_series():
-    import cppimport
-    test_taylor = cppimport.imp("taylor_tests")
-    test_taylor.run_tests([])
-
 if __name__ == '__main__':
     test_vert_adj()
     # test_edge_adj()

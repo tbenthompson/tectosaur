@@ -1,7 +1,6 @@
 <%
 def dn(dim):
     return ['x', 'y', 'z'][dim]
-float_type = "float"
 %>
 
 #include <stdio.h>
@@ -136,16 +135,16 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 </%def>
 
 <%def name="constants()">
-const float CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
-const float CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
-const float CsT0 = (1-2.0*nu)/(8.0*M_PI*(1.0-nu));
-const float CsT1 = 3.0/(8.0*M_PI*(1.0-nu));
-const float CsT2 = 1.0/(8*M_PI*(1-nu));
-const float CsT3 = 1-2*nu;
-const float CsH0 = G/(4*M_PI*(1-nu));
-const float CsH1 = 1-2*nu;
-const float CsH2 = -1+4*nu;
-const float CsH3 = 3*nu;
+const ${float_type} CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
+const ${float_type} CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
+const ${float_type} CsT0 = (1-2.0*nu)/(8.0*M_PI*(1.0-nu));
+const ${float_type} CsT1 = 3.0/(8.0*M_PI*(1.0-nu));
+const ${float_type} CsT2 = 1.0/(8*M_PI*(1-nu));
+const ${float_type} CsT3 = 1-2*nu;
+const ${float_type} CsH0 = G/(4*M_PI*(1-nu));
+const ${float_type} CsH1 = 1-2*nu;
+const ${float_type} CsH2 = -1+4*nu;
+const ${float_type} CsH3 = 3*nu;
 </%def>
 
 <%def name="kernel(k_name)">

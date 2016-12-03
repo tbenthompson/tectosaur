@@ -151,11 +151,12 @@ py::tuple refine(const Cells<D>& cells,
         for (int vec_dim = 0; vec_dim < cells.vector_dim; vec_dim++) {
             sums[vec_dim] = 0.0;
             for (int ci = 0; ci < splits; ci++) {
-                sums[vec_dim] += first_integral[(idx_begin + ci) 
-                    * cells.vector_dim + vec_dim];
+                auto child_idx = (idx_begin + ci) * cells.vector_dim + vec_dim;
+                sums[vec_dim] += first_integral[child_idx];
             }
             double diff = cells.ests[i * cells.vector_dim + vec_dim] - sums[vec_dim];
             double iguess_val = iguess_ptr[vec_dim];
+            // std::cout << iguess_val << " " << diff << std::endl;
             if (iguess_val + diff != iguess_val) {
                 should_refine = true;
             }

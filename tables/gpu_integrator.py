@@ -3,11 +3,18 @@ import ndadapt
 import tectosaur.util.gpu as gpu
 import pycuda.driver as drv
 
+float_type = np.float64
+
 def get_gpu_module(n_rho):
-    return gpu.load_gpu('kernels.cu', tmpl_args = dict(n_rho = n_rho))#, print_code = True)
+    cuda_float_type = 'float'
+    if float_type == np.float64:
+        cuda_float_type = 'double'
+    return gpu.load_gpu('kernels.cu', tmpl_args = dict(
+        n_rho = n_rho,
+        float_type = cuda_float_type
+    ))#, print_code = True)
 
 
-float_type = np.float32
 def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
         sm, pr, rho_qx, rho_qw):
     ps = [p] * 3

@@ -22,16 +22,17 @@ def limit(eps_vals, f_vals, include_log):
 
 
 
+# With sufficient number of steps, the error seems to be mostly independent of x_start and there doesn't appear to be any interaction between the x_start value and the error_mag.
 include_log = True
-x_start = 0.01
+x_start = 0.1
 x_step = 2.0
-n_x = 10
-error_mag = 0.00000000000001
+n_x = 7
+error_mag = 1e-14
 
 
 vals = []
 for i in range(1000):
-    model = lambda x: 1.0 + x + x ** 2 + 0.1 * x ** 3 + 0.08 * x ** 9
+    model = lambda x: 1.0 + np.cos(x) * np.sin(x)
     xs = x_start * (x_step ** (-np.arange(n_x)))
 
     error_term = (2 * np.random.rand(n_x) - 1) * error_mag
@@ -40,7 +41,10 @@ for i in range(1000):
     vals.append(extrap[0])
 vals = np.array(vals)
 log_mag_error = np.log10(np.abs(vals - 1.0))
+log_mag_error[np.isinf(log_mag_error)] = -16
 
 print(error_mag)
+print(np.max(log_mag_error))
+print(np.min(log_mag_error))
 plt.hist(log_mag_error)
 plt.show()
