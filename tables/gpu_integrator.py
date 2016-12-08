@@ -45,7 +45,6 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
                     drv.In(np.array(obs_tri).astype(float_type)),
                     drv.In(np.array(src_tri).astype(float_type)),
                     float_type(eps), float_type(sm), float_type(pr),
-                    np.int32(block[0]),
                     block = block, grid = grid
                 )
                 out[start_idx:end_idx] += temp_result

@@ -280,7 +280,7 @@ __global__
 void ${type}_integrals${k_name}(${float_type}* result, int chunk, int n_quad_pts,
     ${float_type}* quad_pts, ${float_type}* quad_wts, ${float_type}* mins, ${float_type}* maxs,
     ${float_type}* in_obs_tri, ${float_type}* in_src_tri,
-    ${float_type} eps, ${float_type} G, ${float_type} nu, int block_size)
+    ${float_type} eps, ${float_type} G, ${float_type} nu)
 </%def>
 
 
