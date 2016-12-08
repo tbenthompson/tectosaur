@@ -5,12 +5,13 @@ import pycuda.driver as drv
 
 float_type = np.float64
 
-def get_gpu_module(n_rho):
+def get_gpu_module(rho_qx, rho_qw):
     cuda_float_type = 'float'
     if float_type == np.float64:
         cuda_float_type = 'double'
     return gpu.load_gpu('kernels.cu', tmpl_args = dict(
-        n_rho = n_rho,
+        rho_qx = rho_qx,
+        rho_qw = rho_qw,
         float_type = cuda_float_type
     ))#, print_code = True)
 
@@ -21,12 +22,7 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
     q_unmapped = ndadapt.tensor_gauss(ps)
     main_block = (32, 1, 1)
 
-    module = get_gpu_module(rho_qx.shape[0])
-
-    funcs = [
-        module.get_function(type + '_integrals' + K + str(chunk))
-        for chunk in range(3)
-    ]
+    func = get_gpu_module(rho_qx, rho_qw).get_function(type + "_integrals" + K)
 
     def integrator(mins, maxs):
         remaining = mins.shape[0] % main_block[0]
@@ -38,8 +34,9 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
                 return
             for chunk in range(3):
                 temp_result = np.empty((end_idx-start_idx, 81)).astype(float_type)
-                funcs[chunk](
+                func(
                     drv.Out(temp_result),
+                    np.int32(chunk),
                     np.int32(q_unmapped[0].shape[0]),
                     drv.In(q_unmapped[0].flatten().astype(float_type)),
                     drv.In(q_unmapped[1].astype(float_type)),
@@ -48,8 +45,6 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
                     drv.In(np.array(obs_tri).astype(float_type)),
                     drv.In(np.array(src_tri).astype(float_type)),
                     float_type(eps), float_type(sm), float_type(pr),
-                    drv.In(rho_qx.astype(float_type)),
-                    drv.In(rho_qw.astype(float_type)),
                     np.int32(block[0]),
                     block = block, grid = grid
                 )

@@ -7,6 +7,20 @@ def dn(dim):
 
 extern "C" {
 
+__constant__ ${float_type} rho_qx[${rho_qx.shape[0]}] = {
+    % for x in rho_qx[:-1]:
+        ${x},
+    % endfor
+    ${rho_qx[-1]}
+};
+
+__constant__ ${float_type} rho_qw[${rho_qx.shape[0]}] = {
+    % for w in rho_qw[:-1]:
+        ${w},
+    % endfor
+    ${rho_qw[-1]}
+};
+
 __device__
 void cross(${float_type} x[3], ${float_type} y[3], ${float_type} out[3]) {
     out[0] = x[1] * y[2] - x[2] * y[1];
@@ -259,23 +273,14 @@ const ${float_type} CsH3 = 3*nu;
     }
     ${tri_info("obs", "n")}
     ${tri_info("src", "l")}
-
-    __shared__ ${float_type} sh_rho_qx[${n_rho}];
-    __shared__ ${float_type} sh_rho_qw[${n_rho}];
-    for (int i = threadIdx.x; i < ${n_rho}; i += block_size) {
-        sh_rho_qx[i] = rho_qx[i];
-        sh_rho_qw[i] = rho_qw[i];
-    }
-    __syncthreads();
 </%def>
 
-<%def name="func_def(type, k_name, chunk)">
+<%def name="func_def(type, k_name)">
 __global__
-void ${type}_integrals${k_name}${chunk}(${float_type}* result, int n_quad_pts,
+void ${type}_integrals${k_name}(${float_type}* result, int chunk, int n_quad_pts,
     ${float_type}* quad_pts, ${float_type}* quad_wts, ${float_type}* mins, ${float_type}* maxs,
     ${float_type}* in_obs_tri, ${float_type}* in_src_tri,
-    ${float_type} eps, ${float_type} G, ${float_type} nu,
-    ${float_type}* rho_qx, ${float_type}* rho_qw, int block_size)
+    ${float_type} eps, ${float_type} G, ${float_type} nu, int block_size)
 </%def>
 
 
@@ -286,10 +291,10 @@ ${float_type} thetahat = mintheta + deltatheta * (quad_pts[qi * 3 + 2] + 1);
 ${float_type} w = quad_wts[qi] * deltax * deltay * deltatheta;
 </%def>
 
-<%def name="rho_quad_eval(chunk)">
-${float_type} rhohat = (sh_rho_qx[ri] + 1) / 2.0;
+<%def name="rho_quad_eval()">
+${float_type} rhohat = (rho_qx[ri] + 1) / 2.0;
 ${float_type} rho = rhohat * rhohigh;
-${float_type} jacobian = sh_rho_qw[ri] * rho * rhohigh * outer_jacobian;
+${float_type} jacobian = rho_qw[ri] * rho * rhohigh * outer_jacobian;
 </%def>
 
 <%def name="setup_kernel_inputs()">
@@ -332,8 +337,8 @@ ${float_type} jacobian = sh_rho_qw[ri] * rho * rhohigh * outer_jacobian;
     % endfor
 </%def>
 
-<%def name="coincident_integrals(k_name, chunk)">
-${func_def("coincident", k_name, chunk)}
+<%def name="coincident_integrals(k_name)">
+${func_def("coincident", k_name)}
 {
     ${zero_output()}
     ${integral_setup("in_obs_tri", "in_src_tri")}
@@ -341,17 +346,35 @@ ${func_def("coincident", k_name, chunk)}
     for (int qi = 0; qi < n_quad_pts; qi++) {
         ${eval_hatvars()}
 
-        ${float_type} thetalow = ${co_theta_low(chunk)}
-        ${float_type} thetahigh = ${co_theta_high(chunk)}
+        ${float_type} thetalow;
+        ${float_type} thetahigh;
+        if (chunk == 0) {
+            thetalow = ${co_theta_low(0)}
+            thetahigh = ${co_theta_high(0)}
+        } else if (chunk == 1) {
+            thetalow = ${co_theta_low(1)}
+            thetahigh = ${co_theta_high(1)}
+        } else {
+            thetalow = ${co_theta_low(2)}
+            thetahigh = ${co_theta_high(2)}
+        }
         ${float_type} theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
 
         ${float_type} outer_jacobian = w * (1 - obsxhat) * (thetahigh - thetalow);
         ${float_type} costheta = cos(theta);
         ${float_type} sintheta = sin(theta);
 
-        ${float_type} rhohigh = ${co_rhohigh(chunk)}
-        for (int ri = 0; ri < ${n_rho}; ri++) {
-            ${rho_quad_eval(chunk)}
+        ${float_type} rhohigh;
+        if (chunk == 0) {
+            rhohigh = ${co_rhohigh(0)}
+        } else if (chunk == 1) {
+            rhohigh = ${co_rhohigh(1)}
+        } else {
+            rhohigh = ${co_rhohigh(2)}
+        }
+
+        for (int ri = 0; ri < ${rho_qx.shape[0]}; ri++) {
+            ${rho_quad_eval()}
 
             ${float_type} srcxhat = obsxhat + rho * costheta;
             ${float_type} srcyhat = obsyhat + rho * sintheta;
@@ -368,17 +391,25 @@ ${func_def("coincident", k_name, chunk)}
 }
 </%def>
 
-<%def name="adjacent_integrals(k_name, chunk)">
-${func_def("adjacent", k_name, chunk)}
+<%def name="adjacent_integrals(k_name)">
+${func_def("adjacent", k_name)}
 {
     ${zero_output()}
-    %if chunk < 2:
+    ${float_type} const_jacobian = 0.0;
+    if (chunk < 2) {
         ${integral_setup("in_obs_tri", "in_src_tri")}
         for (int qi = 0; qi < n_quad_pts; qi++) {
             ${eval_hatvars()}
 
-            ${float_type} thetalow = ${adj_theta_low(chunk)}
-            ${float_type} thetahigh = ${adj_theta_high(chunk)}
+            ${float_type} thetalow;
+            ${float_type} thetahigh;
+            if (chunk == 0) {
+                thetalow = ${adj_theta_low(0)}
+                thetahigh = ${adj_theta_high(0)}
+            } else {
+                thetalow = ${adj_theta_low(1)}
+                thetahigh = ${adj_theta_high(1)}
+            }
             ${float_type} theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
 
             ${float_type} outer_jacobian = w * (1 - obsxhat) * (thetahigh - thetalow) * 
@@ -386,9 +417,15 @@ ${func_def("adjacent", k_name, chunk)}
             ${float_type} costheta = cos(theta);
             ${float_type} sintheta = sin(theta);
 
-            ${float_type} rhohigh = ${adj_rhohigh(chunk)}
-            for (int ri = 0; ri < ${n_rho}; ri++) {
-                ${rho_quad_eval(chunk)}
+            ${float_type} rhohigh;
+            if (chunk == 0) {
+                rhohigh = ${adj_rhohigh(0)}
+            } else {
+                rhohigh = ${adj_rhohigh(1)}
+            }
+
+            for (int ri = 0; ri < ${rho_qx.shape[0]}; ri++) {
+                ${rho_quad_eval()}
 
                 ${float_type} srcxhat = rho * costheta + (1 - obsxhat);
                 ${float_type} srcyhat = rho * sintheta;
@@ -398,10 +435,8 @@ ${func_def("adjacent", k_name, chunk)}
                 ${add_to_sum()}
             }
         }
-        ${float_type} const_jacobian = 0.5 * obs_jacobian * src_jacobian;
-    %else:
-        ${float_type} const_jacobian = 1.0;
-    %endif
+        const_jacobian = 0.5 * obs_jacobian * src_jacobian;
+    }
     for (int i = 0; i < 81; i++) {
         result[cell_idx * 81 + i] = const_jacobian * sum[i];
     }
@@ -409,10 +444,8 @@ ${func_def("adjacent", k_name, chunk)}
 </%def>
 
 % for k_name in ['U', 'T', 'A', 'H']:
-% for chunk in range(3):
-${coincident_integrals(k_name, chunk)}
-${adjacent_integrals(k_name, chunk)}
-% endfor
+${coincident_integrals(k_name)}
+${adjacent_integrals(k_name)}
 % endfor
 
 } // End extern "C"

@@ -1,3 +1,4 @@
+import numpy as np
 import pycuda.autoinit
 from pycuda.compiler import SourceModule
 import os
@@ -11,17 +12,25 @@ from tectosaur.util.timer import Timer
 
 gpu_module = dict()
 def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None):
-    global gpu_module
-    if filepath in gpu_module \
-            and not no_caching \
-            and not print_code \
-            and gpu_module[filepath]['tmpl_args'] == tmpl_args:
-        return gpu_module[filepath]['module']
-
-    timer = Timer(silent = True)
     if tmpl_args is None:
         tmpl_args = dict()
 
+    global gpu_module
+    if filepath in gpu_module \
+            and not no_caching \
+            and not print_code:
+
+        tmpl_args_match = True
+        for k, v in gpu_module[filepath]['tmpl_args'].items():
+            compared = v == tmpl_args[k]
+            if type(v) is np.ndarray:
+                compared = compared.all()
+            tmpl_args_match = tmpl_args_match and compared
+
+        if tmpl_args_match:
+            return gpu_module[filepath]['module']
+
+    timer = Timer(silent = True)
     lookup = mako.lookup.TemplateLookup(
         directories = [os.path.dirname(filepath)]
     )

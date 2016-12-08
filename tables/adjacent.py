@@ -26,9 +26,9 @@ n_theta = 8
 # play parameters
 K = "H"
 rho_order = 50
-starting_eps = 0.001
+starting_eps = 0.01
 n_eps = 2
-tol = 0.00001
+tol = 0.001
 n_pr = 2
 n_theta = 2
 

@@ -36,11 +36,11 @@ n_B = 8
 n_pr = 8
 
 # play parameters
-K = "T"
+K = "H"
 rho_order = 50
-starting_eps = 0.1
+starting_eps = 0.01
 n_eps = 5
-tol = 0.00000000001
+tol = 0.001
 n_A = 2
 n_B = 2
 n_pr = 2
