@@ -249,8 +249,10 @@ const ${float_type} CsH3 = 3*nu;
 <%def name="zero_output()">
     const int cell_idx = blockIdx.x * blockDim.x + threadIdx.x;
     ${float_type} sum[81];
+    ${float_type} kahanC[81];
     for (int i = 0; i < 81; i++) {
         sum[i] = 0;
+        kahanC[i] = 0;
     }
 </%def>
 
@@ -328,7 +330,11 @@ ${float_type} jacobian = rho_qw[ri] * rho * rhohigh * outer_jacobian;
                     % for b_src in range(3):
                         {
                             int idx = ${temp_result_idx(d_obs, d_src, b_obs, b_src)};
-                            sum[idx] += kernel_val * obsb${b_obs} * srcb${b_src};
+                            ${float_type} add_to_sum = kernel_val * obsb${b_obs} * srcb${b_src};
+                            ${float_type} y = add_to_sum - kahanC[idx];
+                            ${float_type} t = sum[idx] + y;
+                            kahanC[idx] = (t - sum[idx]) - y;
+                            sum[idx] = t;
                         }
                     % endfor
                 % endfor
@@ -386,7 +392,7 @@ ${func_def("coincident", k_name)}
     }
     ${float_type} const_jacobian = 0.5 * obs_jacobian * src_jacobian;
     for (int i = 0; i < 81; i++) {
-        result[cell_idx * 81 + i] = const_jacobian * sum[i];
+        result[cell_idx * 81 + i] = const_jacobian * (sum[i] + kahanC[i]);
     }
 }
 </%def>

@@ -144,6 +144,7 @@ py::tuple refine(const Cells<D>& cells,
     }
 
     std::vector<double> sums(cells.vector_dim);
+    std::vector<double> kahanC(cells.vector_dim);
     for (size_t i = 0; i < n_cells; i++) {
         auto idx_begin = i * splits;
 
@@ -152,7 +153,10 @@ py::tuple refine(const Cells<D>& cells,
             sums[vec_dim] = 0.0;
             for (int ci = 0; ci < splits; ci++) {
                 auto child_idx = (idx_begin + ci) * cells.vector_dim + vec_dim;
-                sums[vec_dim] += first_integral[child_idx];
+                auto y = first_integral[child_idx] - kahanC[vec_dim];
+                auto t = sums[vec_dim] + y;
+                kahanC[vec_dim] = (t - sums[vec_dim]) - y;
+                sums[vec_dim] = t;
             }
             double diff = cells.ests[i * cells.vector_dim + vec_dim] - sums[vec_dim];
             double iguess_val = iguess_ptr[vec_dim];

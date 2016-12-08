@@ -69,7 +69,7 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
     return integrator
 
 def new_integrate(type, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_qw):
-    p = 3
+    p = 5
     integrator = gpu_integrator(
         type, p, K, obs_tri, src_tri, tol, eps,
         sm, pr, rho_qx, rho_qw

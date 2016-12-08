@@ -27,5 +27,5 @@ def f(pts):
     return out
 
 p = 7
-res, count = hadapt_nd_iterative(make_integrator(4, p, f), (0,0,0,0), (1,1,1,1), 1e-3)
+res, count = hadapt_nd_iterative(make_integrator(4, p, f), (0,0,0,0), (1,1,1,1), 1e-2)
 print(res, count * p ** 2)

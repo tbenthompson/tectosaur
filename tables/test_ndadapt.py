@@ -55,41 +55,6 @@ def make_integrator(d, p, f):
         return np.array(out)
     return integrator
 
-def make_gpu_integrator(p, f):
-    ps = [p] * 3
-    q_unmapped = tensor_gauss(ps)
-    code = open('toy_kernel.cu', 'r').read()
-    module = SourceModule(code, options = ['--use_fast_math', '--restrict'])
-    def integrator(mins, maxs):
-        block = (32, 1, 1)
-        remaining = mins.shape[0] % block[0]
-        grid_main = (mins.shape[0] // block[0], 1, 1)
-        grid_rem = (remaining, 1, 1)
-
-        out = np.empty(mins.shape[0]).astype(np.float64)
-        out_rem = np.empty(grid_rem[0]).astype(np.float64)
-
-        def call_integrator(block, grid, result_buf, start_idx, end_idx):
-            if grid[0] == 0:
-                return
-            module.get_function('compute_integrals')(
-                drv.Out(result_buf),
-                np.int32(q_unmapped[0].shape[0]),
-                drv.In(q_unmapped[0].astype(np.float64)),
-                drv.In(q_unmapped[1].astype(np.float64)),
-                drv.In(mins[start_idx:end_idx].astype(np.float64)),
-                drv.In(maxs[start_idx:end_idx].astype(np.float64)),
-                block = block, grid = grid
-            )
-
-        call_integrator(block, grid_main, out, 0, mins.shape[0] - remaining)
-        call_integrator(
-            (1,1,1), grid_rem, out_rem, mins.shape[0] - remaining, mins.shape[0]
-        )
-        out[(mins.shape[0] - remaining):] = out_rem
-        return out[:, np.newaxis]
-    return integrator
-
 def adapt_tester(f, correct):
     p = 5
     integrator = make_integrator(3, p, f)
@@ -118,18 +83,52 @@ def test_2dintegral():
     res, count = hadapt_nd_iterative(integrator, (0,0), (1,1), 1e-14)
     np.testing.assert_almost_equal(res, 0.1764264058805085268)
 
-def test_3d_adapt_nearly_sing():
-    eps = 0.001
-    A = 1.0
-    f = lambda pts: 1.0 / (
-        (pts[:,0] - pts[:,2]) ** 2 +
-        (pts[:, 1] - 0.3) ** 2 +
-        eps ** 2
-    ) ** A
+def make_gpu_integrator(p, eps, A):
+    ps = [p] * 4
+    q_unmapped = tensor_gauss(ps)
+    code = open('toy_kernel.cu', 'r').read()
+    module = SourceModule(code, options = ['--use_fast_math', '--restrict'])
+    def integrator(mins, maxs):
+        print(mins.shape[0])
+        block = (32, 1, 1)
+        remaining = mins.shape[0] % block[0]
+        grid_main = (mins.shape[0] // block[0], 1, 1)
+        grid_rem = (remaining, 1, 1)
 
-    p = 7
-    res, count = hadapt_nd_iterative(make_gpu_integrator(p, f), (0,0,0), (1,1,1), 1e-14)
-    np.testing.assert_almost_equal(res, 6247.34637748)
+        out = np.empty(mins.shape[0]).astype(np.float64)
+        out_rem = np.empty(grid_rem[0]).astype(np.float64)
+
+        def call_integrator(block, grid, result_buf, start_idx, end_idx):
+            if grid[0] == 0:
+                return
+            module.get_function('compute_integrals')(
+                drv.Out(result_buf),
+                np.int32(q_unmapped[0].shape[0]),
+                drv.In(q_unmapped[0].flatten().astype(np.float64)),
+                drv.In(q_unmapped[1].astype(np.float64)),
+                drv.In(mins[start_idx:end_idx].astype(np.float64)),
+                drv.In(maxs[start_idx:end_idx].astype(np.float64)),
+                np.float64(eps),
+                np.float64(A),
+                block = block, grid = grid
+            )
+
+        call_integrator(block, grid_main, out, 0, mins.shape[0] - remaining)
+        call_integrator(
+            (1,1,1), grid_rem, out_rem, mins.shape[0] - remaining, mins.shape[0]
+        )
+        out[(mins.shape[0] - remaining):] = out_rem
+        return out[:, np.newaxis]
+    return integrator
+
+def test_3d_adapt_nearly_sing():
+    p = 5
+    res, count = hadapt_nd_iterative(
+        make_gpu_integrator(p, 0.001, 1.5),
+        (0,0,0,0), (1,1,1,1), 1e-5
+    )
+    print(res,count)
+    # np.testing.assert_almost_equal(res, 6247.34637748)
 
 def test_limit_depth():
     res, count = hadapt_nd_iterative(
@@ -155,4 +154,4 @@ if __name__ == '__main__':
     # test_map_to()
     # test_kbnsum()
     # test_2d_adapt()
-    test_2d_adapt_nearly_sing()
+    test_3d_adapt_nearly_sing()

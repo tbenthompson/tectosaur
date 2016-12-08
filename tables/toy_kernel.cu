@@ -1,28 +1,29 @@
 #include <stdio.h>
 __global__
 void compute_integrals(double* result, int n_quad_pts,
-    double* quad_pts, double* quad_wts, double* mins, double* maxs)
+    double* quad_pts, double* quad_wts, double* mins, double* maxs,
+    double eps, double A)
 {
-    const double eps = 0.001;
-    const double A = 1.5;
-
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
-    double minx = mins[i * 3 + 0];
-    double miny = mins[i * 3 + 1];
-    double minz = mins[i * 3 + 2];
-    double deltax = (maxs[i * 3 + 0] - minx) * 0.5;
-    double deltay = (maxs[i * 3 + 1] - miny) * 0.5;
-    double deltaz = (maxs[i * 3 + 2] - minz) * 0.5;
+    double minxx = mins[i * 4 + 0];
+    double minxy = mins[i * 4 + 1];
+    double minyx = mins[i * 4 + 2];
+    double minyy = mins[i * 4 + 3];
+    double deltaxx = (maxs[i * 4 + 0] - minxx) * 0.5;
+    double deltaxy = (maxs[i * 4 + 1] - minxy) * 0.5;
+    double deltayx = (maxs[i * 4 + 2] - minyx) * 0.5;
+    double deltayy = (maxs[i * 4 + 3] - minyy) * 0.5;
 
     double sum = 0.0;
     for (int iq = 0; iq < n_quad_pts; iq++) {
-        double x = minx + deltax * (quad_pts[iq] + 1);
-        double y = miny + deltay * (quad_pts[n_quad_pts * 1 + iq] + 1);
-        double z = minz + deltaz * (quad_pts[n_quad_pts * 2 + iq] + 1);
-        double w = quad_wts[iq] * deltax * deltay * deltaz;
-        double xd = x - z;
-        double yd = y - 0.3;
-        double val = powf(xd * xd + yd * yd + eps * eps, -A);
+        double xx = minxx + deltaxx * (quad_pts[4 * iq] + 1);
+        double xy = minxy + deltaxy * (quad_pts[4 * iq + 1] + 1);
+        double yx = minyx + deltayx * (quad_pts[4 * iq + 2] + 1);
+        double yy = minyy + deltayy * (quad_pts[4 * iq + 3] + 1);
+        double w = quad_wts[iq] * deltaxx * deltaxy * deltayx * deltayy;
+        double xd = xx - yx;
+        double yd = xy - yy;
+        double val = eps * xd * xd * powf(xd * xd + yd * yd + eps * eps, -A - 1.0);
         sum += val * w;
     }
     result[i] = sum;
