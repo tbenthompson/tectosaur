@@ -412,8 +412,7 @@ ${func_def("adjacent", k_name)}
             }
             ${float_type} theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
 
-            ${float_type} outer_jacobian = w * (1 - obsxhat) * (thetahigh - thetalow) * 
-                                    0.5 * obs_jacobian * src_jacobian;
+            ${float_type} outer_jacobian = w * (1 - obsxhat) * (thetahigh - thetalow);
             ${float_type} costheta = cos(theta);
             ${float_type} sintheta = sin(theta);
 
