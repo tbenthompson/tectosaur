@@ -25,10 +25,11 @@ n_theta = 8
 
 # play parameters
 K = "H"
-rho_order = 50
-starting_eps = 0.01
+rho_order = 40
+theta_order = 28
+starting_eps = 1e-4
 n_eps = 2
-tol = 0.001
+tol = 1e-6
 n_pr = 2
 n_theta = 2
 
@@ -58,7 +59,10 @@ def eval(pt):
     for eps in all_eps:
         print('running: ' + str((pt, eps)))
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-        res2 = new_integrate('adjacent', K, tri1, tri2, tol, eps, 1.0, pr, rho_q[0], rho_q[1])
+        res2 = new_integrate(
+            'adjacent', K, tri1, tri2, tol, eps, 1.0, pr, rho_q[0], rho_q[1],
+            theta_order
+        )
         print(res2[0])
         res = adaptive_integrate.integrate_adjacent(
             K, tri1, tri2, tol, eps,

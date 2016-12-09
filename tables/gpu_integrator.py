@@ -3,26 +3,31 @@ import ndadapt
 import tectosaur.util.gpu as gpu
 import pycuda.driver as drv
 
-float_type = np.float64
+float_type = np.float32
 
-def get_gpu_module(rho_qx, rho_qw):
+def get_gpu_module(rho_qx, rho_qw, theta_qx, theta_qw):
     cuda_float_type = 'float'
     if float_type == np.float64:
         cuda_float_type = 'double'
     return gpu.load_gpu('kernels.cu', tmpl_args = dict(
         rho_qx = rho_qx,
         rho_qw = rho_qw,
+        theta_qx = theta_qx,
+        theta_qw = theta_qw,
         float_type = cuda_float_type
     ))#, print_code = True)
 
 
 def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
-        sm, pr, rho_qx, rho_qw):
-    ps = [p] * 3
+        sm, pr, rho_qx, rho_qw, theta_order):
+    ps = [p] * 2
+    q_theta = ndadapt.gaussxw(theta_order)
     q_unmapped = ndadapt.tensor_gauss(ps)
     main_block = (32, 1, 1)
 
-    func = get_gpu_module(rho_qx, rho_qw).get_function(type + "_integrals" + K)
+    func = get_gpu_module(
+        rho_qx, rho_qw, q_theta[0], q_theta[1]
+    ).get_function(type + "_integrals" + K)
 
     def integrator(mins, maxs):
         remaining = mins.shape[0] % main_block[0]
@@ -68,15 +73,16 @@ def gpu_integrator(type, p, K, obs_tri, src_tri, tol, eps,
         return out[np.newaxis,:,0]
     return integrator
 
-def new_integrate(type, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_qw):
-    p = 5
+def new_integrate(type, K, obs_tri, src_tri, tol, eps, sm, pr, rho_qx, rho_qw, theta_order):
+    p = 6
     integrator = gpu_integrator(
         type, p, K, obs_tri, src_tri, tol, eps,
-        sm, pr, rho_qx, rho_qw
+        sm, pr, rho_qx, rho_qw, theta_order
     )
     result, count = ndadapt.hadapt_nd_iterative(
-        integrator, (0,0,0), (1,1,1), tol,
+        integrator, (0,0), (1,1), tol,
         quiet = False,
+        # min_refinements = 0
         # max_refinements = 7
     )
     return result

@@ -60,7 +60,8 @@ def kbnsum(xs):
         s = t
     return s, comp
 
-def hadapt_nd_iterative(integrate, mins, maxs, tol, max_refinements = 10000, quiet = True):
+def hadapt_nd_iterative(integrate, mins, maxs, tol,
+        min_refinements = 0, max_refinements = 10000, quiet = True):
     d = len(mins)
     assert(len(maxs) == d)
 
@@ -74,10 +75,8 @@ def hadapt_nd_iterative(integrate, mins, maxs, tol, max_refinements = 10000, qui
     start = time.time()
     int_time = 0
 
-    # TODO: Sometimes, this initial estimate is of a totally different
-    # order of magnitude than the final result, meaning that the tolerance
-    # is violated. What to do?
     initial_est = integrate(np.array([mins]), np.array([maxs]))[0]
+    print("adaptive initial estimate: " + str(initial_est))
     iguess = calc_iguess(initial_est, tol, mins, maxs)
 
     cells_left = initial_cell(mins.tolist(), maxs.tolist(), initial_est)
@@ -86,7 +85,7 @@ def hadapt_nd_iterative(integrate, mins, maxs, tol, max_refinements = 10000, qui
 
     for i in range(max_refinements):
         if not quiet:
-            print("cells to compute: " + str(cells_left.size()))
+            print("phase " + str(i) + ": cells to compute - " + str(cells_left.size()))
 
         cell_mins, cell_maxs = get_subcell_mins_maxs(cells_left)
 
@@ -96,7 +95,8 @@ def hadapt_nd_iterative(integrate, mins, maxs, tol, max_refinements = 10000, qui
         count += len(cell_mins)
 
         add_to_result, new_cells_left = refine(
-            cells_left, cell_mins, cell_maxs, cell_integrals, iguess, i, max_refinements
+            cells_left, cell_mins, cell_maxs, cell_integrals, iguess, i,
+            min_refinements, max_refinements
         )
         result += add_to_result
 

@@ -123,7 +123,7 @@ template <size_t D>
 py::tuple refine(const Cells<D>& cells,
     NPArray<double> cell_mins, NPArray<double> cell_maxs,
     NPArray<double> cell_integrals, NPArray<double> iguess,
-    int refine_step, int max_refinements) 
+    int refine_step, int min_refinements, int max_refinements) 
 {
     int splits = 1 << D;
 
@@ -165,6 +165,8 @@ py::tuple refine(const Cells<D>& cells,
                 should_refine = true;
             }
         }
+
+        should_refine = should_refine || refine_step < min_refinements;
 
         if (!should_refine || refine_step >= max_refinements - 1) {
             for (int vec_dim = 0; vec_dim < cells.vector_dim; vec_dim++) {

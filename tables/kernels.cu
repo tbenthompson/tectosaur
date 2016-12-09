@@ -21,6 +21,20 @@ __constant__ ${float_type} rho_qw[${rho_qx.shape[0]}] = {
     ${rho_qw[-1]}
 };
 
+__constant__ ${float_type} theta_qx[${theta_qx.shape[0]}] = {
+    % for x in theta_qx[:-1]:
+        ${x},
+    % endfor
+    ${theta_qx[-1]}
+};
+
+__constant__ ${float_type} theta_qw[${theta_qx.shape[0]}] = {
+    % for w in theta_qw[:-1]:
+        ${w},
+    % endfor
+    ${theta_qw[-1]}
+};
+
 __device__
 void cross(${float_type} x[3], ${float_type} y[3], ${float_type} out[3]) {
     out[0] = x[1] * y[2] - x[2] * y[1];
@@ -257,12 +271,10 @@ const ${float_type} CsH3 = 3*nu;
 </%def>
 
 <%def name="integral_setup(obs_tri_name, src_tri_name)">
-    ${float_type} minx = mins[cell_idx * 3 + 0];
-    ${float_type} miny = mins[cell_idx * 3 + 1];
-    ${float_type} mintheta = mins[cell_idx * 3 + 2];
-    ${float_type} deltax = (maxs[cell_idx * 3 + 0] - minx) * 0.5;
-    ${float_type} deltay = (maxs[cell_idx * 3 + 1] - miny) * 0.5;
-    ${float_type} deltatheta = (maxs[cell_idx * 3 + 2] - mintheta) * 0.5;
+    ${float_type} minx = mins[cell_idx * 2 + 0];
+    ${float_type} miny = mins[cell_idx * 2 + 1];
+    ${float_type} deltax = (maxs[cell_idx * 2 + 0] - minx) * 0.5;
+    ${float_type} deltay = (maxs[cell_idx * 2 + 1] - miny) * 0.5;
 
     ${constants()}
     ${float_type} obs_tri[3][3];
@@ -287,10 +299,9 @@ void ${type}_integrals${k_name}(${float_type}* result, int chunk, int n_quad_pts
 
 
 <%def name="eval_hatvars()">
-${float_type} obsxhat = minx + deltax * (quad_pts[qi * 3] + 1);
-${float_type} obsyhat = (miny + deltay * (quad_pts[qi * 3 + 1] + 1)) * (1 - obsxhat);
-${float_type} thetahat = mintheta + deltatheta * (quad_pts[qi * 3 + 2] + 1);
-${float_type} w = quad_wts[qi] * deltax * deltay * deltatheta;
+${float_type} obsxhat = minx + deltax * (quad_pts[qi * 2] + 1);
+${float_type} obsyhat = (miny + deltay * (quad_pts[qi * 2 + 1] + 1)) * (1 - obsxhat);
+${float_type} w = quad_wts[qi] * deltax * deltay;
 </%def>
 
 <%def name="rho_quad_eval()">
@@ -352,42 +363,47 @@ ${func_def("coincident", k_name)}
     for (int qi = 0; qi < n_quad_pts; qi++) {
         ${eval_hatvars()}
 
-        ${float_type} thetalow;
-        ${float_type} thetahigh;
-        if (chunk == 0) {
-            thetalow = ${co_theta_low(0)}
-            thetahigh = ${co_theta_high(0)}
-        } else if (chunk == 1) {
-            thetalow = ${co_theta_low(1)}
-            thetahigh = ${co_theta_high(1)}
-        } else {
-            thetalow = ${co_theta_low(2)}
-            thetahigh = ${co_theta_high(2)}
-        }
-        ${float_type} theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
+        for (int oti = 0; oti < ${theta_qx.shape[0]}; oti++) {
+            ${float_type} thetahat = (theta_qx[oti] + 1) / 2;
 
-        ${float_type} outer_jacobian = w * (1 - obsxhat) * (thetahigh - thetalow);
-        ${float_type} costheta = cos(theta);
-        ${float_type} sintheta = sin(theta);
+            ${float_type} thetalow;
+            ${float_type} thetahigh;
+            if (chunk == 0) {
+                thetalow = ${co_theta_low(0)}
+                thetahigh = ${co_theta_high(0)}
+            } else if (chunk == 1) {
+                thetalow = ${co_theta_low(1)}
+                thetahigh = ${co_theta_high(1)}
+            } else {
+                thetalow = ${co_theta_low(2)}
+                thetahigh = ${co_theta_high(2)}
+            }
+            ${float_type} theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
 
-        ${float_type} rhohigh;
-        if (chunk == 0) {
-            rhohigh = ${co_rhohigh(0)}
-        } else if (chunk == 1) {
-            rhohigh = ${co_rhohigh(1)}
-        } else {
-            rhohigh = ${co_rhohigh(2)}
-        }
+            ${float_type} outer_jacobian = 
+                0.5 * theta_qw[oti] * w * (1 - obsxhat) * (thetahigh - thetalow);
+            ${float_type} costheta = cos(theta);
+            ${float_type} sintheta = sin(theta);
 
-        for (int ri = 0; ri < ${rho_qx.shape[0]}; ri++) {
-            ${rho_quad_eval()}
+            ${float_type} rhohigh;
+            if (chunk == 0) {
+                rhohigh = ${co_rhohigh(0)}
+            } else if (chunk == 1) {
+                rhohigh = ${co_rhohigh(1)}
+            } else {
+                rhohigh = ${co_rhohigh(2)}
+            }
 
-            ${float_type} srcxhat = obsxhat + rho * costheta;
-            ${float_type} srcyhat = obsyhat + rho * sintheta;
+            for (int ri = 0; ri < ${rho_qx.shape[0]}; ri++) {
+                ${rho_quad_eval()}
 
-            ${setup_kernel_inputs()}
-            ${kernel(k_name)}
-            ${add_to_sum()}
+                ${float_type} srcxhat = obsxhat + rho * costheta;
+                ${float_type} srcyhat = obsyhat + rho * sintheta;
+
+                ${setup_kernel_inputs()}
+                ${kernel(k_name)}
+                ${add_to_sum()}
+            }
         }
     }
     ${float_type} const_jacobian = 0.5 * obs_jacobian * src_jacobian;
@@ -407,37 +423,42 @@ ${func_def("adjacent", k_name)}
         for (int qi = 0; qi < n_quad_pts; qi++) {
             ${eval_hatvars()}
 
-            ${float_type} thetalow;
-            ${float_type} thetahigh;
-            if (chunk == 0) {
-                thetalow = ${adj_theta_low(0)}
-                thetahigh = ${adj_theta_high(0)}
-            } else {
-                thetalow = ${adj_theta_low(1)}
-                thetahigh = ${adj_theta_high(1)}
-            }
-            ${float_type} theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
+            for (int oti = 0; oti < ${theta_qx.shape[0]}; oti++) {
+                ${float_type} thetahat = (theta_qx[oti] + 1) / 2;
 
-            ${float_type} outer_jacobian = w * (1 - obsxhat) * (thetahigh - thetalow);
-            ${float_type} costheta = cos(theta);
-            ${float_type} sintheta = sin(theta);
+                ${float_type} thetalow;
+                ${float_type} thetahigh;
+                if (chunk == 0) {
+                    thetalow = ${adj_theta_low(0)}
+                    thetahigh = ${adj_theta_high(0)}
+                } else {
+                    thetalow = ${adj_theta_low(1)}
+                    thetahigh = ${adj_theta_high(1)}
+                }
+                ${float_type} theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
 
-            ${float_type} rhohigh;
-            if (chunk == 0) {
-                rhohigh = ${adj_rhohigh(0)}
-            } else {
-                rhohigh = ${adj_rhohigh(1)}
-            }
+                ${float_type} outer_jacobian = 
+                    0.5 * theta_qw[oti] * w * (1 - obsxhat) * (thetahigh - thetalow);
+                ${float_type} costheta = cos(theta);
+                ${float_type} sintheta = sin(theta);
 
-            for (int ri = 0; ri < ${rho_qx.shape[0]}; ri++) {
-                ${rho_quad_eval()}
+                ${float_type} rhohigh;
+                if (chunk == 0) {
+                    rhohigh = ${adj_rhohigh(0)}
+                } else {
+                    rhohigh = ${adj_rhohigh(1)}
+                }
 
-                ${float_type} srcxhat = rho * costheta + (1 - obsxhat);
-                ${float_type} srcyhat = rho * sintheta;
+                for (int ri = 0; ri < ${rho_qx.shape[0]}; ri++) {
+                    ${rho_quad_eval()}
 
-                ${setup_kernel_inputs()}
-                ${kernel(k_name)}
-                ${add_to_sum()}
+                    ${float_type} srcxhat = rho * costheta + (1 - obsxhat);
+                    ${float_type} srcyhat = rho * sintheta;
+
+                    ${setup_kernel_inputs()}
+                    ${kernel(k_name)}
+                    ${add_to_sum()}
+                }
             }
         }
         const_jacobian = 0.5 * obs_jacobian * src_jacobian;
