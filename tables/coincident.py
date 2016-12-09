@@ -37,11 +37,11 @@ n_pr = 8
 
 # play parameters
 K = "H"
-rho_order = 50
-theta_order = 50
+rho_order = 40
+theta_order = 40
 starting_eps = 0.0001
-n_eps = 5
-tol = 0.0000001
+n_eps = 1
+tol = 0.00000001
 n_A = 2
 n_B = 2
 n_pr = 2
@@ -70,15 +70,18 @@ def eval(pt):
     for eps in all_eps:
         print('running: ' + str((pt, eps)))
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-        res = new_integrate(
-            'coincident', K, tri, tri, tol, eps,
-            1.0, pr, rho_q[0], rho_q[1], theta_order
+        # res = new_integrate(
+        #     'coincident', K, tri, tri, tol, eps,
+        #     1.0, pr, rho_q[0], rho_q[1], theta_order
+        # )
+        # print(res[0])
+        theta_q = quad.gaussxw(theta_order)
+        res = adaptive_integrate.integrate_coincident(
+            K, tri, tol, eps, 1.0, pr,
+            rho_q[0].tolist(), rho_q[1].tolist(),
+            theta_q[0].tolist(), theta_q[1].tolist()
         )
         print(res[0])
-        res2 = adaptive_integrate.integrate_coincident(
-            K, tri, tol, eps, 1.0, pr, rho_q[0].tolist(), rho_q[1].tolist()
-        )
-        print(res2[0])
         integrals.append(res)
     return integrals
 

@@ -13,10 +13,10 @@ cfg['sources'] = ['cubature/hcubature.c', 'cubature/pcubature.c']
 #include <chrono>
 #include "cubature/cubature.h"
 
-double co_thetalim0(double x, double y) { return M_PI - atan((1 - y) / x); }
-double co_thetalim1(double x, double y) { return M_PI + atan(y / x); }
-double co_thetalim2a(double x, double y) { return 2 * M_PI - atan(y / (1 - x)); }
-double co_thetalim2b(double x, double y) { return - atan(y / (1 - x)); }
+double co_thetalim0(double x, double y) { return M_PI - atan2(1 - y, x); }
+double co_thetalim1(double x, double y) { return M_PI + atan2(y, x); }
+double co_thetalim2a(double x, double y) { return 2 * M_PI - atan2(y, 1 - x); }
+double co_thetalim2b(double x, double y) { return - atan2(y, 1 - x); }
 double co_rholim0(double x, double y, double t) { return (1 - y - x) / (cos(t) + sin(t)); }
 double co_rholim1(double x, double y, double t) { return -x / cos(t); }
 double co_rholim2(double x, double y, double t) { return -y / sin(t); }
@@ -116,6 +116,8 @@ struct Data {
 
     std::vector<double> rho_hats;
     std::vector<double> rho_wts;
+    std::vector<double> theta_hats;
+    std::vector<double> theta_wts;
 
     int evals;
 
@@ -138,12 +140,15 @@ struct Data {
     Data(double tol, bool p, Kernel K, 
             Tri obs_tri, Tri src_tri, 
             double eps, double G, double nu,
-            std::vector<double> rho_hats, std::vector<double> rho_wts):
+            std::vector<double> rho_hats, std::vector<double> rho_wts,
+            std::vector<double> theta_hats, std::vector<double> theta_wts):
         tol(tol),
         integrator((p) ? &pcubature : &hcubature),
         K(K),
         rho_hats(rho_hats),
         rho_wts(rho_wts),
+        theta_hats(theta_hats),
+        theta_wts(theta_wts),
         obs_tri(obs_tri),
         src_tri(src_tri),
         eps(eps),
@@ -382,32 +387,80 @@ int f_coincident(unsigned ndim, const double* x, void* fdata, unsigned fdim, dou
     }
 
     // std::cout << d.evals << " " << npts << std::endl;
-    double obsxhat = x[0];
-    double obsyhat = x[1] * (1 - obsxhat);
+    double obsxhat;
+    double obsyhat;
+    double outer_outer_jacobian;
+    // obsxhat = x[0];
+    // obsyhat = x[1] * (1 - obsxhat);
+    // outer_outer_jacobian = 1 - obsxhat;
+    if (d.piece == 0) { //I2
+        double sa = -1.0;
+        double sb = d.eps * 2.0;
+        double mu_0 = 0.5 * (asinh((1.0 + sa) / sb) + asinh((1.0 - sa) / sb));
+        double eta_0 = 0.5 * (asinh((1.0 + sa) / sb) - asinh((1.0 - sa) / sb));
+        double s = 2 * x[0] - 1.0;
+        obsxhat = ((sa + sb * sinh(mu_0 * s - eta_0) + 1.0) / 2.0);
+        obsyhat = x[1] * (1 - obsxhat);
+        outer_outer_jacobian = (1 - obsxhat) * sb * mu_0 * cosh(mu_0 * s - eta_0);
+    } else if (d.piece == 1) { //I3
+        obsxhat = x[0];
 
-    double thetahat = x[2];
-    double thetalow = d.co_theta_low(obsxhat, obsyhat);
-    double thetahigh = d.co_theta_high(obsxhat, obsyhat);
-    double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
+        double sa = -1.0;
+        double sb = d.eps * 2.0;
+        double mu_0 = 0.5 * (asinh((1.0 + sa) / sb) + asinh((1.0 - sa) / sb));
+        double eta_0 = 0.5 * (asinh((1.0 + sa) / sb) - asinh((1.0 - sa) / sb));
+        double s = 2 * x[1] - 1.0;
+        obsyhat = ((sa + sb * sinh(mu_0 * s - eta_0) + 1.0) / 2.0) * (1 - obsxhat);
+        outer_outer_jacobian = (1 - obsxhat) * sb * mu_0 * cosh(mu_0 * s - eta_0);
+    } else { //I1
+        outer_outer_jacobian = 1.0;
+        double beta = x[0] * M_PI / 2.0;
+        outer_outer_jacobian *= M_PI / 2.0;
 
-    double outer_jacobian = (1 - obsxhat) * (thetahigh - thetalow) * 0.5;
-    double costheta = cos(theta);
-    double sintheta = sin(theta);
+        double sa = 1.0;
+        double sb = d.eps * 2.0;
+        double mu_0 = 0.5 * (asinh((1.0 + sa) / sb) + asinh((1.0 - sa) / sb));
+        double eta_0 = 0.5 * (asinh((1.0 + sa) / sb) - asinh((1.0 - sa) / sb));
+        double s = 2 * x[1] - 1.0;
+        double alphahat = (sa + sb * sinh(mu_0 * s - eta_0) + 1.0) / 2.0;
+        outer_outer_jacobian *= sb * mu_0 * cosh(mu_0 * s - eta_0);
 
-    for (size_t ri = 0; ri < d.rho_hats.size(); ri++) {
-        double rhohat = (d.rho_hats[ri] + 1) / 2.0;
-        double jacobian = d.rho_wts[ri] * outer_jacobian;
+        double alpha_max = 1.0 / (cos(beta) + sin(beta));
+        double alpha = alphahat * alpha_max;
+        outer_outer_jacobian *= alpha_max;
 
-        double rhohigh = d.co_rhohigh(obsxhat, obsyhat, theta);
-        double rho = rhohat * rhohigh;
-        jacobian *= rho * rhohigh;
+        obsxhat = alpha * cos(beta);
+        obsyhat = alpha * sin(beta);
+        // std::cout << obsxhat << ", " << obsyhat << ", ";
+        outer_outer_jacobian *= alpha;
+    }
 
-        double srcxhat = obsxhat + rho * costheta;
-        double srcyhat = obsyhat + rho * sintheta;
+    for (size_t ti = 0; ti < d.theta_hats.size(); ti++) {
+        double thetahat = (d.theta_hats[ti] + 1) / 2.0;
+        double thetalow = d.co_theta_low(obsxhat, obsyhat);
+        double thetahigh = d.co_theta_high(obsxhat, obsyhat);
+        double theta = (1 - thetahat) * thetalow + thetahat * thetahigh;
 
-        auto out = bem_integrand(d, obsxhat, obsyhat, srcxhat, srcyhat);
-        for (int i = 0; i < 9; i++) {
-            fval[i] += jacobian * out[i];
+        double outer_jacobian = outer_outer_jacobian *
+            d.theta_wts[ti] * 0.5 * (thetahigh - thetalow) * 0.5;
+        double costheta = cos(theta);
+        double sintheta = sin(theta);
+
+        for (size_t ri = 0; ri < d.rho_hats.size(); ri++) {
+            double rhohat = (d.rho_hats[ri] + 1) / 2.0;
+            double jacobian = d.rho_wts[ri] * outer_jacobian;
+
+            double rhohigh = d.co_rhohigh(obsxhat, obsyhat, theta);
+            double rho = rhohat * rhohigh;
+            jacobian *= rho * rhohigh;
+
+            double srcxhat = obsxhat + rho * costheta;
+            double srcyhat = obsyhat + rho * sintheta;
+
+            auto out = bem_integrand(d, obsxhat, obsyhat, srcxhat, srcyhat);
+            for (int i = 0; i < 9; i++) {
+                fval[i] += jacobian * out[i];
+            }
         }
     }
 
@@ -543,15 +596,15 @@ std::array<double,81> integrate(Data& d, Adjacency adj) {
                 double val[81], err[81];
 
                 if (adj == Adjacency::Coincident) {
-                    const double xmin[3] = {0,0,0};
-                    const double xmax[3] = {1,1,1};
+                    const double xmin[2] = {0,0};
+                    const double xmax[2] = {1,1};
                     d.integrator(
-                        9, f_coincident, &d, 3, xmin, xmax, 0, 0,
+                        9, f_coincident, &d, 2, xmin, xmax, 0, 0,
                         d.tol, ERROR_INDIVIDUAL, val, err
                     );
                 } else if (adj == Adjacency::EdgeAdjacent) {
-                    const double xmin[4] = {0,0,0};
-                    const double xmax[4] = {1,1,1};
+                    const double xmin[3] = {0,0,0};
+                    const double xmax[3] = {1,1,1};
                     d.integrator(
                         9, f_edge_adj, &d, 3, xmin, xmax, 0, 0,
                         d.tol, ERROR_INDIVIDUAL, val, err
@@ -595,11 +648,13 @@ PYBIND11_PLUGIN(adaptive_integrate) {
     m.def("integrate_coincident",
         [] (std::string k_name, std::array<std::array<double,3>,3> tri,
             double tol, double eps, double sm, double pr,
-            std::vector<double> rho_hats, std::vector<double> rho_wts) 
+            std::vector<double> rho_hats, std::vector<double> rho_wts,
+            std::vector<double> theta_hats, std::vector<double> theta_wts) 
         {
             Data d(
                 tol, false, get_kernel(k_name), Tri(tri),
-                Tri(tri), eps, sm, pr, rho_hats, rho_wts
+                Tri(tri), eps, sm, pr, rho_hats, rho_wts,
+                theta_hats, theta_wts
             );
             auto result = integrate(d, Adjacency::Coincident);
             return result;
@@ -616,7 +671,8 @@ PYBIND11_PLUGIN(adaptive_integrate) {
             Data d(
                 tol, false, get_kernel(k_name), 
                 Tri(obs_tri), Tri(src_tri), 
-                eps, sm, pr, rho_hats, rho_wts
+                eps, sm, pr, 
+                rho_hats, rho_wts, {}, {}
             );
             auto result = integrate(d, Adjacency::EdgeAdjacent);
             return result;
@@ -632,7 +688,7 @@ PYBIND11_PLUGIN(adaptive_integrate) {
             Data d(
                 tol, false, get_kernel(k_name), 
                 Tri(obs_tri), Tri(src_tri), 
-                0.0, sm, pr, {}, {}
+                0.0, sm, pr, {}, {}, {}, {}
             );
             auto result = integrate(d, Adjacency::NoLimit);
             return result;
