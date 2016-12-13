@@ -11,7 +11,7 @@ from test_decorators import golden_master
 @golden_master
 def test_coincident_lookup_single():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0]])
-    tris = np.array([[0,1,2]] * 100)
+    tris = np.array([[0,1,2]] * 1000)
     start = time.time()
     res = coincident_table('H', 1.0, 0.25, pts, tris, True)
     end = time.time()

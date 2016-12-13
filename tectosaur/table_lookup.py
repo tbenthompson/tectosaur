@@ -55,31 +55,31 @@ def interp_limit(eps_start, n_steps, remove_sing, interp_pts, interp_wts, table,
         return out
 
 def coincident_lookup(table_and_pts_wts, sm, pr, tri, eps_start, n_steps, remove_sing):
-    table, interp_pts, interp_wts = table_and_pts_wts
+    table_limits, table_log_coeffs, interp_pts, interp_wts = table_and_pts_wts
 
-    start = time.time()
     standard_tri, labels, translation, R, scale = standardize(
         tri, table_min_internal_angle
     )
-    print("1: " + str(time.time() - start)); start = time.time()
 
     A, B = standard_tri[2][0:2]
-    print("2: " + str(time.time() - start)); start = time.time()
 
     Ahat = from_interval(minlegalA, 0.5, A)
     Bhat = from_interval(minlegalB, maxlegalB, B)
     prhat = from_interval(0.0, 0.5, pr)
     pt = np.array([[Ahat, Bhat, prhat]])
-    print("3: " + str(time.time() - start)); start = time.time()
 
-    interp_vals, log_coeffs = interp_limit(
-        eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt
-    )
-    print("4: " + str(time.time() - start)); start = time.time()
+    interp_vals = np.empty(81)
+    log_coeffs = np.empty(81)
+    for j in range(81):
+        interp_vals[j] = fast_lookup.barycentric_evalnd(
+            interp_pts, interp_wts, table_limits[:, j], pt
+        )
+        log_coeffs[j] = fast_lookup.barycentric_evalnd(
+            interp_pts, interp_wts, table_log_coeffs[:, j], pt
+        )
 
     standard_scale = np.sqrt(np.linalg.norm(tri_normal(standard_tri)))
     interp_vals += np.log(standard_scale) * log_coeffs
-    print("5: " + str(time.time() - start)); start = time.time()
 
     interp_vals = interp_vals.reshape((3,3,3,3))
 
@@ -90,7 +90,6 @@ def coincident_lookup(table_and_pts_wts, sm, pr, tri, eps_start, n_steps, remove
             cb2 = labels[sb2]
             correct = R.T.dot(interp_vals[sb1,:,sb2,:]).dot(R) / (sm * scale ** 1)
             out[cb1,:,cb2,:] = correct
-    print("6: " + str(time.time() - start)); start = time.time()
     return out
 
 def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
@@ -111,14 +110,27 @@ def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
 
     tri_pts = pts[tris]
 
-    table = np.load('data/' + kernel + filename)
+    start = time.time()
+    table_sequences = np.load('data/' + kernel + filename)
+    table_limits = np.empty((table_sequences.shape[0], table_sequences.shape[2]))
+    table_log_coeffs = np.empty((table_sequences.shape[0], table_sequences.shape[2]))
+    epsvs = eps_start * (2.0 ** -np.arange(n_steps))
+    for i in range(table_sequences.shape[0]):
+        for j in range(table_sequences.shape[2]):
+            table_limits[i,j], table_log_coeffs[i,j] = limit.limit(
+                epsvs, table_sequences[i,:,j], remove_sing
+            )
+    print("1: " + str(time.time() - start)); start = time.time()
+
     out = np.empty((tris.shape[0], 3, 3, 3, 3))
 
     for i in range(tris.shape[0]):
         out[i,:,:,:,:] = coincident_lookup(
-            (table, interp_pts, interp_wts), sm, pr, tri_pts[i,:,:],
+            (table_limits, table_log_coeffs, interp_pts, interp_wts),
+            sm, pr, tri_pts[i,:,:],
             eps_start, n_steps, remove_sing
         )
+    print("2: " + str(time.time() - start)); start = time.time()
 
     return out
 
