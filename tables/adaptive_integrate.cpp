@@ -381,6 +381,9 @@ int f_coincident(unsigned ndim, const double* x, void* fdata, unsigned fdim, dou
 {
     Data& d = *reinterpret_cast<Data*>(fdata);
     d.evals += 1;
+    if (d.evals % 1000 == 0) {
+        std::cout << "n: " << d.evals << std::endl;
+    }
     
     for (int idx = 0; idx < 9; idx++) {
         fval[idx] = 0.0;

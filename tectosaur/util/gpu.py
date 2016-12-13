@@ -1,5 +1,4 @@
 import numpy as np
-import pycuda.autoinit
 from pycuda.compiler import SourceModule
 import os
 
@@ -10,10 +9,15 @@ import mako.lookup
 
 from tectosaur.util.timer import Timer
 
+gpu_initialized = False
 gpu_module = dict()
 def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None):
     if tmpl_args is None:
         tmpl_args = dict()
+
+    global gpu_initialized
+    if not gpu_initialized:
+        import pycuda.autoinit
 
     global gpu_module
     if filepath in gpu_module \

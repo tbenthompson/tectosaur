@@ -1,5 +1,3 @@
-gpu, hp-adaptive, kahan summation quadrature tool to replace "cubature"
-
 actually use the interpolation table based integrals in an okada problem
 
 what to do about interelement angles that are greater than pi, for adjacent table lookup?

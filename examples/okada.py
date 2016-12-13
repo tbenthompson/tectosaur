@@ -31,10 +31,10 @@ def build_constraints(surface_tris, fault_tris, pts):
     return cs
 
 def refined_free_surface():
-    w = 20
-    minsize = 0.05
-    slope = 200
-    maxsize = 25
+    w = 10
+    minsize = 0.02
+    slope = 400
+    maxsize = 0.02
     pts = np.array([[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
     tris = np.array([[0, 1, 3], [3, 1, 2]])
 
@@ -100,8 +100,12 @@ def make_fault(L, top_depth):
     ])
 
 def make_meshes(fault_L, top_depth):
-    surface = make_free_surface()
-    # surface = refined_free_surface()
+    # surface = make_free_surface()
+    surface = refined_free_surface()
+    # Sloping plateau
+    print("SLOPINGPLATEAU")
+    x_co = surface[0][:,1]
+    surface[0][:,2] = np.where(x_co > 0, np.where(x_co < 2, x_co / 2.0, 1.0), 0.0)
     fault = make_fault(fault_L, top_depth)
     all_mesh = mesh.concat(surface, fault)
     surface_tris = all_mesh[1][:surface[1].shape[0]]
@@ -130,29 +134,29 @@ def test_okada():
         # iop = FMMIntegralOp(
         #     eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
         # )
-        # iop = SparseIntegralOp(
-        #     eps, 18, 16, 6, 3, 6, 4.0,
-        #     'H', sm, pr, all_mesh[0], all_mesh[1],
-        #     use_tables = False,
-        #     remove_sing = True
-        # )
-        iop = DenseIntegralOp(
+        iop = SparseIntegralOp(
             eps, 18, 16, 6, 3, 6, 4.0,
             'H', sm, pr, all_mesh[0], all_mesh[1],
             use_tables = False,
             remove_sing = True
         )
-        iop2 = DenseIntegralOp(
-            eps, 18, 16, 6, 3, 6, 4.0,
-            'H', sm, pr, all_mesh[0], all_mesh[1],
-            use_tables = True,
-            remove_sing = True
-        )
-        import ipdb; ipdb.set_trace()
+        # iop = DenseIntegralOp(
+        #     eps, 18, 16, 6, 3, 6, 4.0,
+        #     'H', sm, pr, all_mesh[0], all_mesh[1],
+        #     use_tables = False,
+        #     remove_sing = True
+        # )
+        # iop2 = DenseIntegralOp(
+        #     eps, 18, 16, 6, 3, 6, 4.0,
+        #     'H', sm, pr, all_mesh[0], all_mesh[1],
+        #     use_tables = True,
+        #     remove_sing = True
+        # )
+        # import ipdb; ipdb.set_trace()
         timer.report("Integrals")
 
-        # soln = iterative_solve(iop, cs)
-        soln = direct_solve(iop, cs)
+        soln = iterative_solve(iop, cs)
+        # soln = direct_solve(iop, cs)
         timer.report("Solve")
 
         disp = soln[:iop.shape[0]].reshape(
@@ -175,13 +179,15 @@ def test_okada():
         #     vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-    cond1 = np.logical_and(obs_pts[:,1] > -0.4, obs_pts[:,1] < -0.25)
-    cond2 = np.logical_and(obs_pts[:,1] < 0.4, obs_pts[:,1] > 0.25)
-    plt.plot(obs_pts[cond1, 0], vals[cond1,0],'r.')
-    plt.plot(obs_pts[cond2, 0], vals[cond2,0],'r.')
-    plt.plot(obs_pts[cond1, 0], u[cond1,0],'b.')
-    plt.plot(obs_pts[cond2, 0], u[cond2,0],'b.')
-    plt.show()
+
+    np.save('okadaplateau.npy', [obs_pts, surface_tris, all_mesh, u, vals])
+    # cond1 = np.logical_and(obs_pts[:,1] > -0.4, obs_pts[:,1] < -0.25)
+    # cond2 = np.logical_and(obs_pts[:,1] < 0.4, obs_pts[:,1] > 0.25)
+    # plt.plot(obs_pts[cond1, 0], vals[cond1,0],'r.')
+    # plt.plot(obs_pts[cond2, 0], vals[cond2,0],'r.')
+    # plt.plot(obs_pts[cond1, 0], u[cond1,0],'b.')
+    # plt.plot(obs_pts[cond2, 0], u[cond2,0],'b.')
+    # plt.show()
     plot_results(obs_pts, surface_tris, u, vals)
     print_error(obs_pts, u, vals)
 

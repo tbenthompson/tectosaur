@@ -37,11 +37,11 @@ n_pr = 8
 
 # play parameters
 K = "H"
-rho_order = 40
-theta_order = 40
+rho_order = 50
+theta_order = 50
 starting_eps = 0.0001
 n_eps = 1
-tol = 0.00000001
+tol = 1e-10
 n_A = 2
 n_B = 2
 n_pr = 2

@@ -5,7 +5,11 @@ from tectosaur.standardize import standardize
 from tectosaur.geometry import tri_normal, xyhat_from_pt, projection, vec_angle
 from tectosaur.adjacency import rotate_tri
 import tectosaur.limit as limit
-import tectosaur.nearfield_op as nearfield_op
+# import tectosaur.nearfield_op as nearfield_op
+
+import cppimport
+fast_lookup = cppimport.imp("tectosaur.fast_lookup").fast_lookup
+
 
 table_min_internal_angle = 20 + 1e-11
 min_angle_isoceles_height = 0.5 * np.tan(np.deg2rad(table_min_internal_angle))
@@ -31,16 +35,20 @@ def interp_limit(eps_start, n_steps, remove_sing, interp_pts, interp_wts, table,
     out = np.empty(81)
     log_coeffs = np.empty(81)
     epsvs = eps_start * (2.0 ** -np.arange(n_steps))
+    total = 0
     for j in range(81):
         sequence_vals = []
         for eps_idx in range(4):
-            sequence_vals.append(barycentric_evalnd(
+            start = time.time()
+            sequence_vals.append(fast_lookup.barycentric_evalnd(
                 interp_pts, interp_wts, table[:, eps_idx, j], pt
-            )[0])
+            ))
+            total += time.time() - start
         if remove_sing:
             out[j], log_coeffs[j] = limit.limit(epsvs, sequence_vals, remove_sing)
         else:
             out[j] = limit.limit(epsvs, sequence_vals, remove_sing)
+    print(total)
     if remove_sing:
         return out, log_coeffs
     else:
@@ -49,23 +57,29 @@ def interp_limit(eps_start, n_steps, remove_sing, interp_pts, interp_wts, table,
 def coincident_lookup(table_and_pts_wts, sm, pr, tri, eps_start, n_steps, remove_sing):
     table, interp_pts, interp_wts = table_and_pts_wts
 
+    start = time.time()
     standard_tri, labels, translation, R, scale = standardize(
         tri, table_min_internal_angle
     )
+    print("1: " + str(time.time() - start)); start = time.time()
 
     A, B = standard_tri[2][0:2]
+    print("2: " + str(time.time() - start)); start = time.time()
 
     Ahat = from_interval(minlegalA, 0.5, A)
     Bhat = from_interval(minlegalB, maxlegalB, B)
     prhat = from_interval(0.0, 0.5, pr)
     pt = np.array([[Ahat, Bhat, prhat]])
+    print("3: " + str(time.time() - start)); start = time.time()
 
     interp_vals, log_coeffs = interp_limit(
         eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt
     )
+    print("4: " + str(time.time() - start)); start = time.time()
 
     standard_scale = np.sqrt(np.linalg.norm(tri_normal(standard_tri)))
     interp_vals += np.log(standard_scale) * log_coeffs
+    print("5: " + str(time.time() - start)); start = time.time()
 
     interp_vals = interp_vals.reshape((3,3,3,3))
 
@@ -76,6 +90,7 @@ def coincident_lookup(table_and_pts_wts, sm, pr, tri, eps_start, n_steps, remove
             cb2 = labels[sb2]
             correct = R.T.dot(interp_vals[sb1,:,sb2,:]).dot(R) / (sm * scale ** 1)
             out[cb1,:,cb2,:] = correct
+    print("6: " + str(time.time() - start)); start = time.time()
     return out
 
 def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
