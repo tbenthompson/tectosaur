@@ -15,6 +15,7 @@ cfg['libraries'] = blas['libraries']
 import os
 import mako.template
 import mako.exceptions
+#TODO: GENERALIZE THIS?
 templates = ['fmm_kernels.thpp', 'fmm_kernels.tcpp']
 for t in templates:
     cfg['dependencies'].append(t)

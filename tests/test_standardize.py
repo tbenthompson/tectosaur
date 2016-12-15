@@ -37,6 +37,11 @@ def test_scale():
     np.testing.assert_almost_equal(factor, 1.0 / np.sqrt(3))
     np.testing.assert_almost_equal(out, [[0,0,0],[1.0,0,0],[np.sqrt(4 / 9.0), np.sqrt(2 / 9.0),0]])
 
+def test_check_bad_tri():
+    assert(check_bad_tri([[0,0,0],[1,0,0],[0.1,0.01,0]], 20) == 3)
+    assert(check_bad_tri([[0,0,0],[1,0,0],[20,20,0]], 20) == 1)
+    assert(check_bad_tri([[0,0,0],[1,0,0],[0.5,0.5,0]], 20) == 0)
+
 def test_standardize():
     # out = standardize(np.array([[0,0,0],[0.2,0,0],[0.4,0.5,0]]))
     # np.testing.assert_almost_equal(out, [[0,0,0],[0.4,0.5,0],[0.2,0,0]])
