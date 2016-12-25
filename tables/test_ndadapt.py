@@ -1,7 +1,3 @@
-import pycuda.autoinit
-import pycuda.driver as drv
-from pycuda.compiler import SourceModule
-
 from ndadapt import *
 
 def make_integrator(p, f):
@@ -86,8 +82,21 @@ def test_2dintegral():
 def make_gpu_integrator(p, eps, A):
     ps = [p] * 4
     q_unmapped = tensor_gauss(ps)
-    code = open('toy_kernel.cu', 'r').read()
-    module = SourceModule(code, options = ['--use_fast_math', '--restrict'])
+
+    code = open('toy_kernel.cl', 'r').read()
+    import pyopencl as cl
+    import pyopencl.array
+    ctx = cl.create_some_context()
+    queue = cl.CommandQueue(ctx)
+    prg = cl.Program(ctx, code).build()
+
+    # mf = cl.mem_flags
+    # a_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=a_np)
+    # b_g = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b_np)
+
+    gpu_qx = cl.array.to_device(queue, q_unmapped[0].flatten().astype(np.float32))
+    gpu_qw = cl.array.to_device(queue, q_unmapped[1].astype(np.float32))
+
     def integrator(mins, maxs):
         print(mins.shape[0])
         block = (32, 1, 1)
@@ -95,23 +104,25 @@ def make_gpu_integrator(p, eps, A):
         grid_main = (mins.shape[0] // block[0], 1, 1)
         grid_rem = (remaining, 1, 1)
 
-        out = np.empty(mins.shape[0]).astype(np.float64)
-        out_rem = np.empty(grid_rem[0]).astype(np.float64)
+        out = np.empty(mins.shape[0]).astype(np.float32)
+        out_rem = np.empty(grid_rem[0]).astype(np.float32)
 
         def call_integrator(block, grid, result_buf, start_idx, end_idx):
             if grid[0] == 0:
                 return
-            module.get_function('compute_integrals')(
-                drv.Out(result_buf),
+            gpu_mins = cl.array.to_device(queue, mins[start_idx:end_idx].astype(np.float32))
+            gpu_maxs = cl.array.to_device(queue, maxs[start_idx:end_idx].astype(np.float32))
+            gpu_out = cl.array.empty(queue, result_buf.shape, np.float32)
+            prg.compute_integrals(
+                queue, (block[0], grid[0]), None,
+                gpu_out.data,
                 np.int32(q_unmapped[0].shape[0]),
-                drv.In(q_unmapped[0].flatten().astype(np.float64)),
-                drv.In(q_unmapped[1].astype(np.float64)),
-                drv.In(mins[start_idx:end_idx].astype(np.float64)),
-                drv.In(maxs[start_idx:end_idx].astype(np.float64)),
-                np.float64(eps),
-                np.float64(A),
-                block = block, grid = grid
+                gpu_qx.data, gpu_qw.data,
+                gpu_mins.data, gpu_maxs.data,
+                np.float32(eps),
+                np.float32(A),
             )
+            result_buf[:] = gpu_out.get()
 
         call_integrator(block, grid_main, out, 0, mins.shape[0] - remaining)
         call_integrator(
@@ -124,8 +135,8 @@ def make_gpu_integrator(p, eps, A):
 def test_3d_adapt_nearly_sing():
     p = 5
     res, count = hadapt_nd_iterative(
-        make_gpu_integrator(p, 0.001, 1.5),
-        (0,0,0,0), (1,1,1,1), 1e-5
+        make_gpu_integrator(p, 0.1, 1.5),
+        (0,0,0), (1,1,1), 1e-5
     )
     print(res,count)
     # np.testing.assert_almost_equal(res, 6247.34637748)
@@ -133,7 +144,7 @@ def test_3d_adapt_nearly_sing():
 def test_limit_depth():
     res, count = hadapt_nd_iterative(
         make_integrator(1, 5, lambda pts: np.sin(1000 * pts[:,0])),
-        (0,), (1,), 1e-14,
+        (0,), (1,), 1e-4,
         max_refinements = 2
     )
     assert(count == 7)

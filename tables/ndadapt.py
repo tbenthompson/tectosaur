@@ -76,7 +76,7 @@ def hadapt_nd_iterative(integrate, mins, maxs, tol,
     int_time = 0
 
     initial_est = integrate(np.array([mins]), np.array([maxs]))[0]
-    print("adaptive initial estimate: " + str(initial_est))
+    # print("adaptive initial estimate: " + str(initial_est))
     iguess = calc_iguess(initial_est, tol, mins, maxs)
 
     cells_left = initial_cell(mins.tolist(), maxs.tolist(), initial_est)
