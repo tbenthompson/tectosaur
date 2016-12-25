@@ -39,9 +39,9 @@ n_pr = 8
 K = "H"
 rho_order = 50
 theta_order = 50
-starting_eps = 0.0001
+starting_eps = 0.001
 n_eps = 1
-tol = 1e-10
+tol = 1e-4
 n_A = 2
 n_B = 2
 n_pr = 2
@@ -70,11 +70,6 @@ def eval(pt):
     for eps in all_eps:
         print('running: ' + str((pt, eps)))
         rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-        # res = new_integrate(
-        #     'coincident', K, tri, tri, tol, eps,
-        #     1.0, pr, rho_q[0], rho_q[1], theta_order
-        # )
-        # print(res[0])
         theta_q = quad.gaussxw(theta_order)
         res = adaptive_integrate.integrate_coincident(
             K, tri, tol, eps, 1.0, pr,

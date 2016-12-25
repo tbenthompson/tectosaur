@@ -3,38 +3,7 @@ def dn(dim):
     return ['x', 'y', 'z'][dim]
 %>
 
-#include <stdio.h>
-
-extern "C" {
-
-__constant__ ${float_type} rho_qx[${rho_qx.shape[0]}] = {
-    % for x in rho_qx[:-1]:
-        ${x},
-    % endfor
-    ${rho_qx[-1]}
-};
-
-__constant__ ${float_type} rho_qw[${rho_qx.shape[0]}] = {
-    % for w in rho_qw[:-1]:
-        ${w},
-    % endfor
-    ${rho_qw[-1]}
-};
-
-__constant__ ${float_type} theta_qx[${theta_qx.shape[0]}] = {
-    % for x in theta_qx[:-1]:
-        ${x},
-    % endfor
-    ${theta_qx[-1]}
-};
-
-__constant__ ${float_type} theta_qw[${theta_qx.shape[0]}] = {
-    % for w in theta_qw[:-1]:
-        ${w},
-    % endfor
-    ${theta_qw[-1]}
-};
-
+<%def name="geometry_fncs()">
 __device__
 void cross(${float_type} x[3], ${float_type} y[3], ${float_type} out[3]) {
     out[0] = x[1] * y[2] - x[2] * y[1];
@@ -62,6 +31,7 @@ __device__
 ${float_type} magnitude(${float_type} v[3]) {
     return sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
+</%def>
 
 <%def name="get_triangle(name, tris, index)">
 ${float_type} ${name}[3][3];
@@ -98,66 +68,6 @@ ${pt_pfx}${dn(dim)} += ${basis_pfx}b${basis} * ${tri_name(basis,dim)};
 % endfor
 </%def>
 
-<%def name="co_theta_low(chunk)">\
-% if chunk == 0:
-M_PI - atan((1 - obsyhat) / obsxhat);
-% elif chunk == 1:
-M_PI + atan(obsyhat / obsxhat);
-% elif chunk == 2:
--atan(obsyhat / (1 - obsxhat));
-% endif
-</%def>
-
-<%def name="co_theta_high(chunk)">\
-% if chunk == 0:
-M_PI + atan(obsyhat / obsxhat);
-% elif chunk == 1:
-2 * M_PI - atan(obsyhat / (1 - obsxhat));
-% elif chunk == 2:
-M_PI - atan((1 - obsyhat) / obsxhat);
-% endif
-</%def>
-
-<%def name="co_rhohigh(chunk)">\
-% if chunk == 0:
--obsxhat / cos(theta);
-% elif chunk == 1:
--obsyhat / sin(theta);
-% elif chunk == 2:
-(1 - obsyhat - obsxhat) / (cos(theta) + sin(theta));
-% endif
-</%def>
-
-<%def name="adj_theta_low(chunk)">\
-% if chunk == 0:
-0;
-% elif chunk == 1:
-M_PI - atan(1 / (1 - obsxhat));
-% else:
-0;
-% endif
-</%def>
-
-<%def name="adj_theta_high(chunk)">\
-% if chunk == 0:
-M_PI - atan(1 / (1 - obsxhat));
-% elif chunk == 1:
-M_PI;
-% else:
-0;
-% endif
-</%def>
-
-<%def name="adj_rhohigh(chunk)">\
-% if chunk == 0:
-obsxhat / (costheta + sintheta);
-% elif chunk == 1:
--(1 - obsxhat) / costheta;
-% else:
-0;
-% endif
-</%def>
-
 <%def name="temp_result_idx(d_obs, d_src, b_obs, b_src)">
 ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 </%def>
@@ -167,15 +77,13 @@ const ${float_type} CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
 const ${float_type} CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
 const ${float_type} CsT0 = (1-2.0*nu)/(8.0*M_PI*(1.0-nu));
 const ${float_type} CsT1 = 3.0/(8.0*M_PI*(1.0-nu));
-const ${float_type} CsT2 = 1.0/(8*M_PI*(1-nu));
-const ${float_type} CsT3 = 1-2*nu;
 const ${float_type} CsH0 = G/(4*M_PI*(1-nu));
 const ${float_type} CsH1 = 1-2*nu;
 const ${float_type} CsH2 = -1+4*nu;
 const ${float_type} CsH3 = 3*nu;
 </%def>
 
-<%def name="kernel(k_name)">
+<%def name="tensor_kernels(k_name)">
 % if k_name is 'U':
     ${float_type} invr = 1.0 / sqrt(r2);
     ${float_type} Q1 = CsU0 * invr;
@@ -257,6 +165,171 @@ const ${float_type} CsH3 = 3*nu;
     ${float_type} K20 = lz*NTx + nz*MTx + Dorz*DTx;
     ${float_type} K21 = lz*NTy + nz*MTy + Dorz*DTy;
     ${float_type} K22 = lz*NTz + nz*MTz + Dorz*DTz + ST;
+% endif
+</%def>
+
+<%def name="vector_kernels(k_name)">
+% if k_name is 'U':
+    float invr = 1.0 / sqrt(r2);
+    float Q1 = CsU0 * invr;
+    float Q2 = CsU1 * invr / r2;
+    float ddi = D.x*S.x + D.y*S.y + D.z*S.z;
+    sum.x += Q1*S.x + Q2*D.x*ddi;
+    sum.y += Q1*S.y + Q2*D.y*ddi;
+    sum.z += Q1*S.z + Q2*D.z*ddi;
+% elif k_name is 'T' or k_name is 'A':
+    <%
+        minus_or_plus = '-' if k_name is 'T' else '+'
+        plus_or_minus = '+' if k_name is 'T' else '-'
+        n_name = 'l' if k_name is 'T' else 'n'
+    %>
+    float invr = 1.0 / sqrt(r2);
+    float invr2 = invr * invr;
+    float invr3 = invr2 * invr;
+
+    float rn = ${n_name}.x * D.x + ${n_name}.y * D.y + ${n_name}.z * D.z;
+
+    float A = ${plus_or_minus}CsT0 * invr3;
+    float C = ${minus_or_plus}CsT1 * invr3 * invr2;
+
+    float rnddi = C * rn * (D.x*S.x + D.y*S.y + D.z*S.z);
+
+    float nxdy = ${n_name}.x*D.y-${n_name}.y*D.x;
+    float nzdx = ${n_name}.z*D.x-${n_name}.x*D.z;
+    float nzdy = ${n_name}.z*D.y-${n_name}.y*D.z;
+
+    sum.x += A*(
+        - rn * S.x
+        ${minus_or_plus} nxdy * S.y
+        ${plus_or_minus} nzdx * S.z)
+        + D.x*rnddi;
+    sum.y += A*(
+        ${plus_or_minus} nxdy * S.x
+        - rn * S.y
+        ${plus_or_minus} nzdy * S.z)
+        + D.y*rnddi;
+    sum.z += A*(
+        ${minus_or_plus} nzdx * S.x 
+        ${minus_or_plus} nzdy * S.y 
+        - rn * S.z)
+        + D.z*rnddi;
+% elif k_name is 'H':
+    float invr = 1.0 / sqrt(r2);
+    float invr2 = invr * invr;
+    float invr3 = invr2 * invr;
+
+    float rn = invr*(N.x * D.x + N.y * D.y + N.z * D.z);
+    float rm = invr*(M.x * D.x + M.y * D.y + M.z * D.z);
+    float mn = M.x * N.x + M.y * N.y + M.z * N.z;
+
+    float sn = S.x*N.x + S.y*N.y + S.z*N.z;
+    float sd = invr*(S.x*D.x + S.y*D.y + S.z*D.z);
+    float sm = S.x*M.x + S.y*M.y + S.z*M.z;
+
+    float Q = CsH0 * invr3;
+    float A = Q * 3 * rn;
+    float B = Q * CsH1;
+    float C = Q * CsH3;
+
+    float MT = Q*CsH2*sn + A*CsH1*sd;
+    float NT = B*sm + C*sd*rm;
+    float DT = invr*(B*3*sn*rm + C*sd*mn + A*(nu*sm - 5*sd*rm));
+    float ST = A*nu*rm + B*mn;
+
+    sum.x += N.x*NT + M.x*MT + D.x*DT + ST*S.x;
+    sum.y += N.y*NT + M.y*MT + D.y*DT + ST*S.y;
+    sum.z += N.z*NT + M.z*MT + D.z*DT + ST*S.z;
+%endif
+</%def>
+
+extern "C" {
+
+__constant__ ${float_type} rho_qx[${rho_qx.shape[0]}] = {
+    % for x in rho_qx[:-1]:
+        ${x},
+    % endfor
+    ${rho_qx[-1]}
+};
+
+__constant__ ${float_type} rho_qw[${rho_qx.shape[0]}] = {
+    % for w in rho_qw[:-1]:
+        ${w},
+    % endfor
+    ${rho_qw[-1]}
+};
+
+__constant__ ${float_type} theta_qx[${theta_qx.shape[0]}] = {
+    % for x in theta_qx[:-1]:
+        ${x},
+    % endfor
+    ${theta_qx[-1]}
+};
+
+__constant__ ${float_type} theta_qw[${theta_qx.shape[0]}] = {
+    % for w in theta_qw[:-1]:
+        ${w},
+    % endfor
+    ${theta_qw[-1]}
+};
+
+
+<%def name="co_theta_low(chunk)">\
+% if chunk == 0:
+M_PI - atan((1 - obsyhat) / obsxhat);
+% elif chunk == 1:
+M_PI + atan(obsyhat / obsxhat);
+% elif chunk == 2:
+-atan(obsyhat / (1 - obsxhat));
+% endif
+</%def>
+
+<%def name="co_theta_high(chunk)">\
+% if chunk == 0:
+M_PI + atan(obsyhat / obsxhat);
+% elif chunk == 1:
+2 * M_PI - atan(obsyhat / (1 - obsxhat));
+% elif chunk == 2:
+M_PI - atan((1 - obsyhat) / obsxhat);
+% endif
+</%def>
+
+<%def name="co_rhohigh(chunk)">\
+% if chunk == 0:
+-obsxhat / cos(theta);
+% elif chunk == 1:
+-obsyhat / sin(theta);
+% elif chunk == 2:
+(1 - obsyhat - obsxhat) / (cos(theta) + sin(theta));
+% endif
+</%def>
+
+<%def name="adj_theta_low(chunk)">\
+% if chunk == 0:
+0;
+% elif chunk == 1:
+M_PI - atan(1 / (1 - obsxhat));
+% else:
+0;
+% endif
+</%def>
+
+<%def name="adj_theta_high(chunk)">\
+% if chunk == 0:
+M_PI - atan(1 / (1 - obsxhat));
+% elif chunk == 1:
+M_PI;
+% else:
+0;
+% endif
+</%def>
+
+<%def name="adj_rhohigh(chunk)">\
+% if chunk == 0:
+obsxhat / (costheta + sintheta);
+% elif chunk == 1:
+-(1 - obsxhat) / costheta;
+% else:
+0;
 % endif
 </%def>
 
@@ -401,7 +474,7 @@ ${func_def("coincident", k_name)}
                 ${float_type} srcyhat = obsyhat + rho * sintheta;
 
                 ${setup_kernel_inputs()}
-                ${kernel(k_name)}
+                ${tensor_kernels(k_name)}
                 ${add_to_sum()}
             }
         }

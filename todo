@@ -1,3 +1,7 @@
+use OpenCL
+refactor the two GPU integration functions (tectosaur/integrals.cu vs tables/kernels.cu)
+check that vector and tensor kernel functions match
+
 actually use the interpolation table based integrals in an okada problem
 
 what to do about interelement angles that are greater than pi, for adjacent table lookup?
