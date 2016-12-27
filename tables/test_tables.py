@@ -62,7 +62,6 @@ def standardized_tri_tester(K, sm, pr, rho_order, theta_order, tol, eps_start, n
     standard_tri, labels, translation, R, scale = standardize.standardize(
         np.array(tri), 20, True
     )
-    standard_tri = standard_tri.tolist()
     is_flipped = not (labels[1] == ((labels[0] + 1) % 3))
 
     np.testing.assert_almost_equal(
@@ -84,7 +83,7 @@ def standardized_tri_tester(K, sm, pr, rho_order, theta_order, tol, eps_start, n
     unstandardized_vals = np.array([
         np.array(standardize.transform_from_standard(
             # standard_vals[i,:], K, sm, labels, translation, R, scale
-            standard_vals[i,:].reshape((3,3,3,3)), K, sm, labels, translation, R, scale
+            standard_vals[i,:], K, sm, labels, translation, R, scale
         )).reshape(81)
         for i in range(standard_vals.shape[0])
     ])
