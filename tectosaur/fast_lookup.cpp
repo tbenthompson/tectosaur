@@ -120,9 +120,6 @@ int check_bad_tri(const Tensor3& tri, double angle_lim) {
     return 0;
 }
 
-int kernel_sm_power[4] = {-3, -2, -2, -1};
-int kernel_scale_power[4] = {1, 0, 0, -1};
-
 std::pair<Tensor3,Vec3> translate(const Tensor3& tri) {
     Vec3 translation; 
     Tensor3 out_tri;
@@ -245,6 +242,9 @@ py::tuple standardize(const Tensor3& tri, double angle_lim, bool should_relabel)
         scale_out.first, labels, trans_out.second, rot_out.second, scale_out.second
     );
 }
+
+int kernel_scale_power[4] = {-3, -2, -2, -1};
+int kernel_sm_power[4] = {1, 0, 0, -1};
 
 std::array<double,81> transform_from_standard(const std::array<double,81>& I,
     char K, double sm, const std::array<int,3>& labels,

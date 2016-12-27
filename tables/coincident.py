@@ -8,7 +8,6 @@ import tectosaur.geometry as geometry
 from tectosaur.interpolate import cheb, cheb_wts, barycentric_evalnd, to_interval
 from tectosaur.limit import limit, richardson_limit
 
-from gpu_integrator import new_integrate
 import cppimport
 adaptive_integrate = cppimport.imp('adaptive_integrate')
 
