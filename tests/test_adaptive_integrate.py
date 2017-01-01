@@ -1,13 +1,13 @@
 import numpy as np
+import scipy.integrate
 
 import tectosaur.quadrature as quad
+import tectosaur.util.gpu as gpu
 import cppimport
 adaptive_integrate = cppimport.imp('tectosaur.adaptive_integrate').adaptive_integrate
-from tectosaur.ndadapt import hadapt, tensor_gauss
 
 from test_decorators import golden_master, slow
-import tectosaur.util.gpu as gpu
-from tectosaur.util.timer import Timer
+
 
 # Move this stuff to gpu.py
 float_type = np.float64
@@ -23,10 +23,7 @@ def quad_to_gpu(quad_rule):
     return gpu_qx, gpu_qw
 #####
 
-def make_gpu_integrator(type, K, obs_tri, src_tri, tol, eps, sm, pr, rho_q, theta_q, chunk, p):
-    ps = [p] * 2
-    q_unmapped = tensor_gauss(ps)
-
+def make_gpu_integrator(type, K, obs_tri, src_tri, eps, sm, pr, rho_q, theta_q, chunk):
     module = gpu.ocl_load_gpu('tectosaur/kernels.cl')
     fnc = getattr(module, type + '_integrals' + K)
     gpu_rqx, gpu_rqw = quad_to_gpu(rho_q)
@@ -34,7 +31,7 @@ def make_gpu_integrator(type, K, obs_tri, src_tri, tol, eps, sm, pr, rho_q, thet
     gpu_obs_tri = to_gpu(np.array(obs_tri).flatten())
     gpu_src_tri = to_gpu(np.array(src_tri).flatten())
 
-    def pt_integrand(x):
+    def integrand(x):
         n_x = x.shape[0]
         integrand.total_n_x += n_x
         print(integrand.total_n_x)
@@ -63,35 +60,15 @@ def make_gpu_integrator(type, K, obs_tri, src_tri, tol, eps, sm, pr, rho_q, thet
             next_call_start += call_size
             next_call_end += call_size
         return out
-
-    def integrand(mins, maxs):
-        t = Timer()
-        x = np.empty((mins.shape[0], q_unmapped[0].shape[0], mins.shape[1]))
-        for i in range(mins.shape[0]):
-            x[i,:,:] = mins[i,:] + (maxs[i,:] - mins[i,:]) * (q_unmapped[0] + 1) * 0.5
-        t.report("get pts")
-        pt_evals = pt_integrand(x.reshape(-1, mins.shape[1]))
-        t.report("eval pts")
-        box_evals = pt_evals.reshape((mins.shape[0], -1, pt_evals.shape[1]))
-
-        out = np.empty((mins.shape[0], pt_evals.shape[1]))
-        for i in range(mins.shape[0]):
-            jacobian = np.prod((maxs[i] - mins[i]) * 0.5)
-            out[i] = np.sum(jacobian * q_unmapped[1][:,np.newaxis] * box_evals[i], axis = 0)
-        t.report("sum pts")
-        return out
-
     integrand.total_n_x = 0
-
-    return pt_integrand
-    # return integrand
+    return integrand
 
 @slow
 @golden_master
 def test_coincident_integral():
     tri = [[0, 0, 0], [1.2, 0, 0], [0.3, 1.1, 0]]
-    eps = 0.0001
-    tol = 0.00001
+    eps = 0.000001
+    tol = 0.00000001
     K = 'H'
     rho_gauss = quad.gaussxw(50)
     rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
@@ -99,9 +76,8 @@ def test_coincident_integral():
     res = np.zeros(81)
     for chunk in range(3):
         chunk_res = adaptive_integrate.integrate(
-        # chunk_res = hadapt(
             make_gpu_integrator(
-                'coincident', K, tri, tri, tol, eps, 1.0, 0.25, rho_q, theta_q, chunk, 9
+                'coincident', K, tri, tri, eps, 1.0, 0.25, rho_q, theta_q, chunk
             ),
             [0,0], [1,1], tol
         )
@@ -123,7 +99,7 @@ def test_adjacent_integral():
     for chunk in range(2):
         chunk_res = adaptive_integrate.integrate(
             make_gpu_integrator(
-                'adjacent', K, obs_tri, src_tri, tol, eps, 1.0, 0.25, rho_q, theta_q, chunk
+                'adjacent', K, obs_tri, src_tri, eps, 1.0, 0.25, rho_q, theta_q, chunk
             ),
             [0,0], [1,1], tol
         )
