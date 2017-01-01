@@ -2,7 +2,7 @@ from tectosaur.standardize import *
 import tectosaur.quadrature as quad
 import tectosaur.limit as limit
 import cppimport
-adaptive_integrate = cppimport.imp('tectosaur.tables.adaptive_integrate').tables.adaptive_integrate
+adaptive_integrate = cppimport.imp('tectosaur.adaptive_integrate').adaptive_integrate
 
 
 def test_origin_vertex():

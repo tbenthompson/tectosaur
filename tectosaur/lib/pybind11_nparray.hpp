@@ -17,9 +17,9 @@ std::vector<size_t> calc_strides(const std::vector<size_t>& shape, size_t unit_s
 }
 
 template <typename T>
-NPArray<T> make_array(const std::vector<size_t>& shape) {
+NPArray<T> make_array(const std::vector<size_t>& shape, T* buffer_ptr = nullptr) {
     return pybind11::array(pybind11::buffer_info(
-        nullptr, sizeof(T), pybind11::format_descriptor<T>::value,
+        buffer_ptr, sizeof(T), pybind11::format_descriptor<T>::value,
         shape.size(), shape, calc_strides(shape, sizeof(T))
     ));
 }
