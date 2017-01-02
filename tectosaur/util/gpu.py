@@ -11,6 +11,7 @@ import mako.lookup
 
 from tectosaur.util.timer import Timer
 
+
 gpu_initialized = False
 gpu_module = dict()
 def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None):
@@ -74,6 +75,19 @@ ocl_gpu_initialized = False
 ocl_gpu_ctx = None
 ocl_gpu_queue = None
 ocl_gpu_module = dict()
+
+float_type = np.float64
+def to_gpu(arr):
+    return cl.array.to_device(ocl_gpu_queue, arr.astype(float_type))
+
+def empty_gpu(shape):
+    return cl.array.empty(ocl_gpu_queue, shape, float_type)
+
+def quad_to_gpu(quad_rule):
+    gpu_qx = to_gpu(quad_rule[0].flatten())
+    gpu_qw = to_gpu(quad_rule[1])
+    return gpu_qx, gpu_qw
+
 def ocl_load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None):
     global ocl_gpu_initialized, ocl_gpu_ctx, ocl_gpu_queue, ocl_gpu_module
 
