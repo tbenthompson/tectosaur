@@ -13,7 +13,10 @@ except AttributeError as e:
 
 
 def golden_master(test_fnc):
-    save = pytest.config.getoption("--save-golden-masters")
+    try:
+        save = pytest.config.getoption("--save-golden-masters")
+    except AttributeError as e:
+        save = False
     @wraps(test_fnc)
     def wrapper():
         result = test_fnc()
