@@ -76,16 +76,15 @@ ocl_gpu_ctx = None
 ocl_gpu_queue = None
 ocl_gpu_module = dict()
 
-float_type = np.float64
-def to_gpu(arr):
+def to_gpu(arr, float_type = np.float32):
     return cl.array.to_device(ocl_gpu_queue, arr.astype(float_type))
 
-def empty_gpu(shape):
+def empty_gpu(shape, float_type = np.float32):
     return cl.array.empty(ocl_gpu_queue, shape, float_type)
 
-def quad_to_gpu(quad_rule):
-    gpu_qx = to_gpu(quad_rule[0].flatten())
-    gpu_qw = to_gpu(quad_rule[1])
+def quad_to_gpu(quad_rule, float_type = np.float32):
+    gpu_qx = to_gpu(quad_rule[0].flatten(), float_type)
+    gpu_qw = to_gpu(quad_rule[1], float_type)
     return gpu_qx, gpu_qw
 
 def ocl_load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None):
