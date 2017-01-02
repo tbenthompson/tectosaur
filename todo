@@ -1,30 +1,27 @@
+use multiple gpus for table building
 i think the opencl kernels.cl code is memory limited and not compute limited
 refactor the two GPU integration functions (tectosaur/integrals.cu vs tables/kernels.cu)
 check that vector and tensor kernel functions match
 
-actually use the interpolation table based integrals in an okada problem
-
-what to do about interelement angles that are greater than pi, for adjacent table lookup?
-
-optimize the table lookup stuff
-
-interior evaluation -- this is easy except near the surface, use sinh quadrature? test it against the adaptive quadrature. also, maybe i can just interpolate from one element length away to the surface value and avoid nearfield integrals?
-
-how to deal with triangles that have internal angles less than 20 degrees? see comments in the overleaf doc.
-
-deal with low angle vertex adjacent cases -- these can be very expensive!
+-- actually use the interpolation table based integrals in an okada problem
+-- what to do about interelement angles that are greater than pi, for adjacent table lookup?
+-- how to deal with triangles that have internal angles less than 20 degrees? see comments in the overleaf doc.
 
 use FMM for okada
 -- just try it out first, make sure its accurate.
 -- condense the columns of p2m and p2l and p2p, condense rows of m2p, l2p, p2p, this should increase efficiency A LOT (HUH??)
-
-think about volume integrals -- only ever need to do volume integrals with U and A kernels --> no divergences, not even cauchy principal value integrals because the extra source dimension reduces the order of the singularity by one, still should do transformations to reduce the order of the singularity -- probably can remove it completely, in which case there are only some big 5 dimensional low order gauss integrals to do. alternatively, i could do another interpolation table... the adjacent trick would work
 
 sphere test
 -- do two problems:
   -- 1) impose displacement BCs and solve for traction on the boundary
   -- 2) vice-versa
 -- interior evaluation.
+
+-- interior evaluation -- this is easy except near the surface, use sinh quadrature? test it against the adaptive quadrature. also, maybe i can just interpolate from one element length away to the surface value and avoid nearfield integrals?
+-- deal with low angle vertex adjacent cases -- these can be very expensive!
+
+think about volume integrals -- only ever need to do volume integrals with U and A kernels --> no divergences, not even cauchy principal value integrals because the extra source dimension reduces the order of the singularity by one, still should do transformations to reduce the order of the singularity -- probably can remove it completely, in which case there are only some big 5 dimensional low order gauss integrals to do. alternatively, i could do another interpolation table... the adjacent trick would work
+
 
 CODE:
 
@@ -37,7 +34,6 @@ play with time stepping combined with fault friction
 plasticity? the plastic opening condition, maybe a viscoplastic opening condition? the kinematic consistency idea from brendan is really interesting! compare with a FEM model of explicit volumetric plasticity
 
 CORRECTNESS/BLACKBOXYNESS:
-limit triangles to having angles > 20 degrees
 
 METHOD:
 sparse approximate inverse from FMM sparsity pattern
@@ -48,4 +44,3 @@ constraint construction
 adjacency
 figure out preconditioning, spilu is slow, but is there a better alternative? spai-based fmm inverse.
 FMM via tree plan construction and gpu direct evaluation
-multi GPU compatibility on meade02?
