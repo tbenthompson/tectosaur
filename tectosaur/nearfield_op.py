@@ -4,7 +4,7 @@ import pycuda.gpuarray as gpuarray
 
 import tectosaur.triangle_rules as triangle_rules
 from tectosaur.quadrature import richardson_quad
-from tectosaur.util.gpu import load_gpu
+import tectosaur.util.gpu as gpu
 from tectosaur.util.caching import cache
 
 def pairs_func_name(singular, k_name):
@@ -17,49 +17,52 @@ def get_gpu_config():
     return {'block_size': 128}
 
 def get_gpu_module():
-    return load_gpu('tectosaur/integrals.cu', tmpl_args = get_gpu_config())
+    return gpu.load_gpu('tectosaur/integrals.cu', tmpl_args = get_gpu_config())
+
+def get_ocl_gpu_module():
+    return gpu.ocl_load_gpu('tectosaur/integrals.cl', tmpl_args = get_gpu_config())
 
 def get_pairs_integrator(kernel, singular):
-    return get_gpu_module().get_function(
-        pairs_func_name(singular, kernel)
-    )
+    return getattr(get_ocl_gpu_module(), pairs_func_name(singular, kernel))
 
+#TODO: One universal float type for all of tectosaur? tectosaur.config?
+#TODO: The general structure of this caller is similar to the other in tectosaur_tables and sparse_integral_op and dense_integral_op.
+float_type = np.float32
 def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular):
     integrator = get_pairs_integrator(kernel, singular)
 
-    result = np.empty((obs_tris.shape[0], 3, 3, 3, 3)).astype(np.float32)
-    if obs_tris.shape[0] == 0:
-        return result
+    gpu_qx, gpu_qw = gpu.quad_to_gpu(q, float_type)
 
-    block_main = (32, 1, 1)
-    remaining = obs_tris.shape[0] % block_main[0]
+    n = obs_tris.shape[0]
+    out = np.empty((n, 3, 3, 3, 3)).astype(float_type)
+    if n == 0:
+        return out
 
-    result_rem = np.empty((remaining, 3, 3, 3, 3)).astype(np.float32)
+    gpu_pts = gpu.to_gpu(pts, float_type)
 
-    grid_main = (obs_tris.shape[0] // block_main[0], 1, 1)
-    grid_rem = (remaining, 1, 1)
-
-    def call_integrator(block, grid, result_buf, tri_start, tri_end):
-        if grid[0] == 0:
-            return
+    def call_integrator(start_idx, end_idx):
+        n_items = end_idx - start_idx
+        gpu_result = gpu.empty_gpu((n_items, 3, 3, 3, 3), float_type)
+        gpu_obs_tris = gpu.to_gpu(obs_tris[start_idx:end_idx], np.int32)
+        gpu_src_tris = gpu.to_gpu(src_tris[start_idx:end_idx], np.int32)
         integrator(
-            drv.Out(result_buf),
-            np.int32(q[0].shape[0]),
-            drv.In(q[0].astype(np.float32)),
-            drv.In(q[1].astype(np.float32)),
-            drv.In(pts.astype(np.float32)),
-            drv.In(obs_tris[tri_start:tri_end].astype(np.int32)),
-            drv.In(src_tris[tri_start:tri_end].astype(np.int32)),
-            np.float32(sm),
-            np.float32(pr),
-            block = block, grid = grid
+            gpu.ocl_gpu_queue, (n_items,), None,
+            gpu_result.data,
+            np.int32(q[0].shape[0]), gpu_qx.data, gpu_qw.data,
+            gpu_pts.data, gpu_obs_tris.data, gpu_src_tris.data,
+            np.float32(sm), np.float32(pr),
         )
-    call_integrator(block_main, grid_main, result, 0, obs_tris.shape[0] - remaining)
-    call_integrator(
-        (1,1,1), grid_rem, result_rem,
-        obs_tris.shape[0] - remaining, obs_tris.shape[0])
-    result[obs_tris.shape[0] - remaining:,:,:,:,:] = result_rem
-    return result
+        out[start_idx:end_idx] = gpu_result.get()
+
+    call_size = 2 ** 14
+    next_call_start = 0
+    next_call_end = call_size
+    while next_call_end < n + call_size:
+        this_call_end = min(next_call_end, n)
+        call_integrator(next_call_start, this_call_end)
+        next_call_start += call_size
+        next_call_end += call_size
+    return out
 
 def cached_in(name, creator):
     filename = os.path.join('cache_tectosaur', name + '.npy')

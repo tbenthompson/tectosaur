@@ -10,32 +10,26 @@ def dn(dim):
 kronecker = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 %>
 
-extern "C" {
-
-__device__
-void cross(float x[3], float y[3], float out[3]) {
+void vec_cross(float x[3], float y[3], float out[3]) {
     out[0] = x[1] * y[2] - x[2] * y[1];
     out[1] = x[2] * y[0] - x[0] * y[2];
     out[2] = x[0] * y[1] - x[1] * y[0];
 }
 
-__device__
 void sub(float x[3], float y[3], float out[3]) {
     % for d in range(3):
     out[${d}] = x[${d}] - y[${d}];
     % endfor
 }
 
-__device__
 void get_unscaled_normal(float tri[3][3], float out[3]) {
     float s20[3];
     float s21[3];
     sub(tri[2], tri[0], s20);
     sub(tri[2], tri[1], s21);
-    cross(s20, s21, out);
+    vec_cross(s20, s21, out);
 }
 
-__device__
 float magnitude(float v[3]) {
     return sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
@@ -249,13 +243,13 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 </%def>
 
 <%def name="single_pairs(k_name, limit)">
-__global__
-void ${pairs_func_name(limit, k_name)}(float* result, 
-    int n_quad_pts, float* quad_pts, float* quad_wts,
-    float* pts, int* obs_tris, int* src_tris, 
+__kernel
+void ${pairs_func_name(limit, k_name)}(__global float* result, 
+    int n_quad_pts, __global float* quad_pts, __global float* quad_wts,
+    __global float* pts, __global int* obs_tris, __global int* src_tris, 
     float G, float nu)
 {
-    const int i = blockIdx.x * blockDim.x + threadIdx.x;
+    const int i = get_global_id(0);
 
     ${get_triangle("obs_tri", "obs_tris", "i")}
     ${get_triangle("src_tri", "src_tris", "i")}
@@ -267,108 +261,6 @@ void ${pairs_func_name(limit, k_name)}(float* result,
 }
 </%def>
 
-<%def name="farfield_tris(k_name)">
-__global__
-void farfield_tris${k_name}(float* result, int n_quad_pts, float* quad_pts,
-    float* quad_wts, float* pts, int n_obs_tris, int* obs_tris, 
-    int n_src_tris, int* src_tris, float G, float nu)
-{
-    const int i = blockIdx.x * blockDim.x + threadIdx.x;
-    const int j = blockIdx.y * blockDim.y + threadIdx.y;
-
-    ${get_triangle("obs_tri", "obs_tris", "i")}
-    ${get_triangle("src_tri", "src_tris", "j")}
-    ${integrate_pair(k_name, limit = False)}
-
-    % for d_obs in range(3):
-    % for d_src in range(3):
-    % for b_obs in range(3):
-    % for b_src in range(3):
-    result[
-        (i * 9 + ${b_obs} * 3 + ${d_obs}) * n_src_tris * 9 +
-        (j * 9 + ${b_src} * 3 + ${d_src})
-        ] = result_temp[${temp_result_idx(d_obs, d_src, b_obs, b_src)}];
-    % endfor
-    % endfor
-    % endfor
-    % endfor
-}
-</%def>
-
-<%def name="farfield_pts(k_name, need_obsn, need_srcn, constants_code)">
-__global__
-void farfield_pts${k_name}(float3* result, float3* obs_pts, float3* obs_ns,
-    float3* src_pts, float3* src_ns, float3* input,
-    float G, float nu, int n_obs, int n_src)
-{
-    int i = blockIdx.x * ${block_size} + threadIdx.x;
-
-    float3 obsp;
-    if (i < n_obs) {
-        obsp = obs_pts[i];
-    }
-
-    % if need_obsn:
-    float3 M;
-    if (i < n_obs) {
-        M = obs_ns[i]; 
-    }
-    % endif
-
-    % if need_srcn:
-    __shared__ float3 sh_src_ns[${block_size}];
-    % endif
-    __shared__ float3 sh_src_pts[${block_size}];
-    __shared__ float3 sh_input[${block_size}];
-
-    
-    ${constants()}
-
-    float3 sum = {0.0, 0.0, 0.0};
-
-    int j = 0;
-    int tile = 0;
-    for (; j < n_src; j += ${block_size}, tile++) {
-        __syncthreads();
-        int idx = tile * ${block_size} + threadIdx.x;
-        if (idx < n_src) {
-            % if need_srcn:
-            sh_src_ns[threadIdx.x] = src_ns[idx];
-            % endif
-            sh_src_pts[threadIdx.x] = src_pts[idx];
-            sh_input[threadIdx.x] = input[idx];
-        }
-        __syncthreads();
-
-        if (i >= n_obs) {
-            continue;
-        }
-        for (int k = 0; k < ${block_size} && k < n_src - j; k++) {
-            float3 D = {
-                sh_src_pts[k].x-obsp.x,
-                sh_src_pts[k].y-obsp.y,
-                sh_src_pts[k].z-obsp.z
-            };
-
-            float r2 = D.x * D.x + D.y * D.y + D.z * D.z;
-            if (r2 == 0.0) {
-                continue;
-            }
-            % if need_srcn:
-            float3 N = sh_src_ns[k]; 
-            % endif
-
-            float3 S = sh_input[k];
-
-            ${vector_kernels(k_name)}
-        }
-    }
-
-    if (i < n_obs) {
-        result[i] = sum;
-    }
-}
-</%def>
 
 <%def name="constants()">
 const float CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
@@ -381,89 +273,8 @@ const float CsH2 = -1+4*nu;
 const float CsH3 = 3*nu;
 </%def>
 
-<%def name="vector_kernels(k_name)">
-% if k_name is 'U':
-    float invr = 1.0 / sqrt(r2);
-    float Q1 = CsU0 * invr;
-    float Q2 = CsU1 * invr / r2;
-    float ddi = D.x*S.x + D.y*S.y + D.z*S.z;
-    sum.x += Q1*S.x + Q2*D.x*ddi;
-    sum.y += Q1*S.y + Q2*D.y*ddi;
-    sum.z += Q1*S.z + Q2*D.z*ddi;
-% elif k_name is 'T' or k_name is 'A':
-    <%
-        minus_or_plus = '-' if k_name is 'T' else '+'
-        plus_or_minus = '+' if k_name is 'T' else '-'
-        n_name = 'N' if k_name is 'T' else 'M'
-    %>
-    float invr = 1.0 / sqrt(r2);
-    float invr2 = invr * invr;
-    float invr3 = invr2 * invr;
-
-    float rn = ${n_name}.x * D.x + ${n_name}.y * D.y + ${n_name}.z * D.z;
-
-    float A = ${plus_or_minus}CsT0 * invr3;
-    float C = ${minus_or_plus}CsT1 * invr3 * invr2;
-
-    float rnddi = C * rn * (D.x*S.x + D.y*S.y + D.z*S.z);
-
-    float nxdy = ${n_name}.x*D.y-${n_name}.y*D.x;
-    float nzdx = ${n_name}.z*D.x-${n_name}.x*D.z;
-    float nzdy = ${n_name}.z*D.y-${n_name}.y*D.z;
-
-    sum.x += A*(
-        - rn * S.x
-        ${minus_or_plus} nxdy * S.y
-        ${plus_or_minus} nzdx * S.z)
-        + D.x*rnddi;
-    sum.y += A*(
-        ${plus_or_minus} nxdy * S.x
-        - rn * S.y
-        ${plus_or_minus} nzdy * S.z)
-        + D.y*rnddi;
-    sum.z += A*(
-        ${minus_or_plus} nzdx * S.x 
-        ${minus_or_plus} nzdy * S.y 
-        - rn * S.z)
-        + D.z*rnddi;
-% elif k_name is 'H':
-    float invr = 1.0 / sqrt(r2);
-    float invr2 = invr * invr;
-    float invr3 = invr2 * invr;
-
-    float rn = invr*(N.x * D.x + N.y * D.y + N.z * D.z);
-    float rm = invr*(M.x * D.x + M.y * D.y + M.z * D.z);
-    float mn = M.x * N.x + M.y * N.y + M.z * N.z;
-
-    float sn = S.x*N.x + S.y*N.y + S.z*N.z;
-    float sd = invr*(S.x*D.x + S.y*D.y + S.z*D.z);
-    float sm = S.x*M.x + S.y*M.y + S.z*M.z;
-
-    float Q = CsH0 * invr3;
-    float A = Q * 3 * rn;
-    float B = Q * CsH1;
-    float C = Q * CsH3;
-
-    float MT = Q*CsH2*sn + A*CsH1*sd;
-    float NT = B*sm + C*sd*rm;
-    float DT = invr*(B*3*sn*rm + C*sd*mn + A*(nu*sm - 5*sd*rm));
-    float ST = A*nu*rm + B*mn;
-
-    sum.x += N.x*NT + M.x*MT + D.x*DT + ST*S.x;
-    sum.y += N.y*NT + M.y*MT + D.y*DT + ST*S.y;
-    sum.z += N.z*NT + M.z*MT + D.z*DT + ST*S.z;
-%endif
-</%def>
-
-${farfield_pts("U", False, False, U_const_code)}
-${farfield_pts("T", False, True, T_const_code)}
-${farfield_pts("A", True, False, A_const_code)}
-${farfield_pts("H", True, True, H_const_code)}
 
 % for k_name in kernel_names:
-${farfield_tris(k_name)}
 ${single_pairs(k_name, limit = True)}
 ${single_pairs(k_name, limit = False)}
 % endfor
-
-} //End extern "C"

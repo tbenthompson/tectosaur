@@ -8,8 +8,8 @@ import tectosaur.sparse_integral_op as sparse_integral_op
 import tectosaur.mass_op as mass_op
 import tectosaur.quadrature as quad
 import tectosaur.mesh as mesh
+from tectosaur.test_decorators import slow, golden_master
 
-from test_decorators import slow, golden_master
 from laplace import laplace
 
 @golden_master

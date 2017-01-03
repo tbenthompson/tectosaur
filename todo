@@ -1,5 +1,3 @@
-use multiple gpus for table building
-i think the opencl kernels.cl code is memory limited and not compute limited
 refactor the two GPU integration functions (tectosaur/integrals.cu vs tables/kernels.cu)
 check that vector and tensor kernel functions match
 
