@@ -11,6 +11,18 @@ import mako.lookup
 
 from tectosaur.util.timer import Timer
 
+def compare(a, b):
+    if type(a) != type(b):
+        return False
+    if type(a) is list or type(a) is tuple:
+        if len(a) != len(b):
+            return False
+        comparisons = [compare(av, bv) for av, bv in zip(a,b)]
+        if False in comparisons:
+            return False
+        return True
+    if type(a) is np.ndarray:
+        return (a == b).all()
 
 gpu_initialized = False
 gpu_module = dict()
@@ -29,10 +41,7 @@ def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None)
 
         tmpl_args_match = True
         for k, v in gpu_module[filepath]['tmpl_args'].items():
-            compared = v == tmpl_args[k]
-            if type(v) is np.ndarray:
-                compared = compared.all()
-            tmpl_args_match = tmpl_args_match and compared
+            tmpl_args_match = tmpl_args_match and compare(v, tmpl_args[k])
 
         if tmpl_args_match:
             return gpu_module[filepath]['module']
@@ -102,15 +111,14 @@ def ocl_load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = N
             and not no_caching \
             and not print_code:
 
-        tmpl_args_match = True
-        for k, v in ocl_gpu_module[filepath]['tmpl_args'].items():
-            compared = v == tmpl_args[k]
-            if type(v) is np.ndarray:
-                compared = compared.all()
-            tmpl_args_match = tmpl_args_match and compared
+        existing_modules = ocl_gpu_module[filepath]
+        for module_info in existing_modules:
+            tmpl_args_match = True
+            for k, v in module_info['tmpl_args'].items():
+                tmpl_args_match = tmpl_args_match and compare(v, tmpl_args[k])
 
-        if tmpl_args_match:
-            return ocl_gpu_module[filepath]['module']
+            if tmpl_args_match:
+                return module_info['module']
 
     lookup = mako.lookup.TemplateLookup(
         directories = [os.path.dirname(filepath)]
@@ -133,13 +141,17 @@ def ocl_load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = N
         )
         print(numbered_lines)
 
-    ocl_gpu_module[filepath] = dict()
-    ocl_gpu_module[filepath]['tmpl_args'] = tmpl_args
+    module_info = dict()
+    module_info['tmpl_args'] = tmpl_args
     #TODO: set options for efficiency -- https://www.khronos.org/registry/cl/sdk/1.0/docs/man/xhtml/clBuildProgram.html
     file_dir = os.getcwd() + '/' + os.path.dirname(filepath)
     compile_options = ['-I' + file_dir]
-    ocl_gpu_module[filepath]['module'] = cl.Program(
+    module_info['module'] = cl.Program(
         ocl_gpu_ctx, code
     ).build(options = compile_options)
 
-    return ocl_gpu_module[filepath]['module']
+    if filepath not in ocl_gpu_module:
+        ocl_gpu_module[filepath] = []
+    ocl_gpu_module[filepath].append(module_info)
+
+    return module_info['module']
