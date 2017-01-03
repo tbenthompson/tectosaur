@@ -1,7 +1,5 @@
 import os
 import numpy as np
-import pycuda.driver as drv
-import pycuda.gpuarray as gpuarray
 import scipy.sparse
 
 from tectosaur.adjacency import find_adjacents, vert_adj_prep, \
@@ -12,8 +10,9 @@ import tectosaur.fmm as fmm
 import tectosaur.geometry as geometry
 #TODO: Split the cuda code into nearfield integrals and farfield.
 from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
-    get_gpu_module, get_gpu_config
+    get_ocl_gpu_module, get_gpu_config, float_type
 from tectosaur.table_lookup import coincident_table, adjacent_table
+import tectosaur.util.gpu as gpu
 
 from tectosaur.util.timer import Timer
 
@@ -185,6 +184,30 @@ class NearfieldIntegralOp:
     def dot(self, v):
         return self.mat.dot(v)
 
+def farfield_pts_wrapper(K, n_obs, obs_pts, obs_ns, n_src, src_pts, src_ns, vec, sm, pr):
+    gpu_farfield_fnc = getattr(get_ocl_gpu_module(), "farfield_pts" + K)
+
+    gpu_result = gpu.empty_gpu(n_obs * 3, float_type)
+    gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)
+    gpu_obs_ns = gpu.to_gpu(obs_ns, float_type)
+    gpu_src_pts = gpu.to_gpu(src_pts, float_type)
+    gpu_src_ns = gpu.to_gpu(src_ns, float_type)
+    gpu_vec = gpu.to_gpu(vec, float_type)
+
+    local_size = get_gpu_config()['block_size']
+    n_blocks = int(np.ceil(n_obs / local_size))
+    global_size = local_size * n_blocks
+    gpu_farfield_fnc(
+        gpu.ocl_gpu_queue, (global_size,), (local_size,),
+        gpu_result.data,
+        gpu_obs_pts.data, gpu_obs_ns.data,
+        gpu_src_pts.data, gpu_src_ns.data,
+        gpu_vec.data,
+        float_type(sm), float_type(pr),
+        np.int32(n_obs), np.int32(n_src),
+    )
+    return gpu_result.get()
+
 class SparseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
@@ -198,41 +221,26 @@ class SparseIntegralOp:
         far_quad2d = gauss2d_tri(nq_far)
         self.interp_galerkin_mat, quad_pts, quad_ns = \
             interp_galerkin_mat(pts[tris], far_quad2d)
-        self.nq = int(quad_pts.shape[0])
+        self.nq = quad_pts.shape[0]
         self.shape = self.nearfield.mat.shape
         self.sm = sm
         self.pr = pr
-        self.gpu_farfield = get_gpu_module().get_function("farfield_pts" + kernel)
-        self.gpu_quad_pts = gpuarray.to_gpu(quad_pts.flatten().astype(np.float32))
-        self.gpu_quad_ns = gpuarray.to_gpu(quad_ns.flatten().astype(np.float32))
+        self.kernel = kernel
+        # self.gpu_farfield_fnc = getattr(get_ocl_gpu_module(), "farfield_pts" + kernel)
+        self.gpu_quad_pts = gpu.to_gpu(quad_pts.flatten(), float_type)
+        self.gpu_quad_ns = gpu.to_gpu(quad_ns.flatten(), float_type)
 
     def dot(self, v):
-        # t = Timer()
         out = self.nearfield.dot(v)
-        # t.report('nearfield')
         return out + self.farfield_dot(v)
 
     def farfield_dot(self, v):
-        interp_v = self.interp_galerkin_mat.dot(v).flatten().astype(np.float32)
-        # t.report('interp * v')
-        nbody_result = np.empty((self.nq * 3), dtype = np.float32)
-        # t.report('empty nbody_result')
-        block = (get_gpu_config()['block_size'], 1, 1)
-        grid = (int(np.ceil(self.nq / block[0])), 1)
-        runtime = self.gpu_farfield(
-            drv.Out(nbody_result),
-            self.gpu_quad_pts, self.gpu_quad_ns,
-            self.gpu_quad_pts, self.gpu_quad_ns,
-            drv.In(interp_v),
-            np.float32(self.sm), np.float32(self.pr),
-            np.int32(self.nq), np.int32(self.nq),
-            block = block,
-            grid = grid,
-            time_kernel = True
+        interp_v = self.interp_galerkin_mat.dot(v).flatten()
+        nbody_result = farfield_pts_wrapper(
+            self.kernel, self.nq, self.gpu_quad_pts, self.gpu_quad_ns,
+            self.nq, self.gpu_quad_pts, self.gpu_quad_ns, interp_v, self.sm, self.pr
         )
-        # t.report('call farfield interact')
         out = self.interp_galerkin_mat.T.dot(nbody_result)
-        # t.report('galerkin * nbody_result')
         return out
 
 class FMMIntegralOp:

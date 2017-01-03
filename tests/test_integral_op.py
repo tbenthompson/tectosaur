@@ -1,5 +1,4 @@
 import numpy as np
-from pycuda import driver as drv
 
 import tectosaur.triangle_rules as triangle_rules
 import tectosaur.nearfield_op as nearfield_op
@@ -57,12 +56,18 @@ def full_integral_op_tester(k):
     rect_mesh = mesh.rect_surface(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     out = np.zeros(1)
     for m in [(pts, tris), rect_mesh]:
-        op = sparse_integral_op.SparseIntegralOp(
+        dense_op = dense_integral_op.DenseIntegralOp(
             [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, 1.0, 0.25, m[0], m[1]
         )
         np.random.seed(100)
-        this_res = op.dot(np.random.rand(op.shape[1]))
-        out = np.hstack((out, this_res))
+        dense_res = dense_op.dot(np.random.rand(dense_op.shape[1]))
+        sparse_op = sparse_integral_op.SparseIntegralOp(
+            [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, 1.0, 0.25, m[0], m[1]
+        )
+        np.random.seed(100)
+        sparse_res = sparse_op.dot(np.random.rand(sparse_op.shape[1]))
+        assert(np.max(np.abs(sparse_res - dense_res)) < 2e-6)
+        out = np.hstack((out, sparse_res))
     return out
 
 @golden_master

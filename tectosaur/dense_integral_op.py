@@ -1,66 +1,48 @@
 import numpy as np
-import pycuda.driver as drv
-import pycuda.gpuarray as gpuarray
 
 from tectosaur.adjacency import find_adjacents, vert_adj_prep,\
     edge_adj_prep, rotate_tri
 from tectosaur.find_nearfield import find_nearfield
 from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
-    get_gpu_module, get_gpu_config
+    get_ocl_gpu_module, float_type
 from tectosaur.quadrature import gauss4d_tri
 from tectosaur.util.timer import Timer
 from tectosaur.table_lookup import coincident_table, adjacent_table
+import tectosaur.util.gpu as gpu
 
 def farfield(kernel, sm, pr, pts, obs_tris, src_tris, n_q):
+    integrator = getattr(get_ocl_gpu_module(), "farfield_tris" + kernel)
     q = gauss4d_tri(n_q, n_q)
 
-    def call_integrator(block, grid, result_buf, tri_start, tri_end):
-        integrator = get_gpu_module().get_function("farfield_tris" + kernel)
-        if grid[0] == 0:
-            return
+    gpu_qx, gpu_qw = gpu.quad_to_gpu(q, float_type)
+    gpu_pts = gpu.to_gpu(pts, float_type)
+    gpu_src_tris = gpu.to_gpu(src_tris, np.int32)
+
+    n = obs_tris.shape[0]
+    out = np.empty(
+        (n, 3, 3, src_tris.shape[0], 3, 3), dtype = float_type
+    )
+
+    def call_integrator(start_idx, end_idx):
+        n_items = end_idx - start_idx
+        gpu_result = gpu.empty_gpu((n_items, 3, 3, src_tris.shape[0], 3, 3), float_type)
+        gpu_obs_tris = gpu.to_gpu(obs_tris[start_idx:end_idx], np.int32)
         integrator(
-            drv.Out(result_buf),
-            np.int32(q[0].shape[0]),
-            drv.In(q[0].astype(np.float32)),
-            drv.In(q[1].astype(np.float32)),
-            drv.In(pts.astype(np.float32)),
-            np.int32(tri_end - tri_start),
-            drv.In(obs_tris[tri_start:tri_end].astype(np.int32)),
-            np.int32(src_tris.shape[0]),
-            drv.In(src_tris.astype(np.int32)),
-            np.float32(sm),
-            np.float32(pr),
-            block = block,
-            grid = grid
+            gpu.ocl_gpu_queue, (n_items, src_tris.shape[0]), None,
+            gpu_result.data,
+            np.int32(q[0].shape[0]), gpu_qx.data, gpu_qw.data,
+            gpu_pts.data,
+            np.int32(n_items), gpu_obs_tris.data,
+            np.int32(src_tris.shape[0]), gpu_src_tris.data,
+            float_type(sm), float_type(pr)
         )
+        out[start_idx:end_idx] = gpu_result.get()
 
-    max_block = 32
-    max_grid = 20
-    cur_result_buf = np.empty(
-        (max_block * max_grid, 3, 3, src_tris.shape[0], 3, 3)
-    ).astype(np.float32)
+    call_size = 1024
+    for I in gpu.intervals(n, call_size):
+        call_integrator(*I)
 
-    full_result = np.empty(
-        (obs_tris.shape[0], 3, 3, src_tris.shape[0], 3, 3)
-    ).astype(np.float32)
-
-    def next_integral(next_tri = 0):
-        remaining = obs_tris.shape[0] - next_tri
-        if remaining == 0:
-            return
-        elif remaining > max_block:
-            block = (max_block, 1, 1)
-        else:
-            block = (remaining, 1, 1)
-        grid = (min(remaining // block[0], max_grid), src_tris.shape[0])
-        n_tris = grid[0] * block[0]
-        past_end_tri = next_tri + n_tris
-        call_integrator(block, grid, cur_result_buf, next_tri, past_end_tri)
-        full_result[next_tri:past_end_tri] = cur_result_buf[:n_tris]
-        next_integral(past_end_tri)
-
-    next_integral()
-    return full_result
+    return out
 
 def set_co_entries(mat, co_mat, co_indices):
     mat[co_indices, :, :, co_indices, :, :] = co_mat
@@ -83,6 +65,7 @@ def set_near_entries(mat, near_mat, near_entries):
 
 def gpu_mvp(A, x):
     import skcuda.linalg as culg
+    import pycuda.gpuarray as gpuarray
     assert(A.dtype == np.float32)
     assert(x.dtype == np.float32)
     if type(A) != gpuarray.GPUArray:

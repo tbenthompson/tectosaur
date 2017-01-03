@@ -1,5 +1,4 @@
 import numpy as np
-from pycuda.compiler import SourceModule
 import pyopencl as cl
 import pyopencl.array
 import os
@@ -23,62 +22,7 @@ def compare(a, b):
         return True
     if type(a) is np.ndarray:
         return (a == b).all()
-
-gpu_initialized = False
-gpu_module = dict()
-def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None):
-    if tmpl_args is None:
-        tmpl_args = dict()
-
-    global gpu_initialized
-    if not gpu_initialized:
-        import pycuda.autoinit
-
-    global gpu_module
-    if filepath in gpu_module \
-            and not no_caching \
-            and not print_code:
-
-        tmpl_args_match = True
-        for k, v in gpu_module[filepath]['tmpl_args'].items():
-            tmpl_args_match = tmpl_args_match and compare(v, tmpl_args[k])
-
-        if tmpl_args_match:
-            return gpu_module[filepath]['module']
-
-    timer = Timer(silent = True)
-    lookup = mako.lookup.TemplateLookup(
-        directories = [os.path.dirname(filepath)]
-    )
-    tmpl = mako.template.Template(
-        filename = filepath,
-        module_directory = '/tmp/mako_modules',
-        lookup = lookup
-    )
-    timer.report("Load template")
-
-    try:
-        code = tmpl.render(**tmpl_args)
-        # print(code)
-    except:
-        print(mako.exceptions.text_error_template().render())
-
-    if print_code:
-        numbered_lines = '\n'.join(
-            [str(i) + '   ' + line for i,line in enumerate(code.split('\n'))]
-        )
-        print(numbered_lines)
-    timer.report("Render template")
-    gpu_module[filepath] = dict()
-    gpu_module[filepath]['tmpl_args'] = tmpl_args
-    gpu_module[filepath]['module'] = SourceModule(
-        code,
-        options = ['--use_fast_math', '--restrict'],
-        include_dirs = [os.getcwd() + '/' + os.path.dirname(filepath)],
-        no_extern_c = True
-    )
-    timer.report("Compiling cuda")
-    return gpu_module[filepath]['module']
+    return a == b
 
 ocl_gpu_initialized = False
 ocl_gpu_ctx = None
@@ -86,15 +30,29 @@ ocl_gpu_queue = None
 ocl_gpu_module = dict()
 
 def to_gpu(arr, float_type = np.float32):
+    if type(arr) is cl.array.Array:
+        return arr
     return cl.array.to_device(ocl_gpu_queue, arr.astype(float_type))
 
 def empty_gpu(shape, float_type = np.float32):
-    return cl.array.empty(ocl_gpu_queue, shape, float_type)
+    return cl.array.zeros(ocl_gpu_queue, shape, float_type)
 
 def quad_to_gpu(quad_rule, float_type = np.float32):
     gpu_qx = to_gpu(quad_rule[0].flatten(), float_type)
     gpu_qw = to_gpu(quad_rule[1], float_type)
     return gpu_qx, gpu_qw
+
+def intervals(length, step_size):
+    out = []
+    next_start = 0
+    next_end = step_size
+    while next_end < length + step_size:
+        this_end = min(next_end, length)
+        out.append((next_start, this_end))
+        next_start += step_size
+        next_end += step_size
+    return out
+
 
 def ocl_load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None):
     global ocl_gpu_initialized, ocl_gpu_ctx, ocl_gpu_queue, ocl_gpu_module

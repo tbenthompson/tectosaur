@@ -1,10 +1,11 @@
+import time
 import cppimport
 import numpy as np
 
-import pycuda.driver as drv
 from tectosaur.util.gpu import load_gpu
+from tectosaur.sparse_integral_op import farfield_pts_wrapper, get_ocl_gpu_module
 
-from test_decorators import golden_master
+from tectosaur.test_decorators import golden_master
 
 import cppimport
 fmm = cppimport.imp("tectosaur._fmm._fmm")._fmm._fmm
@@ -27,29 +28,19 @@ def timing(n, runtime, name, flops):
 def run_kernel(n, k_name, flops, testit = False, timeit = False):
     block_size = 128
     np.random.seed(100)
-    obs_pts = np.random.rand(n, 3).astype(np.float32)
-    obs_ns = normalize(np.random.rand(n, 3).astype(np.float32))
-    src_pts = np.random.rand(n, 3).astype(np.float32)
+    obs_pts = np.random.rand(n, 3)
+    obs_ns = normalize(np.random.rand(n, 3))
+    src_pts = np.random.rand(n, 3)
     src_ns = obs_ns
-    weights = np.random.rand(n, 3).astype(np.float32)
+    weights = np.random.rand(n, 3)
 
-    gpu_module = load_gpu(
-        'tectosaur/integrals.cu',
-        tmpl_args = dict(block_size = block_size)
-    )
 
-    farfield = gpu_module.get_function("farfield_pts" + k_name)
-    block = (block_size, 1, 1)
-    grid = (int(np.ceil(n / block[0])), 1)
-    result = np.zeros((n, 3)).astype(np.float32)
-    runtime = farfield(
-        drv.Out(result), drv.In(obs_pts), drv.In(obs_ns),
-        drv.In(src_pts), drv.In(src_ns), drv.In(weights),
-        np.float32(1.0), np.float32(0.25), np.int32(n), np.int32(n),
-        block = block,
-        grid = grid,
-        time_kernel = True
-    )
+    get_ocl_gpu_module() #preload module so it doesn't get counted in the runtime
+    start = time.time()
+    result = farfield_pts_wrapper(
+        k_name, n, obs_pts, obs_ns, n, src_pts, src_ns, weights, 1.0, 0.25
+    ).reshape((n, 3))
+    runtime = time.time() - start
     if timeit:
         timing(n, runtime, k_name, flops)
 

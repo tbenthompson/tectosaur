@@ -73,6 +73,91 @@ ${pt_pfx}${dn(dim)} += ${basis_pfx}b${basis} * ${tri_name(basis,dim)};
 ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 </%def>
 
+<%def name="constants()">
+const float CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
+const float CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
+const float CsT0 = (1-2.0*nu)/(8.0*M_PI*(1.0-nu));
+const float CsT1 = 3.0/(8.0*M_PI*(1.0-nu));
+const float CsH0 = G/(4*M_PI*(1-nu));
+const float CsH1 = 1-2*nu;
+const float CsH2 = -1+4*nu;
+const float CsH3 = 3*nu;
+</%def>
+
+<%def name="vector_kernels(k_name)">
+% if k_name is 'U':
+    float invr = 1.0 / sqrt(r2);
+    float Q1 = CsU0 * invr;
+    float Q2 = CsU1 * invr / r2;
+    float ddi = Dx*Sx + Dy*Sy + Dz*Sz;
+    sumx += Q1*Sx + Q2*Dx*ddi;
+    sumy += Q1*Sy + Q2*Dy*ddi;
+    sumz += Q1*Sz + Q2*Dz*ddi;
+% elif k_name is 'T' or k_name is 'A':
+    <%
+        minus_or_plus = '-' if k_name is 'T' else '+'
+        plus_or_minus = '+' if k_name is 'T' else '-'
+        n_name = 'N' if k_name is 'T' else 'M'
+    %>
+    float invr = 1.0 / sqrt(r2);
+    float invr2 = invr * invr;
+    float invr3 = invr2 * invr;
+
+    float rn = ${n_name}x * Dx + ${n_name}y * Dy + ${n_name}z * Dz;
+
+    float A = ${plus_or_minus}CsT0 * invr3;
+    float C = ${minus_or_plus}CsT1 * invr3 * invr2;
+
+    float rnddi = C * rn * (Dx*Sx + Dy*Sy + Dz*Sz);
+
+    float nxdy = ${n_name}x*Dy-${n_name}y*Dx;
+    float nzdx = ${n_name}z*Dx-${n_name}x*Dz;
+    float nzdy = ${n_name}z*Dy-${n_name}y*Dz;
+
+    sumx += A*(
+        - rn * Sx
+        ${minus_or_plus} nxdy * Sy
+        ${plus_or_minus} nzdx * Sz)
+        + Dx*rnddi;
+    sumy += A*(
+        ${plus_or_minus} nxdy * Sx
+        - rn * Sy
+        ${plus_or_minus} nzdy * Sz)
+        + Dy*rnddi;
+    sumz += A*(
+        ${minus_or_plus} nzdx * Sx 
+        ${minus_or_plus} nzdy * Sy 
+        - rn * Sz)
+        + Dz*rnddi;
+% elif k_name is 'H':
+    float invr = 1.0 / sqrt(r2);
+    float invr2 = invr * invr;
+    float invr3 = invr2 * invr;
+
+    float rn = invr*(Nx * Dx + Ny * Dy + Nz * Dz);
+    float rm = invr*(Mx * Dx + My * Dy + Mz * Dz);
+    float mn = Mx * Nx + My * Ny + Mz * Nz;
+
+    float sn = Sx*Nx + Sy*Ny + Sz*Nz;
+    float sd = invr*(Sx*Dx + Sy*Dy + Sz*Dz);
+    float sm = Sx*Mx + Sy*My + Sz*Mz;
+
+    float Q = CsH0 * invr3;
+    float A = Q * 3 * rn;
+    float B = Q * CsH1;
+    float C = Q * CsH3;
+
+    float MT = Q*CsH2*sn + A*CsH1*sd;
+    float NT = B*sm + C*sd*rm;
+    float DT = invr*(B*3*sn*rm + C*sd*mn + A*(nu*sm - 5*sd*rm));
+    float ST = A*nu*rm + B*mn;
+
+    sumx += Nx*NT + Mx*MT + Dx*DT + ST*Sx;
+    sumy += Ny*NT + My*MT + Dy*DT + ST*Sy;
+    sumz += Nz*NT + Mz*MT + Dz*DT + ST*Sz;
+%endif
+</%def>
+
 <%def name="integrate_pair(k_name, limit)">
     ${tri_info("obs", "n")}
     ${tri_info("src", "l")}
@@ -83,16 +168,7 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
         result_temp[iresult] = 0;
     }
 
-    float CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
-    float CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
-    float CsT0 = (1-2.0*nu)/(8.0*M_PI*(1.0-nu));
-    float CsT1 = 3.0/(8.0*M_PI*(1.0-nu));
-    float CsT2 = 1.0/(8*M_PI*(1-nu));
-    float CsT3 = 1-2*nu;
-    float CsH0 = G/(4*M_PI*(1-nu));
-    float CsH1 = 1-2*nu;
-    float CsH2 = -1+4*nu;
-    float CsH3 = 3*nu;
+    ${constants()}
     
     for (int iq = 0; iq < n_quad_pts; iq++) {
         <% 
@@ -261,20 +337,135 @@ void ${pairs_func_name(limit, k_name)}(__global float* result,
 }
 </%def>
 
+<%def name="farfield_tris(k_name)">
+__kernel
+void farfield_tris${k_name}(__global float* result,
+    int n_quad_pts, __global float* quad_pts, __global float* quad_wts,
+    __global float* pts, int n_obs_tris, __global int* obs_tris, 
+    int n_src_tris, __global int* src_tris, float G, float nu)
+{
+    const int i = get_global_id(0);
+    const int j = get_global_id(1);
 
-<%def name="constants()">
-const float CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
-const float CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
-const float CsT0 = (1-2.0*nu)/(8.0*M_PI*(1.0-nu));
-const float CsT1 = 3.0/(8.0*M_PI*(1.0-nu));
-const float CsH0 = G/(4*M_PI*(1-nu));
-const float CsH1 = 1-2*nu;
-const float CsH2 = -1+4*nu;
-const float CsH3 = 3*nu;
+    ${get_triangle("obs_tri", "obs_tris", "i")}
+    ${get_triangle("src_tri", "src_tris", "j")}
+    ${integrate_pair(k_name, limit = False)}
+
+    % for d_obs in range(3):
+    % for d_src in range(3):
+    % for b_obs in range(3):
+    % for b_src in range(3):
+    result[
+        (i * 9 + ${b_obs} * 3 + ${d_obs}) * n_src_tris * 9 +
+        (j * 9 + ${b_src} * 3 + ${d_src})
+        ] = result_temp[${temp_result_idx(d_obs, d_src, b_obs, b_src)}];
+    % endfor
+    % endfor
+    % endfor
+    % endfor
+}
 </%def>
 
+<%def name="farfield_pts(k_name, need_obsn, need_srcn, constants_code)">
+__kernel
+void farfield_pts${k_name}(
+    __global float* result, __global float* obs_pts, __global float* obs_ns,
+    __global float* src_pts, __global float* src_ns, __global float* input,
+    float G, float nu, int n_obs, int n_src)
+{
+    int i = get_global_id(0);
+    int local_id = get_local_id(0);
+
+    % for d in range(3):
+    float obsp${dn(d)};
+    % endfor
+    if (i < n_obs) {
+        % for d in range(3):
+        obsp${dn(d)} = obs_pts[i * 3 + ${d}];
+        % endfor
+    }
+
+    % if need_obsn:
+    % for d in range(3):
+    float M${dn(d)};
+    % endfor
+    if (i < n_obs) {
+        % for d in range(3):
+        M${dn(d)} = obs_ns[i * 3 + ${d}];
+        % endfor
+    }
+    % endif
+
+    % if need_srcn:
+    __local float sh_src_ns[3 * ${block_size}];
+    % endif
+    __local float sh_src_pts[3 * ${block_size}];
+    __local float sh_input[3 * ${block_size}];
+
+    
+    ${constants()}
+
+    float sumx = 0.0;
+    float sumy = 0.0;
+    float sumz = 0.0;
+
+    int j = 0;
+    int tile = 0;
+    for (; j < n_src; j += ${block_size}, tile++) {
+        barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+        int idx = tile * ${block_size} + local_id;
+        if (idx < n_src) {
+            for (int k = 0; k < 3; k++) {
+                % if need_srcn:
+                sh_src_ns[local_id * 3 + k] = src_ns[idx * 3 + k];
+                % endif
+                sh_src_pts[local_id * 3 + k] = src_pts[idx * 3 + k];
+                sh_input[local_id * 3 + k] = input[idx * 3 + k];
+            }
+        }
+        barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+
+        if (i >= n_obs) {
+            continue;
+        }
+        for (int k = 0; k < ${block_size} && k < n_src - j; k++) {
+            float Dx = sh_src_pts[k * 3] - obspx;
+            float Dy = sh_src_pts[k * 3 + 1] - obspy;
+            float Dz = sh_src_pts[k * 3 + 2] - obspz;
+
+            float r2 = Dx * Dx + Dy * Dy + Dz * Dz;
+            if (r2 == 0.0) {
+                continue;
+            }
+            % if need_srcn:
+            % for d in range(3):
+            float N${dn(d)} = sh_src_ns[k * 3 + ${d}];
+            % endfor
+            % endif
+
+            % for d in range(3):
+            float S${dn(d)} = sh_input[k * 3 + ${d}];
+            % endfor
+
+            ${vector_kernels(k_name)}
+        }
+    }
+
+    if (i < n_obs) {
+        % for d in range(3):
+        result[i * 3 + ${d}] = sum${dn(d)};
+        % endfor
+    }
+}
+</%def>
+
+${farfield_pts("U", False, False, U_const_code)}
+${farfield_pts("T", False, True, T_const_code)}
+${farfield_pts("A", True, False, A_const_code)}
+${farfield_pts("H", True, True, H_const_code)}
 
 % for k_name in kernel_names:
+${farfield_tris(k_name)}
 ${single_pairs(k_name, limit = True)}
 ${single_pairs(k_name, limit = False)}
 % endfor

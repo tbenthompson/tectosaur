@@ -1,6 +1,4 @@
 import numpy as np
-import pycuda.driver as drv
-import pycuda.gpuarray as gpuarray
 
 import tectosaur.triangle_rules as triangle_rules
 from tectosaur.quadrature import richardson_quad
@@ -34,7 +32,7 @@ def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular):
     gpu_qx, gpu_qw = gpu.quad_to_gpu(q, float_type)
 
     n = obs_tris.shape[0]
-    out = np.empty((n, 3, 3, 3, 3)).astype(float_type)
+    out = np.empty((n, 3, 3, 3, 3), dtype = float_type)
     if n == 0:
         return out
 
@@ -55,13 +53,8 @@ def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular):
         out[start_idx:end_idx] = gpu_result.get()
 
     call_size = 2 ** 14
-    next_call_start = 0
-    next_call_end = call_size
-    while next_call_end < n + call_size:
-        this_call_end = min(next_call_end, n)
-        call_integrator(next_call_start, this_call_end)
-        next_call_start += call_size
-        next_call_end += call_size
+    for I in gpu.intervals(n, call_size):
+        call_integrator(*I)
     return out
 
 def cached_in(name, creator):
