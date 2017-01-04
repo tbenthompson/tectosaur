@@ -10,6 +10,54 @@ import mako.lookup
 
 from tectosaur.util.timer import Timer
 
+gpu_initialized = False
+gpu_ctx = None
+gpu_queue = None
+gpu_module = dict()
+
+def check_initialized():
+    global gpu_initialized, gpu_ctx, gpu_queue
+    if not gpu_initialized:
+        gpu_ctx = cl.create_some_context()
+        gpu_queue = cl.CommandQueue(gpu_ctx)
+        gpu_initialized = True
+
+        # Lazy import to avoid a circular dependency
+        import tectosaur.viennacl as viennacl
+        viennacl.setup(gpu_ctx.int_ptr, gpu_ctx.devices[0].int_ptr, gpu_queue.int_ptr)
+
+def to_gpu(arr, float_type = np.float32):
+    check_initialized()
+    if type(arr) is cl.array.Array:
+        return arr
+    return cl.array.to_device(gpu_queue, arr.astype(float_type))
+
+def empty_gpu(shape, float_type = np.float32):
+    check_initialized()
+    return cl.array.zeros(gpu_queue, shape, float_type)
+
+def quad_to_gpu(quad_rule, float_type = np.float32):
+    gpu_qx = to_gpu(quad_rule[0].flatten(), float_type)
+    gpu_qw = to_gpu(quad_rule[1], float_type)
+    return gpu_qx, gpu_qw
+
+def np_to_c_type(t):
+    if t == np.float32:
+        return 'float'
+    elif t == np.float64:
+        return 'double'
+
+def intervals(length, step_size):
+    out = []
+    next_start = 0
+    next_end = step_size
+    while next_end < length + step_size:
+        this_end = min(next_end, length)
+        out.append((next_start, this_end))
+        next_start += step_size
+        next_end += step_size
+    return out
+
 def compare(a, b):
     if type(a) != type(b):
         return False
@@ -24,52 +72,17 @@ def compare(a, b):
         return (a == b).all()
     return a == b
 
-ocl_gpu_initialized = False
-ocl_gpu_ctx = None
-ocl_gpu_queue = None
-ocl_gpu_module = dict()
-
-def to_gpu(arr, float_type = np.float32):
-    if type(arr) is cl.array.Array:
-        return arr
-    return cl.array.to_device(ocl_gpu_queue, arr.astype(float_type))
-
-def empty_gpu(shape, float_type = np.float32):
-    return cl.array.zeros(ocl_gpu_queue, shape, float_type)
-
-def quad_to_gpu(quad_rule, float_type = np.float32):
-    gpu_qx = to_gpu(quad_rule[0].flatten(), float_type)
-    gpu_qw = to_gpu(quad_rule[1], float_type)
-    return gpu_qx, gpu_qw
-
-def intervals(length, step_size):
-    out = []
-    next_start = 0
-    next_end = step_size
-    while next_end < length + step_size:
-        this_end = min(next_end, length)
-        out.append((next_start, this_end))
-        next_start += step_size
-        next_end += step_size
-    return out
-
-
-def ocl_load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None):
-    global ocl_gpu_initialized, ocl_gpu_ctx, ocl_gpu_queue, ocl_gpu_module
-
+def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None):
     if tmpl_args is None:
         tmpl_args = dict()
 
-    if not ocl_gpu_initialized:
-        ocl_gpu_ctx = cl.create_some_context()
-        ocl_gpu_queue = cl.CommandQueue(ocl_gpu_ctx)
-        ocl_gpu_initialized = True
+    check_initialized()
 
-    if filepath in ocl_gpu_module \
+    if filepath in gpu_module \
             and not no_caching \
             and not print_code:
 
-        existing_modules = ocl_gpu_module[filepath]
+        existing_modules = gpu_module[filepath]
         for module_info in existing_modules:
             tmpl_args_match = True
             for k, v in module_info['tmpl_args'].items():
@@ -101,15 +114,24 @@ def ocl_load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = N
 
     module_info = dict()
     module_info['tmpl_args'] = tmpl_args
-    #TODO: set options for efficiency -- https://www.khronos.org/registry/cl/sdk/1.0/docs/man/xhtml/clBuildProgram.html
     file_dir = os.getcwd() + '/' + os.path.dirname(filepath)
     compile_options = ['-I' + file_dir]
+    # Using these optimization options doesn't improve performance by very much, so
+    # I'd say they're not worth the risk.
+    # fast_opts = [
+    #     '-cl-finite-math-only',
+    #     '-cl-unsafe-math-optimizations',
+    #     '-cl-no-signed-zeros',
+    #     '-cl-mad-enable',
+    #     '-cl-strict-aliasing'
+    # ]
+    # compile_options.extend(fast_opts)
     module_info['module'] = cl.Program(
-        ocl_gpu_ctx, code
+        gpu_ctx, code
     ).build(options = compile_options)
 
-    if filepath not in ocl_gpu_module:
-        ocl_gpu_module[filepath] = []
-    ocl_gpu_module[filepath].append(module_info)
+    if filepath not in gpu_module:
+        gpu_module[filepath] = []
+    gpu_module[filepath].append(module_info)
 
     return module_info['module']

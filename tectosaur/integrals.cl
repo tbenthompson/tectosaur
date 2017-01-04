@@ -412,7 +412,7 @@ void farfield_pts${k_name}(
     int j = 0;
     int tile = 0;
     for (; j < n_src; j += ${block_size}, tile++) {
-        barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+        barrier(CLK_LOCAL_MEM_FENCE);
         int idx = tile * ${block_size} + local_id;
         if (idx < n_src) {
             for (int k = 0; k < 3; k++) {
@@ -423,7 +423,7 @@ void farfield_pts${k_name}(
                 sh_input[local_id * 3 + k] = input[idx * 3 + k];
             }
         }
-        barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+        barrier(CLK_LOCAL_MEM_FENCE);
 
         if (i >= n_obs) {
             continue;

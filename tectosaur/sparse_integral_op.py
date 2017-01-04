@@ -10,7 +10,7 @@ import tectosaur.fmm as fmm
 import tectosaur.geometry as geometry
 #TODO: Split the cuda code into nearfield integrals and farfield.
 from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
-    get_ocl_gpu_module, get_gpu_config, float_type
+    get_gpu_module, get_gpu_config, float_type
 from tectosaur.table_lookup import coincident_table, adjacent_table
 import tectosaur.util.gpu as gpu
 
@@ -185,7 +185,7 @@ class NearfieldIntegralOp:
         return self.mat.dot(v)
 
 def farfield_pts_wrapper(K, n_obs, obs_pts, obs_ns, n_src, src_pts, src_ns, vec, sm, pr):
-    gpu_farfield_fnc = getattr(get_ocl_gpu_module(), "farfield_pts" + K)
+    gpu_farfield_fnc = getattr(get_gpu_module(), "farfield_pts" + K)
 
     gpu_result = gpu.empty_gpu(n_obs * 3, float_type)
     gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)
@@ -198,7 +198,7 @@ def farfield_pts_wrapper(K, n_obs, obs_pts, obs_ns, n_src, src_pts, src_ns, vec,
     n_blocks = int(np.ceil(n_obs / local_size))
     global_size = local_size * n_blocks
     gpu_farfield_fnc(
-        gpu.ocl_gpu_queue, (global_size,), (local_size,),
+        gpu.gpu_queue, (global_size,), (local_size,),
         gpu_result.data,
         gpu_obs_pts.data, gpu_obs_ns.data,
         gpu_src_pts.data, gpu_src_ns.data,
@@ -226,7 +226,7 @@ class SparseIntegralOp:
         self.sm = sm
         self.pr = pr
         self.kernel = kernel
-        # self.gpu_farfield_fnc = getattr(get_ocl_gpu_module(), "farfield_pts" + kernel)
+        # self.gpu_farfield_fnc = getattr(get_gpu_module(), "farfield_pts" + kernel)
         self.gpu_quad_pts = gpu.to_gpu(quad_pts.flatten(), float_type)
         self.gpu_quad_ns = gpu.to_gpu(quad_ns.flatten(), float_type)
 

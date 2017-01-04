@@ -2,9 +2,7 @@ import time
 import cppimport
 import numpy as np
 
-from tectosaur.util.gpu import load_gpu
-from tectosaur.sparse_integral_op import farfield_pts_wrapper, get_ocl_gpu_module
-
+from tectosaur.sparse_integral_op import farfield_pts_wrapper, get_gpu_module
 from tectosaur.test_decorators import golden_master
 
 import cppimport
@@ -35,7 +33,7 @@ def run_kernel(n, k_name, flops, testit = False, timeit = False):
     weights = np.random.rand(n, 3)
 
 
-    get_ocl_gpu_module() #preload module so it doesn't get counted in the runtime
+    get_gpu_module() #preload module so it doesn't get counted in the runtime
     start = time.time()
     result = farfield_pts_wrapper(
         k_name, n, obs_pts, obs_ns, n, src_pts, src_ns, weights, 1.0, 0.25

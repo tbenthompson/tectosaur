@@ -15,13 +15,10 @@ def get_gpu_config():
     return {'block_size': 128}
 
 def get_gpu_module():
-    return gpu.load_gpu('tectosaur/integrals.cu', tmpl_args = get_gpu_config())
-
-def get_ocl_gpu_module():
-    return gpu.ocl_load_gpu('tectosaur/integrals.cl', tmpl_args = get_gpu_config())
+    return gpu.load_gpu('tectosaur/integrals.cl', tmpl_args = get_gpu_config())
 
 def get_pairs_integrator(kernel, singular):
-    return getattr(get_ocl_gpu_module(), pairs_func_name(singular, kernel))
+    return getattr(get_gpu_module(), pairs_func_name(singular, kernel))
 
 #TODO: One universal float type for all of tectosaur? tectosaur.config?
 #TODO: The general structure of this caller is similar to the other in tectosaur_tables and sparse_integral_op and dense_integral_op.
@@ -44,7 +41,7 @@ def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular):
         gpu_obs_tris = gpu.to_gpu(obs_tris[start_idx:end_idx], np.int32)
         gpu_src_tris = gpu.to_gpu(src_tris[start_idx:end_idx], np.int32)
         integrator(
-            gpu.ocl_gpu_queue, (n_items,), None,
+            gpu.gpu_queue, (n_items,), None,
             gpu_result.data,
             np.int32(q[0].shape[0]), gpu_qx.data, gpu_qw.data,
             gpu_pts.data, gpu_obs_tris.data, gpu_src_tris.data,

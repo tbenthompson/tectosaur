@@ -4,14 +4,15 @@ from tectosaur.adjacency import find_adjacents, vert_adj_prep,\
     edge_adj_prep, rotate_tri
 from tectosaur.find_nearfield import find_nearfield
 from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
-    get_ocl_gpu_module, float_type
+    get_gpu_module, float_type
 from tectosaur.quadrature import gauss4d_tri
 from tectosaur.util.timer import Timer
 from tectosaur.table_lookup import coincident_table, adjacent_table
 import tectosaur.util.gpu as gpu
+import tectosaur.viennacl as viennacl
 
 def farfield(kernel, sm, pr, pts, obs_tris, src_tris, n_q):
-    integrator = getattr(get_ocl_gpu_module(), "farfield_tris" + kernel)
+    integrator = getattr(get_gpu_module(), "farfield_tris" + kernel)
     q = gauss4d_tri(n_q, n_q)
 
     gpu_qx, gpu_qw = gpu.quad_to_gpu(q, float_type)
@@ -28,7 +29,7 @@ def farfield(kernel, sm, pr, pts, obs_tris, src_tris, n_q):
         gpu_result = gpu.empty_gpu((n_items, 3, 3, src_tris.shape[0], 3, 3), float_type)
         gpu_obs_tris = gpu.to_gpu(obs_tris[start_idx:end_idx], np.int32)
         integrator(
-            gpu.ocl_gpu_queue, (n_items, src_tris.shape[0]), None,
+            gpu.gpu_queue, (n_items, src_tris.shape[0]), None,
             gpu_result.data,
             np.int32(q[0].shape[0]), gpu_qx.data, gpu_qw.data,
             gpu_pts.data,
@@ -62,17 +63,6 @@ def set_adj_entries(mat, adj_mat, tri_idxs, obs_clicks, src_clicks):
 def set_near_entries(mat, near_mat, near_entries):
     mat[near_entries[:,0],:,:,near_entries[:,1],:,:] = near_mat
     return mat
-
-def gpu_mvp(A, x):
-    import skcuda.linalg as culg
-    import pycuda.gpuarray as gpuarray
-    assert(A.dtype == np.float32)
-    assert(x.dtype == np.float32)
-    if type(A) != gpuarray.GPUArray:
-        A = gpuarray.to_gpu(A)
-    x_gpu = gpuarray.to_gpu(x)
-    Ax_gpu = culg.dot(A, x_gpu)
-    return Ax_gpu.get()
 
 class DenseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
@@ -142,9 +132,6 @@ class DenseIntegralOp:
         self.gpu_mat = None
 
     def dot(self, v):
-        import pycuda.gpuarray as gpuarray
-        import skcuda.linalg as culg
         if self.gpu_mat is None:
-            culg.init()
-            self.gpu_mat = gpuarray.to_gpu(self.mat.astype(np.float32))
-        return np.squeeze(gpu_mvp(self.gpu_mat, v[:,np.newaxis].astype(np.float32)))
+            self.gpu_mat = gpu.to_gpu(self.mat, np.float32)
+        return np.squeeze(viennacl.prod(self.gpu_mat, v, np.float32))
