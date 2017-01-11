@@ -1,6 +1,4 @@
-figure out why the test_elastic stuff is occasionally failing by a small percentage, most likely is just amplification of floating point error, possibly due to the sqrt.
-use clblas
-refactor the two GPU integration functions (tectosaur/integrals.cu vs tables/kernels.cu)
+try using a fixed order quadrature rule for the tectosaur_tables stuff.
 
 -- actually use the interpolation table based integrals in an okada problem
 -- what to do about interelement angles that are greater than pi, for adjacent table lookup?

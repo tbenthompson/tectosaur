@@ -1,2 +1,2 @@
 import os
-include_dir = os.path.dirname(os.path.realpath(__file__))
+source_dir = os.path.dirname(os.path.realpath(__file__))
