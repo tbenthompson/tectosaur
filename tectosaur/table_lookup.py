@@ -28,7 +28,9 @@ def coincident_interp_pts_wts(n_A, n_B, n_pr):
     Awts = cheb_wts(-1,1,n_A)
     Bwts = cheb_wts(-1,1,n_B)
     prwts = cheb_wts(-1,1,n_pr)
-    interp_wts = np.outer(Awts,np.outer(Bwts,prwts)).ravel()
+    # meshgrid behaves in a slightly strange manner such that Bwts must go first
+    # in this outer product!
+    interp_wts = np.outer(np.outer(Bwts, Awts),prwts).ravel()
     return interp_pts, interp_wts
 
 def interp_limit(eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt):

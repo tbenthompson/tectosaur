@@ -1,3 +1,4 @@
+import os
 import numpy as np
 
 import tectosaur.triangle_rules as triangle_rules
@@ -21,7 +22,7 @@ def get_gpu_config():
     return {'block_size': 128, 'float_type': get_c_float_type(float_type)}
 
 def get_gpu_module():
-    return gpu.load_gpu('tectosaur/integrals.cl', tmpl_args = get_gpu_config())
+    return gpu.load_gpu('integrals.cl', tmpl_args = get_gpu_config())
 
 def get_pairs_integrator(kernel, singular):
     return getattr(get_gpu_module(), pairs_func_name(singular, kernel))

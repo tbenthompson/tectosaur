@@ -44,6 +44,20 @@ def test_get_split_pt_rotated():
     rot_correct = scale * R.dot([0.5, min_angle_isoceles_height, 0.0])
     np.testing.assert_almost_equal(split_pt, rot_correct)
 
+def test_coincident_interp_pts_wts():
+    pts, wts = coincident_interp_pts_wts(10,10,9)
+    f = lambda xs: (np.sin(xs[:,0]) * np.exp(np.cos(xs[:,1]) * xs[:,2]))[:, np.newaxis]
+    fvs = f(pts)
+    max_err = 0
+    for i in range(10):
+        test_pt = np.random.rand(1, 3) * 2 - 1
+        correct = f(test_pt)
+        res = fast_lookup.barycentric_evalnd(pts, wts, fvs, test_pt)
+        print(res, correct)
+        err = np.abs(res - correct)
+        max_err = max(err, max_err)
+    print(max_err)
+
 def test_separate():
     i = 5
     while i > 0:

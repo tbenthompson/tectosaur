@@ -72,17 +72,31 @@ def compare(a, b):
         return (a == b).all()
     return a == b
 
-def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None):
+def get_tectosaur_dir():
+    import tectosaur
+    tectosaur_dir = os.path.dirname(tectosaur.__file__)
+    return tectosaur_dir
+
+def get_template(tmpl_name, tmpl_dir):
+    template_dirs = [get_tectosaur_dir()]
+    if tmpl_dir is not None:
+        template_dirs.append(tmpl_dir)
+    lookup = mako.lookup.TemplateLookup(directories = template_dirs)
+    return lookup.get_template(tmpl_name)
+
+def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
+        no_caching = False, tmpl_args = None):
+
     if tmpl_args is None:
         tmpl_args = dict()
 
     check_initialized()
 
-    if filepath in gpu_module \
+    if tmpl_name in gpu_module \
             and not no_caching \
             and not print_code:
 
-        existing_modules = gpu_module[filepath]
+        existing_modules = gpu_module[tmpl_name]
         for module_info in existing_modules:
             tmpl_args_match = True
             for k, v in module_info['tmpl_args'].items():
@@ -91,20 +105,13 @@ def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None)
             if tmpl_args_match:
                 return module_info['module']
 
-    lookup = mako.lookup.TemplateLookup(
-        directories = [os.path.dirname(filepath)]
-    )
-    tmpl = mako.template.Template(
-        filename = filepath,
-        module_directory = '/tmp/mako_modules',
-        lookup = lookup
-    )
 
+    tmpl = get_template(tmpl_name, tmpl_dir)
     try:
         code = tmpl.render(**tmpl_args)
-        # print(code)
     except:
         print(mako.exceptions.text_error_template().render())
+        raise
 
     if print_code:
         numbered_lines = '\n'.join(
@@ -114,8 +121,6 @@ def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None)
 
     module_info = dict()
     module_info['tmpl_args'] = tmpl_args
-    file_dir = os.getcwd() + '/' + os.path.dirname(filepath)
-    compile_options = ['-I' + file_dir]
     # Using these optimization options doesn't improve performance by very much, so
     # I'd say they're not worth the risk.
     # fast_opts = [
@@ -128,10 +133,10 @@ def load_gpu(filepath, print_code = False, no_caching = False, tmpl_args = None)
     # compile_options.extend(fast_opts)
     module_info['module'] = cl.Program(
         gpu_ctx, code
-    ).build(options = compile_options)
+    ).build(options = [])
 
-    if filepath not in gpu_module:
-        gpu_module[filepath] = []
-    gpu_module[filepath].append(module_info)
+    if tmpl_name not in gpu_module:
+        gpu_module[tmpl_name] = []
+    gpu_module[tmpl_name].append(module_info)
 
     return module_info['module']

@@ -6,7 +6,7 @@ from tectosaur.table_lookup import coincident_table
 
 from test_interpolate import ptswts3d
 
-from test_decorators import golden_master
+from tectosaur.test_decorators import golden_master
 
 import cppimport
 fast_lookup = cppimport.imp("tectosaur.fast_lookup").fast_lookup

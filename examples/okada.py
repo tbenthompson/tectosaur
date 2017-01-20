@@ -88,10 +88,9 @@ def refined_free_surface():
     print('ntris: ' + str(final_tris.shape[0]))
     return pts, final_tris
 
-def make_free_surface():
-    w = 6
+def make_free_surface(w, n):
     corners = [[-w, -w, 0], [-w, w, 0], [w, w, 0], [w, -w, 0]]
-    return mesh.rect_surface(30, 30, corners)
+    return mesh.rect_surface(n, n, corners)
 
 def make_fault(L, top_depth):
     return mesh.rect_surface(10, 10, [
@@ -100,12 +99,14 @@ def make_fault(L, top_depth):
     ])
 
 def make_meshes(fault_L, top_depth):
-    # surface = make_free_surface()
-    surface = refined_free_surface()
+    surface = make_free_surface(10, 50)
+    # surface = refined_free_surface()
     # Sloping plateau
-    print("SLOPINGPLATEAU")
-    x_co = surface[0][:,1]
-    surface[0][:,2] = np.where(x_co > 0, np.where(x_co < 2, x_co / 2.0, 1.0), 0.0)
+    sloping_plateau = False
+    if sloping_plateau:
+        print("SLOPINGPLATEAU")
+        x_co = surface[0][:,1]
+        surface[0][:,2] = np.where(x_co > 0, np.where(x_co < 2, x_co / 2.0, 1.0), 0.0)
     fault = make_fault(fault_L, top_depth)
     all_mesh = mesh.concat(surface, fault)
     surface_tris = all_mesh[1][:surface[1].shape[0]]

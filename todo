@@ -1,12 +1,10 @@
-try using a fixed order quadrature rule for the tectosaur_tables stuff.
+-- FMM via tree plan construction and gpu direct evaluation
 
 -- actually use the interpolation table based integrals in an okada problem
 -- what to do about interelement angles that are greater than pi, for adjacent table lookup?
--- how to deal with triangles that have internal angles less than 20 degrees? see comments in the overleaf doc.
 
 use FMM for okada
 -- just try it out first, make sure its accurate.
--- condense the columns of p2m and p2l and p2p, condense rows of m2p, l2p, p2p, this should increase efficiency A LOT (HUH??)
 
 sphere test
 -- do two problems:
@@ -35,9 +33,10 @@ CORRECTNESS/BLACKBOXYNESS:
 METHOD:
 sparse approximate inverse from FMM sparsity pattern
 interior integrals for spatially varying body forces
+2D
+-- setup a golden master test matching with old 3bem results
 
 OPTIMIZATIONS:
 constraint construction
 adjacency
 figure out preconditioning, spilu is slow, but is there a better alternative? spai-based fmm inverse.
-FMM via tree plan construction and gpu direct evaluation

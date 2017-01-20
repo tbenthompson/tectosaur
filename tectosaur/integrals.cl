@@ -13,7 +13,7 @@ kronecker = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 
 #define Real ${float_type}
 
-<%namespace name="prim" file="../integral_primitives.cl"/>
+<%namespace name="prim" file="integral_primitives.cl"/>
 
 <%def name="integrate_pair(k_name, limit)">
     ${prim.tri_info("obs", "n")}
