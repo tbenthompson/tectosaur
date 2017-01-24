@@ -69,7 +69,11 @@ def compare(a, b):
             return False
         return True
     if type(a) is np.ndarray:
-        return (a == b).all()
+        res = a == b
+        if type(res) is np.ndarray:
+            return res.all()
+        else:
+            return res
     return a == b
 
 def get_tectosaur_dir():

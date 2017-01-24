@@ -18,11 +18,22 @@ minlegalA = 0.0939060848748 - 0.01
 minlegalB = 0.233648154379 - 0.01
 maxlegalB = 0.865565992417 + 0.01
 
+def adjacent_interp_pts_wts(n_phi, n_pr):
+    phihats = cheb(-1, 1, n_phi)
+    prhats = cheb(-1, 1, n_pr)
+    Ph,Nh = np.meshgrid(phihats,prhats)
+    interp_pts = np.array([Ph.ravel(), Nh.ravel()]).T
+
+    phiwts = cheb_wts(-1, 1, n_phi)
+    prwts = cheb_wts(-1, 1, n_pr)
+    interp_wts = np.outer(prwts, phiwts).ravel()
+    return interp_pts.copy(), interp_wts.copy()
+
 def coincident_interp_pts_wts(n_A, n_B, n_pr):
     Ahats = cheb(-1, 1, n_A)
     Bhats = cheb(-1, 1, n_B)
     prhats = cheb(-1, 1, n_pr)
-    Ah,Bh,Nh = np.meshgrid(Ahats, Bhats,prhats)
+    Ah,Bh,Nh = np.meshgrid(Ahats, Bhats, prhats)
     interp_pts = np.array([Ah.ravel(),Bh.ravel(), Nh.ravel()]).T
 
     Awts = cheb_wts(-1,1,n_A)
@@ -31,7 +42,7 @@ def coincident_interp_pts_wts(n_A, n_B, n_pr):
     # meshgrid behaves in a slightly strange manner such that Bwts must go first
     # in this outer product!
     interp_wts = np.outer(np.outer(Bwts, Awts),prwts).ravel()
-    return interp_pts, interp_wts
+    return interp_pts.copy(), interp_wts.copy()
 
 def interp_limit(eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt):
     out = np.empty(81)
@@ -150,17 +161,6 @@ def get_adjacent_theta(obs_tri, src_tri):
         return theta
     else:
         return 2 * np.pi - theta
-
-def adjacent_interp_pts_wts(n_theta, n_pr):
-    thetahats = cheb(-1, 1, n_theta)
-    prhats = cheb(-1, 1, n_pr)
-    Th,Nh = np.meshgrid(thetahats,prhats)
-    interp_pts = np.array([Th.ravel(), Nh.ravel()]).T
-
-    thetawts = cheb_wts(-1, 1, n_theta)
-    prwts = cheb_wts(-1, 1, n_pr)
-    interp_wts = np.outer(thetawts, prwts).ravel()
-    return interp_pts, interp_wts
 
 def triangle_internal_angles(tri):
     v01 = tri[1] - tri[0]
