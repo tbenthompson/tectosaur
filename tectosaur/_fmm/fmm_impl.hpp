@@ -17,7 +17,10 @@ struct FMMConfig {
     double outer_r;
     size_t order;
     Kernel kernel;
+    bool mf;
     std::vector<double> params;
+
+    int tensor_dim() const { return kernel.tensor_dim; }
 };
 
 struct Block {
@@ -36,9 +39,49 @@ struct BlockSparseMat {
     size_t get_nnz() { return vals.size(); }
 };
 
+struct MatrixFreeBlock {
+    size_t obs_n_idx;
+    size_t src_n_idx;
+};
+
+struct MatrixFreeOp {
+    Kernel kernel;
+    std::vector<MatrixFreeBlock> blocks;
+};
+
 struct FMMMat {
-    int tensor_dim;
+    KDTree obs_tree;
+    KDTree src_tree;
+    FMMConfig cfg;
+    std::vector<Vec3> surf;
     int translation_surface_order;
+
+    FMMMat(KDTree obs_tree, KDTree src_tree, FMMConfig cfg,
+        std::vector<Vec3> surf);
+
+    std::vector<Vec3> get_surf(const KDNode& src_n, double r);
+    
+    int tensor_dim() const { return cfg.tensor_dim(); }
+
+    void p2m_matvec(double* out, double* in);
+    void m2m_matvec(double* out, double* in, int level);
+    void p2l_matvec(double* out, double* in);
+    void m2l_matvec(double* out, double* in);
+    void l2l_matvec(double* out, double* in, int level);
+    void p2p_matvec(double* out, double* in);
+    void m2p_matvec(double* out, double* in);
+    void l2p_matvec(double* out, double* in);
+
+    std::tuple<std::vector<double>,std::vector<double>,std::vector<double>> mf_matvec(double* vec);
+
+    MatrixFreeOp p2p_mf;
+    MatrixFreeOp p2m_mf;
+    MatrixFreeOp p2l_mf;
+    MatrixFreeOp m2p_mf;
+    std::vector<MatrixFreeOp> m2m_mf;
+    MatrixFreeOp m2l_mf;
+    MatrixFreeOp l2p_mf;
+    std::vector<MatrixFreeOp> l2l_mf;
 
     BlockSparseMat p2p;
     BlockSparseMat p2m;

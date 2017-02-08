@@ -5,14 +5,13 @@ _fmm = cppimport.imp("tectosaur._fmm._fmm")._fmm._fmm
 for k in dir(_fmm):
     locals()[k] = getattr(_fmm, k)
 
-def eval(obs_kd, src_kd, fmm_mat, input_vals, n_outputs):
+def old_eval(obs_kd, src_kd, fmm_mat, input_vals, n_outputs):
     tdim = fmm_mat.tensor_dim
     n_surf = fmm_mat.translation_surface_order
     n_multipoles = n_surf * len(src_kd.nodes) * tdim
     n_locals = n_surf * len(obs_kd.nodes) * tdim
 
     est = fmm_mat.p2p.matvec(input_vals, n_outputs)
-
     m_check = fmm_mat.p2m.matvec(input_vals, n_multipoles)
     multipoles = fmm_mat.uc2e[0].matvec(m_check, n_multipoles)
 
@@ -29,6 +28,13 @@ def eval(obs_kd, src_kd, fmm_mat, input_vals, n_outputs):
         locals += dc2e.matvec(l_check, n_locals)
 
     est += fmm_mat.m2p.matvec(multipoles, n_outputs)
-
     est += fmm_mat.l2p.matvec(locals, n_outputs)
-    return est
+    return est, multipoles, locals
+
+def eval(obs_kd, src_kd, fmm_mat, input_vals, n_outputs, mf):
+    new_est, new_ms, new_ls = fmm_mat.mf_matvec(input_vals)
+    old_est, old_ms, old_ls = old_eval(obs_kd, src_kd, fmm_mat, input_vals, n_outputs)
+    if mf:
+        return new_est
+    else:
+        return old_est

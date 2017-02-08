@@ -6,10 +6,14 @@ import numpy as np
 
 import tectosaur.mesh as mesh
 from tectosaur.util.timer import Timer
-
-from test_decorators import slow
+from tectosaur.test_decorators import slow
 
 import tectosaur.fmm as fmm
+
+quiet_tests = True
+def test_print(*args, **kwargs):
+    if not quiet_tests:
+        print(*args, **kwargs)
 
 def rand_pts(n, source):
     return np.random.rand(n, 3)
@@ -82,9 +86,9 @@ def test_build_big():
     import time
     start = time.time()
     kdtree = fmm.KDTree(pts, pts, 1)
-    print("KDTree took: " + str(time.time() - start))
+    test_print("KDTree took: " + str(time.time() - start))
 
-def run_full(n, make_pts, mac, order, kernel, params):
+def run_full(n, make_pts, mac, order, kernel, params, mf = True):
     obs_pts = make_pts(n, False)
     obs_ns = make_pts(n, False)
     obs_ns /= np.linalg.norm(obs_ns, axis = 1)[:,np.newaxis]
@@ -92,11 +96,11 @@ def run_full(n, make_pts, mac, order, kernel, params):
     src_ns = make_pts(n + 1, True)
     src_ns /= np.linalg.norm(src_ns, axis = 1)[:,np.newaxis]
 
-    t = Timer()
+    t = Timer(silent = quiet_tests)
     obs_kd = fmm.KDTree(obs_pts, obs_ns, order)
     src_kd = fmm.KDTree(src_pts, src_ns, order)
     fmm_mat = fmm.fmmmmmmm(
-        obs_kd, src_kd, fmm.FMMConfig(1.1, mac, order, kernel, params)
+        obs_kd, src_kd, fmm.FMMConfig(1.1, mac, order, kernel, mf, params)
     )
     t.report("build matrices")
 
@@ -114,16 +118,16 @@ def run_full(n, make_pts, mac, order, kernel, params):
         dc2e = sum([m.get_nnz() for m in fmm_mat.dc2e])
     )
     for k,v in sorted(nnz.items(), key = lambda k: k[0])[::-1]:
-        print(k + " nnz fraction: " + str(v / ((tdim * n) ** 2)))
+        test_print(k + " nnz fraction: " + str(v / ((tdim * n) ** 2)))
     total_nnz = sum(nnz.values())
-    print("total nnz: " + str(total_nnz))
-    print("compression ratio: " + str(total_nnz / ((tdim * n) ** 2)))
+    test_print("total nnz: " + str(total_nnz))
+    test_print("compression ratio: " + str(total_nnz / ((tdim * n) ** 2)))
 
     n_outputs = obs_pts.shape[0] * tdim
     input_vals = np.ones(src_pts.shape[0] * tdim)
     t.report("make input")
 
-    est = fmm.eval(obs_kd, src_kd, fmm_mat, input_vals, n_outputs)
+    est = fmm.eval(obs_kd, src_kd, fmm_mat, input_vals, n_outputs, mf)
     t.report("matvec")
 
     return (
@@ -138,11 +142,11 @@ def test_ones():
 def check(est, correct, accuracy):
     rmse = np.sqrt(np.mean((est - correct) ** 2))
     rms_c = np.sqrt(np.mean(correct ** 2))
-    print("L2ERR: " + str(rmse / rms_c))
-    print("MEANERR: " + str(np.mean(np.abs(est - correct)) / rms_c))
-    print("MAXERR: " + str(np.max(np.abs(est - correct)) / rms_c))
-    print("MEANRELERR: " + str(np.mean(np.abs((est - correct) / correct))))
-    print("MAXRELERR: " + str(np.max(np.abs((est - correct) / correct))))
+    test_print("L2ERR: " + str(rmse / rms_c))
+    test_print("MEANERR: " + str(np.mean(np.abs(est - correct)) / rms_c))
+    test_print("MAXERR: " + str(np.max(np.abs(est - correct)) / rms_c))
+    test_print("MEANRELERR: " + str(np.mean(np.abs((est - correct) / correct))))
+    test_print("MAXRELERR: " + str(np.max(np.abs((est - correct) / correct))))
     np.testing.assert_almost_equal(est / rms_c, correct / rms_c, accuracy)
 
 def check_invr(obs_pts, _0, src_pts, _1, est, accuracy = 3):
@@ -202,9 +206,9 @@ def test_self_fmm():
     ns /= np.linalg.norm(ns, axis = 1)[:,np.newaxis]
     kd = fmm.KDTree(pts, ns, order)
     fmm_mat = fmm.fmmmmmmm(
-        kd, kd, fmm.FMMConfig(1.1, mac, order, k_name, params)
+        kd, kd, fmm.FMMConfig(1.1, mac, order, k_name, False, params)
     )
-    est = fmm.eval(kd, kd, fmm_mat, np.ones(n * 3), n * 3)
+    est = fmm.eval(kd, kd, fmm_mat, np.ones(n * 3), n * 3, True)
     correct_mat = fmm.direct_eval(
         k_name, np.array(kd.pts), np.array(kd.normals),
         np.array(kd.pts), np.array(kd.normals), params
@@ -214,7 +218,11 @@ def test_self_fmm():
     correct = correct_mat.dot(np.ones(n * 3))
     check(est, correct, 2)
 
+def test_invr_mf():
+    check_invr(*run_full(5000, rand_pts, 2.6, 30, "invr", [], True))
+
 
 if __name__ == '__main__':
+    test_invr_mf()
     # test_build_big()
-    test_elasticH()
+    # test_elasticH()

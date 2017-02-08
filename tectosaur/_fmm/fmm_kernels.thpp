@@ -15,6 +15,7 @@ struct NBodyProblem {
 
 struct Kernel {
     std::function<void(const NBodyProblem&,double*)> f;
+    std::function<void(const NBodyProblem&,double*,double*)> f_mf;
     int tensor_dim;
 };
 
