@@ -82,121 +82,40 @@ TEST_CASE("matvec") {
     REQUIRE(out[2] == 2.0);
 }
 
-void interact_pts(FMMMat& mat, BlockSparseMat& sub_mat,
-            const Vec3* obs_pts, const Vec3* obs_ns,
-            size_t n_obs, size_t obs_pt_start,
-            const Vec3* src_pts, const Vec3* src_ns,
-            size_t n_src, size_t src_pt_start) {
-
-    if (n_obs == 0 || n_src == 0) {
-        return;
-    }
-
-    auto tdim = mat.tensor_dim();
-    auto n_rows = n_obs * tdim;
-    auto n_cols = n_src * tdim;
-    sub_mat.blocks.push_back({obs_pt_start * tdim, src_pt_start * tdim, int(n_rows),
-                          int(n_cols), sub_mat.vals.size()});
-    auto old_n_vals = sub_mat.vals.size();
-    sub_mat.vals.resize(old_n_vals + n_rows * n_cols);
-    mat.cfg.kernel.f(
-        NBodyProblem{obs_pts, obs_ns, src_pts, src_ns, n_obs, n_src,
-        mat.cfg.params.data()}, &sub_mat.vals[old_n_vals]
-    );
-}
-
 void p2p(FMMMat& mat, const KDNode& obs_n, const KDNode& src_n) {
-    mat.p2p_mf.blocks.push_back(MatrixFreeBlock{obs_n.idx, src_n.idx});
-
-    interact_pts(mat, mat.p2p, 
-        &mat.obs_tree.pts[obs_n.start], &mat.obs_tree.normals[obs_n.start],
-        obs_n.end - obs_n.start, obs_n.start,
-        &mat.src_tree.pts[src_n.start], &mat.src_tree.normals[src_n.start],
-        src_n.end - src_n.start, src_n.start);
+    mat.p2p.blocks.push_back(MatrixFreeBlock{obs_n.idx, src_n.idx});
 }
 
 void m2p(FMMMat& mat, const KDNode& obs_n, const KDNode& src_n) {
-    mat.m2p_mf.blocks.push_back(MatrixFreeBlock{obs_n.idx, src_n.idx});
-
-    auto equiv = mat.get_surf(src_n, mat.cfg.inner_r);
-    interact_pts(mat, mat.m2p,
-        &mat.obs_tree.pts[obs_n.start], &mat.obs_tree.normals[obs_n.start],
-        obs_n.end - obs_n.start, obs_n.start,
-        equiv.data(), mat.surf.data(),
-        mat.surf.size(), src_n.idx * mat.surf.size());
+    mat.m2p.blocks.push_back(MatrixFreeBlock{obs_n.idx, src_n.idx});
 }
 
 void l2p(FMMMat& mat, const KDNode& obs_n) {
-    mat.l2p_mf.blocks.push_back(MatrixFreeBlock{obs_n.idx, obs_n.idx});
-
-    auto equiv = mat.get_surf(obs_n, mat.cfg.outer_r);
-    interact_pts(mat, mat.l2p, 
-        &mat.obs_tree.pts[obs_n.start], &mat.obs_tree.normals[obs_n.start],
-        obs_n.end - obs_n.start, obs_n.start,
-        equiv.data(), mat.surf.data(),
-        mat.surf.size(), obs_n.idx * mat.surf.size());
+    mat.l2p.blocks.push_back(MatrixFreeBlock{obs_n.idx, obs_n.idx});
 }
 
 void p2m(FMMMat& mat, const KDNode& src_n) {
-    mat.p2m_mf.blocks.push_back(MatrixFreeBlock{src_n.idx, src_n.idx});
-
-    auto check = mat.get_surf(src_n, mat.cfg.outer_r);
-    interact_pts(mat, mat.p2m, 
-        check.data(), mat.surf.data(), 
-        mat.surf.size(), src_n.idx * mat.surf.size(),
-        &mat.src_tree.pts[src_n.start], &mat.src_tree.normals[src_n.start],
-        src_n.end - src_n.start, src_n.start);
+    mat.p2m.blocks.push_back(MatrixFreeBlock{src_n.idx, src_n.idx});
 }
 
 void m2m(FMMMat& mat, const KDNode& parent_n, const KDNode& child_n) {
-    mat.m2m_mf[parent_n.height].blocks.push_back(
+    mat.m2m[parent_n.height].blocks.push_back(
         MatrixFreeBlock{parent_n.idx, child_n.idx}
     );
-
-    auto check = mat.get_surf(parent_n, mat.cfg.outer_r);
-    auto equiv = mat.get_surf(child_n, mat.cfg.inner_r);
-    interact_pts(mat, mat.m2m[parent_n.height], 
-        check.data(), mat.surf.data(), 
-        mat.surf.size(), parent_n.idx * mat.surf.size(),
-        equiv.data(), mat.surf.data(), 
-        mat.surf.size(), child_n.idx * mat.surf.size());
 }
 
 void l2l(FMMMat& mat, const KDNode& parent_n, const KDNode& child_n) {
-    mat.l2l_mf[child_n.depth].blocks.push_back(
+    mat.l2l[child_n.depth].blocks.push_back(
         MatrixFreeBlock{child_n.idx, parent_n.idx}
     );
-
-    auto check = mat.get_surf(child_n, mat.cfg.inner_r);
-    auto equiv = mat.get_surf(parent_n, mat.cfg.outer_r);
-    interact_pts(mat, mat.l2l[child_n.depth],
-        check.data(), mat.surf.data(), 
-        mat.surf.size(), child_n.idx * mat.surf.size(),
-        equiv.data(), mat.surf.data(), 
-        mat.surf.size(), parent_n.idx * mat.surf.size());
 }
 
 void p2l(FMMMat& mat, const KDNode& obs_n, const KDNode& src_n) {
-    mat.p2l_mf.blocks.push_back(MatrixFreeBlock{obs_n.idx, src_n.idx});
-
-    auto check = mat.get_surf(obs_n, mat.cfg.inner_r);
-    interact_pts(mat, mat.p2l, 
-        check.data(), mat.surf.data(), 
-        mat.surf.size(), obs_n.idx * mat.surf.size(),
-        &mat.src_tree.pts[src_n.start], &mat.src_tree.normals[src_n.start],
-        src_n.end - src_n.start, src_n.start);
+    mat.p2l.blocks.push_back(MatrixFreeBlock{obs_n.idx, src_n.idx});
 }
 
 void m2l(FMMMat& mat, const KDNode& obs_n, const KDNode& src_n) {
-    mat.m2l_mf.blocks.push_back(MatrixFreeBlock{obs_n.idx, src_n.idx});
-
-    auto check = mat.get_surf(obs_n, mat.cfg.inner_r);
-    auto equiv = mat.get_surf(src_n, mat.cfg.inner_r);
-    interact_pts(mat, mat.m2l,
-        check.data(), mat.surf.data(), 
-        mat.surf.size(), obs_n.idx * mat.surf.size(),
-        equiv.data(), mat.surf.data(), 
-        mat.surf.size(), src_n.idx * mat.surf.size());
+    mat.m2l.blocks.push_back(MatrixFreeBlock{obs_n.idx, src_n.idx});
 }
 
 void traverse(FMMMat& mat, const KDNode& obs_n, const KDNode& src_n) {
@@ -357,7 +276,7 @@ FMMMat::FMMMat(KDTree obs_tree, KDTree src_tree, FMMConfig cfg,
     translation_surface_order(surf.size())
 {}
 
-void interact_pts_mf(const FMMConfig& cfg, double* out, double* in,
+void interact_pts(const FMMConfig& cfg, double* out, double* in,
     const Vec3* obs_pts, const Vec3* obs_ns, size_t n_obs, size_t obs_pt_start,
     const Vec3* src_pts, const Vec3* src_ns, size_t n_src, size_t src_pt_start) 
 {
@@ -378,10 +297,10 @@ std::vector<Vec3> FMMMat::get_surf(const KDNode& src_n, double r) {
 }
 
 void FMMMat::p2p_matvec(double* out, double* in) {
-    for (auto& b: p2p_mf.blocks) {
+    for (auto& b: p2p.blocks) {
         auto obs_n = obs_tree.nodes[b.obs_n_idx];
         auto src_n = src_tree.nodes[b.src_n_idx];
-        interact_pts_mf(
+        interact_pts(
             cfg, out, in,
             &obs_tree.pts[obs_n.start], &obs_tree.normals[obs_n.start],
             obs_n.end - obs_n.start, obs_n.start,
@@ -392,10 +311,10 @@ void FMMMat::p2p_matvec(double* out, double* in) {
 }
 
 void FMMMat::p2m_matvec(double* out, double *in) {
-    for (auto& b: p2m_mf.blocks) {
+    for (auto& b: p2m.blocks) {
         auto src_n = src_tree.nodes[b.src_n_idx];
         auto check = get_surf(src_n, cfg.outer_r);
-        interact_pts_mf(
+        interact_pts(
             cfg, out, in,
             check.data(), surf.data(), 
             surf.size(), src_n.idx * surf.size(),
@@ -406,12 +325,12 @@ void FMMMat::p2m_matvec(double* out, double *in) {
 }
 
 void FMMMat::m2m_matvec(double* out, double *in, int level) {
-    for (auto& b: m2m_mf[level].blocks) {
+    for (auto& b: m2m[level].blocks) {
         auto parent_n = src_tree.nodes[b.obs_n_idx];
         auto child_n = src_tree.nodes[b.src_n_idx];
         auto check = get_surf(parent_n, cfg.outer_r);
         auto equiv = get_surf(child_n, cfg.inner_r);
-        interact_pts_mf(
+        interact_pts(
             cfg, out, in,
             check.data(), surf.data(), 
             surf.size(), parent_n.idx * surf.size(),
@@ -422,12 +341,12 @@ void FMMMat::m2m_matvec(double* out, double *in, int level) {
 }
 
 void FMMMat::p2l_matvec(double* out, double* in) {
-    for (auto& b: p2l_mf.blocks) {
+    for (auto& b: p2l.blocks) {
         auto obs_n = obs_tree.nodes[b.obs_n_idx];
         auto src_n = src_tree.nodes[b.src_n_idx];
 
         auto check = get_surf(obs_n, cfg.inner_r);
-        interact_pts_mf(
+        interact_pts(
             cfg, out, in,
             check.data(), surf.data(), 
             surf.size(), obs_n.idx * surf.size(),
@@ -438,13 +357,13 @@ void FMMMat::p2l_matvec(double* out, double* in) {
 }
 
 void FMMMat::m2l_matvec(double* out, double* in) {
-    for (auto& b: m2l_mf.blocks) {
+    for (auto& b: m2l.blocks) {
         auto obs_n = obs_tree.nodes[b.obs_n_idx];
         auto src_n = src_tree.nodes[b.src_n_idx];
 
         auto check = get_surf(obs_n, cfg.inner_r);
         auto equiv = get_surf(src_n, cfg.inner_r);
-        interact_pts_mf(
+        interact_pts(
             cfg, out, in,
             check.data(), surf.data(), 
             surf.size(), obs_n.idx * surf.size(),
@@ -455,13 +374,13 @@ void FMMMat::m2l_matvec(double* out, double* in) {
 }
 
 void FMMMat::l2l_matvec(double* out, double* in, int level) {
-    for (auto& b: l2l_mf[level].blocks) {
+    for (auto& b: l2l[level].blocks) {
         auto child_n = obs_tree.nodes[b.obs_n_idx];
         auto parent_n = obs_tree.nodes[b.src_n_idx];
 
         auto check = get_surf(child_n, cfg.inner_r);
         auto equiv = get_surf(parent_n, cfg.outer_r);
-        interact_pts_mf(
+        interact_pts(
             cfg, out, in,
             check.data(), surf.data(), 
             surf.size(), child_n.idx * surf.size(),
@@ -472,12 +391,12 @@ void FMMMat::l2l_matvec(double* out, double* in, int level) {
 }
 
 void FMMMat::m2p_matvec(double* out, double* in) {
-    for (auto& b: m2p_mf.blocks) {
+    for (auto& b: m2p.blocks) {
         auto obs_n = obs_tree.nodes[b.obs_n_idx];
         auto src_n = src_tree.nodes[b.src_n_idx];
 
         auto equiv = get_surf(src_n, cfg.inner_r);
-        interact_pts_mf(
+        interact_pts(
             cfg, out, in,
             &obs_tree.pts[obs_n.start], &obs_tree.normals[obs_n.start],
             obs_n.end - obs_n.start, obs_n.start,
@@ -488,11 +407,11 @@ void FMMMat::m2p_matvec(double* out, double* in) {
 }
 
 void FMMMat::l2p_matvec(double* out, double* in) {
-    for (auto& b: l2p_mf.blocks) {
+    for (auto& b: l2p.blocks) {
         auto obs_n = obs_tree.nodes[b.obs_n_idx];
 
         auto equiv = get_surf(obs_n, cfg.outer_r);
-        interact_pts_mf(
+        interact_pts(
             cfg, out, in,
             &obs_tree.pts[obs_n.start], &obs_tree.normals[obs_n.start],
             obs_n.end - obs_n.start, obs_n.start,
@@ -515,7 +434,7 @@ void zero_vec(std::vector<T>& v) {
     std::fill(v.begin(), v.end(), 0.0);
 }
 
-std::tuple<std::vector<double>,std::vector<double>,std::vector<double>> FMMMat::mf_matvec(double* in) {
+std::vector<double> FMMMat::eval(double* in) {
     auto n_outputs = obs_tree.pts.size() * tensor_dim();
     auto n_multipoles = surf.size() * src_tree.nodes.size() * tensor_dim();
     auto n_locals = surf.size() * obs_tree.nodes.size() * tensor_dim();
@@ -528,7 +447,7 @@ std::tuple<std::vector<double>,std::vector<double>,std::vector<double>> FMMMat::
 
     auto multipoles = uc2e[0].matvec(m_check.data(), n_multipoles);
 
-    for (size_t i = 1; i < m2m_mf.size(); i++) {
+    for (size_t i = 1; i < m2m.size(); i++) {
         zero_vec(m_check);
         m2m_matvec(m_check.data(), multipoles.data(), i);
         auto add_to_multipoles = uc2e[i].matvec(m_check.data(), n_multipoles);
@@ -540,7 +459,7 @@ std::tuple<std::vector<double>,std::vector<double>,std::vector<double>> FMMMat::
     m2l_matvec(l_check.data(), multipoles.data());
 
     std::vector<double> locals(n_locals, 0.0);
-    for (size_t i = 0; i < l2l_mf.size(); i++) {
+    for (size_t i = 0; i < l2l.size(); i++) {
         l2l_matvec(l_check.data(), locals.data(), i);
         auto add_to_locals = dc2e[i].matvec(l_check.data(), n_locals);
         inplace_add_vecs(locals, add_to_locals);
@@ -549,7 +468,7 @@ std::tuple<std::vector<double>,std::vector<double>,std::vector<double>> FMMMat::
     m2p_matvec(out.data(), multipoles.data());
     l2p_matvec(out.data(), locals.data());
 
-    return std::make_tuple(out, multipoles, locals);
+    return out;
 }
 
 FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree,
@@ -559,8 +478,8 @@ FMMMat fmmmmmmm(const KDTree& obs_tree, const KDTree& src_tree,
 
     FMMMat mat(obs_tree, src_tree, cfg, translation_surf);
 
-    mat.m2m_mf.resize(mat.src_tree.max_height + 1);
-    mat.l2l_mf.resize(mat.obs_tree.max_height + 1);
+    mat.m2m.resize(mat.src_tree.max_height + 1);
+    mat.l2l.resize(mat.obs_tree.max_height + 1);
     mat.m2m.resize(mat.src_tree.max_height + 1);
     mat.l2l.resize(mat.obs_tree.max_height + 1);
     mat.uc2e.resize(mat.src_tree.max_height + 1);

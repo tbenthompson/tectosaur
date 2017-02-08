@@ -109,11 +109,11 @@ PYBIND11_PLUGIN(_fmm) {
         .def("__init__", 
             [] (FMMConfig& cfg, double equiv_r,
                 double check_r, size_t order, std::string k_name,
-                bool mf, NPArrayD params) 
+                NPArrayD params) 
             {
                 new (&cfg) FMMConfig{
                     equiv_r, check_r, order, get_by_name(k_name),
-                    mf, get_vector<double>(params)                                    
+                    get_vector<double>(params)                                    
                 };
             }
         );
@@ -122,24 +122,11 @@ PYBIND11_PLUGIN(_fmm) {
     py::class_<FMMMat>(m, "FMMMat")
         .def_readonly("cfg", &FMMMat::cfg)
         .def_readonly("translation_surface_order", &FMMMat::translation_surface_order)
-        .def_readonly("p2p", &FMMMat::p2p)
-        .def_readonly("p2m", &FMMMat::p2m)
-        .def_readonly("p2l", &FMMMat::p2l)
-        .def_readonly("m2p", &FMMMat::m2p)
-        .def_readonly("m2m", &FMMMat::m2m)
-        .def_readonly("m2l", &FMMMat::m2l)
-        .def_readonly("l2p", &FMMMat::l2p)
-        .def_readonly("l2l", &FMMMat::l2l)
         .def_readonly("uc2e", &FMMMat::uc2e)
         .def_readonly("dc2e", &FMMMat::dc2e)
         .def_property_readonly("tensor_dim", &FMMMat::tensor_dim)
-        .def("mf_matvec", [] (FMMMat& m, NPArrayD v) {
-            auto out_m = m.mf_matvec(reinterpret_cast<double*>(v.request().ptr));
-            return py::make_tuple(
-                array_from_vector(std::get<0>(out_m)),
-                array_from_vector(std::get<1>(out_m)),
-                array_from_vector(std::get<2>(out_m))
-            );
+        .def("eval", [] (FMMMat& m, NPArrayD v) {
+            return array_from_vector(m.eval(reinterpret_cast<double*>(v.request().ptr)));
         });
 
     m.def("fmmmmmmm", &fmmmmmmm);

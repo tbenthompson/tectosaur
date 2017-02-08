@@ -88,7 +88,7 @@ def test_build_big():
     kdtree = fmm.KDTree(pts, pts, 1)
     test_print("KDTree took: " + str(time.time() - start))
 
-def run_full(n, make_pts, mac, order, kernel, params, mf = True):
+def run_full(n, make_pts, mac, order, kernel, params):
     obs_pts = make_pts(n, False)
     obs_ns = make_pts(n, False)
     obs_ns /= np.linalg.norm(obs_ns, axis = 1)[:,np.newaxis]
@@ -100,34 +100,16 @@ def run_full(n, make_pts, mac, order, kernel, params, mf = True):
     obs_kd = fmm.KDTree(obs_pts, obs_ns, order)
     src_kd = fmm.KDTree(src_pts, src_ns, order)
     fmm_mat = fmm.fmmmmmmm(
-        obs_kd, src_kd, fmm.FMMConfig(1.1, mac, order, kernel, mf, params)
+        obs_kd, src_kd, fmm.FMMConfig(1.1, mac, order, kernel, params)
     )
     t.report("build matrices")
 
     tdim = fmm_mat.tensor_dim
-    nnz = dict(
-        p2p = fmm_mat.p2p.get_nnz(),
-        p2m = fmm_mat.p2m.get_nnz(),
-        p2l = fmm_mat.p2l.get_nnz(),
-        m2p = fmm_mat.m2p.get_nnz(),
-        m2m = sum([m.get_nnz() for m in fmm_mat.m2m]),
-        m2l = fmm_mat.m2l.get_nnz(),
-        l2p = fmm_mat.l2p.get_nnz(),
-        l2l = sum([m.get_nnz() for m in fmm_mat.l2l]),
-        uc2e = sum([m.get_nnz() for m in fmm_mat.uc2e]),
-        dc2e = sum([m.get_nnz() for m in fmm_mat.dc2e])
-    )
-    for k,v in sorted(nnz.items(), key = lambda k: k[0])[::-1]:
-        test_print(k + " nnz fraction: " + str(v / ((tdim * n) ** 2)))
-    total_nnz = sum(nnz.values())
-    test_print("total nnz: " + str(total_nnz))
-    test_print("compression ratio: " + str(total_nnz / ((tdim * n) ** 2)))
-
     n_outputs = obs_pts.shape[0] * tdim
     input_vals = np.ones(src_pts.shape[0] * tdim)
     t.report("make input")
 
-    est = fmm.eval(obs_kd, src_kd, fmm_mat, input_vals, n_outputs, mf)
+    est = fmm_mat.eval(input_vals)
     t.report("matvec")
 
     return (
@@ -206,9 +188,9 @@ def test_self_fmm():
     ns /= np.linalg.norm(ns, axis = 1)[:,np.newaxis]
     kd = fmm.KDTree(pts, ns, order)
     fmm_mat = fmm.fmmmmmmm(
-        kd, kd, fmm.FMMConfig(1.1, mac, order, k_name, False, params)
+        kd, kd, fmm.FMMConfig(1.1, mac, order, k_name, params)
     )
-    est = fmm.eval(kd, kd, fmm_mat, np.ones(n * 3), n * 3, True)
+    est = fmm_mat.eval(np.ones(n * 3))
     correct_mat = fmm.direct_eval(
         k_name, np.array(kd.pts), np.array(kd.normals),
         np.array(kd.pts), np.array(kd.normals), params
@@ -218,11 +200,7 @@ def test_self_fmm():
     correct = correct_mat.dot(np.ones(n * 3))
     check(est, correct, 2)
 
-def test_invr_mf():
-    check_invr(*run_full(5000, rand_pts, 2.6, 30, "invr", [], True))
-
-
 if __name__ == '__main__':
-    test_invr_mf()
+    pass
     # test_build_big()
     # test_elasticH()
