@@ -6,12 +6,6 @@ from tectosaur.quadrature import richardson_quad
 import tectosaur.util.gpu as gpu
 from tectosaur.util.caching import cache
 
-def get_c_float_type(float_type):
-    if float_type == np.float32:
-        return 'float'
-    elif float_type == np.float64:
-        return 'double'
-
 def pairs_func_name(singular, k_name):
     singular_label = 'N'
     if singular:
@@ -19,7 +13,7 @@ def pairs_func_name(singular, k_name):
     return 'single_pairs' + singular_label + k_name
 
 def get_gpu_config():
-    return {'block_size': 128, 'float_type': get_c_float_type(float_type)}
+    return {'block_size': 128, 'float_type': gpu.np_to_c_type(float_type)}
 
 def get_gpu_module():
     return gpu.load_gpu('integrals.cl', tmpl_args = get_gpu_config())

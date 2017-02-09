@@ -219,21 +219,6 @@ Kernel get_by_name(std::string name) {
         return {one, mf_one, 1};
     } else if (name == "invr") {
         return {invr, mf_invr, 1};
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
-    // TODO: Changed from matrix to matrix free version!
     } else if (name == "tensor_invr") {
         return {tensor_invr, mf_tensor_invr, 3};
     } else if (name == "laplace_double") {

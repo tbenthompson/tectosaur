@@ -39,7 +39,7 @@ def zeros_gpu(shape, float_type = np.float32):
 def empty_gpu(shape, float_type = np.float32):
     check_initialized()
     #TODO: Change this back to empty! Check all the locations that use this and write tests
-    return cl.array.zeros(gpu_queue, shape, float_type)
+    return cl.array.empty(gpu_queue, shape, float_type)
 
 def quad_to_gpu(quad_rule, float_type = np.float32):
     gpu_qx = to_gpu(quad_rule[0].flatten(), float_type)
