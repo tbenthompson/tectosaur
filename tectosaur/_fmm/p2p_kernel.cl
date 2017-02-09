@@ -1,18 +1,22 @@
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #define Real float
+#define RealSizedInt unsigned int
 
-void atomicAdd_g_f(volatile __global float *addr, float val)
-{
-   union{
-       unsigned int u32;
-       float        f32;
-   } next, expected, current;
-current.f32    = *addr;
-   do{
-   expected.f32 = current.f32;
-       next.f32     = expected.f32 + val;
-    current.u32  = atomic_cmpxchg( (volatile __global unsigned int *)addr, 
-                           expected.u32, next.u32);
-   } while( current.u32 != expected.u32 );
+// Atomic floating point addition for opencl
+// from: https://streamcomputing.eu/blog/2016-02-09/atomic-operations-for-floats-in-opencl-improved/
+void atomic_fadd(volatile __global Real *addr, Real val) {
+    union {
+        RealSizedInt u;
+        Real f;
+    } next, expected, current;
+    current.f = *addr;
+    do {
+        expected.f = current.f;
+        next.f = expected.f + val;
+        current.u = atomic_cmpxchg(
+            (volatile __global RealSizedInt *)addr, expected.u, next.u
+        );
+    } while(current.u != expected.u);
 }
 
 __kernel
@@ -32,6 +36,7 @@ void p2p_kernel(__global Real* out, __global Real* in,
         Real xx = obs_pts[i * 3 + 0];
         Real xy = obs_pts[i * 3 + 1];
         Real xz = obs_pts[i * 3 + 2];
+        float sum = 0.0;
         for (int j = src_start; j < src_end; j++) {
             Real yx = src_pts[j * 3 + 0];
             Real yy = src_pts[j * 3 + 1];
@@ -43,10 +48,8 @@ void p2p_kernel(__global Real* out, __global Real* in,
             Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
 
             Real kernel_val = 1.0 / sqrt(r2);
-
-            //TODO: This design results in simultaneous writing of out from multiple threads. Avoid doing this in the future!
-            volatile __global Real* loc = &out[i];
-            atomicAdd_g_f(loc, kernel_val);
+            sum += kernel_val * in[j];
         }
+        atomic_fadd(&out[i], sum);
     }
 }

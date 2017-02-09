@@ -33,6 +33,14 @@ def ellipse_pts(n, source):
 def test_fmm_cpp():
     fmm.run_tests([])
 
+def test_non_overlapping_interval_sets():
+    starts = [5, 0, 6, 7]
+    ends = [7, 4, 7, 8]
+    sets = fmm.non_overlapping_interval_sets(starts, ends)
+    assert(len(sets) == 2)
+    assert(sets[0] == [1, 0, 3])
+    assert(sets[1] == [2])
+
 def test_kdtree_bisects():
     pts = np.random.rand(100,3)
     kdtree = fmm.KDTree(pts, pts, 1)
