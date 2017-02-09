@@ -109,7 +109,7 @@ def run_full(n, make_pts, mac, order, kernel, params):
     input_vals = np.ones(src_pts.shape[0] * tdim)
     t.report("make input")
 
-    est = fmm_mat.eval(input_vals)
+    est = fmm.eval(fmm_mat, input_vals)
     t.report("matvec")
 
     return (
@@ -190,7 +190,7 @@ def test_self_fmm():
     fmm_mat = fmm.fmmmmmmm(
         kd, kd, fmm.FMMConfig(1.1, mac, order, k_name, params)
     )
-    est = fmm_mat.eval(np.ones(n * 3))
+    est = fmm.eval(fmm_mat, np.ones(n * 3))
     correct_mat = fmm.direct_eval(
         k_name, np.array(kd.pts), np.array(kd.normals),
         np.array(kd.pts), np.array(kd.normals), params
@@ -201,6 +201,6 @@ def test_self_fmm():
     check(est, correct, 2)
 
 if __name__ == '__main__':
-    pass
+    run_full(50000, rand_pts, 10000000000000, 30, "invr", [])
     # test_build_big()
     # test_elasticH()

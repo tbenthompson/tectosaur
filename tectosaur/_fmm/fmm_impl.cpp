@@ -82,7 +82,17 @@ TEST_CASE("matvec") {
     REQUIRE(out[2] == 2.0);
 }
 
+void NewMatrixFreeOp::insert(const KDNode& obs_n, const KDNode& src_n) {
+    obs_n_start.push_back(obs_n.start);
+    obs_n_end.push_back(obs_n.end);
+    obs_n_idx.push_back(obs_n.idx);
+    src_n_start.push_back(src_n.start);
+    src_n_end.push_back(src_n.end);
+    src_n_idx.push_back(src_n.idx);
+}
+
 void p2p(FMMMat& mat, const KDNode& obs_n, const KDNode& src_n) {
+    mat.p2p_new.insert(obs_n, src_n);
     mat.p2p.blocks.push_back(MatrixFreeBlock{obs_n.idx, src_n.idx});
 }
 
@@ -434,13 +444,20 @@ void zero_vec(std::vector<T>& v) {
     std::fill(v.begin(), v.end(), 0.0);
 }
 
+std::vector<double> FMMMat::p2p_eval(double* in) {
+    auto n_outputs = obs_tree.pts.size() * tensor_dim();
+    std::vector<double> out(n_outputs, 0.0);
+    p2p_matvec(out.data(), in);
+    return out;
+}
+
 std::vector<double> FMMMat::eval(double* in) {
     auto n_outputs = obs_tree.pts.size() * tensor_dim();
     auto n_multipoles = surf.size() * src_tree.nodes.size() * tensor_dim();
     auto n_locals = surf.size() * obs_tree.nodes.size() * tensor_dim();
 
     std::vector<double> out(n_outputs, 0.0);
-    p2p_matvec(out.data(), in);
+    // p2p_matvec(out.data(), in);
 
     std::vector<double> m_check(n_multipoles, 0.0);
     p2m_matvec(m_check.data(), in);

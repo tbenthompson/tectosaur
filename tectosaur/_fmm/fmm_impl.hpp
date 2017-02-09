@@ -44,8 +44,18 @@ struct MatrixFreeBlock {
 };
 
 struct MatrixFreeOp {
-    Kernel kernel;
     std::vector<MatrixFreeBlock> blocks;
+};
+
+struct NewMatrixFreeOp {
+    std::vector<int> obs_n_start;
+    std::vector<int> obs_n_end;
+    std::vector<int> obs_n_idx;
+    std::vector<int> src_n_start;
+    std::vector<int> src_n_end;
+    std::vector<int> src_n_idx;
+
+    void insert(const KDNode& obs_n, const KDNode& src_n);
 };
 
 struct FMMMat {
@@ -71,8 +81,10 @@ struct FMMMat {
     void m2p_matvec(double* out, double* in);
     void l2p_matvec(double* out, double* in);
 
-    std::vector<double> eval(double* vec);
+    std::vector<double> p2p_eval(double* in);
+    std::vector<double> eval(double* in);
 
+    NewMatrixFreeOp p2p_new;
     MatrixFreeOp p2p;
     MatrixFreeOp p2m;
     MatrixFreeOp p2l;

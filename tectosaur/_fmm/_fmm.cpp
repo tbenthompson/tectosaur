@@ -118,15 +118,30 @@ PYBIND11_PLUGIN(_fmm) {
             }
         );
 
+    py::class_<NewMatrixFreeOp>(m, "NewMatrixFreeOp")
+        .def_readonly("obs_n_start", &NewMatrixFreeOp::obs_n_start)
+        .def_readonly("obs_n_end", &NewMatrixFreeOp::obs_n_end)
+        .def_readonly("obs_n_idx", &NewMatrixFreeOp::obs_n_idx)
+        .def_readonly("src_n_start", &NewMatrixFreeOp::src_n_start)
+        .def_readonly("src_n_end", &NewMatrixFreeOp::src_n_end)
+        .def_readonly("src_n_idx", &NewMatrixFreeOp::src_n_idx);
 
     py::class_<FMMMat>(m, "FMMMat")
+        .def_readonly("obs_tree", &FMMMat::obs_tree)
+        .def_readonly("src_tree", &FMMMat::src_tree)
+        .def_readonly("p2p", &FMMMat::p2p_new)
         .def_readonly("cfg", &FMMMat::cfg)
         .def_readonly("translation_surface_order", &FMMMat::translation_surface_order)
         .def_readonly("uc2e", &FMMMat::uc2e)
         .def_readonly("dc2e", &FMMMat::dc2e)
         .def_property_readonly("tensor_dim", &FMMMat::tensor_dim)
+        .def("p2p_eval", [] (FMMMat& m, NPArrayD v) {
+            auto* ptr = reinterpret_cast<double*>(v.request().ptr);
+            return array_from_vector(m.p2p_eval(ptr));
+        })
         .def("eval", [] (FMMMat& m, NPArrayD v) {
-            return array_from_vector(m.eval(reinterpret_cast<double*>(v.request().ptr)));
+            auto* ptr = reinterpret_cast<double*>(v.request().ptr);
+            return array_from_vector(m.eval(ptr));
         });
 
     m.def("fmmmmmmm", &fmmmmmmm);

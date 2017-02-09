@@ -32,8 +32,13 @@ def to_gpu(arr, float_type = np.float32):
         return arr
     return cl.array.to_device(gpu_queue, arr.astype(float_type))
 
+def zeros_gpu(shape, float_type = np.float32):
+    check_initialized()
+    return cl.array.zeros(gpu_queue, shape, float_type)
+
 def empty_gpu(shape, float_type = np.float32):
     check_initialized()
+    #TODO: Change this back to empty! Check all the locations that use this and write tests
     return cl.array.zeros(gpu_queue, shape, float_type)
 
 def quad_to_gpu(quad_rule, float_type = np.float32):
