@@ -1,28 +1,27 @@
 import sys
 import numpy as np
 
-def make_terms(n_terms, include_log):
-    poly_terms = n_terms
+def make_terms(n_terms, log_terms):
+    poly_terms = n_terms - log_terms
     terms = []
-    if include_log:
-        poly_terms -= 1
-        terms = [lambda e: np.log(e)]
+    for i in range(log_terms):
+        terms.append(lambda e, i=i: e ** i * np.log(e))
     for i in range(poly_terms):
         terms.append(lambda e, i=i: e ** i)
     return terms
 
-def limit_coeffs(eps_vals, f_vals, include_log):
-    terms = make_terms(len(eps_vals), include_log)
+def limit_coeffs(eps_vals, f_vals, log_terms):
+    terms = make_terms(len(eps_vals), log_terms)
     mat = [[t(e) for t in terms] for e in eps_vals]
     coeffs = np.linalg.solve(mat, f_vals)
     return coeffs
 
-def limit(eps_vals, f_vals, include_log):
-    coeffs = limit_coeffs(eps_vals, f_vals, include_log)
-    if include_log:
-        return coeffs[1], coeffs[0]
+def limit(eps_vals, f_vals, log_terms):
+    coeffs = limit_coeffs(eps_vals, f_vals, log_terms)
+    if log_terms > 0:
+        return coeffs[log_terms], coeffs[0]
     else:
-        return coeffs[0]
+        return coeffs[0], 0
 
 def richardson_limit(step_ratio, values):
     n_steps = len(values)

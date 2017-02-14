@@ -10,7 +10,7 @@ from tectosaur.test_decorators import slow
 
 import tectosaur.fmm as fmm
 
-quiet_tests = True
+quiet_tests = False
 def test_print(*args, **kwargs):
     if not quiet_tests:
         print(*args, **kwargs)
@@ -32,14 +32,6 @@ def ellipse_pts(n, source):
 
 def test_fmm_cpp():
     fmm.run_tests([])
-
-def test_non_overlapping_interval_sets():
-    starts = [5, 0, 6, 7]
-    ends = [7, 4, 7, 8]
-    sets = fmm.non_overlapping_interval_sets(starts, ends)
-    assert(len(sets) == 2)
-    assert(sets[0] == [1, 0, 3])
-    assert(sets[1] == [2])
 
 def test_kdtree_bisects():
     pts = np.random.rand(100,3)
@@ -148,7 +140,7 @@ def check_invr(obs_pts, _0, src_pts, _1, est, accuracy = 3):
     check(est, correct, accuracy)
 
 def test_invr():
-    check_invr(*run_full(5000, rand_pts, 2.6, 30, "invr", []))
+    check_invr(*run_full(500000, rand_pts, 2.6, 100, "invr", []))
 
 @slow
 def test_high_accuracy():
