@@ -43,7 +43,18 @@ def gpu_p2p_eval(fmm_mat, input_vals):
 
 
 def eval(fmm_mat, input_vals):
-    # out = fmm_mat.p2p_eval(input_vals)
-    out = gpu_p2p_eval(fmm_mat, input_vals)
+    out = fmm_mat.p2p_eval(input_vals)
+    # out = gpu_p2p_eval(fmm_mat, input_vals)
+#
+#     m_check = gpu_p2m_eval(input_vals)
+#     uc2e[0].matvec(m_check)
+#
+#     for (size_t i = 1; i < m2m.size(); i++) {
+#         m_check = 0;
+#         m2m_matvec(m_check.data(), multipoles.data(), i);
+#         auto add_to_multipoles = uc2e[i].matvec(m_check.data(), n_multipoles);
+#         inplace_add_vecs(multipoles, add_to_multipoles);
+#     }
+#
     out += fmm_mat.eval(input_vals)
     return out

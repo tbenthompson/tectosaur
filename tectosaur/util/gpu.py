@@ -8,8 +8,6 @@ import mako.runtime
 import mako.exceptions
 import mako.lookup
 
-from tectosaur.util.timer import Timer
-
 gpu_initialized = False
 gpu_ctx = None
 gpu_queue = None

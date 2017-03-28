@@ -5,7 +5,8 @@
 // Atomic floating point addition for opencl
 // from: https://streamcomputing.eu/blog/2016-02-09/atomic-operations-for-floats-in-opencl-improved/
 // I was worried this would cause a significant decrease in performance, but
-// it doesn't seem to cause any problems
+// it doesn't seem to cause any problems. Probably there are so few conflicts
+// that it's totally fine.
 void atomic_fadd(volatile __global Real *addr, Real val) {
     union {
         RealSizedInt u;

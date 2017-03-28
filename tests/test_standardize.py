@@ -1,8 +1,8 @@
 from tectosaur.standardize import *
 import tectosaur.quadrature as quad
 import tectosaur.limit as limit
-import cppimport
-adaptive_integrate = cppimport.imp('tectosaur.adaptive_integrate').adaptive_integrate
+from tectosaur_tables.gpu_integrator import coincident_integral, adjacent_integral
+from tectosaur.test_decorators import slow
 
 
 def test_origin_vertex():
@@ -50,20 +50,15 @@ def test_check_bad_tri():
 def test_standardize():
     # out = standardize(np.array([[0,0,0],[0.2,0,0],[0.4,0.5,0]]))
     # np.testing.assert_almost_equal(out, [[0,0,0],[0.4,0.5,0],[0.2,0,0]])
-    out,_,_,_,_ = standardize(np.array([[0,0,0],[1,0.0,0],[0.0,0.5,0]]), 20)
+    out,_,_,_,_ = standardize(np.array([[0,0,0],[1,0.0,0],[0.0,0.5,0]]), 20, True)
     np.testing.assert_almost_equal(out, [[0,0,0],[1.0,0.0,0],[0.2,0.4,0]])
 
 def co_integrals(K, tri, rho_order, theta_order, tol, eps_start, n_steps, sm, pr):
     epsvs = eps_start * (2.0 ** (-np.arange(n_steps)))
     vals = []
     for eps in epsvs:
-        rho_gauss = quad.gaussxw(rho_order)
-        rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-        theta_q = quad.gaussxw(theta_order)
-        vals.append(adaptive_integrate.integrate_coincident(
-            K, tri, tol, eps, sm, pr,
-            rho_q[0].tolist(), rho_q[1].tolist(),
-            theta_q[0].tolist(), theta_q[1].tolist()
+        vals.append(coincident_integral(
+            tol, K, tri, eps, sm, pr, rho_order, theta_order
         ))
     vals = np.array(vals)
     return epsvs, vals
@@ -72,11 +67,8 @@ def adj_integrals(K, obs_tri, src_tri, rho_order, theta_order, tol, eps_start, n
     epsvs = eps_start * (2.0 ** (-np.arange(n_steps)))
     vals = []
     for eps in epsvs:
-        rho_gauss = quad.gaussxw(rho_order)
-        rho_q = quad.sinh_transform(rho_gauss, -1, eps * 2)
-        vals.append(adaptive_integrate.integrate_adjacent(
-            K, obs_tri, src_tri, tol, eps,
-            sm, pr, rho_q[0].tolist(), rho_q[1].tolist()
+        vals.append(adjacent_integral(
+            tol, K, obs_tri, src_tri, eps, sm, pr, rho_order, theta_order
         ))
 
     vals = np.array(vals)
@@ -161,29 +153,18 @@ def kernel_properties_tester(K, sm, pr):
         standardized_tri_tester(K, sm, pr, 50, 50, 0.005, 0.08, 3, t)
         print("SUCCESS")
 
-    # n_checks = 10
-    # while True:
-    #     tri = np.random.rand(3,3).tolist()
-
-    #     try:
-    #         test_tri(tri)
-    #         print("SUCCESS!")
-    #     except Exception as e:
-    #         # Exception implies the triangle was malformed (angle < 20 degrees)
-    #         continue
-
-    #     n_checks -= 1
-    #     if n_checks == 0:
-    #         break
-
+@slow
 def test_U_properties():
     kernel_properties_tester('U', 1.0, 0.25)
 
+@slow
 def test_T_properties():
     kernel_properties_tester('T', 1.0, 0.25)
 
+@slow
 def test_A_properties():
     kernel_properties_tester('A', 1.0, 0.25)
 
+@slow
 def test_H_properties():
     kernel_properties_tester('H', 1.0, 0.25)

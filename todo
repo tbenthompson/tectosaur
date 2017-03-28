@@ -1,4 +1,17 @@
--- FMM via tree plan construction and gpu direct evaluation
+Adapt to 2D and Laplace in 3D.
+-- create new 3bem golden master tests for each new step in development
+-- catalog all the issues that would need to be resolved
+-- parameterize everything on both the spatial dimension and the kernel tensor dimension
+-- write 2D table construction code, should i use high order transformed gauss rules or should i use the adaptive integrators?
+-- set up golden master tests that match with current 3D tectosaur results
+-- set up golden master tests that match with old 3bem results
+
+Finish building 3D hypersingular tables:
+-- play with arbitrary precision numbers
+-- test the adjacent table
+
+
+-- GPU FMM
 
 -- actually use the interpolation table based integrals in an okada problem
 -- what to do about interelement angles that are greater than pi, for adjacent table lookup?
@@ -31,7 +44,6 @@ plasticity? the plastic opening condition, maybe a viscoplastic opening conditio
 CORRECTNESS/BLACKBOXYNESS:
 
 METHOD:
-sparse approximate inverse from FMM sparsity pattern
 interior integrals for spatially varying body forces
 2D
 -- setup a golden master test matching with old 3bem results
@@ -39,4 +51,5 @@ interior integrals for spatially varying body forces
 OPTIMIZATIONS:
 constraint construction
 adjacency
-figure out preconditioning, spilu is slow, but is there a better alternative? spai-based fmm inverse.
+figure out preconditioning, spilu is slow, but is there a better alternative? spai-based fmm inverse. sparse approximate inverse from FMM sparsity pattern
+

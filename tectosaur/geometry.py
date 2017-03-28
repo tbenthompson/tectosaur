@@ -25,17 +25,22 @@ def unscaled_normals(tri_pts):
 def jacobians(unscaled_normals):
     return np.linalg.norm(unscaled_normals, axis = 1)
 
-def tri_pt(basis, tri):
+#TODO: Replace tri_pt with this.
+def element_pt(basis, el):
     return np.array([
-        sum([basis[j] * tri[j][i] for j in range(3)])
-        for i in range(3)
+        sum([basis[j] * el[j][i] for j in range(el.shape[0])])
+        for i in range(el.shape[0])
     ])
+
+def tri_pt(basis, tri):
+    return element_pt(basis, tri)
 
 def xyhat_from_pt(pt, tri):
     v1 = tri[1] - tri[0]
     v2 = tri[2] - tri[0]
     pt_trans = pt - tri[0]
     xhat, yhat = np.linalg.lstsq(np.array([v1,v2]).T, pt_trans)[0]
+    import ipdb; ipdb.set_trace()
     assert(xhat + yhat <= 1.0 + 1e-15)
     assert(xhat >= -1e-15)
     assert(yhat >= -1e-15)

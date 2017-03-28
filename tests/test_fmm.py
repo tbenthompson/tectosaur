@@ -140,7 +140,7 @@ def check_invr(obs_pts, _0, src_pts, _1, est, accuracy = 3):
     check(est, correct, accuracy)
 
 def test_invr():
-    check_invr(*run_full(500000, rand_pts, 2.6, 100, "invr", []))
+    check_invr(*run_full(5000, rand_pts, 2.6, 100, "invr", []))
 
 @slow
 def test_high_accuracy():

@@ -24,7 +24,7 @@ def random_rotation():
     axis = np.random.rand(3) * 2 - 1.0
     axis /= np.linalg.norm(axis)
     theta = np.random.rand(1) * 2 * np.pi
-    R = rotation_matrix(axis, theta)
+    R = np.array(rotation_matrix(axis, theta[0]))
     return R
 
 def test_internal_angles():
@@ -77,9 +77,9 @@ def test_separate():
         src_tri = pts[[1,0,3],:]
 
         # ensure the random triangles are legal triangles
-        if standardize(obs_tri, 20) is None:
+        if standardize(obs_tri, 20, True) is None:
             continue
-        if standardize(src_tri, 20) is None:
+        if standardize(src_tri, 20, True) is None:
             continue
 
         pts, obs_set, src_set, obs_basis_tris, src_basis_tris = separate_tris(obs_tri, src_tri)

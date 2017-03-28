@@ -42,10 +42,7 @@ def richardson_quad(h_vals, include_log, quad_builder):
 
         y = [0] * n
         y[i] = 1.0
-        if include_log:
-            I0 = limit(h_vals, y, include_log)[0]
-        else:
-            I0 = limit(h_vals, y, include_log)
+        I0 = limit(h_vals, y, include_log)[0]
         inner_ws *= I0
 
         if xs is None:

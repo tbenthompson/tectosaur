@@ -257,7 +257,7 @@ std::array<double,81> transform_from_standard(const std::array<double,81>& I,
     else if (K == 'A') { K_idx = 2; }
     else if (K == 'H') { K_idx = 3; }
 
-    bool is_flipped = labels[1] != (labels[0] + 1) % 3;
+    // bool is_flipped = labels[1] != (labels[0] + 1) % 3;
     int sm_power = kernel_sm_power[K_idx]; 
     int scale_power = kernel_scale_power[K_idx]; 
 

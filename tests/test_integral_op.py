@@ -86,9 +86,9 @@ def test_full_integral_opA():
 def test_full_integral_opH():
     return full_integral_op_tester('H')
 
-tri_ref = [[0,0,0],[1,0,0],[0,1,0]]
-tri_down = [[1,0,0],[0,0,0],[0,-1,0]]
-tri_up_right = [[0,1,0],[1,0,0],[1,1,0]]
+tri_ref = np.array([[0,0,0],[1,0,0],[0,1,0]])
+tri_down = np.array([[1,0,0],[0,0,0],[0,-1,0]])
+tri_up_right = np.array([[0,1,0],[1,0,0],[1,1,0]])
 def test_weakly_singular_adjacent():
     # When one of the basis functions is zero along the edge where the triangles
     # touch, the integral is no longer hypersingular, but instead is only weakly
