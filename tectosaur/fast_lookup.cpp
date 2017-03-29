@@ -234,8 +234,7 @@ py::tuple standardize(const Tensor3& tri, double angle_lim, bool should_relabel)
     if (should_relabel) {
         auto code = check_bad_tri(scale_out.first, angle_lim);
         if (code > 0) {
-            std::cout << "Bad tri: " << code << std::endl;
-            return py::make_tuple();
+            return py::make_tuple(code);
         }
     }
     return py::make_tuple(
@@ -321,7 +320,11 @@ NPArray<double> barycentric_evalnd(NPArray<double> pts, NPArray<double> wts, NPA
         for (size_t i = 0; i < n_pts; i++) {
             double kernel = 1.0;
             for (size_t d = 0; d < n_dims; d++) {
-                kernel *= (xhat_ptr[d] - pts_ptr[i * n_dims + d]);
+                double dist = xhat_ptr[d] - pts_ptr[i * n_dims + d];
+                if (dist == 0) {
+                    dist = 1e-16;
+                }
+                kernel *= dist;
             }
             kernel = wts_ptr[i] / kernel; 
             denom += kernel;

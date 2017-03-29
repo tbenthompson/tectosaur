@@ -13,6 +13,11 @@ import numpy as np
 import cppimport
 fast_lookup = cppimport.imp("tectosaur.fast_lookup").fast_lookup
 
+class BadTriangleError(Exception):
+    def __init__(self, code):
+        super(BadTriangleError, self).__init__("Bad tri: %d" % code)
+        self.code = code
+
 def tolist_args(f):
     def wrapper(*args):
         new_args = []
@@ -33,4 +38,10 @@ rotate1_to_xaxis = tolist_args(fast_lookup.rotate1_to_xaxis)
 rotate2_to_xyplane = tolist_args(fast_lookup.rotate2_to_xyplane)
 full_standardize_rotate = tolist_args(fast_lookup.full_standardize_rotate)
 scale = tolist_args(fast_lookup.scale)
-standardize = tolist_args(fast_lookup.standardize);
+
+standardize_unwrapped = tolist_args(fast_lookup.standardize);
+def standardize(*args):
+    out = standardize_unwrapped(*args)
+    if len(out) is 1:
+        raise BadTriangleError(out[0])
+    return out

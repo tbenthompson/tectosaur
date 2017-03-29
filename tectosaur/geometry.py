@@ -40,7 +40,6 @@ def xyhat_from_pt(pt, tri):
     v2 = tri[2] - tri[0]
     pt_trans = pt - tri[0]
     xhat, yhat = np.linalg.lstsq(np.array([v1,v2]).T, pt_trans)[0]
-    import ipdb; ipdb.set_trace()
     assert(xhat + yhat <= 1.0 + 1e-15)
     assert(xhat >= -1e-15)
     assert(yhat >= -1e-15)
