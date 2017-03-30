@@ -6,6 +6,7 @@ from tectosaur.adjacency import rotate_tri
 from tectosaur.table_lookup import *
 from tectosaur.standardize import standardize, rotation_matrix, BadTriangleError
 from tectosaur.dense_integral_op import DenseIntegralOp
+from tectosaur.interpolate import to_interval
 
 # Most of the tests for the table lookup are indirect through the integral op tests,
 # these are just for specific sub-functions
@@ -101,10 +102,7 @@ def test_coincident_lookup():
 
     for i in range(10):
         try:
-            rot_axis = np.random.rand(3)
-            rot_axis /= np.linalg.norm(rot_axis)
-            rot_theta = np.random.rand(1)[0] * np.pi / 2
-            R = np.array(rotation_matrix(rot_axis.tolist(), rot_theta))
+            R = random_rotation()
             print(R)
 
             pts = scale * np.array([[0,0,0],[1,0,0],[A,B,0]], dtype = np.float64)
@@ -129,57 +127,47 @@ def test_coincident_lookup():
 
 
 def test_adjacent_table_lookup():
-    # np.random.seed(12)
     K = 'H'
-    # We want phi in [0, 3*pi/2] because the old method doesn't work for
-    # phi >= 3*np.pi/2
 
-    # phi=2.1719140566792428,pr=0.34567085809127246
-    # is a node of the interpolation, so using this
-    # phi eliminates any inteporlation error for the moment.
-    phi = np.random.rand(1)[0] * 1.3 * np.pi + 0.2
-    pr = np.random.rand(1)[0] * 0.5
-    non_standard_loc = False
-    alpha = 1
-    beta = 1
+    for i in range(10):
+        # We want phi in [0, 3*pi/2] because the old method doesn't work for
+        # phi >= 3*np.pi/2
+        phi = to_interval(min_intersect_angle, 2.8 * np.pi / 2.0, np.random.rand(1)[0] * 2 - 1)
+        pr = np.random.rand(1)[0] * 0.5
+        alpha = 2
+        beta = 2
 
-    # phi = 2.902453144249991
-    # pr = 0.461939765
-    phi = 1.9016611576969966
-    pr = 0.42677669500000004
+        H = min_angle_isoceles_height
+        pts = np.array([
+            [0,0,0],[1,0,0],
+            [0.5,alpha*H*np.cos(phi),alpha*H*np.sin(phi)],
+            [0.5,beta*H,0]
+        ])
 
-    H = min_angle_isoceles_height
-    pts = np.array([
-        [0,0,0],[1,0,0],
-        [0.5,alpha*H*np.cos(phi),alpha*H*np.sin(phi)],
-        [0.5,beta*H,0]
-    ])
-
-    if non_standard_loc:
         scale = np.random.rand(1)[0] * 3
         translation = np.random.rand(3)
         R = random_rotation()
-        # print(phi, pr, scale, translation)
+        print(phi, pr, scale, translation)
+
         pts = (translation + R.dot(pts.T).T * scale).copy()
 
-    tris = np.array([[0,1,3],[1,0,2]])
-    print(pts.tolist(), tris.tolist())
+        tris = np.array([[0,1,3],[1,0,2]])
 
-    eps = 0.01 * (2.0 ** -np.arange(6))
-    eps_scale = np.sqrt(np.linalg.norm(tri_normal(pts[tris[0]])))
+        eps = 0.01 * (2.0 ** -np.arange(6))
+        eps_scale = np.sqrt(np.linalg.norm(tri_normal(pts[tris[0]])))
 
-    op2 = DenseIntegralOp(
-        eps, 3, 3, 10, 3, 10, 3.0, K, 1.0, pr,
-        pts, tris, use_tables = True, remove_sing = True
-    )
-    print(op2.mat[0:9,9])
-    op = DenseIntegralOp(
-        eps, 15, 25, 10, 3, 10, 3.0, K, 1.0, pr,
-        pts, tris, remove_sing = True
-    )
-    print(op.mat[0:9,9])
-    err = np.abs((op.mat[0,9] - op2.mat[0,9]) / op.mat[0,9])
-    print("ERROROROROROROR: " + str(err))
+        op2 = DenseIntegralOp(
+            eps, 3, 3, 10, 3, 10, 3.0, K, 1.0, pr,
+            pts, tris, use_tables = True, remove_sing = True
+        )
+        print(op2.mat[0:9,9])
+        op = DenseIntegralOp(
+            eps, 15, 25, 10, 3, 10, 3.0, K, 1.0, pr,
+            pts, tris, remove_sing = True
+        )
+        print(op.mat[0:9,9])
+        err = np.abs((op.mat[0,9] - op2.mat[0,9]) / op.mat[0,9])
+        print("ERROROROROROROR: " + str(err))
 
 def test_sub_basis():
     xs = np.linspace(0.0, 1.0, 11)

@@ -6,6 +6,7 @@ from tectosaur.geometry import tri_normal, xyhat_from_pt, projection, vec_angle
 from tectosaur.adjacency import rotate_tri
 import tectosaur.limit as limit
 import tectosaur.nearfield_op as nearfield_op
+from tectosaur.util.timer import Timer
 
 import cppimport
 fast_lookup = cppimport.imp("tectosaur.fast_lookup").fast_lookup
@@ -13,6 +14,7 @@ fast_lookup = cppimport.imp("tectosaur.fast_lookup").fast_lookup
 
 table_min_internal_angle = 10
 min_angle_isoceles_height = 0.5 * np.tan(np.deg2rad(table_min_internal_angle))
+min_intersect_angle = 20. / 180. * np.pi
 
 minlegalA = 0.0160559624778
 minlegalB = 0.0881595061826
@@ -44,37 +46,12 @@ def coincident_interp_pts_wts(n_A, n_B, n_pr):
     interp_wts = np.outer(np.outer(Bwts, Awts),prwts).ravel()
     return interp_pts.copy(), interp_wts.copy()
 
-# def interp_limit(eps_start, n_steps, remove_sing, interp_pts, interp_wts, table, pt):
-#     out = np.empty(81)
-#     log_coeffs = np.empty(81)
-#     epsvs = eps_start * (2.0 ** -np.arange(n_steps))
-#     total = 0
-#     for j in range(81):
-#         sequence_vals = []
-#         for eps_idx in range(4):
-#             start = time.time()
-#             sequence_vals.append(fast_lookup.barycentric_evalnd(
-#                 interp_pts, interp_wts, table[:, eps_idx, j], pt
-#             ))
-#             total += time.time() - start
-#         if remove_sing:
-#             out[j], log_coeffs[j] = limit.limit(epsvs, sequence_vals, remove_sing)
-#         else:
-#             out[j] = limit.limit(epsvs, sequence_vals, remove_sing)
-#     print(total)
-#     if remove_sing:
-#         return out, log_coeffs
-#     else:
-#         return out
-
 def coincident_lookup(table_and_pts_wts, K, sm, pr, tri, remove_sing):
     table_limits, table_log_coeffs, interp_pts, interp_wts = table_and_pts_wts
 
-    start = time.time()
     standard_tri, labels, translation, R, scale = standardize(
         tri, table_min_internal_angle, True
     )
-    # print("i2: " + str(time.time() - start)); start = time.time()
 
     A, B = standard_tri[2][0:2]
 
@@ -82,19 +59,15 @@ def coincident_lookup(table_and_pts_wts, K, sm, pr, tri, remove_sing):
     Bhat = from_interval(minlegalB, maxlegalB, B)
     prhat = from_interval(0.0, 0.5, pr)
     pt = np.array([Ahat, Bhat, prhat])
-    # print("i3: " + str(time.time() - start)); start = time.time()
 
     interp_vals = fast_lookup.barycentric_evalnd(interp_pts, interp_wts, table_limits, pt)
     log_coeffs = fast_lookup.barycentric_evalnd(interp_pts, interp_wts, table_log_coeffs, pt)
-    # print("i4: " + str(time.time() - start)); start = time.time()
 
     standard_scale = np.sqrt(np.linalg.norm(tri_normal(standard_tri)))
     interp_vals += np.log(standard_scale) * log_coeffs
-    # print("i5: " + str(time.time() - start)); start = time.time()
 
     out = transform_from_standard(interp_vals, K, sm, labels, translation, R, scale)
     out = np.array(out).reshape((3,3,3,3))
-    # print("i6: " + str(time.time() - start)); start = time.time()
     return out
 
 def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
@@ -198,34 +171,40 @@ def separate_tris(obs_tri, src_tri):
 
 def adjacent_lookup(table_and_pts_wts, K, sm, pr, orig_obs_tri, obs_tri, src_tri,
         remove_sing):
+    t = Timer()
+
     table_limits, table_log_coeffs, interp_pts, interp_wts = table_and_pts_wts
 
     standard_tri, labels, translation, R, scale = standardize(
         orig_obs_tri, table_min_internal_angle, False
     )
+    t.report("standardize")
 
     phi = get_adjacent_phi(obs_tri, src_tri)
 
     # factor = 1
-    # #TODO: HANDLE FLIPPING!
-    # if phi > np.pi:
-    #     phi = 2 * np.pi - phi
+    # #TODO: HANDLE FLIPPING! Probably depends on kernel.
+    if phi > np.pi:
+        phi = 2 * np.pi - phi
     #     # factor *= -1
 
-    phihat = from_interval(np.pi * 20 / 180., np.pi, phi)
+    assert(min_intersect_angle < phi and phi < np.pi)
+    phihat = from_interval(min_intersect_angle, np.pi, phi)
     prhat = from_interval(0, 0.5, pr)
     pt = np.array([phihat, prhat])
+    t.report("get interp pt")
 
     interp_vals = fast_lookup.barycentric_evalnd(interp_pts, interp_wts, table_limits, pt)
-    print("before scale adjustment: " + str(interp_vals[0]))
     log_coeffs = fast_lookup.barycentric_evalnd(interp_pts, interp_wts, table_log_coeffs, pt)
+    t.report("interp")
 
     standard_scale = np.sqrt(np.linalg.norm(tri_normal(standard_tri)))
     interp_vals += np.log(standard_scale) * log_coeffs
-    print("after scale adjustment: " + str(interp_vals[0]))
+    t.report("log correct")
 
     out = transform_from_standard(interp_vals, K, sm, labels, translation, R, scale)
     out = np.array(out).reshape((3,3,3,3))
+    t.report("transform from standard")
     return out
 
 def sub_basis(I, obs_basis_tri, src_basis_tri):
@@ -261,11 +240,6 @@ def find_va_rotations(ot, st):
     return ot_rot, st_rot
 
 def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
-    # filename = '_50_0.080000_4_0.010000_3_3_adjacenttable.npy'
-    # filename = '_50_0.080000_4_0.001000_4_4_adjacenttable.npy'
-    # filename = '_50_0.001000_4_0.000100_4_4_adjacenttable.npy'
-    # filename = '_50_0.010000_4_0.010000_4_4_adjacenttable.npy'
-    # filename = '_50_0.004000_4_0.001000_4_4_adjacenttable.npy'
     filename = 'data/H_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
 
     params = filename.split('_')
@@ -293,10 +267,6 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
         split_pts, split_obs, split_src, obs_basis_tris, src_basis_tris = separate_tris(
             obs_tri, src_tri
         )
-        print("GO")
-        print(obs_tri)
-        print(split_pts[split_obs[0]])
-        print(split_pts[split_src[0]])
         lookup_result = adjacent_lookup(
             (table_limits, table_log_coeffs, interp_pts, interp_wts),
             kernel, sm, pr,
