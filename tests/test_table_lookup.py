@@ -33,7 +33,7 @@ def test_internal_angles():
     np.testing.assert_almost_equal(angles, [np.pi / 2, np.pi / 4, np.pi / 4])
 
 def test_get_split_pt():
-    split_pt = get_split_pt(np.array([[0,0,0],[1,0,0],[0.4,0.8,0.0]]))
+    split_pt = fast_lookup.get_split_pt([[0,0,0],[1,0,0],[0.4,0.8,0.0]])
     np.testing.assert_almost_equal(split_pt, [0.5, min_angle_isoceles_height, 0.0])
 
 def test_get_split_pt_rotated():
@@ -42,7 +42,7 @@ def test_get_split_pt_rotated():
         scale = np.random.rand(1) * 10.0
         tri = np.array([[0,0,0],[1,0,0],[np.random.rand(1)[0] * 0.5,np.random.rand(1)[0],0.0]])
         rot_tri = scale * R.dot(tri.T).T
-        split_pt = get_split_pt(rot_tri)
+        split_pt = fast_lookup.get_split_pt(rot_tri.tolist())
         rot_correct = scale * R.dot([0.5, min_angle_isoceles_height, 0.0])
         np.testing.assert_almost_equal(split_pt, rot_correct)
 
@@ -172,11 +172,17 @@ def test_adjacent_table_lookup():
 def test_sub_basis():
     xs = np.linspace(0.0, 1.0, 11)
     for x in xs:
-        pts = np.array([[0,0],[1,0],[0.5,0.5],[0,1]])
-        I1 = sub_basis(np.ones((3,3,3,3)), pts[[0,1,2]], pts[[0,1,3]])
-        I2 = sub_basis(np.ones((3,3,3,3)), pts[[0,2,3]], pts[[0,1,3]])
-        result = I1 + I2
-        np.testing.assert_almost_equal(result, 2.0)
+        pts = np.array([[0,0],[1,0],[x,1-x],[0,1]])
+        tri1 = pts[[0,1,2]].tolist()
+        tri2 = pts[[0,2,3]].tolist()
+        full_tri = pts[[0,1,3]].tolist()
+        input = np.ones(81).tolist()
+        tri1area = np.linalg.norm(tri_normal(np.hstack((tri1, np.zeros((3,1))))))
+        tri2area = np.linalg.norm(tri_normal(np.hstack((tri2, np.zeros((3,1))))))
+        I1 = np.array(fast_lookup.sub_basis(input, tri1, full_tri))
+        I2 = np.array(fast_lookup.sub_basis(input, tri2, full_tri))
+        result = tri1area * I1 + tri2area * I2
+        np.testing.assert_almost_equal(result, 1.0)
 
 def test_sub_basis_identity():
     A = np.random.rand(81).reshape((3,3,3,3))

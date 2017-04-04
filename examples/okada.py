@@ -99,7 +99,7 @@ def make_fault(L, top_depth):
     ])
 
 def make_meshes(fault_L, top_depth):
-    surface = make_free_surface(10, 50)
+    surface = make_free_surface(10, 25)
     # surface = refined_free_surface()
     # Sloping plateau
     sloping_plateau = False
@@ -136,9 +136,9 @@ def test_okada():
         #     eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
         # )
         iop = SparseIntegralOp(
-            eps, 18, 16, 6, 3, 6, 4.0,
+            eps, 1, 1, 8, 3, 6, 4.0,
             'H', sm, pr, all_mesh[0], all_mesh[1],
-            use_tables = False,
+            use_tables = True,
             remove_sing = True
         )
         # iop = DenseIntegralOp(

@@ -1,6 +1,7 @@
 <%
 setup_pybind11(cfg)
 cfg['compiler_args'].extend(['-std=c++14', '-O3', '-Wall'])
+from tectosaur.table_params import min_angle_isoceles_height, table_min_internal_angle, minlegalA, minlegalB, maxlegalA, maxlegalB
 %>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -9,6 +10,16 @@ cfg['compiler_args'].extend(['-std=c++14', '-O3', '-Wall'])
 
 namespace py = pybind11;
 
+Vec3 get_split_pt(const Tensor3& tri) {
+    auto base_vec = sub(tri[1], tri[0]);
+    auto midpt = add(mult(base_vec, 0.5), tri[0]);
+    auto to2 = sub(tri[2], midpt);
+    auto V = sub(to2, projection(to2, base_vec));
+    auto Vlen = length(V);
+    auto base_len = length(base_vec);
+    auto V_scaled = mult(V, base_len * ${min_angle_isoceles_height} / Vlen);
+    return add(midpt, V_scaled);
+}
 
 Vec3 get_edge_lens(const Tensor3& tri) {
     Vec3 out;
@@ -213,7 +224,16 @@ py::tuple scale_pyshim(const Tensor3& tri) {
     return py::make_tuple(out.first, out.second);
 }
 
-py::tuple standardize(const Tensor3& tri, double angle_lim, bool should_relabel) {
+struct StandardizeResult {
+    int code;
+    Tensor3 tri;
+    std::array<int,3> labels;
+    Vec3 translation;
+    Tensor3 R;
+    double scale;
+};
+
+StandardizeResult standardize(const Tensor3& tri, double angle_lim, bool should_relabel) {
     std::array<int,3> labels;
     Tensor3 relabeled;
     if (should_relabel) {
@@ -231,15 +251,24 @@ py::tuple standardize(const Tensor3& tri, double angle_lim, bool should_relabel)
     auto rot_out = full_standardize_rotate(trans_out.first);
     assert(0 == rot_out.first[2][2]);
     auto scale_out = scale(rot_out.first);
-    if (should_relabel) {
-        auto code = check_bad_tri(scale_out.first, angle_lim);
-        if (code > 0) {
-            return py::make_tuple(code);
-        }
-    }
+    int code = check_bad_tri(scale_out.first, angle_lim);
+    return {
+        code, scale_out.first, labels, trans_out.second, rot_out.second, scale_out.second
+    };
+}
+
+py::tuple standardize_pyshim(const Tensor3& tri, double angle_lim, bool should_relabel) {
+    auto out = standardize(tri, angle_lim, should_relabel);
     return py::make_tuple(
-        scale_out.first, labels, trans_out.second, rot_out.second, scale_out.second
+        out.code, out.tri, out.labels, out.translation, out.R, out.scale
     );
+}
+
+int get_kernel_idx(char K) {
+    if (K == 'U') { return 0; }
+    else if (K == 'T') { return 1; }
+    else if (K == 'A') { return 2; }
+    else if (K == 'H') { return 3; }
 }
 
 int kernel_scale_power[4] = {-3, -2, -2, -1};
@@ -249,12 +278,7 @@ std::array<double,81> transform_from_standard(const std::array<double,81>& I,
     char K, double sm, const std::array<int,3>& labels,
     const Vec3& translation, const Tensor3& R, double scale) 
 {
-    int K_idx = 0;
-
-    if (K == 'U') { K_idx = 0; }
-    else if (K == 'T') { K_idx = 1; }
-    else if (K == 'A') { K_idx = 2; }
-    else if (K == 'H') { K_idx = 3; }
+    int K_idx = get_kernel_idx(K);
 
     // bool is_flipped = labels[1] != (labels[0] + 1) % 3;
     int sm_power = kernel_sm_power[K_idx]; 
@@ -297,9 +321,7 @@ std::array<double,81> transform_from_standard(const std::array<double,81>& I,
     return out;
 }
 
-
-
-NPArray<double> barycentric_evalnd(NPArray<double> pts, NPArray<double> wts, NPArray<double> vals, NPArray<double> xhat) {
+NPArray<double> barycentric_evalnd_py(NPArray<double> pts, NPArray<double> wts, NPArray<double> vals, NPArray<double> xhat) {
 
     auto pts_buf = pts.request();
     auto vals_buf = vals.request();
@@ -335,21 +357,174 @@ NPArray<double> barycentric_evalnd(NPArray<double> pts, NPArray<double> wts, NPA
     return out;
 }
 
+double to_interval(double a, double b, double x) {
+    return a + (b - a) * (x + 1.0) / 2.0;
+}
+
+double from_interval(double a, double b, double x) {
+    return ((x - a) / (b - a)) * 2.0 - 1.0;
+}
+
+template <size_t InDim, size_t OutDim>
+std::array<double,OutDim> barycentric_evalnd(size_t n_pts, double* pts, double* wts,
+    double* vals, std::array<double,InDim> xhat) 
+{
+    std::array<double,OutDim> out{};
+    for (size_t out_d = 0; out_d < OutDim; out_d++) {
+        double denom = 0;
+        double numer = 0;
+        for (size_t i = 0; i < n_pts; i++) {
+            double kernel = 1.0;
+            for (size_t d = 0; d < InDim; d++) {
+                double dist = xhat[d] - pts[i * InDim + d];
+                if (dist == 0) {
+                    dist = 1e-16;
+                }
+                kernel *= dist;
+            }
+            kernel = wts[i] / kernel; 
+            denom += kernel;
+            numer += kernel * vals[i * OutDim + out_d];
+        }
+        out[out_d] = numer / denom;
+    }
+    return out;
+}
+
+NPArray<double> coincident_lookup(
+    NPArray<double> table_limits, NPArray<double> table_log_coeffs, 
+    NPArray<double> interp_pts, NPArray<double> interp_wts,
+    char kernel, double sm, double pr, NPArray<double> tri_pts)
+{
+    auto tri_pts_buf = tri_pts.request();
+    auto* tri_pts_ptr = reinterpret_cast<double*>(tri_pts_buf.ptr);
+    auto n_tris = tri_pts_buf.shape[0];
+
+    auto interp_pts_buf = interp_pts.request();
+    auto* interp_pts_ptr = reinterpret_cast<double*>(interp_pts_buf.ptr);
+    auto* interp_wts_ptr = reinterpret_cast<double*>(interp_wts.request().ptr);
+    auto* table_limits_ptr = reinterpret_cast<double*>(table_limits.request().ptr);
+    auto* table_log_coeffs_ptr = reinterpret_cast<double*>(table_log_coeffs.request().ptr);
+
+    size_t n_interp_pts = interp_pts_buf.shape[0];
+
+    auto out = make_array<double>({n_tris, 81});
+    auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);
+    for (size_t i = 0; i < n_tris; i++) {
+        Tensor3 tri;
+        for (int d1 = 0; d1 < 3; d1++) {
+            for (int d2 = 0; d2 < 3; d2++) {
+                tri[d1][d2] = tri_pts_ptr[i * 9 + d1 * 3 + d2];
+            }
+        }
+
+        auto standard_tri_info = standardize(tri, ${table_min_internal_angle}, true);
+
+        double A = standard_tri_info.tri[2][0];
+        double B = standard_tri_info.tri[2][1];
+
+        double Ahat = from_interval(${minlegalA}, ${maxlegalA}, A);
+        double Bhat = from_interval(${minlegalB}, ${maxlegalB}, B);
+        double prhat = from_interval(0.0, 0.5, pr);
+        std::array<double,3> pt = {Ahat, Bhat, prhat};
+
+        auto interp_vals = barycentric_evalnd<3,81>(
+            n_interp_pts, interp_pts_ptr, interp_wts_ptr, table_limits_ptr, pt
+        );
+        auto log_coeffs = barycentric_evalnd<3,81>(
+            n_interp_pts, interp_pts_ptr, interp_wts_ptr, table_log_coeffs_ptr, pt
+        );
+
+        auto log_standard_scale = log(sqrt(length(tri_normal(standard_tri_info.tri))));
+        std::array<double,81> interp_vals_array;
+        for (int j = 0; j < 81; j++) {
+            interp_vals_array[j] = interp_vals[j] + log_standard_scale * log_coeffs[j];
+        }
+
+        auto transformed = transform_from_standard(
+            interp_vals_array, kernel, sm,
+            standard_tri_info.labels, standard_tri_info.translation,
+            standard_tri_info.R, standard_tri_info.scale
+        );
+        for (int j = 0; j < 81; j++) {
+            out_ptr[i * 81 + j] = transformed[j];
+        }
+    }
+    return out;
+}
+
+<%def name="basis_fnc(idx)">
+% if idx == 0:
+    1 - x - y
+% elif idx == 1:
+    x
+% elif idx == 2:
+    y
+% endif
+</%def>
+
+std::array<double,81> sub_basis(const std::array<double,81>& I,
+        const std::array<std::array<double,2>,3>& obs_basis_tri,
+        const std::array<std::array<double,2>,3>& src_basis_tri)
+{
+    std::array<double,81> out{};
+    % for ob1 in range(3):
+    % for sb1 in range(3):
+    % for ob2 in range(3):
+    % for sb2 in range(3):
+
+    {
+        auto x = obs_basis_tri[${ob2}][0];
+        auto y = obs_basis_tri[${ob2}][1];
+        auto obv = ${basis_fnc(ob1)};
+
+        x = src_basis_tri[${sb2}][0];
+        y = src_basis_tri[${sb2}][1];
+        auto sbv = ${basis_fnc(sb1)};
+
+        (void)x;(void)y;
+
+        % for d1 in range(3):
+        % for d2 in range(3):
+
+            <%
+            out_idx = ob1 * 27 + d1 * 9 + sb1 * 3 + d2
+            in_idx = ob2 * 27 + d1 * 9 + sb2 * 3 + d2
+            %>
+            out[${out_idx}] += I[${in_idx}] * obv * sbv;
+
+        % endfor
+        % endfor
+    }
+
+    % endfor
+    % endfor
+    % endfor
+    % endfor
+    return out;
+}
+
 PYBIND11_PLUGIN(fast_lookup) {
     py::module m("fast_lookup");
-    m.def("barycentric_evalnd", barycentric_evalnd);
+    m.def("barycentric_evalnd", barycentric_evalnd_py);
     m.def("get_edge_lens", get_edge_lens);
     m.def("get_longest_edge", get_longest_edge);
     m.def("get_origin_vertex", get_origin_vertex);
     m.def("relabel", relabel);
     m.def("check_bad_tri", check_bad_tri);
-    m.def("transform_from_standard", transform_from_standard);
     m.def("rotation_matrix", rotation_matrix);
     m.def("translate", translate_pyshim);
     m.def("rotate1_to_xaxis", rotate1_to_xaxis_pyshim);
     m.def("rotate2_to_xyplane", rotate2_to_xyplane_pyshim);
     m.def("full_standardize_rotate", full_standardize_rotate_pyshim);
     m.def("scale", scale_pyshim);
-    m.def("standardize", standardize);
+    m.def("standardize", standardize_pyshim);
+
+    m.def("get_split_pt", get_split_pt);
+
+    m.def("transform_from_standard", transform_from_standard);
+    m.def("sub_basis", sub_basis);
+    m.def("coincident_lookup", coincident_lookup);
+
     return m.ptr();
 }

@@ -66,6 +66,15 @@ Tensor3 rotation_matrix(const Vec3& axis, double theta) {
     return out;
 }
 
+Vec3 mult(const Vec3& A, double f) {
+    return {A[0] * f, A[1] * f, A[2] * f};
+}
+
+Vec3 div(const Vec3& A, double f) {
+    double multfactor = 1.0 / f;
+    return mult(A, multfactor);
+}
+
 Vec3 sub(const Vec3& A, const Vec3& B) {
     return {A[0] - B[0], A[1] - B[1], A[2] - B[2]};
 }
@@ -74,11 +83,26 @@ Vec3 add(const Vec3& A, const Vec3& B) {
     return {A[0] + B[0], A[1] + B[1], A[2] + B[2]};
 }
 
-Vec3 div(const Vec3& A, double f) {
-    double multfactor = 1.0 / f;
-    return {A[0] * multfactor, A[1] * multfactor, A[2] * multfactor};
+double dot(const Vec3& A, const Vec3& B) {
+    return A[0] * B[0] + A[1] * B[1] + A[2] * B[2];
 }
 
 double length(const Vec3& A) {
-    return std::sqrt(A[0] * A[0] + A[1] * A[1] + A[2] * A[2]);
+    return std::sqrt(dot(A, A));
+}
+
+Vec3 projection(const Vec3& V, const Vec3& b) {
+    return mult(b, dot(V, b) / dot(b, b));
+}
+
+Vec3 cross(const Vec3& x, const Vec3& y) {
+    return {
+        x[1] * y[2] - x[2] * y[1],
+        x[2] * y[0] - x[0] * y[2],
+        x[0] * y[1] - x[1] * y[0]
+    };
+}
+
+Vec3 tri_normal(const Tensor3& t) {
+    return cross(sub(t[2], t[0]), sub(t[2], t[1]));
 }

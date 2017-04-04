@@ -42,6 +42,7 @@ scale = tolist_args(fast_lookup.scale)
 standardize_unwrapped = tolist_args(fast_lookup.standardize);
 def standardize(*args):
     out = standardize_unwrapped(*args)
-    if len(out) is 1:
+    should_relabel = args[-1];
+    if should_relabel and out[0] != 0:
         raise BadTriangleError(out[0])
     return out
