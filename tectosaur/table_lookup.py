@@ -7,6 +7,7 @@ from tectosaur.adjacency import rotate_tri
 import tectosaur.limit as limit
 import tectosaur.nearfield_op as nearfield_op
 from tectosaur.util.timer import Timer
+import tectosaur.util.gpu as gpu
 
 from tectosaur.table_params import *
 
@@ -43,7 +44,35 @@ def coincident_interp_pts_wts(n_A, n_B, n_pr):
 
 def coincident_lookup_interpolation_gpu(table_limits, table_log_coeffs,
         interp_pts, interp_wts, pts):
-    pass
+
+    float_type = np.float64
+    gpu_cfg = {'float_type': gpu.np_to_c_type(float_type)}
+    module = gpu.load_gpu('table_lookup.cl', tmpl_args = gpu_cfg)
+    fnc = module.coincident_lookup_interpolation
+
+    n_tris = pts.shape[0]
+
+    gpu_table_limits = gpu.to_gpu(table_limits, float_type)
+    gpu_table_log_coeffs = gpu.to_gpu(table_log_coeffs, float_type)
+    gpu_interp_pts = gpu.to_gpu(interp_pts, float_type)
+    gpu_interp_wts = gpu.to_gpu(interp_wts, float_type)
+    gpu_pts = gpu.to_gpu(pts, float_type)
+
+    gpu_result = gpu.empty_gpu(n_tris * 81 * 2, float_type)
+
+    fnc(
+        gpu.gpu_queue, (n_tris,), None,
+        gpu_result.data,
+        np.int32(gpu_interp_pts.shape[0]),
+        gpu_table_limits.data,
+        gpu_table_log_coeffs.data,
+        gpu_interp_pts.data,
+        gpu_interp_wts.data,
+        gpu_pts.data
+    )
+
+    out = gpu_result.get().reshape((n_tris, 81, 2))
+    return out[:, :, 0], out[:, :, 1]
 
 def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
     filename = 'data/H_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
@@ -69,7 +98,10 @@ def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
     pts, standard_tris = fast_lookup.coincident_lookup_pts(tri_pts, pr);
 
     # 2) Perform interpolation --> GPU!
-    interp_vals, log_coeffs = fast_lookup.coincident_lookup_interpolation(
+    # interp_vals, log_coeffs = fast_lookup.coincident_lookup_interpolation(
+    #     table_limits, table_log_coeffs, interp_pts, interp_wts, pts
+    # )
+    interp_vals, log_coeffs = coincident_lookup_interpolation_gpu(
         table_limits, table_log_coeffs, interp_pts, interp_wts, pts
     )
 
