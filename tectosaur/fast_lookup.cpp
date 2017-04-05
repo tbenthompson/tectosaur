@@ -1,12 +1,15 @@
 <%
 setup_pybind11(cfg)
-cfg['compiler_args'].extend(['-std=c++14', '-O3', '-Wall'])
+cfg['compiler_args'].extend(['-std=c++14', '-O3', '-Wall', '-fopenmp'])
+cfg['linker_args'] = ['-fopenmp']
+cfg['dependencies'] = ['lib/timing.hpp']
 from tectosaur.table_params import min_angle_isoceles_height, table_min_internal_angle, minlegalA, minlegalB, maxlegalA, maxlegalB
 %>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include "lib/pybind11_nparray.hpp"
 #include "lib/vec_tensor.hpp"
+#include "lib/timing.hpp"
 
 namespace py = pybind11;
 
@@ -410,16 +413,22 @@ NPArray<double> coincident_lookup(
 
     auto out = make_array<double>({n_tris, 81});
     auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);
+#pragma omp parallel for
     for (size_t i = 0; i < n_tris; i++) {
+        //TIC;
         Tensor3 tri;
         for (int d1 = 0; d1 < 3; d1++) {
             for (int d2 = 0; d2 < 3; d2++) {
                 tri[d1][d2] = tri_pts_ptr[i * 9 + d1 * 3 + d2];
             }
         }
+        //TOC("copy tri");
 
+        //TIC2;
         auto standard_tri_info = standardize(tri, ${table_min_internal_angle}, true);
+        //TOC("standardize");
 
+        //TIC2;
         double A = standard_tri_info.tri[2][0];
         double B = standard_tri_info.tri[2][1];
 
@@ -427,28 +436,38 @@ NPArray<double> coincident_lookup(
         double Bhat = from_interval(${minlegalB}, ${maxlegalB}, B);
         double prhat = from_interval(0.0, 0.5, pr);
         std::array<double,3> pt = {Ahat, Bhat, prhat};
+        //TOC("make pt");
 
+        //TIC2;
         auto interp_vals = barycentric_evalnd<3,81>(
             n_interp_pts, interp_pts_ptr, interp_wts_ptr, table_limits_ptr, pt
         );
         auto log_coeffs = barycentric_evalnd<3,81>(
             n_interp_pts, interp_pts_ptr, interp_wts_ptr, table_log_coeffs_ptr, pt
         );
+        //TOC("interp");
 
+        //TIC2;
         auto log_standard_scale = log(sqrt(length(tri_normal(standard_tri_info.tri))));
         std::array<double,81> interp_vals_array;
         for (int j = 0; j < 81; j++) {
             interp_vals_array[j] = interp_vals[j] + log_standard_scale * log_coeffs[j];
         }
+        //TOC("log scaling");
 
+        //TIC2;
         auto transformed = transform_from_standard(
             interp_vals_array, kernel, sm,
             standard_tri_info.labels, standard_tri_info.translation,
             standard_tri_info.R, standard_tri_info.scale
         );
+        //TOC("transform from standard");
+
+        //TIC2;
         for (int j = 0; j < 81; j++) {
             out_ptr[i * 81 + j] = transformed[j];
         }
+        //TOC("copy out");
     }
     return out;
 }

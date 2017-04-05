@@ -41,33 +41,7 @@ def coincident_interp_pts_wts(n_A, n_B, n_pr):
     interp_wts = np.outer(np.outer(Bwts, Awts),prwts).ravel()
     return interp_pts.copy(), interp_wts.copy()
 
-def coincident_lookup(table_and_pts_wts, K, sm, pr, tri, remove_sing):
-    table_limits, table_log_coeffs, interp_pts, interp_wts = table_and_pts_wts
-
-    code, standard_tri, labels, translation, R, scale = standardize(
-        tri, table_min_internal_angle, True
-    )
-
-    A, B = standard_tri[2][0:2]
-
-    Ahat = from_interval(minlegalA, 0.5, A)
-    Bhat = from_interval(minlegalB, maxlegalB, B)
-    prhat = from_interval(0.0, 0.5, pr)
-    pt = np.array([Ahat, Bhat, prhat])
-
-    interp_vals = fast_lookup.barycentric_evalnd(interp_pts, interp_wts, table_limits, pt)
-    log_coeffs = fast_lookup.barycentric_evalnd(interp_pts, interp_wts, table_log_coeffs, pt)
-
-    standard_scale = np.sqrt(np.linalg.norm(tri_normal(standard_tri)))
-    interp_vals += np.log(standard_scale) * log_coeffs
-
-    out = transform_from_standard(interp_vals, K, sm, labels, translation, R, scale)
-    out = np.array(out).reshape((3,3,3,3))
-    return out
-
 def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
-    # filename = '_50_0.080000_4_0.010000_3_3_3_coincidenttable.npy'
-    # filename = '_50_0.001000_4_0.000100_4_4_4_coincidenttable.npy'
     filename = 'data/H_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
 
     params = filename.split('_')
@@ -86,14 +60,10 @@ def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
     table_log_coeffs = table_data[:,:,1]
     print("o1: " + str(time.time() - start)); start = time.time()
 
-
-    # out = np.empty((tris.shape[0], 3, 3, 3, 3))
-    # for i in range(tris.shape[0]):
-    #     out[i,:,:,:,:] = coincident_lookup(
-    #         (table_limits, table_log_coeffs, interp_pts, interp_wts),
-    #         kernel, sm, pr, tri_pts[i,:,:],
-    #         remove_sing
-    #     )
+    # Shift to a three step process
+    # 1) Get interpolation points
+    # 2) Perform interpolation --> GPU!
+    # 3) Transform to real space
     out = fast_lookup.coincident_lookup(
         table_limits, table_log_coeffs, interp_pts, interp_wts,
         kernel, sm, pr, tri_pts
