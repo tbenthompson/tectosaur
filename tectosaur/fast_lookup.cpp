@@ -272,6 +272,7 @@ int get_kernel_idx(char K) {
     else if (K == 'T') { return 1; }
     else if (K == 'A') { return 2; }
     else if (K == 'H') { return 3; }
+    else { return -1; }
 }
 
 int kernel_scale_power[4] = {-3, -2, -2, -1};
@@ -394,25 +395,15 @@ std::array<double,OutDim> barycentric_evalnd(size_t n_pts, double* pts, double* 
     return out;
 }
 
-NPArray<double> coincident_lookup(
-    NPArray<double> table_limits, NPArray<double> table_log_coeffs, 
-    NPArray<double> interp_pts, NPArray<double> interp_wts,
-    char kernel, double sm, double pr, NPArray<double> tri_pts)
-{
+py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
     auto tri_pts_buf = tri_pts.request();
     auto* tri_pts_ptr = reinterpret_cast<double*>(tri_pts_buf.ptr);
     auto n_tris = tri_pts_buf.shape[0];
 
-    auto interp_pts_buf = interp_pts.request();
-    auto* interp_pts_ptr = reinterpret_cast<double*>(interp_pts_buf.ptr);
-    auto* interp_wts_ptr = reinterpret_cast<double*>(interp_wts.request().ptr);
-    auto* table_limits_ptr = reinterpret_cast<double*>(table_limits.request().ptr);
-    auto* table_log_coeffs_ptr = reinterpret_cast<double*>(table_log_coeffs.request().ptr);
-
-    size_t n_interp_pts = interp_pts_buf.shape[0];
-
-    auto out = make_array<double>({n_tris, 81});
+    auto out = make_array<double>({n_tris, 3});
     auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);
+    std::vector<StandardizeResult> standard_tris(n_tris);
+
 #pragma omp parallel for
     for (size_t i = 0; i < n_tris; i++) {
         //TIC;
@@ -426,6 +417,7 @@ NPArray<double> coincident_lookup(
 
         //TIC2;
         auto standard_tri_info = standardize(tri, ${table_min_internal_angle}, true);
+        standard_tris[i] = standard_tri_info;
         //TOC("standardize");
 
         //TIC2;
@@ -435,39 +427,84 @@ NPArray<double> coincident_lookup(
         double Ahat = from_interval(${minlegalA}, ${maxlegalA}, A);
         double Bhat = from_interval(${minlegalB}, ${maxlegalB}, B);
         double prhat = from_interval(0.0, 0.5, pr);
-        std::array<double,3> pt = {Ahat, Bhat, prhat};
-        //TOC("make pt");
 
-        //TIC2;
+        out_ptr[i * 3] = Ahat;
+        out_ptr[i * 3 + 1] = Bhat;
+        out_ptr[i * 3 + 2] = prhat;
+    }
+
+    return py::make_tuple(out, standard_tris);
+}
+
+py::tuple coincident_lookup_interpolation(
+    NPArray<double> table_limits, NPArray<double> table_log_coeffs, 
+    NPArray<double> interp_pts, NPArray<double> interp_wts,
+    NPArray<double> pts)
+{
+    auto interp_pts_buf = interp_pts.request();
+    auto* interp_pts_ptr = reinterpret_cast<double*>(interp_pts_buf.ptr);
+    auto* interp_wts_ptr = reinterpret_cast<double*>(interp_wts.request().ptr);
+    auto* table_limits_ptr = reinterpret_cast<double*>(table_limits.request().ptr);
+    auto* table_log_coeffs_ptr = reinterpret_cast<double*>(table_log_coeffs.request().ptr);
+    size_t n_interp_pts = interp_pts_buf.shape[0];
+
+    auto pts_buf = pts.request();
+    auto* pts_ptr = reinterpret_cast<double*>(pts_buf.ptr);
+    auto n_tris = pts_buf.shape[0];
+
+    auto out_interp_vals = make_array<double>({n_tris, 81});
+    auto out_log_coeffs = make_array<double>({n_tris, 81});
+
+    auto* out_interp_vals_ptr = reinterpret_cast<double*>(out_interp_vals.request().ptr);
+    auto* out_log_coeffs_ptr = reinterpret_cast<double*>(out_log_coeffs.request().ptr);
+
+#pragma omp parallel for
+    for (size_t i = 0; i < n_tris; i++) {
+        std::array<double,3> pt = {pts_ptr[i * 3], pts_ptr[i * 3 + 1], pts_ptr[i * 3 + 2]};
         auto interp_vals = barycentric_evalnd<3,81>(
             n_interp_pts, interp_pts_ptr, interp_wts_ptr, table_limits_ptr, pt
         );
         auto log_coeffs = barycentric_evalnd<3,81>(
             n_interp_pts, interp_pts_ptr, interp_wts_ptr, table_log_coeffs_ptr, pt
         );
-        //TOC("interp");
+        for (int j = 0; j < 81; j++) {
+            out_interp_vals_ptr[i * 81 + j] = interp_vals[j];
+            out_log_coeffs_ptr[i * 81 + j] = log_coeffs[j];
+        }
+    }
+    return py::make_tuple(out_interp_vals, out_log_coeffs);
+}
 
-        //TIC2;
-        auto log_standard_scale = log(sqrt(length(tri_normal(standard_tri_info.tri))));
+NPArray<double> coincident_lookup_from_standard(
+    std::vector<StandardizeResult> standard_tris, 
+    NPArray<double> interp_vals, NPArray<double> log_coeffs, char kernel, double sm)
+{
+    auto n_tris = standard_tris.size();
+    auto out = make_array<double>({n_tris, 81});
+    auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);
+
+    auto* interp_vals_ptr = reinterpret_cast<double*>(interp_vals.request().ptr);
+    auto* log_coeffs_ptr = reinterpret_cast<double*>(log_coeffs.request().ptr);
+
+#pragma omp parallel for
+    for (size_t i = 0; i < n_tris; i++) {
+        auto log_standard_scale = log(sqrt(length(tri_normal(standard_tris[i].tri))));
+        
         std::array<double,81> interp_vals_array;
         for (int j = 0; j < 81; j++) {
-            interp_vals_array[j] = interp_vals[j] + log_standard_scale * log_coeffs[j];
+            interp_vals_array[j] = 
+                interp_vals_ptr[i * 81 + j] + log_standard_scale * log_coeffs_ptr[i * 81 + j];
         }
-        //TOC("log scaling");
 
-        //TIC2;
         auto transformed = transform_from_standard(
             interp_vals_array, kernel, sm,
-            standard_tri_info.labels, standard_tri_info.translation,
-            standard_tri_info.R, standard_tri_info.scale
+            standard_tris[i].labels, standard_tris[i].translation,
+            standard_tris[i].R, standard_tris[i].scale
         );
-        //TOC("transform from standard");
 
-        //TIC2;
         for (int j = 0; j < 81; j++) {
             out_ptr[i * 81 + j] = transformed[j];
         }
-        //TOC("copy out");
     }
     return out;
 }
@@ -537,13 +574,19 @@ PYBIND11_PLUGIN(fast_lookup) {
     m.def("rotate2_to_xyplane", rotate2_to_xyplane_pyshim);
     m.def("full_standardize_rotate", full_standardize_rotate_pyshim);
     m.def("scale", scale_pyshim);
+
+    py::class_<StandardizeResult>(m, "StandardizeResult");
     m.def("standardize", standardize_pyshim);
 
     m.def("get_split_pt", get_split_pt);
 
     m.def("transform_from_standard", transform_from_standard);
     m.def("sub_basis", sub_basis);
-    m.def("coincident_lookup", coincident_lookup);
+
+    
+    m.def("coincident_lookup_pts", coincident_lookup_pts);
+    m.def("coincident_lookup_interpolation", coincident_lookup_interpolation);
+    m.def("coincident_lookup_from_standard", coincident_lookup_from_standard);
 
     return m.ptr();
 }

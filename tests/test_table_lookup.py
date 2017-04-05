@@ -3,10 +3,12 @@ import numpy as np
 import tectosaur.geometry as geometry
 import tectosaur.nearfield_op as nearfield_op
 from tectosaur.adjacency import rotate_tri
-from tectosaur.table_lookup import *
 from tectosaur.standardize import standardize, rotation_matrix, BadTriangleError
 from tectosaur.dense_integral_op import DenseIntegralOp
 from tectosaur.interpolate import to_interval
+from tectosaur.test_decorators import golden_master
+
+from tectosaur.table_lookup import *
 
 # Most of the tests for the table lookup are indirect through the integral op tests,
 # these are just for specific sub-functions
@@ -79,9 +81,10 @@ def test_separate():
         src_tri = pts[[1,0,3],:]
 
         # ensure the random triangles are legal triangles
-        if standardize(obs_tri, 20, True) is None:
-            continue
-        if standardize(src_tri, 20, True) is None:
+        try:
+            standardize(obs_tri, 20, True)
+            standardize(src_tri, 20, True)
+        except BadTriangleError:
             continue
 
         pts, obs_set, src_set, obs_basis_tris, src_basis_tris = separate_tris(obs_tri, src_tri)
@@ -94,14 +97,18 @@ def test_separate():
         np.testing.assert_almost_equal(src0_angles[1], np.deg2rad(table_min_internal_angle))
         i -= 1
 
+@golden_master
 def test_coincident_lookup():
-    A = np.random.rand(1)[0] * 0.5
-    B = np.random.rand(1)[0]
-    pr = np.random.rand(1)[0] * 0.5
-    scale = np.random.rand(1)[0]
+    np.random.seed(113)
 
+    results = []
     for i in range(10):
         try:
+            A = np.random.rand(1)[0] * 0.5
+            B = np.random.rand(1)[0]
+            pr = np.random.rand(1)[0] * 0.5
+            scale = np.random.rand(1)[0]
+
             R = random_rotation()
             print(R)
 
@@ -112,7 +119,7 @@ def test_coincident_lookup():
             eps_scale = np.sqrt(np.linalg.norm(tri_normal(pts)))
             eps = 0.02 * (2.0 ** -np.arange(4))# / eps_scale
             op = DenseIntegralOp(
-                eps, 20, 15, 10, 3, 10, 3.0, 'H', 1.0, pr,
+                eps, 25, 15, 10, 3, 10, 3.0, 'H', 1.0, pr,
                 pts, tris, remove_sing = True
             )
             op2 = DenseIntegralOp(
@@ -122,9 +129,10 @@ def test_coincident_lookup():
             print(op.mat[0,0],op2.mat[0,0])
             err = np.abs((op.mat[0,0] - op2.mat[0,0]) / op.mat[0,0])
             print(err)
+            results.append(op2.mat[:9,:9])
         except BadTriangleError as e:
             print("Bad tri: " + str(e.code))
-
+    return np.array(results)
 
 def test_adjacent_table_lookup():
     K = 'H'
@@ -185,11 +193,13 @@ def test_sub_basis():
         np.testing.assert_almost_equal(result, 1.0)
 
 def test_sub_basis_identity():
-    A = np.random.rand(81).reshape((3,3,3,3))
-    B = sub_basis(A, np.array([[0,0],[1,0],[0,1]]), np.array([[0,0],[1,0],[0,1]]))
+    A = np.random.rand(81).tolist()
+    B = fast_lookup.sub_basis(
+        A, [[0,0],[1,0],[0,1]], [[0,0],[1,0],[0,1]]
+    )
     np.testing.assert_almost_equal(A, B)
 
 def test_sub_basis_rotation():
     A = np.random.rand(81).reshape((3,3,3,3))
-    B = sub_basis(A, np.array([[0,0],[1,0],[0,1]]), np.array([[0,1],[0,0],[1,0]]))
-    np.testing.assert_almost_equal(A[:,:,[1,2,0],:], B)
+    B = fast_lookup.sub_basis(A.flatten().tolist(), [[0,0],[1,0],[0,1]], [[0,1],[0,0],[1,0]])
+    np.testing.assert_almost_equal(A[:,:,[1,2,0],:], np.array(B).reshape((3,3,3,3)))

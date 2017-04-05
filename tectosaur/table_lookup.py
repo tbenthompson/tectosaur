@@ -41,6 +41,10 @@ def coincident_interp_pts_wts(n_A, n_B, n_pr):
     interp_wts = np.outer(np.outer(Bwts, Awts),prwts).ravel()
     return interp_pts.copy(), interp_wts.copy()
 
+def coincident_lookup_interpolation_gpu(table_limits, table_log_coeffs,
+        interp_pts, interp_wts, pts):
+    pass
+
 def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
     filename = 'data/H_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
 
@@ -62,12 +66,18 @@ def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
 
     # Shift to a three step process
     # 1) Get interpolation points
+    pts, standard_tris = fast_lookup.coincident_lookup_pts(tri_pts, pr);
+
     # 2) Perform interpolation --> GPU!
+    interp_vals, log_coeffs = fast_lookup.coincident_lookup_interpolation(
+        table_limits, table_log_coeffs, interp_pts, interp_wts, pts
+    )
+
     # 3) Transform to real space
-    out = fast_lookup.coincident_lookup(
-        table_limits, table_log_coeffs, interp_pts, interp_wts,
-        kernel, sm, pr, tri_pts
-    ).reshape((-1, 3,3,3,3))
+    out = fast_lookup.coincident_lookup_from_standard(
+        standard_tris, interp_vals, log_coeffs, kernel, sm
+    ).reshape((-1, 3, 3, 3, 3))
+
     print("o2: " + str(time.time() - start)); start = time.time()
 
     return out
@@ -166,23 +176,6 @@ def adjacent_lookup(table_and_pts_wts, K, sm, pr, orig_obs_tri, obs_tri, src_tri
     out = transform_from_standard(interp_vals, K, sm, labels, translation, R, scale)
     out = np.array(out).reshape((3,3,3,3))
     t.report("transform from standard")
-    return out
-
-def sub_basis(I, obs_basis_tri, src_basis_tri):
-    out = np.zeros((3,3,3,3))
-    bfncs = [
-        lambda x,y: 1 - x - y,
-        lambda x,y: x,
-        lambda x,y: y
-    ]
-
-    for ob1 in range(3):
-        for sb1 in range(3):
-            for ob2 in range(3):
-                for sb2 in range(3):
-                    obv = bfncs[ob1](*obs_basis_tri[ob2,:])
-                    sbv = bfncs[sb1](*src_basis_tri[sb2,:])
-                    out[ob1,:,sb1,:] += I[ob2,:,sb2,:] * obv * sbv
     return out
 
 def find_va_rotations(ot, st):
