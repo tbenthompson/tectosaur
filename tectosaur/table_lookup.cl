@@ -28,7 +28,7 @@ void coincident_lookup_interpolation(__global Real* result,
             numer_lim += kern * table_limits[j * 81 + out_d];
             numer_log_coeffs += kern * table_log_coeffs[j * 81 + out_d];
         }
-        result[i * 81 + out_d * 2] = numer_lim / denom;
-        result[i * 81 + out_d * 2 + 1] = numer_log_coeffs / denom;
+        result[i * 81 * 2 + out_d * 2] = numer_lim / denom;
+        result[i * 81 * 2 + out_d * 2 + 1] = numer_log_coeffs / denom;
     }
 }

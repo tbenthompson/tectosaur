@@ -100,9 +100,6 @@ def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
     pts, standard_tris = fast_lookup.coincident_lookup_pts(tri_pts, pr);
 
     # 2) Perform interpolation --> GPU!
-    # interp_vals, log_coeffs = fast_lookup.coincident_lookup_interpolation(
-    #     table_limits, table_log_coeffs, interp_pts, interp_wts, pts
-    # )
     interp_vals, log_coeffs = coincident_lookup_interpolation_gpu(
         table_limits, table_log_coeffs, interp_pts, interp_wts, pts
     )
