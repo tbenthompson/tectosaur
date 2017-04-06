@@ -1,8 +1,13 @@
 import numpy as np
 
+import cppimport
+fast_lookup = cppimport.imp("tectosaur.fast_lookup").fast_lookup
+xyhat_from_pt = fast_lookup.xyhat_from_pt
+
 def projection(V, b):
     return (V.dot(b) * b) / (np.linalg.norm(b) ** 2)
 
+#TODO: Remove
 def vec_angle(v1, v2):
     v1L = np.linalg.norm(v1)
     v2L = np.linalg.norm(v2)
@@ -34,17 +39,6 @@ def element_pt(basis, el):
 
 def tri_pt(basis, tri):
     return element_pt(basis, tri)
-
-def xyhat_from_pt(pt, tri):
-    v1 = tri[1] - tri[0]
-    v2 = tri[2] - tri[0]
-    pt_trans = pt - tri[0]
-    xhat, yhat = np.linalg.lstsq(np.array([v1,v2]).T, pt_trans)[0]
-    assert(xhat + yhat <= 1.0 + 1e-15)
-    assert(xhat >= -1e-15)
-    assert(yhat >= -1e-15)
-
-    return xhat, yhat
 
 def cross(x, y):
     return np.array([

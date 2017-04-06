@@ -13,13 +13,23 @@ from tectosaur.table_lookup import *
 # Most of the tests for the table lookup are indirect through the integral op tests,
 # these are just for specific sub-functions
 
+def test_find_va_rotations():
+    res = fast_lookup.find_va_rotations([1,3,5],[2,3,4])
+    np.testing.assert_equal(res, [[1,2,0],[1,2,0]])
+
+    res = fast_lookup.find_va_rotations([3,1,5],[2,3,4])
+    np.testing.assert_equal(res, [[0,1,2],[1,2,0]])
+
+    res = fast_lookup.find_va_rotations([1,5,3],[2,4,3])
+    np.testing.assert_equal(res, [[2,0,1],[2,0,1]])
+
 def test_adjacent_phi():
     rho = 0.2
     for i in range(10):
         phi = np.random.rand(1)[0] * 2 * np.pi
-        out = get_adjacent_phi(
-            np.array([[0,0,0],[1,0,0],[0.5,rho,0.0]]),
-            np.array([[0,0,0],[1,0,0],[0.5,rho*np.cos(phi),rho*np.sin(phi)]]),
+        out = fast_lookup.get_adjacent_phi(
+            [[0,0,0],[1,0,0],[0.5,rho,0.0]],
+            [[0,0,0],[1,0,0],[0.5,rho*np.cos(phi),rho*np.sin(phi)]],
         )
         np.testing.assert_almost_equal(out, phi)
 
@@ -31,7 +41,7 @@ def random_rotation():
     return R
 
 def test_internal_angles():
-    angles = triangle_internal_angles(np.array([[0,0,0],[1,0,0],[0,1,0]]))
+    angles = fast_lookup.triangle_internal_angles([[0,0,0],[1,0,0],[0,1,0]])
     np.testing.assert_almost_equal(angles, [np.pi / 2, np.pi / 4, np.pi / 4])
 
 def test_get_split_pt():
@@ -87,15 +97,43 @@ def test_separate():
         except BadTriangleError:
             continue
 
-        pts, obs_set, src_set, obs_basis_tris, src_basis_tris = separate_tris(obs_tri, src_tri)
-        obs0_angles = triangle_internal_angles(pts[obs_set[0]])
-        src0_angles = triangle_internal_angles(pts[src_set[0]])
+        pts, obs_set, src_set, obs_basis_tris, src_basis_tris =\
+            fast_lookup.separate_tris(obs_tri.tolist(), src_tri.tolist())
+        obs0_angles = fast_lookup.triangle_internal_angles(np.array(pts)[obs_set[0]].tolist())
+        src0_angles = fast_lookup.triangle_internal_angles(np.array(pts)[src_set[0]].tolist())
 
         np.testing.assert_almost_equal(obs0_angles[0], np.deg2rad(table_min_internal_angle))
         np.testing.assert_almost_equal(obs0_angles[1], np.deg2rad(table_min_internal_angle))
         np.testing.assert_almost_equal(src0_angles[0], np.deg2rad(table_min_internal_angle))
         np.testing.assert_almost_equal(src0_angles[1], np.deg2rad(table_min_internal_angle))
         i -= 1
+
+def test_sub_basis():
+    xs = np.linspace(0.0, 1.0, 11)
+    for x in xs:
+        pts = np.array([[0,0],[1,0],[x,1-x],[0,1]])
+        tri1 = pts[[0,1,2]].tolist()
+        tri2 = pts[[0,2,3]].tolist()
+        full_tri = pts[[0,1,3]].tolist()
+        input = np.ones(81).tolist()
+        tri1area = np.linalg.norm(tri_normal(np.hstack((tri1, np.zeros((3,1))))))
+        tri2area = np.linalg.norm(tri_normal(np.hstack((tri2, np.zeros((3,1))))))
+        I1 = np.array(fast_lookup.sub_basis(input, tri1, full_tri))
+        I2 = np.array(fast_lookup.sub_basis(input, tri2, full_tri))
+        result = tri1area * I1 + tri2area * I2
+        np.testing.assert_almost_equal(result, 1.0)
+
+def test_sub_basis_identity():
+    A = np.random.rand(81).tolist()
+    B = fast_lookup.sub_basis(
+        A, [[0,0],[1,0],[0,1]], [[0,0],[1,0],[0,1]]
+    )
+    np.testing.assert_almost_equal(A, B)
+
+def test_sub_basis_rotation():
+    A = np.random.rand(81).reshape((3,3,3,3))
+    B = fast_lookup.sub_basis(A.flatten().tolist(), [[0,0],[1,0],[0,1]], [[0,1],[0,0],[1,0]])
+    np.testing.assert_almost_equal(A[:,:,[1,2,0],:], np.array(B).reshape((3,3,3,3)))
 
 @golden_master
 def test_coincident_lookup():
@@ -134,9 +172,12 @@ def test_coincident_lookup():
             print("Bad tri: " + str(e.code))
     return np.array(results)
 
+@golden_master
 def test_adjacent_table_lookup():
+    np.random.seed(973)
     K = 'H'
 
+    results = []
     for i in range(10):
         # We want phi in [0, 3*pi/2] because the old method doesn't work for
         # phi >= 3*np.pi/2
@@ -176,30 +217,5 @@ def test_adjacent_table_lookup():
         print(op.mat[0:9,9])
         err = np.abs((op.mat[0,9] - op2.mat[0,9]) / op.mat[0,9])
         print("ERROROROROROROR: " + str(err))
-
-def test_sub_basis():
-    xs = np.linspace(0.0, 1.0, 11)
-    for x in xs:
-        pts = np.array([[0,0],[1,0],[x,1-x],[0,1]])
-        tri1 = pts[[0,1,2]].tolist()
-        tri2 = pts[[0,2,3]].tolist()
-        full_tri = pts[[0,1,3]].tolist()
-        input = np.ones(81).tolist()
-        tri1area = np.linalg.norm(tri_normal(np.hstack((tri1, np.zeros((3,1))))))
-        tri2area = np.linalg.norm(tri_normal(np.hstack((tri2, np.zeros((3,1))))))
-        I1 = np.array(fast_lookup.sub_basis(input, tri1, full_tri))
-        I2 = np.array(fast_lookup.sub_basis(input, tri2, full_tri))
-        result = tri1area * I1 + tri2area * I2
-        np.testing.assert_almost_equal(result, 1.0)
-
-def test_sub_basis_identity():
-    A = np.random.rand(81).tolist()
-    B = fast_lookup.sub_basis(
-        A, [[0,0],[1,0],[0,1]], [[0,0],[1,0],[0,1]]
-    )
-    np.testing.assert_almost_equal(A, B)
-
-def test_sub_basis_rotation():
-    A = np.random.rand(81).reshape((3,3,3,3))
-    B = fast_lookup.sub_basis(A.flatten().tolist(), [[0,0],[1,0],[0,1]], [[0,1],[0,0],[1,0]])
-    np.testing.assert_almost_equal(A[:,:,[1,2,0],:], np.array(B).reshape((3,3,3,3)))
+        results.append(op2.mat[:9,9:18])
+    return np.array(results)

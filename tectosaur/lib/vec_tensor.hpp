@@ -1,5 +1,6 @@
 #include <array>
 
+using Vec2 = std::array<double,2>;
 using Vec3 = std::array<double,3>;
 using Tensor3 = std::array<Vec3,3>;
 

@@ -14,8 +14,6 @@ from tectosaur.table_params import *
 import cppimport
 fast_lookup = cppimport.imp("tectosaur.fast_lookup").fast_lookup
 
-
-
 def adjacent_interp_pts_wts(n_phi, n_pr):
     phihats = cheb(-1, 1, n_phi)
     prhats = cheb(-1, 1, n_pr)
@@ -45,10 +43,14 @@ def coincident_interp_pts_wts(n_A, n_B, n_pr):
 def coincident_lookup_interpolation_gpu(table_limits, table_log_coeffs,
         interp_pts, interp_wts, pts):
 
+    t = Timer(silent = True)
+
     float_type = np.float64
     gpu_cfg = {'float_type': gpu.np_to_c_type(float_type)}
     module = gpu.load_gpu('table_lookup.cl', tmpl_args = gpu_cfg)
     fnc = module.coincident_lookup_interpolation
+
+    t.report("load module")
 
     n_tris = pts.shape[0]
 
@@ -72,6 +74,7 @@ def coincident_lookup_interpolation_gpu(table_limits, table_log_coeffs,
     )
 
     out = gpu_result.get().reshape((n_tris, 81, 2))
+    t.report("run interpolation for " + str(n_tris) + " tris")
     return out[:, :, 0], out[:, :, 1]
 
 def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
@@ -91,7 +94,6 @@ def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
     table_data = np.load(filename)
     table_limits = table_data[:,:,0]
     table_log_coeffs = table_data[:,:,1]
-    print("o1: " + str(time.time() - start)); start = time.time()
 
     # Shift to a three step process
     # 1) Get interpolation points
@@ -110,67 +112,8 @@ def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
         standard_tris, interp_vals, log_coeffs, kernel, sm
     ).reshape((-1, 3, 3, 3, 3))
 
-    print("o2: " + str(time.time() - start)); start = time.time()
 
     return out
-
-def get_adjacent_phi(obs_tri, src_tri):
-    p = obs_tri[1] - obs_tri[0]
-    L1 = obs_tri[2] - obs_tri[0]
-    L2 = src_tri[2] - src_tri[0]
-    T1 = L1 - projection(L1, p)
-    T2 = L2 - projection(L2, p)
-
-    n1 = tri_normal(obs_tri, normalize = True)
-    samedir = n1.dot(T2 - T1) > 0
-    phi = vec_angle(T1, T2)
-
-    if samedir:
-        return phi
-    else:
-        return 2 * np.pi - phi
-
-def triangle_internal_angles(tri):
-    v01 = tri[1] - tri[0]
-    v02 = tri[2] - tri[0]
-    v12 = tri[2] - tri[1]
-
-    L01 = np.linalg.norm(v01)
-    L02 = np.linalg.norm(v02)
-    L12 = np.linalg.norm(v12)
-
-    A1 = np.arccos(v01.dot(v02) / (L01 * L02))
-    A2 = np.arccos(-v01.dot(v12) / (L01 * L12))
-    A3 = np.pi - A1 - A2
-
-    return A1, A2, A3
-
-def separate_tris(obs_tri, src_tri):
-    # np.testing.assert_almost_equal(obs_tri[0], src_tri[1])
-    # np.testing.assert_almost_equal(obs_tri[1], src_tri[0])
-
-    obs_split_pt = fast_lookup.get_split_pt(obs_tri.tolist())
-    obs_split_pt_xyhat = xyhat_from_pt(obs_split_pt, obs_tri)
-
-    src_split_pt = fast_lookup.get_split_pt(src_tri.tolist())
-    src_split_pt_xyhat = xyhat_from_pt(src_split_pt, src_tri)
-
-    pts = np.array(
-        [obs_tri[0], obs_tri[1], obs_tri[2], src_tri[2], obs_split_pt, src_split_pt]
-    )
-    obs_tris = np.array([[0, 1, 4], [4, 1, 2], [0, 4, 2]])
-    src_tris = np.array([[1, 0, 5], [5, 0, 3], [1, 5, 3]])
-    obs_basis_tris = np.array([
-        [[0,0],[1,0],obs_split_pt_xyhat],
-        [obs_split_pt_xyhat, [1,0],[0,1]],
-        [[0,0],obs_split_pt_xyhat,[0,1]]
-    ])
-    src_basis_tris = np.array([
-        [[0,0],[1,0],src_split_pt_xyhat],
-        [src_split_pt_xyhat, [1,0],[0,1]],
-        [[0,0],src_split_pt_xyhat,[0,1]]
-    ])
-    return pts, obs_tris, src_tris, obs_basis_tris, src_basis_tris
 
 def adjacent_lookup(table_and_pts_wts, K, sm, pr, orig_obs_tri, obs_tri, src_tri,
         remove_sing):
@@ -183,7 +126,7 @@ def adjacent_lookup(table_and_pts_wts, K, sm, pr, orig_obs_tri, obs_tri, src_tri
     )
     t.report("standardize")
 
-    phi = get_adjacent_phi(obs_tri, src_tri)
+    phi = fast_lookup.get_adjacent_phi(obs_tri.tolist(), src_tri.tolist())
 
     # factor = 1
     # #TODO: HANDLE FLIPPING! Probably depends on kernel.
@@ -210,21 +153,6 @@ def adjacent_lookup(table_and_pts_wts, K, sm, pr, orig_obs_tri, obs_tri, src_tri
     t.report("transform from standard")
     return out
 
-def find_va_rotations(ot, st):
-    ot_clicks = 0
-    st_clicks = 0
-    for d in range(3):
-        matching_vert = np.where(st == ot[d])[0]
-        if matching_vert.shape[0] > 0:
-            ot_clicks = d
-            st_clicks = matching_vert[0]
-            break
-    # If the loop finds no shared vertices, then the triangles are not touching
-    # and no rotations will be performed.
-    ot_rot = rotate_tri(ot_clicks)
-    st_rot = rotate_tri(st_clicks)
-    return ot_rot, st_rot
-
 def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
     filename = 'data/H_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
     to = Timer()
@@ -234,14 +162,15 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
     n_pr = int(params[6])
 
     interp_pts, interp_wts = adjacent_interp_pts_wts(n_phi, n_pr)
+    to.report("generate interp pts wts")
 
     table_data = np.load(filename)
     table_limits = table_data[:,:,0]
     table_log_coeffs = table_data[:,:,1]
+    to.report("load table")
 
     out = np.empty((obs_tris.shape[0], 3, 3, 3, 3))
 
-    start = time.time()
     va_pts = []
     va_which_pair = []
     va_obs_tris = []
@@ -249,26 +178,17 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
     va_obs_basis = []
     va_src_basis = []
     for i in range(obs_tris.shape[0]):
-        t = Timer(silent = True)
+        t = Timer()
         obs_tri = pts[obs_tris[i]]
         src_tri = pts[src_tris[i]]
-        split_pts, split_obs, split_src, obs_basis_tris, src_basis_tris = separate_tris(
-            obs_tri, src_tri
-        )
+        split_pts, split_obs, split_src, obs_basis_tris, src_basis_tris = \
+            fast_lookup.separate_tris(obs_tri.tolist(), src_tri.tolist())
+        split_pts = np.array(split_pts)
+        split_obs = np.array(split_obs)
+        split_src = np.array(split_src)
+        obs_basis_tris = np.array(obs_basis_tris)
+        src_basis_tris = np.array(src_basis_tris)
         t.report("separate tris")
-        lookup_result = adjacent_lookup(
-            (table_limits, table_log_coeffs, interp_pts, interp_wts),
-            kernel, sm, pr,
-            obs_tri, split_pts[split_obs[0]], split_pts[split_src[0]],
-            remove_sing
-        )
-        t.report("lookup")
-        out[i] = np.array(fast_lookup.sub_basis(
-            lookup_result.flatten().tolist(),
-            obs_basis_tris[0].tolist(),
-            src_basis_tris[0].tolist())
-        ).reshape((3,3,3,3))
-        t.report("sub basis")
 
         va_pts.extend(split_pts.tolist())
         for j in range(3):
@@ -282,7 +202,7 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
 
                 ot = split_obs[j]
                 st = split_src[k]
-                ot_rot, st_rot = find_va_rotations(ot, st)
+                ot_rot, st_rot = fast_lookup.find_va_rotations(ot.tolist(), st.tolist())
 
                 va_obs_tris.append((ot[ot_rot] + 6 * i).tolist())
                 va_src_tris.append((st[st_rot] + 6 * i).tolist())
@@ -290,6 +210,22 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
                 va_obs_basis.append(obs_basis_tris[j][ot_rot])
                 va_src_basis.append(src_basis_tris[k][st_rot])
         t.report("create va subpairs")
+
+        lookup_result = adjacent_lookup(
+            (table_limits, table_log_coeffs, interp_pts, interp_wts),
+            kernel, sm, pr,
+            obs_tri, split_pts[split_obs[0]], split_pts[split_src[0]],
+            remove_sing
+        )
+        t.report("lookup")
+
+        out[i] = np.array(fast_lookup.sub_basis(
+            lookup_result.flatten().tolist(),
+            obs_basis_tris[0].tolist(),
+            src_basis_tris[0].tolist()
+        )).reshape((3,3,3,3))
+        t.report("sub basis")
+
     to.report("split and edge integrals")
     start = time.time()
 
