@@ -112,7 +112,7 @@ class NearfieldIntegralOp:
         if not use_tables:
             co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris, remove_sing)
         else:
-            co_mat = coincident_table(kernel, sm, pr, pts, tris, remove_sing)
+            co_mat = coincident_table(kernel, sm, pr, pts, tris)
         co_mat_correction = pairs_quad(
             kernel, sm, pr, pts, tris, tris, far_quad, False
         )
@@ -130,7 +130,7 @@ class NearfieldIntegralOp:
             )
         else:
             ea_mat_rot = adjacent_table(
-                nq_vert_adjacent, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris, remove_sing
+                nq_vert_adjacent, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris
             )
         ea_mat_correction = pairs_quad(
             kernel, sm, pr, pts,

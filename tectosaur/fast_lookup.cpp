@@ -3,7 +3,7 @@ setup_pybind11(cfg)
 cfg['compiler_args'].extend(['-std=c++14', '-O3', '-Wall', '-fopenmp'])
 cfg['linker_args'] = ['-fopenmp']
 cfg['dependencies'] = ['lib/timing.hpp']
-from tectosaur.table_params import min_angle_isoceles_height, table_min_internal_angle, minlegalA, minlegalB, maxlegalA, maxlegalB
+from tectosaur.table_params import min_angle_isoceles_height, table_min_internal_angle, minlegalA, minlegalB, maxlegalA, maxlegalB, min_intersect_angle
 %>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -444,57 +444,6 @@ NPArray<double> coincident_lookup_from_standard(
     return out;
 }
 
-<%def name="basis_fnc(idx)">
-% if idx == 0:
-    1 - x - y
-% elif idx == 1:
-    x
-% elif idx == 2:
-    y
-% endif
-</%def>
-
-std::array<double,81> sub_basis(const std::array<double,81>& I,
-        const std::array<std::array<double,2>,3>& obs_basis_tri,
-        const std::array<std::array<double,2>,3>& src_basis_tri)
-{
-    std::array<double,81> out{};
-    % for ob1 in range(3):
-    % for sb1 in range(3):
-    % for ob2 in range(3):
-    % for sb2 in range(3):
-
-    {
-        auto x = obs_basis_tri[${ob2}][0];
-        auto y = obs_basis_tri[${ob2}][1];
-        auto obv = ${basis_fnc(ob1)};
-
-        x = src_basis_tri[${sb2}][0];
-        y = src_basis_tri[${sb2}][1];
-        auto sbv = ${basis_fnc(sb1)};
-
-        (void)x;(void)y;
-
-        % for d1 in range(3):
-        % for d2 in range(3):
-
-            <%
-            out_idx = ob1 * 27 + d1 * 9 + sb1 * 3 + d2
-            in_idx = ob2 * 27 + d1 * 9 + sb2 * 3 + d2
-            %>
-            out[${out_idx}] += I[${in_idx}] * obv * sbv;
-
-        % endfor
-        % endfor
-    }
-
-    % endfor
-    % endfor
-    % endfor
-    % endfor
-    return out;
-}
-
 Vec2 cramers_rule(const Vec2& a, const Vec2& b, const Vec2& c) {
     auto denom = a[0] * b[1] - b[0] * a[1];
     return {
@@ -529,7 +478,15 @@ Vec2 xyhat_from_pt(const Vec3& pt, const Tensor3& tri) {
     return out;
 }
 
-py::tuple separate_tris(const Tensor3& obs_tri, const Tensor3& src_tri) {
+struct SeparateTriResult {
+    std::array<Vec3,6> pts;
+    std::array<std::array<int,3>,3> obs_tri;
+    std::array<std::array<int,3>,3> src_tri;
+    std::array<std::array<Vec2,3>,3> obs_basis_tri;
+    std::array<std::array<Vec2,3>,3> src_basis_tri;
+};
+
+SeparateTriResult separate_tris(const Tensor3& obs_tri, const Tensor3& src_tri) {
     auto obs_split_pt = get_split_pt(obs_tri);
     auto obs_split_pt_xyhat = xyhat_from_pt(obs_split_pt, obs_tri);
 
@@ -552,7 +509,14 @@ py::tuple separate_tris(const Tensor3& obs_tri, const Tensor3& src_tri) {
         {{{0,0},src_split_pt_xyhat,{0,1}}}
     }};
 
-    return py::make_tuple(pts, obs_tris, src_tris, obs_basis_tris, src_basis_tris);
+    return {pts, obs_tris, src_tris, obs_basis_tris, src_basis_tris};
+}
+
+py::tuple separate_tris_pyshim(const Tensor3& obs_tri, const Tensor3& src_tri) {
+    auto out = separate_tris(obs_tri, src_tri);
+    return py::make_tuple(
+        out.pts, out.obs_tri, out.src_tri, out.obs_basis_tri, out.src_basis_tri
+    );
 }
 
 
@@ -632,6 +596,163 @@ std::array<std::array<int,3>,2> find_va_rotations(const std::array<int,3>& ot,
     return {rotate_tri(ot_clicks), rotate_tri(st_clicks)};
 }
 
+struct VertexAdjacentSubTris {
+    std::vector<Vec3> pts;
+    std::vector<int> original_pair_idx;
+    std::vector<std::array<int,3>> obs_tris;
+    std::vector<std::array<int,3>> src_tris;
+    std::vector<std::array<std::array<double,2>,3>> obs_basis;
+    std::vector<std::array<std::array<double,2>,3>> src_basis;
+};
+
+struct EdgeAdjacentLookupTris {
+    std::vector<Vec2> pts;
+    std::vector<std::array<std::array<double,2>,3>> obs_basis;
+    std::vector<std::array<std::array<double,2>,3>> src_basis;
+};
+
+py::tuple adjacent_lookup_pts(NPArray<double> obs_tris, NPArray<double> src_tris, double pr) 
+{
+    VertexAdjacentSubTris va; 
+    EdgeAdjacentLookupTris ea;
+
+    auto obs_tris_buf = obs_tris.request();
+    auto n_tris = obs_tris_buf.shape[0];
+
+    auto* obs_tris_ptr = reinterpret_cast<double*>(obs_tris.request().ptr);
+    auto* src_tris_ptr = reinterpret_cast<double*>(src_tris.request().ptr);
+    
+    for (int i = 0; i < static_cast<int>(n_tris); i++) {
+        Tensor3 obs_tri;
+        Tensor3 src_tri;
+        for (int d1 = 0; d1 < 3; d1++) {
+            for (int d2 = 0; d2 < 3; d2++) {
+                obs_tri[d1][d2] = obs_tris_ptr[i * 9 + d1 * 3 + d2];
+                src_tri[d1][d2] = src_tris_ptr[i * 9 + d1 * 3 + d2];
+            }
+        }
+
+        auto sep_res = separate_tris(obs_tri, src_tri);
+
+        ea.obs_basis.push_back(sep_res.obs_basis_tri[0]);
+        ea.src_basis.push_back(sep_res.src_basis_tri[0]);
+
+        for (size_t j = 0; j < sep_res.pts.size(); j++) {
+            va.pts.push_back(sep_res.pts[j]);
+        }
+        for (int j = 0; j < 3; j++) {
+            for (int k = 0; k < 3; k++) {
+                if (j == 0 && k == 0) {
+                    continue;
+                }
+
+                auto otA = length(tri_normal({
+                    sep_res.pts[sep_res.obs_tri[j][0]],
+                    sep_res.pts[sep_res.obs_tri[j][1]],
+                    sep_res.pts[sep_res.obs_tri[j][2]]
+                }));
+
+                auto stA = length(tri_normal({
+                    sep_res.pts[sep_res.src_tri[k][0]],
+                    sep_res.pts[sep_res.src_tri[k][1]],
+                    sep_res.pts[sep_res.src_tri[k][2]]
+                }));
+                if (otA * stA < 1e-10) {
+                    continue;
+                }
+
+                auto ot = sep_res.obs_tri[j];
+                auto st = sep_res.src_tri[k];
+                auto rot = find_va_rotations(ot, st);
+                auto ot_rot = rot[0];
+                auto st_rot = rot[1];
+
+                va.original_pair_idx.push_back(i);
+                va.obs_tris.push_back({
+                    ot[ot_rot[0]] + 6 * i, ot[ot_rot[1]] + 6 * i, ot[ot_rot[2]] + 6 * i,
+                });
+                va.src_tris.push_back({
+                    st[st_rot[0]] + 6 * i, st[st_rot[1]] + 6 * i, st[st_rot[2]] + 6 * i,
+                });
+                va.obs_basis.push_back({
+                    sep_res.obs_basis_tri[j][ot_rot[0]],
+                    sep_res.obs_basis_tri[j][ot_rot[1]],
+                    sep_res.obs_basis_tri[j][ot_rot[2]],
+                });
+                va.src_basis.push_back({
+                    sep_res.src_basis_tri[k][st_rot[0]],
+                    sep_res.src_basis_tri[k][st_rot[1]],
+                    sep_res.src_basis_tri[k][st_rot[2]],
+                });
+            }
+        }
+
+        //TODO: HANDLE FLIPPING! Probably depends on kernel.
+        auto phi = get_adjacent_phi(obs_tri, src_tri);
+        if (phi > M_PI) {
+            phi = 2 * M_PI - phi;
+        }
+
+        assert(${min_intersect_angle} <= phi and phi <= np.pi);
+
+        auto phihat = from_interval(${min_intersect_angle}, M_PI, phi);
+        auto prhat = from_interval(0, 0.5, pr); 
+        ea.pts.push_back({phihat, prhat});
+    }
+    return py::make_tuple(va, ea);
+}
+
+<%def name="basis_fnc(idx)">
+% if idx == 0:
+    1 - x - y
+% elif idx == 1:
+    x
+% elif idx == 2:
+    y
+% endif
+</%def>
+
+std::array<double,81> sub_basis(const std::array<double,81>& I,
+        const std::array<std::array<double,2>,3>& obs_basis_tri,
+        const std::array<std::array<double,2>,3>& src_basis_tri)
+{
+    std::array<double,81> out{};
+    % for ob1 in range(3):
+    % for sb1 in range(3):
+    % for ob2 in range(3):
+    % for sb2 in range(3):
+
+    {
+        auto x = obs_basis_tri[${ob2}][0];
+        auto y = obs_basis_tri[${ob2}][1];
+        auto obv = ${basis_fnc(ob1)};
+
+        x = src_basis_tri[${sb2}][0];
+        y = src_basis_tri[${sb2}][1];
+        auto sbv = ${basis_fnc(sb1)};
+
+        (void)x;(void)y;
+
+        % for d1 in range(3):
+        % for d2 in range(3):
+
+            <%
+            out_idx = ob1 * 27 + d1 * 9 + sb1 * 3 + d2
+            in_idx = ob2 * 27 + d1 * 9 + sb2 * 3 + d2
+            %>
+            out[${out_idx}] += I[${in_idx}] * obv * sbv;
+
+        % endfor
+        % endfor
+    }
+
+    % endfor
+    % endfor
+    % endfor
+    % endfor
+    return out;
+}
+
 PYBIND11_PLUGIN(fast_lookup) {
     py::module m("fast_lookup");
     m.def("barycentric_evalnd", barycentric_evalnd_py); m.def("get_edge_lens", get_edge_lens);
@@ -659,10 +780,25 @@ PYBIND11_PLUGIN(fast_lookup) {
     m.def("coincident_lookup_from_standard", coincident_lookup_from_standard);
 
     m.def("xyhat_from_pt", xyhat_from_pt);
-    m.def("separate_tris", separate_tris);
+    m.def("separate_tris", separate_tris_pyshim);
     m.def("triangle_internal_angles", triangle_internal_angles);
     m.def("get_adjacent_phi", get_adjacent_phi);
     m.def("find_va_rotations", find_va_rotations);
+
+    py::class_<VertexAdjacentSubTris>(m, "VertexAdjacentSubTris")
+        .def_readonly("pts", &VertexAdjacentSubTris::pts)
+        .def_readonly("original_pair_idx", &VertexAdjacentSubTris::original_pair_idx)
+        .def_readonly("obs_tris", &VertexAdjacentSubTris::obs_tris)
+        .def_readonly("src_tris", &VertexAdjacentSubTris::src_tris)
+        .def_readonly("obs_basis", &VertexAdjacentSubTris::obs_basis)
+        .def_readonly("src_basis", &VertexAdjacentSubTris::src_basis);
+
+    py::class_<EdgeAdjacentLookupTris>(m, "EdgeAdjacentLookupTris")
+        .def_readonly("pts", &EdgeAdjacentLookupTris::pts)
+        .def_readonly("obs_basis", &EdgeAdjacentLookupTris::obs_basis)
+        .def_readonly("src_basis", &EdgeAdjacentLookupTris::src_basis);
+
+    m.def("adjacent_lookup_pts", adjacent_lookup_pts);
 
     return m.ptr();
 }

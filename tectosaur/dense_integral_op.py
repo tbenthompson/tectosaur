@@ -75,7 +75,7 @@ class DenseIntegralOp:
         if not use_tables:
             co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris, remove_sing)
         else:
-            co_mat = coincident_table(kernel, sm, pr, pts, tris, remove_sing)
+            co_mat = coincident_table(kernel, sm, pr, pts, tris)
         timer.report("Coincident")
 
         va, ea = find_adjacents(tris)
@@ -90,7 +90,7 @@ class DenseIntegralOp:
             )
         else:
             ea_mat_rot = adjacent_table(
-                nq_vert_adjacent, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris, remove_sing
+                nq_vert_adjacent, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris
             )
         timer.report("Edge adjacent")
 

@@ -77,7 +77,7 @@ def coincident_lookup_interpolation_gpu(table_limits, table_log_coeffs,
     t.report("run interpolation for " + str(n_tris) + " tris")
     return out[:, :, 0], out[:, :, 1]
 
-def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
+def coincident_table(kernel, sm, pr, pts, tris):
     filename = 'data/H_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
 
     params = filename.split('_')
@@ -90,7 +90,6 @@ def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
 
     tri_pts = pts[tris]
 
-    start = time.time()
     table_data = np.load(filename)
     table_limits = table_data[:,:,0]
     table_log_coeffs = table_data[:,:,1]
@@ -112,8 +111,7 @@ def coincident_table(kernel, sm, pr, pts, tris, remove_sing):
 
     return out
 
-def adjacent_lookup(table_and_pts_wts, K, sm, pr, orig_obs_tri, obs_tri, src_tri,
-        remove_sing):
+def adjacent_lookup(table_and_pts_wts, K, sm, pr, orig_obs_tri, obs_tri, src_tri):
     t = Timer(silent = True)
 
     table_limits, table_log_coeffs, interp_pts, interp_wts = table_and_pts_wts
@@ -150,7 +148,43 @@ def adjacent_lookup(table_and_pts_wts, K, sm, pr, orig_obs_tri, obs_tri, src_tri
     t.report("transform from standard")
     return out
 
-def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
+def adjacent_lookup_interpolation(interp_pts, interp_wts, table_limits, table_log_coeffs,
+        lookup_pts):
+
+    interp_vals = []
+    log_coeffs = []
+    for i in range(lookup_pts.shape[0]):
+        pt = lookup_pts[i,:]
+        interp_vals.append(fast_lookup.barycentric_evalnd(
+            interp_pts, interp_wts, table_limits, pt
+        ))
+        log_coeffs.append(fast_lookup.barycentric_evalnd(
+            interp_pts, interp_wts, table_log_coeffs, pt
+        ))
+    return np.array(interp_vals), np.array(log_coeffs)
+
+def adjacent_lookup_from_standard(lookup_limit, lookup_log_coeffs,
+        pts, obs_tris, lookup_obs_basis_tris, lookup_src_basis_tris, sm, kernel):
+
+    out = np.empty((obs_tris.shape[0], 3, 3, 3, 3))
+    for i in range(obs_tris.shape[0]):
+        code, standard_tri, labels, translation, R, scale = standardize(
+            pts[obs_tris[i]], table_min_internal_angle, False
+        )
+
+        standard_scale = np.sqrt(np.linalg.norm(tri_normal(standard_tri)))
+        interp_vals = lookup_limit[i] + np.log(standard_scale) * lookup_log_coeffs[i]
+
+        lookup_result = transform_from_standard(interp_vals, kernel, sm, labels, translation, R, scale)
+
+        out[i] = np.array(fast_lookup.sub_basis(
+            lookup_result, lookup_obs_basis_tris[i], lookup_src_basis_tris[i]
+        )).reshape((3,3,3,3))
+
+    return out
+
+
+def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
     filename = 'data/H_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
     to = Timer()
 
@@ -166,78 +200,28 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
     table_log_coeffs = table_data[:,:,1]
     to.report("load table")
 
-    out = np.empty((obs_tris.shape[0], 3, 3, 3, 3))
+    va, ea = fast_lookup.adjacent_lookup_pts(pts[obs_tris].copy(), pts[src_tris].copy(), pr)
+    to.report("get pts")
 
-    va_pts = []
-    va_which_pair = []
-    va_obs_tris = []
-    va_src_tris = []
-    va_obs_basis = []
-    va_src_basis = []
-    for i in range(obs_tris.shape[0]):
-        t = Timer()
-        obs_tri = pts[obs_tris[i]]
-        src_tri = pts[src_tris[i]]
-        split_pts, split_obs, split_src, obs_basis_tris, src_basis_tris = \
-            fast_lookup.separate_tris(obs_tri.tolist(), src_tri.tolist())
-        split_pts = np.array(split_pts)
-        split_obs = np.array(split_obs)
-        split_src = np.array(split_src)
-        obs_basis_tris = np.array(obs_basis_tris)
-        src_basis_tris = np.array(src_basis_tris)
-        t.report("separate tris")
+    lookup_limit, lookup_log_coeffs = adjacent_lookup_interpolation(
+        interp_pts, interp_wts, table_limits, table_log_coeffs, np.array(ea.pts)
+    )
+    to.report("interpolation")
 
-        va_pts.extend(split_pts.tolist())
-        for j in range(3):
-            for k in range(3):
-                if k == 0 and j == 0:
-                    continue
-                otA = np.linalg.norm(tri_normal(split_pts[split_obs[j]]))
-                stA = np.linalg.norm(tri_normal(split_pts[split_src[k]]))
-                if otA * stA < 1e-10:
-                    continue
+    out = adjacent_lookup_from_standard(lookup_limit, lookup_log_coeffs, pts, obs_tris, ea.obs_basis, ea.src_basis, sm, kernel)
 
-                ot = split_obs[j]
-                st = split_src[k]
-                ot_rot, st_rot = fast_lookup.find_va_rotations(ot.tolist(), st.tolist())
-
-                va_obs_tris.append((ot[ot_rot] + 6 * i).tolist())
-                va_src_tris.append((st[st_rot] + 6 * i).tolist())
-                va_which_pair.append(i)
-                va_obs_basis.append(obs_basis_tris[j][ot_rot])
-                va_src_basis.append(src_basis_tris[k][st_rot])
-        t.report("create va subpairs")
-
-        lookup_result = adjacent_lookup(
-            (table_limits, table_log_coeffs, interp_pts, interp_wts),
-            kernel, sm, pr,
-            obs_tri, split_pts[split_obs[0]], split_pts[split_src[0]],
-            remove_sing
-        )
-        t.report("lookup")
-
-        out[i] = np.array(fast_lookup.sub_basis(
-            lookup_result.flatten().tolist(),
-            obs_basis_tris[0].tolist(),
-            src_basis_tris[0].tolist()
-        )).reshape((3,3,3,3))
-        t.report("sub basis")
-
-    to.report("split and edge integrals")
-    start = time.time()
+    to.report("from standard")
 
     Iv = nearfield_op.vert_adj(
         nq_va, kernel, sm, pr,
-        np.array(va_pts), np.array(va_obs_tris), np.array(va_src_tris)
+        np.array(va.pts), np.array(va.obs_tris), np.array(va.src_tris)
     )
     to.report('vert adj subpairs')
     for i in range(Iv.shape[0]):
         Iv[i] = np.array(fast_lookup.sub_basis(
-            Iv[i].flatten().tolist(),
-            va_obs_basis[i].tolist(),
-            va_src_basis[i].tolist())
-        ).reshape((3,3,3,3))
-        out[va_which_pair[i]] += Iv[i]
+            Iv[i].flatten().tolist(), va.obs_basis[i], va.src_basis[i]
+        )).reshape((3,3,3,3))
+        out[va.original_pair_idx[i]] += Iv[i]
     to.report('vert adj subbasis')
 
     return out
