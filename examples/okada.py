@@ -26,9 +26,8 @@ def build_constraints(surface_tris, fault_tris, pts):
         n_surf_tris, n_surf_tris + n_fault_tris, [1, 0, 0]
     ))
     cs.extend(constraints.free_edge_constraints(surface_tris))
-    cs = sorted(cs, key = lambda x: x[0][0][1])
 
-    return cs
+    return constraints.sort_by_constrained_dof(cs)
 
 def refined_free_surface():
     w = 10

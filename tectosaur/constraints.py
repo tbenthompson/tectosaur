@@ -58,6 +58,9 @@ def continuity_constraints(surface_tris, fault_tris, pts):
     assert(len(touching_pt) == surface_tris.size - len(constraints) / 3)
     return constraints
 
+def sort_by_constrained_dof(cs):
+    return sorted(cs, key = lambda x: x.terms[0].dof)
+
 def free_edge_constraints(tris):
     free_edges = find_free_edges(tris)
     cs = []

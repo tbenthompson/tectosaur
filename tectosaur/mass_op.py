@@ -4,6 +4,7 @@ import numpy as np
 import scipy.sparse
 
 class MassOp:
+    #TODO: Can this just be done using interp_galerkin_mat??
     def __init__(self, nq, pts, tris):
         qx, qw = gauss2d_tri(nq)
         self.mat = scipy.sparse.dok_matrix((tris.shape[0] * 9, tris.shape[0] * 9))

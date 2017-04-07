@@ -19,6 +19,10 @@ import tectosaur.geometry as geometry
 from solve import iterative_solve, direct_solve, SumOp
 from tectosaur.util.timer import Timer
 
+def build_constraints(inner_tris, outer_tris, full_mesh):
+    cs = constraints.continuity_constraints(full_mesh[1], np.array([]), full_mesh[0])
+    return constraints.sort_by_constrained_dof(cs)
+
 def spherify(center, r, pts):
     D = scipy.spatial.distance.cdist(pts, center.reshape((1,center.shape[0])))
     return (r / D) * (pts - center) + center
@@ -33,85 +37,138 @@ def make_sphere(center, r, refinements):
     spherified_m = [spherify(center, r, m[0]), m[1]]
     return spherified_m
 
-def main():
+# Solution from http://solidmechanics.org/text/Chapter4_1/Chapter4_1.htm
+# Section 4.1.4
+def correct_displacement(a, b, pa, pb, sm, pr, R):
+    E = 2 * sm * (1 + pr)
+    factor = 1.0 / (2 * E * (b ** 3 - a ** 3) * R ** 2)
+    term1 = 2 * (pa * a ** 3 - pb * b ** 3) * (1 - 2 * pr) * R ** 3
+    term2 = (pa - pb) * (1 + pr) * b ** 3 * a ** 3
+    return factor * (term1 + term2)
+
+def check_normals():
+    center = np.mean(tri_pts, axis = 1)
+    plt.plot(center[:, 0], center[:, 1], '*')
+    for i in range(ns.shape[0]):
+        start = center[i]
+        end = start + ns[i] * 0.1
+        data = np.array([start, end])
+        color = 'b'
+        if i < m_inner[1].shape[0]:
+            color = 'r'
+        plt.plot(data[:, 0], data[:, 1], color)
+    plt.show()
+    import ipdb; ipdb.set_trace()
+
+def runner(params):
     refine = 3
-    m = make_sphere(np.array([0,0,0]), 1.0, refine)
+    a = 1.0
+    b = 2.0
+    sm = 1.0
+    pr = 0.25
+    pa = 1.0
+    pb = -1.0
+
+    print(correct_displacement(a, b, pa, pb, sm, pr, np.array([a, b])))
+    print(correct_displacement(a, b, -pa, pb, sm, pr, np.array([a, b])))
+    print(correct_displacement(a, b, -pa, -pb, sm, pr, np.array([a, b])))
+    print(correct_displacement(a, b, pa, -pb, sm, pr, np.array([a, b])))
+
+    m_inner = mesh.flip_normals(make_sphere(np.array([0,0,0]), a, refine))
+    m_outer = make_sphere(np.array([0,0,0]), b, refine + 1)
+    m = mesh.concat(m_inner, m_outer)
+    print(m[1].shape)
+    n_inner = m_inner[1].shape[0]
+    inner_tris = m[1][:n_inner]
+    outer_tris = m[1][n_inner:]
     tri_pts = m[0][m[1]]
     # mesh.plot_mesh3d(*m)
 
-    sm = 1.0
-    pr = 0.25
-    cs = constraints.constraints(m[1], np.array([]), m[0])
+    cs = build_constraints(inner_tris, outer_tris, m)
+
+    # solving: u(x) + int(T*u) = int(U*t)
+    # values in radial direction because the sphere is centered at (0,0,0)
+
+    unscaled_ns = geometry.unscaled_normals(tri_pts)
+    ns = unscaled_ns / geometry.jacobians(unscaled_ns)[:,np.newaxis]
+
+    input_nd = np.tile(ns[:,np.newaxis,:], (1, 3, 1))
+    input = input_nd.reshape(tri_pts.shape[0] * 9)
+
+    # Inner surface has traction pa
+    input[:n_inner] *= pa
+
+    # Outer surface has traction pb
+    input[n_inner:] *= pb
 
     selfop = MassOp(3, m[0], m[1]).mat
-
-    # igmat = interp_galerkin_mat(tri_pts, gauss2d_tri(3))
-    # selfop = igmat[0].T.dot(igmat[0])
-    # import ipdb; ipdb.set_trace()
 
     eps = [0.08, 0.04, 0.02, 0.01]
     t = Timer()
     Uop = DenseIntegralOp(
-        eps, (20,20,20,20), (25,19,19,19), 9, 4, 9, 4.0,
-        'U', sm, pr, m[0], m[1]
+        eps, 15, 16, 6, 3, 6, 4.0,
+        'U', sm, pr, m[0], m[1], remove_sing = True
     )
     t.report('U')
     Top = DenseIntegralOp(
-        eps, (20,20,20,20), (25,19,19,19), 9, 4, 9, 4.0,
-        'T', sm, pr, m[0], m[1]
+        eps, params, 15, 6, 3, 6, 4.0,
+        'T', sm, pr, m[0], m[1], remove_sing = True
     )
     t.report('T')
 
+    lhs = Top.mat + selfop
+    rhs = -Uop.dot(input)
+    t.report('setup system')
+
+    cm, c_rhs = constraints.build_constraint_matrix(cs, lhs.shape[0])
+    t.report('build constraint matrix')
+    cm = cm.tocsr().todense()
+    t.report('constraints to dense')
+    cmT = cm.T
+    t.report('transpose constraint matrix')
+    lhs_constrained = cmT.dot(lhs.dot(cm))
+    rhs_constrained = cmT.dot((rhs + lhs.dot(c_rhs)).T)
+    t.report('constrain')
+    constrained_soln = np.linalg.solve(lhs_constrained, rhs_constrained)
+    t.report('solve')
+    soln = cm.dot(constrained_soln)
+    t.report('deconstrain')
+
+    disp = np.array(soln).reshape((int(lhs.shape[0] / 9), 3, 3))
+    avg_face_disp = np.mean(disp, axis = 1)
+    disp_mag = np.sqrt(np.sum(avg_face_disp ** 2, axis = 1))
+    inner_disp_mag = disp_mag[:n_inner]
+    outer_disp_mag = disp_mag[n_inner:]
+    print(inner_disp_mag[:10])
+    print(outer_disp_mag[:10])
+    # to_plot = disp_mag
+
+    # solve_for = 'disp'
+    # if solve_for == 'disp':
+    # elif solve_for == 'trac':
+    #     lhs = Uop.mat
+    #     rhs = (-Top.mat - selfop).dot(input)
+    #     soln = np.linalg.solve(lhs, rhs.T)
+    #     trac = np.array(soln).reshape((int(lhs.shape[0] / 9), 3, 3))
+    #     avg_face_trac = np.mean(trac, axis = 1)
+    #     trac_mag = np.sqrt(np.sum(avg_face_trac ** 2, axis = 1))
+    #     to_plot = trac_mag
 
 
-    # solving: u(x) + int(T*u) = int(U*t)
-    # traction values radial direction because the sphere is centered at (0,0,0)
+    # for var in [to_plot, input_mag]:
+    #     fig = plt.figure()
+    #     ax = fig.gca(projection='3d')
+    #     cmap = plt.get_cmap('Blues')
+    #     triang = tri.Triangulation(m[0][:,0], m[0][:,1], m[1])
+    #     collec = ax.plot_trisurf(triang, m[0][:,2], cmap=cmap, shade=False, linewidth=0.)
+    #     collec.set_array(var)
+    #     collec.autoscale()
+    #     plt.colorbar(collec)
+    # plt.show()
 
-    unscaled_ns = geometry.unscaled_normals(tri_pts)
-    unscaled_ns /= geometry.jacobians(unscaled_ns)[:,np.newaxis]
-    input_nd = np.tile(unscaled_ns[:,np.newaxis,:], (1, 3, 1))
-    # input_nd = tri_pts / np.linalg.norm(tri_pts, axis = 2)[:,:,np.newaxis]
-    input = input_nd.reshape(tri_pts.shape[0] * 9)
-    avg_face_input = np.mean(input_nd, axis = 1)
-    input_mag = np.sqrt(np.sum(avg_face_input ** 2, axis = 1))
-
-    solve_for = 'disp'
-    if solve_for == 'disp':
-        lhs = Top.mat + selfop
-        rhs = Uop.dot(input)
-
-        cm, c_rhs = constraints.build_constraint_matrix(cs, lhs.shape[0])
-        cm = cm.tocsr().todense()
-        cmT = cm.T
-        lhs_constrained = cmT.dot(lhs.dot(cm))
-        rhs_constrained = cmT.dot((rhs + lhs.dot(c_rhs)).T)
-        constrained_soln = np.linalg.solve(lhs_constrained, rhs_constrained)
-        soln = cm.dot(constrained_soln)
-
-        disp = np.array(soln).reshape((int(lhs.shape[0] / 9), 3, 3))
-        avg_face_disp = np.mean(disp, axis = 1)
-        disp_mag = np.sqrt(np.sum(avg_face_disp ** 2, axis = 1))
-        to_plot = disp_mag
-    elif solve_for == 'trac':
-        lhs = Uop.mat
-        rhs = (-Top.mat - selfop).dot(input)
-        soln = np.linalg.solve(lhs, rhs.T)
-        trac = np.array(soln).reshape((int(lhs.shape[0] / 9), 3, 3))
-        avg_face_trac = np.mean(trac, axis = 1)
-        trac_mag = np.sqrt(np.sum(avg_face_trac ** 2, axis = 1))
-        to_plot = trac_mag
-
-
-    for var in [to_plot, input_mag]:
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
-        cmap = plt.get_cmap('Blues')
-        triang = tri.Triangulation(m[0][:,0], m[0][:,1], m[1])
-        collec = ax.plot_trisurf(triang, m[0][:,2], cmap=cmap, shade=False, linewidth=0.)
-        collec.set_array(var)
-        collec.autoscale()
-        plt.colorbar(collec)
-    plt.show()
+def main():
+    for nq in [21]:
+        runner(nq)
 
 
 
