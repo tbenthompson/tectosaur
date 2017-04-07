@@ -606,7 +606,7 @@ struct VertexAdjacentSubTris {
 };
 
 struct EdgeAdjacentLookupTris {
-    std::vector<Vec2> pts;
+    NPArray<double> pts;
     std::vector<std::array<std::array<double,2>,3>> obs_basis;
     std::vector<std::array<std::array<double,2>,3>> src_basis;
 };
@@ -616,8 +616,12 @@ py::tuple adjacent_lookup_pts(NPArray<double> obs_tris, NPArray<double> src_tris
     VertexAdjacentSubTris va; 
     EdgeAdjacentLookupTris ea;
 
+
     auto obs_tris_buf = obs_tris.request();
     auto n_tris = obs_tris_buf.shape[0];
+
+    ea.pts = make_array<double>({n_tris, 2});
+    auto ea_pts_ptr = reinterpret_cast<double*>(ea.pts.request().ptr);
 
     auto* obs_tris_ptr = reinterpret_cast<double*>(obs_tris.request().ptr);
     auto* src_tris_ptr = reinterpret_cast<double*>(src_tris.request().ptr);
@@ -697,7 +701,8 @@ py::tuple adjacent_lookup_pts(NPArray<double> obs_tris, NPArray<double> src_tris
 
         auto phihat = from_interval(${min_intersect_angle}, M_PI, phi);
         auto prhat = from_interval(0, 0.5, pr); 
-        ea.pts.push_back({phihat, prhat});
+        ea_pts_ptr[i * 2] = phihat;
+        ea_pts_ptr[i * 2 + 1] = prhat;
     }
     return py::make_tuple(va, ea);
 }
@@ -753,6 +758,26 @@ std::array<double,81> sub_basis(const std::array<double,81>& I,
     return out;
 }
 
+void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
+    const VertexAdjacentSubTris& va) 
+{
+    auto n_integrals = Iv.request().shape[0];    
+    auto Iv_ptr = reinterpret_cast<double*>(Iv.request().ptr);
+    auto out_ptr = reinterpret_cast<double*>(out.request().ptr);
+    for (size_t i = 0; i < n_integrals; i++) {
+        std::array<double,81> this_integral;
+        for (int j = 0; j < 81; j++) {
+            this_integral[j] = Iv_ptr[i * 81 + j];
+        }
+        auto res = sub_basis(this_integral, va.obs_basis[i], va.src_basis[i]);
+
+        int out_idx = va.original_pair_idx[i];
+        for (int j = 0; j < 81; j++) {
+            out_ptr[out_idx * 81 + j] += res[j];
+        }
+    }
+}
+
 PYBIND11_PLUGIN(fast_lookup) {
     py::module m("fast_lookup");
     m.def("barycentric_evalnd", barycentric_evalnd_py); m.def("get_edge_lens", get_edge_lens);
@@ -799,6 +824,7 @@ PYBIND11_PLUGIN(fast_lookup) {
         .def_readonly("src_basis", &EdgeAdjacentLookupTris::src_basis);
 
     m.def("adjacent_lookup_pts", adjacent_lookup_pts);
+    m.def("vert_adj_subbasis", vert_adj_subbasis);
 
     return m.ptr();
 }

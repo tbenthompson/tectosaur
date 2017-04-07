@@ -196,7 +196,7 @@ def test_adjacent_table_lookup():
         scale = np.random.rand(1)[0] * 3
         translation = np.random.rand(3)
         R = random_rotation()
-        print(phi, pr, scale, translation)
+        # print(phi, pr, scale, translation)
 
         pts = (translation + R.dot(pts.T).T * scale).copy()
 
@@ -205,16 +205,14 @@ def test_adjacent_table_lookup():
         eps = 0.01 * (2.0 ** -np.arange(6))
         eps_scale = np.sqrt(np.linalg.norm(tri_normal(pts[tris[0]])))
 
-        op2 = DenseIntegralOp(
-            eps, 3, 3, 10, 3, 10, 3.0, K, 1.0, pr,
-            pts, tris, use_tables = True, remove_sing = True
-        )
-        print(op2.mat[0:9,9])
         op = DenseIntegralOp(
             eps, 15, 25, 10, 3, 10, 3.0, K, 1.0, pr,
             pts, tris, remove_sing = True
         )
-        print(op.mat[0:9,9])
+        op2 = DenseIntegralOp(
+            eps, 3, 3, 10, 3, 10, 3.0, K, 1.0, pr,
+            pts, tris, use_tables = True, remove_sing = True
+        )
         err = np.abs((op.mat[0,9] - op2.mat[0,9]) / op.mat[0,9])
         print("ERROROROROROROR: " + str(err))
         results.append(op2.mat[:9,9:18])

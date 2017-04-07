@@ -104,19 +104,21 @@ class NearfieldIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
             use_tables = False, remove_sing = False):
+        timer = Timer(tabs = 1)
         near_gauss = gauss4d_tri(nq_near, nq_near)
         far_quad = gauss4d_tri(nq_far, nq_far)
+        timer.report("Build gauss rules")
 
-        timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])
         if not use_tables:
             co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris, remove_sing)
         else:
             co_mat = coincident_table(kernel, sm, pr, pts, tris)
+        timer.report("Coincident")
         co_mat_correction = pairs_quad(
             kernel, sm, pr, pts, tris, tris, far_quad, False
         )
-        timer.report("Coincident")
+        timer.report("Coincident correction")
 
         va, ea = find_adjacents(tris)
         timer.report("Find adjacency")
@@ -126,30 +128,35 @@ class NearfieldIntegralOp:
         timer.report("Edge adjacency prep")
         if not use_tables:
             ea_mat_rot = edge_adj(
-                nq_edge_adjacent, eps, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris, remove_sing
+                nq_edge_adjacent, eps, kernel, sm, pr, pts,
+                ea_obs_tris, ea_src_tris, remove_sing
             )
         else:
             ea_mat_rot = adjacent_table(
                 nq_vert_adjacent, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris
             )
+        timer.report("Edge adjacent")
         ea_mat_correction = pairs_quad(
             kernel, sm, pr, pts,
             tris[ea_tri_indices[:,0]], tris[ea_tri_indices[:,1]],
             far_quad, False
         )
-        timer.report("Edge adjacent")
+        timer.report("Edge adjacent correction")
 
         va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
             vert_adj_prep(tris, va)
         timer.report("Vert adjacency prep")
 
-        va_mat_rot = vert_adj(nq_vert_adjacent, kernel, sm, pr, pts, va_obs_tris, va_src_tris)
+        va_mat_rot = vert_adj(
+            nq_vert_adjacent, kernel, sm, pr, pts, va_obs_tris, va_src_tris
+        )
+        timer.report("Vert adjacent")
         va_mat_correction = pairs_quad(
             kernel, sm, pr, pts,
             tris[va_tri_indices[:,0]], tris[va_tri_indices[:,1]],
             far_quad, False
         )
-        timer.report("Vert adjacent")
+        timer.report("Vert adjacent correction")
 
         nearfield_pairs = np.array(find_nearfield(pts, tris, va, ea, near_threshold))
         if nearfield_pairs.size == 0:
@@ -160,11 +167,12 @@ class NearfieldIntegralOp:
             kernel, sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
             near_gauss, False
         )
+        timer.report("Nearfield")
         nearfield_correction = pairs_quad(
             kernel, sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
             far_quad, False
         )
-        timer.report("Nearfield")
+        timer.report("Nearfield correction")
 
         self.mat = build_nearfield(
             (co_indices, co_mat, co_mat_correction),
@@ -172,6 +180,7 @@ class NearfieldIntegralOp:
             (va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks, va_mat_correction),
             (nearfield_mat, nearfield_pairs, nearfield_correction)
         )
+        timer.report("Assemble matrix")
         self.mat_no_correction = build_nearfield(
             (co_indices, co_mat, 0 * co_mat_correction),
             (ea_mat_rot, ea_tri_indices, ea_obs_clicks,
@@ -180,6 +189,7 @@ class NearfieldIntegralOp:
                 va_src_clicks, 0 * va_mat_correction),
             (nearfield_mat, nearfield_pairs, 0 * nearfield_correction)
         )
+        timer.report("Assemble uncorrected matrix")
 
     def dot(self, v):
         return self.mat.dot(v)
