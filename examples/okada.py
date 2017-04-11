@@ -8,9 +8,10 @@ import scipy.spatial
 import tectosaur.mesh as mesh
 import tectosaur.adjacency as adjacency
 import tectosaur.constraints as constraints
-from tectosaur.sparse_integral_op import SparseIntegralOp, FMMIntegralOp
+from tectosaur.sparse_integral_op import SparseIntegralOp
 from tectosaur.dense_integral_op import DenseIntegralOp
 from tectosaur.util.timer import Timer
+from tectosaur.interior import interior_integral
 
 from solve import iterative_solve, direct_solve
 
@@ -117,11 +118,11 @@ def test_okada():
     pr = 0.25
     fault_L = 1.0
     top_depth = -0.5
-    load_soln = False
+    load_soln = True
 
+    all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth)
     if not load_soln:
         timer = Timer()
-        all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth)
         timer.report("Mesh")
 
         cs = build_constraints(surface_tris, fault_tris, all_mesh[0])
@@ -152,7 +153,6 @@ def test_okada():
         #     use_tables = True,
         #     remove_sing = True
         # )
-        # import ipdb; ipdb.set_trace()
         timer.report("Integrals")
 
         soln = iterative_solve(iop, cs)
@@ -171,16 +171,14 @@ def test_okada():
                 vals[idx] = disp[i,b,:]
         vals = np.array(vals)
         timer.report("Extract surface displacement")
-        # with open('okada.npy', 'wb') as f:
-        #     pickle.dump((vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr), f)
+        with open('okada.npy', 'wb') as f:
+            pickle.dump((soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr), f)
     else:
-        pass
-        # with open('okada.npy', 'rb') as f:
-        #     vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
+        with open('okada.npy', 'rb') as f:
+            soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
-    u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-
-    np.save('okadaplateau.npy', [obs_pts, surface_tris, all_mesh, u, vals])
+    # u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
+    # np.save('okadaplateau.npy', [obs_pts, surface_tris, all_mesh, u, vals])
     # cond1 = np.logical_and(obs_pts[:,1] > -0.4, obs_pts[:,1] < -0.25)
     # cond2 = np.logical_and(obs_pts[:,1] < 0.4, obs_pts[:,1] > 0.25)
     # plt.plot(obs_pts[cond1, 0], vals[cond1,0],'r.')
@@ -188,8 +186,27 @@ def test_okada():
     # plt.plot(obs_pts[cond1, 0], u[cond1,0],'b.')
     # plt.plot(obs_pts[cond2, 0], u[cond2,0],'b.')
     # plt.show()
-    plot_results(obs_pts, surface_tris, u, vals)
-    print_error(obs_pts, u, vals)
+    # plot_results(obs_pts, surface_tris, u, vals)
+    # print_error(obs_pts, u, vals)
+
+    xs = np.linspace(-10, 10, 100)
+    z = 2.0
+    X, Y = np.meshgrid(xs, xs)
+    obs_pts = np.array([X.flatten(), Y.flatten(), -z * np.ones(X.size)]).T
+    exact_disp = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
+    interior_disp = interior_integral(obs_pts, obs_pts, all_mesh, soln, 'U', 4, 8, sm, pr);
+    interior_disp = interior_disp.reshape((-1, 3))
+    for d in range(1):
+        plt.figure()
+        plt.imshow(exact_disp[:,d].reshape((xs.shape[0], -1)), interpolation = 'none')
+        plt.colorbar()
+        plt.title('exact u' + ['x', 'y', 'z'][d])
+        plt.figure()
+        plt.imshow(interior_disp[:,d].reshape((xs.shape[0], -1)), interpolation = 'none')
+        plt.colorbar()
+        plt.title('u' + ['x', 'y', 'z'][d])
+    plt.show()
+    import ipdb; ipdb.set_trace()
 
 def okada_exact(obs_pts, fault_L, top_depth, sm, pr):
     lam = 2 * sm * pr / (1 - 2 * pr)

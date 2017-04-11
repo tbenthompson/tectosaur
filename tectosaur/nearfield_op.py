@@ -5,12 +5,7 @@ import tectosaur.triangle_rules as triangle_rules
 from tectosaur.quadrature import richardson_quad
 import tectosaur.util.gpu as gpu
 from tectosaur.util.caching import cache
-
-def pairs_func_name(singular, k_name):
-    singular_label = 'N'
-    if singular:
-        singular_label = 'S'
-    return 'single_pairs' + singular_label + k_name
+from tectosaur.integral_utils import pairs_func_name
 
 def get_gpu_config():
     return {'block_size': 128, 'float_type': gpu.np_to_c_type(float_type)}

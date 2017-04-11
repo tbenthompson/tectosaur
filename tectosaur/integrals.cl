@@ -1,13 +1,5 @@
 <%
-from tectosaur.nearfield_op import pairs_func_name
-
-import tectosaur.util.kernel_exprs
-kernel_names = ['U', 'T', 'A', 'H']
-kernels = tectosaur.util.kernel_exprs.get_kernels(float_type)
-def dn(dim):
-    return ['x', 'y', 'z'][dim]
-
-kronecker = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+from tectosaur.integral_utils import pairs_func_name, kernels, kernel_names, dn, kronecker
 %>
 #pragma OPENCL EXTENSION cl_khr_fp64: enable
 
@@ -33,24 +25,21 @@ kronecker = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
         if limit:
             qd = 5
         %>
-        Real obs_geom_xhat = quad_pts[iq * ${qd} + 0];
-        Real obs_geom_yhat = quad_pts[iq * ${qd} + 1];
-        Real src_geom_xhat = quad_pts[iq * ${qd} + 2];
-        Real src_geom_yhat = quad_pts[iq * ${qd} + 3];
+        Real obsxhat = quad_pts[iq * ${qd} + 0];
+        Real obsyhat = quad_pts[iq * ${qd} + 1];
+        Real srcxhat = quad_pts[iq * ${qd} + 2];
+        Real srcyhat = quad_pts[iq * ${qd} + 3];
         % if limit:
             Real eps = quad_pts[iq * ${qd} + 4];
         % endif
         Real quadw = quad_wts[iq];
 
         % for which, ptname in [("obs", "x"), ("src", "y")]:
-            ${prim.basis(which + "_geom_")}
+            ${prim.basis(which)}
             ${prim.pts_from_basis(
-                ptname, which + "_geom_",
+                ptname, which,
                 lambda b, d: which + "_tri[" + str(b) + "][" + str(d) + "]", 3
             )}
-            % for d in range(3):
-                Real ${which}b${d} = ${which}_geom_b${d};
-            % endfor
         % endfor
 
         % if limit:
@@ -156,11 +145,11 @@ void farfield_pts${k_name}(
 
     % if need_obsn:
     % for d in range(3):
-    Real M${dn(d)};
+    Real n${dn(d)};
     % endfor
     if (i < n_obs) {
         % for d in range(3):
-        M${dn(d)} = obs_ns[i * 3 + ${d}];
+        n${dn(d)} = obs_ns[i * 3 + ${d}];
         % endfor
     }
     % endif
@@ -208,7 +197,7 @@ void farfield_pts${k_name}(
             }
             % if need_srcn:
             % for d in range(3):
-            Real N${dn(d)} = sh_src_ns[k * 3 + ${d}];
+            Real l${dn(d)} = sh_src_ns[k * 3 + ${d}];
             % endfor
             % endif
 

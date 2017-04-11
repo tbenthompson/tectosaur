@@ -60,8 +60,8 @@ def check_normals():
     plt.show()
     import ipdb; ipdb.set_trace()
 
-def runner(params):
-    refine = 3
+def runner(param, do_solve = True):
+    refine = 0
     a = 1.0
     b = 2.0
     sm = 1.0
@@ -74,8 +74,11 @@ def runner(params):
     print(correct_displacement(a, b, -pa, -pb, sm, pr, np.array([a, b])))
     print(correct_displacement(a, b, pa, -pb, sm, pr, np.array([a, b])))
 
-    m_inner = mesh.flip_normals(make_sphere(np.array([0,0,0]), a, refine))
-    m_outer = make_sphere(np.array([0,0,0]), b, refine + 1)
+    m_inner = make_sphere(np.array([0,0,0]), a, refine)
+    m_outer = make_sphere(np.array([0,0,0]), b, refine)
+    if param:
+        m_inner = mesh.flip_normals(m_inner)
+
     m = mesh.concat(m_inner, m_outer)
     print(m[1].shape)
     n_inner = m_inner[1].shape[0]
@@ -107,15 +110,17 @@ def runner(params):
     t = Timer()
     Uop = DenseIntegralOp(
         eps, 15, 16, 6, 3, 6, 4.0,
-        'U', sm, pr, m[0], m[1], remove_sing = True
+        'U', sm, pr, m[0], m[1], remove_sing = False
     )
     t.report('U')
     Top = DenseIntegralOp(
-        eps, params, 15, 6, 3, 6, 4.0,
-        'T', sm, pr, m[0], m[1], remove_sing = True
+        eps, 15, 15, 6, 3, 6, 4.0,
+        'T', sm, pr, m[0], m[1], remove_sing = False
     )
     t.report('T')
 
+    if not do_solve:
+        return Top.mat
     lhs = Top.mat + selfop
     rhs = -Uop.dot(input)
     t.report('setup system')
@@ -141,6 +146,7 @@ def runner(params):
     outer_disp_mag = disp_mag[n_inner:]
     print(inner_disp_mag[:10])
     print(outer_disp_mag[:10])
+    return Top.mat
     # to_plot = disp_mag
 
     # solve_for = 'disp'
@@ -167,8 +173,16 @@ def runner(params):
     # plt.show()
 
 def main():
-    for nq in [21]:
-        runner(nq)
+    params = [True, False]
+    outputs = [runner(p, do_solve = True) for p in params]
+    for i, o in enumerate(outputs):
+        np.save('debug/' + str(i) + '.npy', o)
+    outputs = [np.load('debug/' + str(i) + '.npy') for i in range(len(params))]
+    logdiff = np.log10(np.abs(outputs[0] - outputs[1]))
+    logdiff = np.where(np.isinf(logdiff), np.min(logdiff), logdiff)
+    plt.imshow(logdiff, vmin = -6, vmax = -1, interpolation = 'none')
+    plt.colorbar()
+    plt.show()
 
 
 

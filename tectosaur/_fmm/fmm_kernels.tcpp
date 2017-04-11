@@ -1,11 +1,13 @@
 <%
 import tectosaur.util.kernel_exprs
 kernel_names = ['U', 'T', 'A', 'H']
-kernels = tectosaur.util.kernel_exprs.get_kernels('double')
+kernels = tectosaur.util.kernel_exprs.get_kernels()
 %>
 #include <cmath>
 #include <iostream>
 #include "fmm_kernels.hpp"
+
+#define Real double
 
 namespace tectosaur {
 

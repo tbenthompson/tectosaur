@@ -92,7 +92,7 @@ const Real CsH3 = 3*nu;
     <%
         minus_or_plus = '-' if k_name is 'T' else '+'
         plus_or_minus = '+' if k_name is 'T' else '-'
-        n_name = 'N' if k_name is 'T' else 'M'
+        n_name = 'l' if k_name is 'T' else 'n'
     %>
     Real invr = 1.0 / sqrt(r2);
     Real invr2 = invr * invr;
@@ -129,13 +129,13 @@ const Real CsH3 = 3*nu;
     Real invr2 = invr * invr;
     Real invr3 = invr2 * invr;
 
-    Real rn = invr*(Nx * Dx + Ny * Dy + Nz * Dz);
-    Real rm = invr*(Mx * Dx + My * Dy + Mz * Dz);
-    Real mn = Mx * Nx + My * Ny + Mz * Nz;
+    Real rn = invr*(lx * Dx + ly * Dy + lz * Dz);
+    Real rm = invr*(nx * Dx + ny * Dy + nz * Dz);
+    Real mn = nx * lx + ny * ly + nz * lz;
 
-    Real sn = Sx*Nx + Sy*Ny + Sz*Nz;
+    Real sn = Sx*lx + Sy*ly + Sz*lz;
     Real sd = invr*(Sx*Dx + Sy*Dy + Sz*Dz);
-    Real sm = Sx*Mx + Sy*My + Sz*Mz;
+    Real sm = Sx*nx + Sy*ny + Sz*nz;
 
     Real Q = CsH0 * invr3;
     Real A = Q * 3 * rn;
@@ -147,9 +147,9 @@ const Real CsH3 = 3*nu;
     Real DT = invr*(B*3*sn*rm + C*sd*mn + A*(nu*sm - 5*sd*rm));
     Real ST = A*nu*rm + B*mn;
 
-    sumx += Nx*NT + Mx*MT + Dx*DT + ST*Sx;
-    sumy += Ny*NT + My*MT + Dy*DT + ST*Sy;
-    sumz += Nz*NT + Mz*MT + Dz*DT + ST*Sz;
+    sumx += lx*NT + nx*MT + Dx*DT + ST*Sx;
+    sumy += ly*NT + ny*MT + Dy*DT + ST*Sy;
+    sumz += lz*NT + nz*MT + Dz*DT + ST*Sz;
 %endif
 </%def>
 
