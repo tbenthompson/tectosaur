@@ -24,7 +24,7 @@ def build_constraints(surface_tris, fault_tris, pts):
     # X component = 1
     # Y comp = Z comp = 0
     cs.extend(constraints.constant_bc_constraints(
-        n_surf_tris, n_surf_tris + n_fault_tris, [1, 0, 0]
+        n_surf_tris, n_surf_tris + n_fault_tris, [1.0, 0.0, 0.0]
     ))
     cs.extend(constraints.free_edge_constraints(surface_tris))
 
@@ -178,6 +178,9 @@ def test_okada():
             soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
     # u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
+    # plot_results(obs_pts, surface_tris, u, vals)
+    # print_error(obs_pts, u, vals)
+
     # np.save('okadaplateau.npy', [obs_pts, surface_tris, all_mesh, u, vals])
     # cond1 = np.logical_and(obs_pts[:,1] > -0.4, obs_pts[:,1] < -0.25)
     # cond2 = np.logical_and(obs_pts[:,1] < 0.4, obs_pts[:,1] > 0.25)
@@ -186,27 +189,24 @@ def test_okada():
     # plt.plot(obs_pts[cond1, 0], u[cond1,0],'b.')
     # plt.plot(obs_pts[cond2, 0], u[cond2,0],'b.')
     # plt.show()
-    # plot_results(obs_pts, surface_tris, u, vals)
-    # print_error(obs_pts, u, vals)
 
     xs = np.linspace(-10, 10, 100)
-    z = 2.0
-    X, Y = np.meshgrid(xs, xs)
-    obs_pts = np.array([X.flatten(), Y.flatten(), -z * np.ones(X.size)]).T
-    exact_disp = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-    interior_disp = interior_integral(obs_pts, obs_pts, all_mesh, soln, 'U', 4, 8, sm, pr);
-    interior_disp = interior_disp.reshape((-1, 3))
-    for d in range(1):
-        plt.figure()
-        plt.imshow(exact_disp[:,d].reshape((xs.shape[0], -1)), interpolation = 'none')
-        plt.colorbar()
-        plt.title('exact u' + ['x', 'y', 'z'][d])
-        plt.figure()
-        plt.imshow(interior_disp[:,d].reshape((xs.shape[0], -1)), interpolation = 'none')
-        plt.colorbar()
-        plt.title('u' + ['x', 'y', 'z'][d])
-    plt.show()
-    import ipdb; ipdb.set_trace()
+    for z in np.linspace(0, 3.0, 7):
+        X, Y = np.meshgrid(xs, xs)
+        obs_pts = np.array([X.flatten(), Y.flatten(), -z * np.ones(X.size)]).T
+        exact_disp = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
+        interior_disp = -interior_integral(obs_pts, obs_pts, all_mesh, soln, 'T', 3, 8, sm, pr);
+        interior_disp = interior_disp.reshape((-1, 3))
+        for d in range(1):
+            plt.figure()
+            plt.imshow(exact_disp[:,d].reshape((xs.shape[0], -1)), interpolation = 'none')
+            plt.colorbar()
+            plt.title('exact u' + ['x', 'y', 'z'][d])
+            plt.figure()
+            plt.imshow(interior_disp[:,d].reshape((xs.shape[0], -1)), interpolation = 'none')
+            plt.colorbar()
+            plt.title('u' + ['x', 'y', 'z'][d])
+        plt.show()
 
 def okada_exact(obs_pts, fault_L, top_depth, sm, pr):
     lam = 2 * sm * pr / (1 - 2 * pr)

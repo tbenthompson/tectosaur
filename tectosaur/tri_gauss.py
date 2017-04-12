@@ -12,7 +12,7 @@ import re
 
 # The files here are licensed under the LGPL. Is this relevant? I'm not
 # modifying or redistributing them, and can you really copyright a
-# quadrature rule?
+# quadrature rule that you didn't invent?
 baseurl = 'https://people.sc.fsu.edu/~jburkardt/datasets/quadrature_rules_tri/'
 rules = [
     ('strang1', 2), ('strang3', 3), ('strang5', 4),

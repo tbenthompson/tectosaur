@@ -236,7 +236,6 @@ class SparseIntegralOp:
         self.sm = sm
         self.pr = pr
         self.kernel = kernel
-        # self.gpu_farfield_fnc = getattr(get_gpu_module(), "farfield_pts" + kernel)
         self.gpu_quad_pts = gpu.to_gpu(quad_pts.flatten(), float_type)
         self.gpu_quad_ns = gpu.to_gpu(quad_ns.flatten(), float_type)
 

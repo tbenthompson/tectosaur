@@ -70,7 +70,7 @@ def iterative_solve(iop, constraints):
         A, rhs_constrained, M = M, tol = 1e-8, callback = report_res, restart = 100
     )
     timer.report("GMRES")
-    return cm.dot(soln[0])
+    return cm.dot(soln[0]) + c_rhs
 
 def lagrange_iterative_solve(iop, constraints):
     timer = Timer()
