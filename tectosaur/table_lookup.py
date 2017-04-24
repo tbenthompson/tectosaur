@@ -40,7 +40,7 @@ def coincident_interp_pts_wts(n_A, n_B, n_pr):
     interp_wts = np.outer(np.outer(Bwts, Awts),prwts).ravel()
     return interp_pts.copy(), interp_wts.copy()
 
-def coincident_lookup_interpolation_gpu(table_limits, table_log_coeffs,
+def lookup_interpolation_gpu(table_limits, table_log_coeffs,
         interp_pts, interp_wts, pts):
 
     t = Timer(silent = True)
@@ -48,7 +48,8 @@ def coincident_lookup_interpolation_gpu(table_limits, table_log_coeffs,
     float_type = np.float64
     gpu_cfg = {'float_type': gpu.np_to_c_type(float_type)}
     module = gpu.load_gpu('table_lookup.cl', tmpl_args = gpu_cfg)
-    fnc = module.coincident_lookup_interpolation
+    dims = interp_pts.shape[1]
+    fnc = getattr(module, 'lookup_interpolation' + str(dims))
 
     t.report("load module")
 
@@ -109,7 +110,7 @@ def coincident_table(kernel, sm, pr, pts, tris):
     t.report("get pts")
 
     # 2) Perform interpolation --> GPU!
-    interp_vals, log_coeffs = coincident_lookup_interpolation_gpu(
+    interp_vals, log_coeffs = lookup_interpolation_gpu(
         table_limits, table_log_coeffs, interp_pts, interp_wts, pts
     )
     t.report("interpolate")
@@ -123,42 +124,10 @@ def coincident_table(kernel, sm, pr, pts, tris):
 
     return out
 
-def adjacent_lookup_interpolation(interp_pts, interp_wts, table_limits, table_log_coeffs,
-        lookup_pts):
-
-    interp_vals = []
-    log_coeffs = []
-    for i in range(lookup_pts.shape[0]):
-        pt = lookup_pts[i,:]
-        interp_vals.append(fast_lookup.barycentric_evalnd(
-            interp_pts, interp_wts, table_limits, pt
-        ))
-        log_coeffs.append(fast_lookup.barycentric_evalnd(
-            interp_pts, interp_wts, table_log_coeffs, pt
-        ))
-    return np.array(interp_vals), np.array(log_coeffs)
-
-def adjacent_lookup_from_standard(lookup_limit, lookup_log_coeffs,
-        pts, obs_tris, lookup_obs_basis_tris, lookup_src_basis_tris, sm, kernel):
-
-    out = np.empty((obs_tris.shape[0], 3, 3, 3, 3))
-    for i in range(obs_tris.shape[0]):
-        code, standard_tri, labels, translation, R, scale = standardize(
-            pts[obs_tris[i]], table_min_internal_angle, False
-        )
-
-        standard_scale = np.sqrt(np.linalg.norm(tri_normal(standard_tri)))
-        interp_vals = lookup_limit[i] + np.log(standard_scale) * lookup_log_coeffs[i]
-
-        lookup_result = transform_from_standard(interp_vals, kernel, sm, labels, translation, R, scale)
-
-        out[i] = np.array(fast_lookup.sub_basis(
-            lookup_result, lookup_obs_basis_tris[i], lookup_src_basis_tris[i]
-        )).reshape((3,3,3,3))
-
-    return out
-
 def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
+    if obs_tris.shape[0] == 0:
+        return np.zeros((0,3,3,3,3))
+
     if kernel is 'U':
         filename = 'data/U_25_0.010000_16_0.000000_7_8_adjacenttable.npy'
     elif kernel is 'T':
@@ -181,15 +150,19 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
     table_log_coeffs = table_data[:,:,1]
     t.report("load table")
 
-    va, ea = fast_lookup.adjacent_lookup_pts(pts[obs_tris], pts[src_tris], pr)
+    obs_tris_pts = pts[obs_tris]
+    src_tris_pts = pts[src_tris]
+    va, ea = fast_lookup.adjacent_lookup_pts(obs_tris_pts, src_tris_pts, pr)
     t.report("get pts")
 
-    lookup_limit, lookup_log_coeffs = adjacent_lookup_interpolation(
-        interp_pts, interp_wts, table_limits, table_log_coeffs, np.array(ea.pts)
+    interp_vals, log_coeffs = lookup_interpolation_gpu(
+        table_limits, table_log_coeffs, interp_pts, interp_wts, np.array(ea.pts)
     )
     t.report("interpolation")
 
-    out = adjacent_lookup_from_standard(lookup_limit, lookup_log_coeffs, pts, obs_tris, ea.obs_basis, ea.src_basis, sm, kernel)
+    out = fast_lookup.adjacent_lookup_from_standard(
+        obs_tris_pts, interp_vals, log_coeffs, ea, kernel, sm
+    ).reshape((-1, 3, 3, 3, 3))
 
     t.report("from standard")
 

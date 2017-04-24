@@ -190,6 +190,39 @@ def test_coincident_lookupH():
 def adjacent_lookup_helper(K):
     np.random.seed(973)
 
+    # results = []
+    # pr = np.random.rand(1)[0] * 0.5
+    # alpha = 2
+    # beta = 2
+    # scale = np.random.rand(1)[0] * 3
+    # translation = np.random.rand(3)
+    # R = random_rotation()
+    # for phi in np.linspace(0.5, 2 * np.pi - 0.5, 30):
+    #     print(phi, pr, scale, translation)
+
+    #     H = min_angle_isoceles_height
+    #     pts = np.array([
+    #         [0,0,0],[1,0,0],
+    #         [0.5,alpha*H*np.cos(phi),alpha*H*np.sin(phi)],
+    #         [0.5,beta*H,0]
+    #     ])
+
+    #     pts = (translation + R.dot(pts.T).T * scale).copy()
+
+    #     tris = np.array([[0,1,3],[1,0,2]])
+
+    #     from tectosaur_tables.adjacent import eval_tri_integral, make_adjacent_params
+    #     p = make_adjacent_params(K, 1e-3, 25, True, True, 25, 25, 1e-3, 3, False, 1, 1)
+    #     flip_obsn = phi > np.pi
+    #     I = eval_tri_integral(pts[tris[0]], pts[tris[1]], pr, p, flip_obsn)
+    #     if flip_obsn:
+    #         I = -I
+    #     results.append((phi, I[0,0]))
+    # results = np.array(results)
+    # import matplotlib.pyplot as plt
+    # plt.plot(results[:,0], results[:,1])
+    # plt.show()
+
     results = []
     for i in range(10):
         # We want phi in [0, 3*pi/2] because the old method doesn't work for
@@ -218,14 +251,23 @@ def adjacent_lookup_helper(K):
         eps = 0.01 * (2.0 ** -np.arange(6))
         eps_scale = np.sqrt(np.linalg.norm(tri_normal(pts[tris[0]])))
 
+        # from tectosaur_tables.adjacent import eval_tri_integral, make_adjacent_params
+        # p = make_adjacent_params(K, 1e-7, 25, True, True, 25, 25, 1e-3, 3, False, 1, 1)
+        # third = eval_tri_integral(pts[tris[0]], pts[tris[1]], pr, p)
+
         op = DenseIntegralOp(
-            eps, 15, 25, 10, 3, 10, 3.0, K, 1.0, pr,
+            eps, 1, 25, 1, 1, 1, 3.0, K, 1.0, pr,
             pts, tris, remove_sing = True
         )
         op2 = DenseIntegralOp(
             eps, 3, 3, 10, 3, 10, 3.0, K, 1.0, pr,
             pts, tris, use_tables = True, remove_sing = True
         )
+
+        # A = op2.mat[:9,9:]
+        # B = op.mat[:9,9:]
+        # C = third[:,0].reshape((9,9))
+        # import ipdb; ipdb.set_trace()
         err = np.abs((op.mat[0,9] - op2.mat[0,9]) / op.mat[0,9])
         print(op.mat[0,9], op2.mat[0,9])
         print("ERROROROROROROR: " + str(err))

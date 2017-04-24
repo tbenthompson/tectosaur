@@ -778,6 +778,51 @@ void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
     }
 }
 
+NPArray<double> adjacent_lookup_from_standard(
+    NPArray<double> obs_tris, NPArray<double> interp_vals, NPArray<double> log_coeffs,
+    EdgeAdjacentLookupTris ea, char kernel, double sm)
+{
+    auto n_tris = obs_tris.request().shape[0];
+    auto out = make_array<double>({n_tris, 81});
+    auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);
+
+    auto* interp_vals_ptr = reinterpret_cast<double*>(interp_vals.request().ptr);
+    auto* log_coeffs_ptr = reinterpret_cast<double*>(log_coeffs.request().ptr);
+    auto* obs_tris_ptr = reinterpret_cast<double*>(obs_tris.request().ptr);
+
+#pragma omp parallel for
+    for (size_t i = 0; i < n_tris; i++) {
+        Tensor3 tri;
+        for (int d1 = 0; d1 < 3; d1++) {
+            for (int d2 = 0; d2 < 3; d2++) {
+                tri[d1][d2] = obs_tris_ptr[i * 9 + d1 * 3 + d2];
+            }
+        }
+        auto standardized_res = standardize(tri, ${table_min_internal_angle}, false);
+
+        auto log_standard_scale = log(sqrt(length(tri_normal(standardized_res.tri))));
+        
+        std::array<double,81> interp_vals_array;
+        for (int j = 0; j < 81; j++) {
+            interp_vals_array[j] = 
+                interp_vals_ptr[i * 81 + j] + log_standard_scale * log_coeffs_ptr[i * 81 + j];
+        }
+
+        auto transformed = transform_from_standard(
+            interp_vals_array, kernel, sm,
+            standardized_res.labels, standardized_res.translation,
+            standardized_res.R, standardized_res.scale
+        );
+
+        auto chunk = sub_basis(transformed, ea.obs_basis[i], ea.src_basis[i]);
+
+        for (int j = 0; j < 81; j++) {
+            out_ptr[i * 81 + j] = chunk[j];
+        }
+    }
+    return out;
+}
+
 PYBIND11_PLUGIN(fast_lookup) {
     py::module m("fast_lookup");
     m.def("barycentric_evalnd", barycentric_evalnd_py); m.def("get_edge_lens", get_edge_lens);
@@ -803,6 +848,7 @@ PYBIND11_PLUGIN(fast_lookup) {
     
     m.def("coincident_lookup_pts", coincident_lookup_pts);
     m.def("coincident_lookup_from_standard", coincident_lookup_from_standard);
+    m.def("adjacent_lookup_from_standard", adjacent_lookup_from_standard);
 
     m.def("xyhat_from_pt", xyhat_from_pt);
     m.def("separate_tris", separate_tris_pyshim);
