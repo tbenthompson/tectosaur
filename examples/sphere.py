@@ -10,13 +10,13 @@ import okada_wrapper
 
 import tectosaur.mesh as mesh
 from tectosaur.mass_op import MassOp
-from tectosaur.sparse_integral_op import SparseIntegralOp, FMMIntegralOp, interp_galerkin_mat
+from tectosaur.sparse_integral_op import SparseIntegralOp
 from tectosaur.dense_integral_op import DenseIntegralOp
 from tectosaur.quadrature import gauss2d_tri
 import tectosaur.constraints as constraints
 import tectosaur.geometry as geometry
 
-from solve import iterative_solve, direct_solve, SumOp
+from solve import iterative_solve, direct_solve
 from tectosaur.util.timer import Timer
 
 def build_constraints(inner_tris, outer_tris, full_mesh):
@@ -34,8 +34,9 @@ def make_sphere(center, r, refinements):
     m = pts, tris
     for i in range(refinements):
         m = mesh.refine(m)
-    spherified_m = [spherify(center, r, m[0]), m[1]]
-    return spherified_m
+        m = (spherify(center, r, m[0]), m[1])
+    import ipdb; ipdb.set_trace()
+    return m
 
 # Solution from http://solidmechanics.org/text/Chapter4_1/Chapter4_1.htm
 # Section 4.1.4
@@ -46,22 +47,18 @@ def correct_displacement(a, b, pa, pb, sm, pr, R):
     term2 = (pa - pb) * (1 + pr) * b ** 3 * a ** 3
     return factor * (term1 + term2)
 
-def check_normals():
+def check_normals(tri_pts, ns):
     center = np.mean(tri_pts, axis = 1)
     plt.plot(center[:, 0], center[:, 1], '*')
     for i in range(ns.shape[0]):
         start = center[i]
         end = start + ns[i] * 0.1
         data = np.array([start, end])
-        color = 'b'
-        if i < m_inner[1].shape[0]:
-            color = 'r'
-        plt.plot(data[:, 0], data[:, 1], color)
+        plt.plot(data[:, 0], data[:, 1], 'k')
     plt.show()
-    import ipdb; ipdb.set_trace()
 
 def runner(param, do_solve = True):
-    refine = 0
+    refine = 2
     a = 1.0
     b = 2.0
     sm = 1.0
@@ -76,8 +73,8 @@ def runner(param, do_solve = True):
 
     m_inner = make_sphere(np.array([0,0,0]), a, refine)
     m_outer = make_sphere(np.array([0,0,0]), b, refine)
-    if param:
-        m_inner = mesh.flip_normals(m_inner)
+    # if param:
+    #     m_inner = mesh.flip_normals(m_inner)
 
     m = mesh.concat(m_inner, m_outer)
     print(m[1].shape)
@@ -94,6 +91,7 @@ def runner(param, do_solve = True):
 
     unscaled_ns = geometry.unscaled_normals(tri_pts)
     ns = unscaled_ns / geometry.jacobians(unscaled_ns)[:,np.newaxis]
+    check_normals(tri_pts, ns)
 
     input_nd = np.tile(ns[:,np.newaxis,:], (1, 3, 1))
     input = input_nd.reshape(tri_pts.shape[0] * 9)
@@ -106,15 +104,15 @@ def runner(param, do_solve = True):
 
     selfop = MassOp(3, m[0], m[1]).mat
 
-    eps = [0.08, 0.04, 0.02, 0.01]
+    eps = 0.08 * (2.0 ** -np.arange(0, param))
     t = Timer()
     Uop = DenseIntegralOp(
-        eps, 15, 16, 6, 3, 6, 4.0,
+        eps, 20, 15, 6, 3, 6, 4.0,
         'U', sm, pr, m[0], m[1], remove_sing = False
     )
     t.report('U')
     Top = DenseIntegralOp(
-        eps, 15, 15, 6, 3, 6, 4.0,
+        eps, 20, 15, 6, 3, 6, 4.0,
         'T', sm, pr, m[0], m[1], remove_sing = False
     )
     t.report('T')
@@ -173,16 +171,16 @@ def runner(param, do_solve = True):
     # plt.show()
 
 def main():
-    params = [True, False]
+    params = [3]
     outputs = [runner(p, do_solve = True) for p in params]
     for i, o in enumerate(outputs):
         np.save('debug/' + str(i) + '.npy', o)
     outputs = [np.load('debug/' + str(i) + '.npy') for i in range(len(params))]
-    logdiff = np.log10(np.abs(outputs[0] - outputs[1]))
-    logdiff = np.where(np.isinf(logdiff), np.min(logdiff), logdiff)
-    plt.imshow(logdiff, vmin = -6, vmax = -1, interpolation = 'none')
-    plt.colorbar()
-    plt.show()
+    # logdiff = np.log10(np.abs(outputs[0] - outputs[1]))
+    # logdiff = np.where(np.isinf(logdiff), np.min(logdiff), logdiff)
+    # plt.imshow(logdiff, vmin = -6, vmax = -1, interpolation = 'none')
+    # plt.colorbar()
+    # plt.show()
 
 
 

@@ -91,14 +91,25 @@ def near_sparse_mat(near_mat, near_pairs, near_correction):
     return pairs_sparse_mat(near_pairs[:, 0], near_pairs[:, 1], near_mat - near_correction)
 
 def build_nearfield(co_data, ea_data, va_data, near_data):
+    # Optimizing this assembly process:
+    # 1) set up a C++ function that build the vals, rows, columns lists
+    # 2) Write my own coo to csr function.
+    # 3) Make a csr constructor that does less checking.
+    t = Timer(tabs = 2)
     co_vals,co_rows,co_cols = co_sparse_mat(*co_data)
     ea_vals,ea_rows,ea_cols = adj_sparse_mat(*ea_data)
     va_vals,va_rows,va_cols = adj_sparse_mat(*va_data)
     near_vals,near_rows,near_cols = near_sparse_mat(*near_data)
+    t.report("build pairs")
     rows = np.hstack((co_rows, ea_rows, va_rows, near_rows))
     cols = np.hstack((co_cols, ea_cols, va_cols, near_cols))
     vals = np.hstack((co_vals, ea_vals, va_vals, near_vals))
-    return scipy.sparse.coo_matrix((vals, (rows, cols))).tocsr()
+    t.report("stack pairs")
+    mat = scipy.sparse.coo_matrix((vals, (rows, cols)))
+    t.report("to coo")
+    mat = mat.tocsr()
+    t.report("to csr")
+    return mat
 
 class NearfieldIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,

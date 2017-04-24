@@ -7,25 +7,6 @@ from tectosaur.constraints import lagrange_constraints, build_constraint_matrix
 
 # master-slave constrained direct solves look like:
 # Kˆ uˆ = ˆf, in which Kˆ = TT K T, ˆf = TT (f − K g).
-
-class SumOp:
-    def __init__(self, A, B):
-        self.A = A
-        self.B = B
-        assert(self.A.shape == self.B.shape)
-        self.shape = self.A.shape
-
-    def dot(self, v):
-        return self.A.dot(v) + self.B.dot(v)
-
-class NegOp:
-    def __init__(self, A):
-        self.A = A
-        self.shape = self.A.shape
-
-    def dot(self, v):
-        return -self.A.dot(v)
-
 def direct_solve(iop, constraints):
     cm, rhs = build_constraint_matrix(constraints, iop.shape[0])
     cm = cm.tocsr()

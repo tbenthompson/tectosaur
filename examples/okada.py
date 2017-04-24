@@ -118,7 +118,7 @@ def test_okada():
     pr = 0.25
     fault_L = 1.0
     top_depth = -0.5
-    load_soln = True
+    load_soln = False
 
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth)
     if not load_soln:
@@ -190,23 +190,31 @@ def test_okada():
     # plt.plot(obs_pts[cond2, 0], u[cond2,0],'b.')
     # plt.show()
 
+    # plot_interior_displacement(fault_L, top_depth, sm, pr, all_mesh, soln)
+
+def plot_interior_displacement(fault_L, top_depth, sm, pr, all_mesh, soln):
     xs = np.linspace(-10, 10, 100)
-    for z in np.linspace(0, 3.0, 7):
+    for i, z in enumerate(np.linspace(0.1, 4.0, 100)):
         X, Y = np.meshgrid(xs, xs)
         obs_pts = np.array([X.flatten(), Y.flatten(), -z * np.ones(X.size)]).T
-        exact_disp = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
+        # exact_disp = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
         interior_disp = -interior_integral(obs_pts, obs_pts, all_mesh, soln, 'T', 3, 8, sm, pr);
         interior_disp = interior_disp.reshape((-1, 3))
-        for d in range(1):
-            plt.figure()
-            plt.imshow(exact_disp[:,d].reshape((xs.shape[0], -1)), interpolation = 'none')
-            plt.colorbar()
-            plt.title('exact u' + ['x', 'y', 'z'][d])
-            plt.figure()
-            plt.imshow(interior_disp[:,d].reshape((xs.shape[0], -1)), interpolation = 'none')
-            plt.colorbar()
-            plt.title('u' + ['x', 'y', 'z'][d])
+        # for d in range(1):
+        #     plt.figure()
+        #     plt.imshow(exact_disp[:,d].reshape((xs.shape[0], -1)), interpolation = 'none')
+        #     plt.colorbar()
+        #     plt.title('exact u' + ['x', 'y', 'z'][d])
+        d = 0
+        plt.figure()
+        plt.pcolor(
+            xs, xs,
+            interior_disp[:,d].reshape((xs.shape[0], -1)),
+        )
+        # plt.colorbar()
+        plt.title('at z = ' + ('%.3f' % z) + '    u' + ['x', 'y', 'z'][d])
         plt.show()
+        # plt.savefig('okada_depth_animation/' + str(i) + '.png')
 
 def okada_exact(obs_pts, fault_L, top_depth, sm, pr):
     lam = 2 * sm * pr / (1 - 2 * pr)

@@ -1,3 +1,23 @@
+optimization todo:
+-- adjacent interpolation
+-- adjacent from standard
+-- preconditioner
+-- build constraint matrix
+-- assemble
+-- vert adj prep
+
+sphere todo:
+-- test the adjacent traction integrals for a range of angles
+-- try constraining average displacement to be zero
+-- compare w/ 3bem?
+-- use tectosaur tables?
+
+
+
+
+
+
+
 Adapt to 2D and Laplace in 3D.
 -- create new 3bem golden master tests for each new step in development
 -- catalog all the issues that would need to be resolved
@@ -5,11 +25,6 @@ Adapt to 2D and Laplace in 3D.
 -- write 2D table construction code, should i use high order transformed gauss rules or should i use the adaptive integrators?
 -- set up golden master tests that match with current 3D tectosaur results
 -- set up golden master tests that match with old 3bem results
-
-Finish building 3D hypersingular tables:
--- play with arbitrary precision numbers
--- test the adjacent table
-
 
 -- GPU FMM
 

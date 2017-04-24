@@ -4,6 +4,12 @@ import tectosaur.util.gpu as gpu
 
 from tectosaur.sparse_integral_op import interp_galerkin_mat, farfield_pts_wrapper
 
+#TODO:
+#1) Write using just one order and no nearfield/farfield split
+#2) Separate into nearfield and farfield that can have different quadrature orders
+#3) Use a correction for the nearfield so that the farfield can just be an all-pairs nbody problem
+#4) Use FMM for the farfield component
+
 def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near, sm, pr):
     float_type = np.float32
 
@@ -20,9 +26,3 @@ def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near, sm, pr):
         quad_pts.shape[0], gpu_quad_pts, gpu_quad_ns, interp_v, sm, pr
     )
     return nbody_result
-
-#TODO:
-#1) Write using just one order and no nearfield/farfield split
-#2) Separate into nearfield and farfield that can have different quadrature orders
-#3) Use a correction for the nearfield so that the farfield can just be an all-pairs nbody problem
-#4) Use FMM for the farfield component

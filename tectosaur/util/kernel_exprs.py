@@ -16,7 +16,7 @@ def get_kernel(kernel_builder):
     return out
 
 def get_kernels():
-    filename = 'kernels.pkl'
+    filename = 'data/kernels.pkl'
     if os.path.exists(filename):
         with open(filename, 'rb') as f:
             kernels = pickle.load(f)

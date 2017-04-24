@@ -79,7 +79,14 @@ def coincident_lookup_interpolation_gpu(table_limits, table_log_coeffs,
 
 def coincident_table(kernel, sm, pr, pts, tris):
     t = Timer(prefix = 'coincident')
-    filename = 'data/H_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
+    if kernel is 'U':
+        filename = 'data/U_25_0.010000_16_0.000000_8_13_8_coincidenttable.npy'
+    elif kernel is 'T':
+        filename = 'data/T_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy'
+    elif kernel is 'A':
+        filename = 'data/A_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy'
+    elif kernel is 'H':
+        filename = 'data/H_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
 
     params = filename.split('_')
 
@@ -152,7 +159,14 @@ def adjacent_lookup_from_standard(lookup_limit, lookup_log_coeffs,
     return out
 
 def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
-    filename = 'data/H_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
+    if kernel is 'U':
+        filename = 'data/U_25_0.010000_16_0.000000_7_8_adjacenttable.npy'
+    elif kernel is 'T':
+        filename = 'data/T_25_0.000000_3_0.000000_12_7_adjacenttable.npy'
+    elif kernel is 'A':
+        filename = 'data/A_25_0.000000_3_0.000000_12_7_adjacenttable.npy'
+    elif kernel is 'H':
+        filename = 'data/H_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
     t = Timer(prefix = 'adjacent')
 
     params = filename.split('_')
