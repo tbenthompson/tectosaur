@@ -35,7 +35,6 @@ def make_sphere(center, r, refinements):
     for i in range(refinements):
         m = mesh.refine(m)
         m = (spherify(center, r, m[0]), m[1])
-    import ipdb; ipdb.set_trace()
     return m
 
 # Solution from http://solidmechanics.org/text/Chapter4_1/Chapter4_1.htm
@@ -91,7 +90,7 @@ def runner(param, do_solve = True):
 
     unscaled_ns = geometry.unscaled_normals(tri_pts)
     ns = unscaled_ns / geometry.jacobians(unscaled_ns)[:,np.newaxis]
-    check_normals(tri_pts, ns)
+    # check_normals(tri_pts, ns)
 
     input_nd = np.tile(ns[:,np.newaxis,:], (1, 3, 1))
     input = input_nd.reshape(tri_pts.shape[0] * 9)
@@ -104,16 +103,16 @@ def runner(param, do_solve = True):
 
     selfop = MassOp(3, m[0], m[1]).mat
 
-    eps = 0.08 * (2.0 ** -np.arange(0, param))
+    eps = []
     t = Timer()
     Uop = DenseIntegralOp(
         eps, 20, 15, 6, 3, 6, 4.0,
-        'U', sm, pr, m[0], m[1], remove_sing = False
+        'U', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
     )
     t.report('U')
     Top = DenseIntegralOp(
         eps, 20, 15, 6, 3, 6, 4.0,
-        'T', sm, pr, m[0], m[1], remove_sing = False
+        'T', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
     )
     t.report('T')
 

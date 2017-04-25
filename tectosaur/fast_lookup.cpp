@@ -611,7 +611,8 @@ struct EdgeAdjacentLookupTris {
     std::vector<std::array<std::array<double,2>,3>> src_basis;
 };
 
-py::tuple adjacent_lookup_pts(NPArray<double> obs_tris, NPArray<double> src_tris, double pr) 
+py::tuple adjacent_lookup_pts(NPArray<double> obs_tris, NPArray<double> src_tris,
+    double pr, bool flip_symmetry) 
 {
     VertexAdjacentSubTris va; 
     EdgeAdjacentLookupTris ea;
@@ -691,15 +692,19 @@ py::tuple adjacent_lookup_pts(NPArray<double> obs_tris, NPArray<double> src_tris
             }
         }
 
-        //TODO: HANDLE FLIPPING! Probably depends on kernel.
         auto phi = get_adjacent_phi(obs_tri, src_tri);
-        if (phi > M_PI) {
-            phi = 2 * M_PI - phi;
+        double phi_max = M_PI;
+        if (flip_symmetry) {
+            if (phi > M_PI) {
+                phi = 2 * M_PI - phi;
+            }
+            assert(${min_intersect_angle} <= phi && phi <= M_PI);
+        } else {
+            phi_max = 2 * M_PI - ${min_intersect_angle};
+            assert(${min_intersect_angle} <= phi && phi <= 2 * M_PI - ${min_intersect_angle});
         }
 
-        assert(${min_intersect_angle} <= phi and phi <= np.pi);
-
-        auto phihat = from_interval(${min_intersect_angle}, M_PI, phi);
+        auto phihat = from_interval(${min_intersect_angle}, phi_max, phi);
         auto prhat = from_interval(0, 0.5, pr); 
         ea_pts_ptr[i * 2] = phihat;
         ea_pts_ptr[i * 2 + 1] = prhat;

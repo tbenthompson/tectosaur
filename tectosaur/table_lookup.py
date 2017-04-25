@@ -128,14 +128,17 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
     if obs_tris.shape[0] == 0:
         return np.zeros((0,3,3,3,3))
 
+    flip_symmetry = False
     if kernel is 'U':
         filename = 'data/U_25_0.010000_16_0.000000_7_8_adjacenttable.npy'
+        flip_symmetry = True
     elif kernel is 'T':
-        filename = 'data/T_25_0.000000_3_0.000000_12_7_adjacenttable.npy'
+        filename = 'data/T_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
     elif kernel is 'A':
         filename = 'data/A_25_0.000000_3_0.000000_12_7_adjacenttable.npy'
     elif kernel is 'H':
         filename = 'data/H_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
+        flip_symmetry = True
     t = Timer(prefix = 'adjacent')
 
     params = filename.split('_')
@@ -152,7 +155,7 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
 
     obs_tris_pts = pts[obs_tris]
     src_tris_pts = pts[src_tris]
-    va, ea = fast_lookup.adjacent_lookup_pts(obs_tris_pts, src_tris_pts, pr)
+    va, ea = fast_lookup.adjacent_lookup_pts(obs_tris_pts, src_tris_pts, pr, flip_symmetry)
     t.report("get pts")
 
     interp_vals, log_coeffs = lookup_interpolation_gpu(
