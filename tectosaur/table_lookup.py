@@ -135,7 +135,7 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
     elif kernel is 'T':
         filename = 'data/T_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
     elif kernel is 'A':
-        filename = 'data/A_25_0.000000_3_0.000000_12_7_adjacenttable.npy'
+        filename = 'data/A_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
     elif kernel is 'H':
         filename = 'data/H_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
         flip_symmetry = True
