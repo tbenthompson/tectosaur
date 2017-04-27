@@ -17,14 +17,17 @@ def direct_solve(iop, constraints):
     soln = cm.dot(soln_constrained)
     return soln
 
-def iterative_solve(iop, constraints):
+def iterative_solve(iop, constraints, rhs = None):
     timer = Timer()
     cm, c_rhs = build_constraint_matrix(constraints, iop.shape[0])
     timer.report('Build constraint matrix')
     cm = cm.tocsr()
     cmT = cm.T
     nearfield_constrained = cmT.dot(iop.nearfield.dot(cm))
-    rhs_constrained = cmT.dot(-iop.dot(c_rhs))
+    if rhs is None:
+        rhs_constrained = cmT.dot(-iop.dot(c_rhs))
+    else:
+        rhs_constrained = cmT.dot(rhs - iop.dot(c_rhs))
     timer.report('Constrain linear system')
 
     n = rhs_constrained.shape[0]

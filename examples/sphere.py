@@ -19,7 +19,17 @@ import tectosaur.geometry as geometry
 from solve import iterative_solve, direct_solve
 from tectosaur.util.timer import Timer
 
+# Solution from http://solidmechanics.org/text/Chapter4_1/Chapter4_1.htm
+# Section 4.1.4
+def correct_displacement(a, b, pa, pb, sm, pr, R):
+    E = 2 * sm * (1 + pr)
+    factor = 1.0 / (2 * E * (b ** 3 - a ** 3) * R ** 2)
+    term1 = 2 * (pa * a ** 3 - pb * b ** 3) * (1 - 2 * pr) * R ** 3
+    term2 = (pa - pb) * (1 + pr) * b ** 3 * a ** 3
+    return factor * (term1 + term2)
+
 def build_constraints(inner_tris, outer_tris, full_mesh):
+    cs = []
     cs = constraints.continuity_constraints(full_mesh[1], np.array([]), full_mesh[0])
     return constraints.sort_by_constrained_dof(cs)
 
@@ -29,22 +39,13 @@ def spherify(center, r, pts):
 
 def make_sphere(center, r, refinements):
     pts = np.array([[0,-r,0],[r,0,0],[0,0,r],[-r,0,0],[0,0,-r],[0,r,0]])
-    pts += center
     tris = np.array([[1,0,2],[2,0,3],[3,0,4],[4,0,1],[5,1,2],[5,2,3],[5,3,4],[5,4,1]])
     m = pts, tris
     for i in range(refinements):
         m = mesh.refine(m)
         m = (spherify(center, r, m[0]), m[1])
+    m = (m[0] + center, m[1])
     return m
-
-# Solution from http://solidmechanics.org/text/Chapter4_1/Chapter4_1.htm
-# Section 4.1.4
-def correct_displacement(a, b, pa, pb, sm, pr, R):
-    E = 2 * sm * (1 + pr)
-    factor = 1.0 / (2 * E * (b ** 3 - a ** 3) * R ** 2)
-    term1 = 2 * (pa * a ** 3 - pb * b ** 3) * (1 - 2 * pr) * R ** 3
-    term2 = (pa - pb) * (1 + pr) * b ** 3 * a ** 3
-    return factor * (term1 + term2)
 
 def check_normals(tri_pts, ns):
     center = np.mean(tri_pts, axis = 1)
@@ -57,23 +58,28 @@ def check_normals(tri_pts, ns):
     plt.show()
 
 def runner(param, do_solve = True):
-    refine = 2
+    refine = 3
     a = 1.0
     b = 2.0
     sm = 1.0
     pr = 0.25
     pa = 1.0
-    pb = -1.0
+    pb = 1.0
 
-    print(correct_displacement(a, b, pa, pb, sm, pr, np.array([a, b])))
-    print(correct_displacement(a, b, -pa, pb, sm, pr, np.array([a, b])))
-    print(correct_displacement(a, b, -pa, -pb, sm, pr, np.array([a, b])))
-    print(correct_displacement(a, b, pa, -pb, sm, pr, np.array([a, b])))
+    flip_inner = False
+    flip_outer = True
+
+    # print(correct_displacement(a, b, pa, pb, sm, pr, np.array([a, b])))
+    # print(correct_displacement(a, b, -pa, pb, sm, pr, np.array([a, b])))
+    # print(correct_displacement(a, b, -pa, -pb, sm, pr, np.array([a, b])))
+    # print(correct_displacement(a, b, pa, -pb, sm, pr, np.array([a, b])))
 
     m_inner = make_sphere(np.array([0,0,0]), a, refine)
     m_outer = make_sphere(np.array([0,0,0]), b, refine)
-    # if param:
-    #     m_inner = mesh.flip_normals(m_inner)
+    if flip_outer:
+        m_outer = mesh.flip_normals(m_outer)
+    if flip_inner:
+        m_inner = mesh.flip_normals(m_inner)
 
     m = mesh.concat(m_inner, m_outer)
     print(m[1].shape)
@@ -81,69 +87,96 @@ def runner(param, do_solve = True):
     inner_tris = m[1][:n_inner]
     outer_tris = m[1][n_inner:]
     tri_pts = m[0][m[1]]
-    # mesh.plot_mesh3d(*m)
+    mesh.plot_mesh3d(*m)
 
     cs = build_constraints(inner_tris, outer_tris, m)
 
     # solving: u(x) + int(T*u) = int(U*t)
     # values in radial direction because the sphere is centered at (0,0,0)
 
-    unscaled_ns = geometry.unscaled_normals(tri_pts)
-    ns = unscaled_ns / geometry.jacobians(unscaled_ns)[:,np.newaxis]
-    # check_normals(tri_pts, ns)
+    input_nd = tri_pts / np.linalg.norm(tri_pts, axis = 2)[:,:,np.newaxis]
+    # unscaled_ns = geometry.unscaled_normals(tri_pts)
+    # ns = unscaled_ns / geometry.jacobians(unscaled_ns)[:,np.newaxis]
+    # # check_normals(tri_pts, ns)
 
-    input_nd = np.tile(ns[:,np.newaxis,:], (1, 3, 1))
-    input = input_nd.reshape(tri_pts.shape[0] * 9)
+    # input_nd = np.tile(ns[:,np.newaxis,:], (1, 3, 1))
+    # input = input_nd.reshape(tri_pts.shape[0] * 9)
 
     # Inner surface has traction pa
-    input[:n_inner] *= pa
+    # input[:n_inner] *= pa
+    if flip_inner:
+        input_nd[:n_inner] *= -1
 
     # Outer surface has traction pb
-    input[n_inner:] *= pb
+    # input[n_inner:] *= pb
+    if flip_outer:
+        input_nd[n_inner:] *= -1
+
+    input = input_nd.reshape(-1)
 
     selfop = MassOp(3, m[0], m[1]).mat
 
-    eps = []
     t = Timer()
-    Uop = DenseIntegralOp(
-        eps, 20, 15, 6, 3, 6, 4.0,
+    Uop = SparseIntegralOp(
+        [], 1, 1, 7, 3, 6, 4.0,
         'U', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
     )
     t.report('U')
-    Top = DenseIntegralOp(
-        eps, 20, 15, 6, 3, 6, 4.0,
+    Top = SparseIntegralOp(
+        [], 1, 1, 7, 3, 6, 4.0,
         'T', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
     )
     t.report('T')
 
-    if not do_solve:
-        return Top.mat
-    lhs = Top.mat + selfop
-    rhs = -Uop.dot(input)
+    # lhs = Top.mat + selfop
+    # rhs = -Uop.dot(input)
+    lhs = Uop
+    rhs = Top.dot(input) + selfop.dot(input)
     t.report('setup system')
 
-    cm, c_rhs = constraints.build_constraint_matrix(cs, lhs.shape[0])
-    t.report('build constraint matrix')
-    cm = cm.tocsr().todense()
-    t.report('constraints to dense')
-    cmT = cm.T
-    t.report('transpose constraint matrix')
-    lhs_constrained = cmT.dot(lhs.dot(cm))
-    rhs_constrained = cmT.dot((rhs + lhs.dot(c_rhs)).T)
-    t.report('constrain')
-    constrained_soln = np.linalg.solve(lhs_constrained, rhs_constrained)
-    t.report('solve')
-    soln = cm.dot(constrained_soln)
-    t.report('deconstrain')
+    soln = iterative_solve(lhs, cs, rhs)
+    # cm, c_rhs = constraints.build_constraint_matrix(cs, lhs.shape[0])
+    # t.report('build constraint matrix')
+    # cm = cm.tocsr().todense()
+    # t.report('constraints to dense')
+    # cmT = cm.T
+    # t.report('transpose constraint matrix')
+    # lhs_constrained = cmT.dot(lhs.dot(cm))
+    # rhs_constrained = cmT.dot((rhs + lhs.dot(c_rhs)).T).T
+    # t.report('constrain')
+    # constrained_soln = np.linalg.solve(lhs_constrained, rhs_constrained)
+    # t.report('solve')
+    # soln = cm.dot(constrained_soln)
+    # t.report('deconstrain')
 
     disp = np.array(soln).reshape((int(lhs.shape[0] / 9), 3, 3))
-    avg_face_disp = np.mean(disp, axis = 1)
-    disp_mag = np.sqrt(np.sum(avg_face_disp ** 2, axis = 1))
+    disp_mag = np.sqrt(np.sum(disp ** 2, axis = 2))
     inner_disp_mag = disp_mag[:n_inner]
     outer_disp_mag = disp_mag[n_inner:]
     print(inner_disp_mag[:10])
     print(outer_disp_mag[:10])
-    return Top.mat
+    mean_inner = np.mean(inner_disp_mag)
+    mean_outer = np.mean(outer_disp_mag)
+    print(mean_inner, np.std(inner_disp_mag))
+    print(mean_outer, np.std(outer_disp_mag))
+
+    pa = mean_inner
+    pb = mean_outer
+    print(correct_displacement(a, b, pa, pb, sm, pr, np.array([a, b])))
+    print(correct_displacement(a, b, -pa, pb, sm, pr, np.array([a, b])))
+    print(correct_displacement(a, b, -pa, -pb, sm, pr, np.array([a, b])))
+    print(correct_displacement(a, b, pa, -pb, sm, pr, np.array([a, b])))
+
+def main():
+    params = [False]
+    outputs = [runner(p, do_solve = True) for p in params]
+    for i, o in enumerate(outputs):
+        np.save('debug/' + str(i) + '.npy', o)
+    outputs = [np.load('debug/' + str(i) + '.npy') for i in range(len(params))]
+
+if __name__ == '__main__':
+    main()
+
     # to_plot = disp_mag
 
     # solve_for = 'disp'
@@ -169,24 +202,3 @@ def runner(param, do_solve = True):
     #     plt.colorbar(collec)
     # plt.show()
 
-def main():
-    params = [3]
-    outputs = [runner(p, do_solve = True) for p in params]
-    for i, o in enumerate(outputs):
-        np.save('debug/' + str(i) + '.npy', o)
-    outputs = [np.load('debug/' + str(i) + '.npy') for i in range(len(params))]
-    # logdiff = np.log10(np.abs(outputs[0] - outputs[1]))
-    # logdiff = np.where(np.isinf(logdiff), np.min(logdiff), logdiff)
-    # plt.imshow(logdiff, vmin = -6, vmax = -1, interpolation = 'none')
-    # plt.colorbar()
-    # plt.show()
-
-
-
-
-
-
-
-
-if __name__ == '__main__':
-    main()
