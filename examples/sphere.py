@@ -58,21 +58,16 @@ def check_normals(tri_pts, ns):
     plt.show()
 
 def runner(param, do_solve = True):
-    refine = 3
+    refine = 4
     a = 1.0
     b = 2.0
     sm = 1.0
     pr = 0.25
-    pa = 1.0
-    pb = 1.0
+    ua = 2.0
+    ub = 1.0
 
     flip_inner = False
     flip_outer = True
-
-    # print(correct_displacement(a, b, pa, pb, sm, pr, np.array([a, b])))
-    # print(correct_displacement(a, b, -pa, pb, sm, pr, np.array([a, b])))
-    # print(correct_displacement(a, b, -pa, -pb, sm, pr, np.array([a, b])))
-    # print(correct_displacement(a, b, pa, -pb, sm, pr, np.array([a, b])))
 
     m_inner = make_sphere(np.array([0,0,0]), a, refine)
     m_outer = make_sphere(np.array([0,0,0]), b, refine)
@@ -87,44 +82,36 @@ def runner(param, do_solve = True):
     inner_tris = m[1][:n_inner]
     outer_tris = m[1][n_inner:]
     tri_pts = m[0][m[1]]
-    mesh.plot_mesh3d(*m)
+    # mesh.plot_mesh3d(*m)
 
     cs = build_constraints(inner_tris, outer_tris, m)
 
     # solving: u(x) + int(T*u) = int(U*t)
     # values in radial direction because the sphere is centered at (0,0,0)
 
+    # if flip_inner:
+    #     ua *= -1
+    # if flip_outer:
+    #     ub *= -1
+
     input_nd = tri_pts / np.linalg.norm(tri_pts, axis = 2)[:,:,np.newaxis]
-    # unscaled_ns = geometry.unscaled_normals(tri_pts)
-    # ns = unscaled_ns / geometry.jacobians(unscaled_ns)[:,np.newaxis]
-    # # check_normals(tri_pts, ns)
-
-    # input_nd = np.tile(ns[:,np.newaxis,:], (1, 3, 1))
-    # input = input_nd.reshape(tri_pts.shape[0] * 9)
-
-    # Inner surface has traction pa
-    # input[:n_inner] *= pa
-    if flip_inner:
-        input_nd[:n_inner] *= -1
-
-    # Outer surface has traction pb
-    # input[n_inner:] *= pb
-    if flip_outer:
-        input_nd[n_inner:] *= -1
+    input_nd[:n_inner] *= ua
+    input_nd[n_inner:] *= ub
 
     input = input_nd.reshape(-1)
 
     selfop = MassOp(3, m[0], m[1]).mat
 
     t = Timer()
+    eps = [0.08, 0.04, 0.02, 0.01]
     Uop = SparseIntegralOp(
-        [], 1, 1, 7, 3, 6, 4.0,
+        eps, 20, 20, 7, 3, 6, 4.0,
         'U', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
     )
     t.report('U')
     Top = SparseIntegralOp(
-        [], 1, 1, 7, 3, 6, 4.0,
-        'T', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
+        eps, 20, 20, 7, 3, 6, 4.0,
+        'T', sm, pr, m[0], m[1], use_tables = False, remove_sing = False
     )
     t.report('T')
 
@@ -135,19 +122,6 @@ def runner(param, do_solve = True):
     t.report('setup system')
 
     soln = iterative_solve(lhs, cs, rhs)
-    # cm, c_rhs = constraints.build_constraint_matrix(cs, lhs.shape[0])
-    # t.report('build constraint matrix')
-    # cm = cm.tocsr().todense()
-    # t.report('constraints to dense')
-    # cmT = cm.T
-    # t.report('transpose constraint matrix')
-    # lhs_constrained = cmT.dot(lhs.dot(cm))
-    # rhs_constrained = cmT.dot((rhs + lhs.dot(c_rhs)).T).T
-    # t.report('constrain')
-    # constrained_soln = np.linalg.solve(lhs_constrained, rhs_constrained)
-    # t.report('solve')
-    # soln = cm.dot(constrained_soln)
-    # t.report('deconstrain')
 
     disp = np.array(soln).reshape((int(lhs.shape[0] / 9), 3, 3))
     disp_mag = np.sqrt(np.sum(disp ** 2, axis = 2))

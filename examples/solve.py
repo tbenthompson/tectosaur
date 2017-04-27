@@ -43,7 +43,7 @@ def iterative_solve(iop, constraints, rhs = None):
     P = sparse.linalg.spilu(cmT.dot(iop.nearfield.mat_no_correction.dot(cm)))
     timer.report("Build preconditioner")
     def prec_f(x):
-        return P.solve(x.astype(np.float32))
+        return P.solve(x)
     M = sparse.linalg.LinearOperator((n, n), matvec = prec_f)
     A = sparse.linalg.LinearOperator((n, n), matvec = mv)
 
