@@ -277,6 +277,7 @@ int get_kernel_idx(char K) {
 
 int kernel_scale_power[4] = {-3, -2, -2, -1};
 int kernel_sm_power[4] = {1, 0, 0, -1};
+bool kernel_flip_negate[4] = {false, true, true, false};
 
 std::array<double,81> transform_from_standard(const std::array<double,81>& I,
     char K, double sm, const std::array<int,3>& labels,
@@ -284,9 +285,9 @@ std::array<double,81> transform_from_standard(const std::array<double,81>& I,
 {
     int K_idx = get_kernel_idx(K);
 
-    // bool is_flipped = labels[1] != (labels[0] + 1) % 3;
     int sm_power = kernel_sm_power[K_idx]; 
     int scale_power = kernel_scale_power[K_idx]; 
+    bool flip_negate = (labels[1] != (labels[0] + 1) % 3) && kernel_flip_negate[K_idx];
 
     std::array<double,81> out;
 
@@ -310,14 +311,14 @@ std::array<double,81> transform_from_standard(const std::array<double,81>& I,
             // Multiply by shear mod.
             Tensor3 I_scale = mult(I_rot, scale_times_sm);
 
-            // Flip
-            // TODO: WHAT HAPPENS HERE???
-            auto I_final = I_scale;
-
             // Output
             for (int d1 = 0; d1 < 3; d1++) {
                 for (int d2 = 0; d2 < 3; d2++) {
-                    out[cb1 * 27 + d1 * 9 + cb2 * 3 + d2] = I_final[d1][d2];
+                    if (flip_negate && d1 != d2) {
+                        out[cb1 * 27 + d1 * 9 + cb2 * 3 + d2] = -I_scale[d1][d2];
+                    } else {
+                        out[cb1 * 27 + d1 * 9 + cb2 * 3 + d2] = I_scale[d1][d2];
+                    }
                 }
             }
         }

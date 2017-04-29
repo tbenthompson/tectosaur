@@ -135,7 +135,7 @@ def test_sub_basis_rotation():
     B = fast_lookup.sub_basis(A.flatten().tolist(), [[0,0],[1,0],[0,1]], [[0,1],[0,0],[1,0]])
     np.testing.assert_almost_equal(A[:,:,[1,2,0],:], np.array(B).reshape((3,3,3,3)))
 
-def coincident_lookup_helper(K):
+def coincident_lookup_helper(K, remove_sing, correct_digits):
     np.random.seed(113)
 
     results = []
@@ -145,6 +145,7 @@ def coincident_lookup_helper(K):
             B = np.random.rand(1)[0]
             pr = np.random.rand(1)[0] * 0.5
             scale = np.random.rand(1)[0]
+            flip = np.random.rand(1) > 0.5
 
             R = random_rotation()
             print(R)
@@ -152,85 +153,65 @@ def coincident_lookup_helper(K):
             pts = scale * np.array([[0,0,0],[1,0,0],[A,B,0]], dtype = np.float64)
             pts = R.dot(pts)
 
-            tris = np.array([[0,1,2]])
+            if flip:
+                tris = np.array([[0,2,1]])
+            else:
+                tris = np.array([[0,1,2]])
+
             eps_scale = np.sqrt(np.linalg.norm(tri_normal(pts)))
-            eps = 0.02 * (2.0 ** -np.arange(4))# / eps_scale
+            eps = 0.01 * (2.0 ** -np.arange(8))# / eps_scale
+            if K is 'H':
+                eps = [0.08, 0.04, 0.02, 0.01]
             op = DenseIntegralOp(
                 eps, 25, 15, 10, 3, 10, 3.0, K, 1.0, pr,
-                pts, tris, remove_sing = True
+                pts, tris, remove_sing = remove_sing
             )
             op2 = DenseIntegralOp(
                 eps, 15, 15, 10, 3, 10, 3.0, K, 1.0, pr,
-                pts, tris, use_tables = True, remove_sing = True
+                pts, tris, use_tables = True, remove_sing = remove_sing
             )
-            print(op.mat[0,0],op2.mat[0,0])
-            err = np.abs((op.mat[0,0] - op2.mat[0,0]) / op.mat[0,0])
-            print(err)
-            results.append(op2.mat[:9,:9])
+            A = op.mat
+            B = op2.mat
+            print(A,B)
+            np.testing.assert_almost_equal(A, B, correct_digits)
+            results.append(B)
         except BadTriangleError as e:
             print("Bad tri: " + str(e.code))
     return np.array(results)
 
 @golden_master
 def test_coincident_lookupU():
-    return coincident_lookup_helper('U')
+    return coincident_lookup_helper('U', False, 5)
 
 @golden_master
 def test_coincident_lookupT():
-    return coincident_lookup_helper('T')
+    return coincident_lookup_helper('T', False, 4)
 
 @golden_master
 def test_coincident_lookupA():
-    return coincident_lookup_helper('A')
+    return coincident_lookup_helper('A', False, 4)
 
 @golden_master
 def test_coincident_lookupH():
-    return coincident_lookup_helper('H')
+    return coincident_lookup_helper('H', True, 0)
 
-def adjacent_lookup_helper(K):
+def adjacent_lookup_helper(K, remove_sing, correct_digits):
     np.random.seed(973)
-
-    # results = []
-    # pr = np.random.rand(1)[0] * 0.5
-    # alpha = 2
-    # beta = 2
-    # scale = np.random.rand(1)[0] * 3
-    # translation = np.random.rand(3)
-    # R = random_rotation()
-    # for phi in np.linspace(0.5, 2 * np.pi - 0.5, 30):
-    #     print(phi, pr, scale, translation)
-
-    #     H = min_angle_isoceles_height
-    #     pts = np.array([
-    #         [0,0,0],[1,0,0],
-    #         [0.5,alpha*H*np.cos(phi),alpha*H*np.sin(phi)],
-    #         [0.5,beta*H,0]
-    #     ])
-
-    #     pts = (translation + R.dot(pts.T).T * scale).copy()
-
-    #     tris = np.array([[0,1,3],[1,0,2]])
-
-    #     from tectosaur_tables.adjacent import eval_tri_integral, make_adjacent_params
-    #     p = make_adjacent_params(K, 1e-3, 25, True, True, 25, 25, 1e-3, 3, False, 1, 1)
-    #     flip_obsn = phi > np.pi
-    #     I = eval_tri_integral(pts[tris[0]], pts[tris[1]], pr, p, flip_obsn)
-    #     if flip_obsn:
-    #         I = -I
-    #     results.append((phi, I[0,0]))
-    # results = np.array(results)
-    # import matplotlib.pyplot as plt
-    # plt.plot(results[:,0], results[:,1])
-    # plt.show()
 
     results = []
     for i in range(10):
         # We want phi in [0, 3*pi/2] because the old method doesn't work for
         # phi >= 3*np.pi/2
-        phi = to_interval(min_intersect_angle, 2.8 * np.pi / 2.0, np.random.rand(1)[0] * 2 - 1)
+        phi = to_interval(min_intersect_angle, 1.4 * np.pi, np.random.rand(1)[0])
         pr = np.random.rand(1)[0] * 0.5
-        alpha = 2
-        beta = 2
+        alpha = np.random.rand(1)[0] * 3 + 1
+        beta = np.random.rand(1)[0] * 3 + 1
+
+        scale = np.random.rand(1)[0] * 3
+        translation = np.random.rand(3)
+        R = random_rotation()
+
+        print(alpha, beta, phi, pr, scale, translation.tolist(), R.tolist())
 
         H = min_angle_isoceles_height
         pts = np.array([
@@ -239,54 +220,41 @@ def adjacent_lookup_helper(K):
             [0.5,beta*H,0]
         ])
 
-        scale = np.random.rand(1)[0] * 3
-        translation = np.random.rand(3)
-        R = random_rotation()
-        print(phi, pr, scale, translation)
-
         pts = (translation + R.dot(pts.T).T * scale).copy()
 
         tris = np.array([[0,1,3],[1,0,2]])
 
-        eps = 0.01 * (2.0 ** -np.arange(6))
+        eps = 0.01 * (2.0 ** -np.arange(10))
         eps_scale = np.sqrt(np.linalg.norm(tri_normal(pts[tris[0]])))
 
-        # from tectosaur_tables.adjacent import eval_tri_integral, make_adjacent_params
-        # p = make_adjacent_params(K, 1e-7, 25, True, True, 25, 25, 1e-3, 3, False, 1, 1)
-        # third = eval_tri_integral(pts[tris[0]], pts[tris[1]], pr, p)
-
         op = DenseIntegralOp(
-            eps, 1, 25, 1, 1, 1, 3.0, K, 1.0, pr,
-            pts, tris, remove_sing = True
+            eps, 1, 20, 1, 1, 1, 3.0, K, 1.0, pr,
+            pts, tris, remove_sing = remove_sing
         )
         op2 = DenseIntegralOp(
             eps, 3, 3, 10, 3, 10, 3.0, K, 1.0, pr,
-            pts, tris, use_tables = True, remove_sing = True
+            pts, tris, use_tables = True
         )
 
-        # A = op2.mat[:9,9:]
-        # B = op.mat[:9,9:]
-        # C = third[:,0].reshape((9,9))
-        # import ipdb; ipdb.set_trace()
-        err = np.abs((op.mat[0,9] - op2.mat[0,9]) / op.mat[0,9])
-        print(op.mat[0,9], op2.mat[0,9])
-        print("ERROROROROROROR: " + str(err))
-        results.append(op2.mat[:9,9:18])
+        A = op.mat[:9,9:]
+        B = op2.mat[:9,9:]
+        # np.testing.assert_almost_equal(A, B, correct_digits)
+        results.append(B)
     return np.array(results)
 
 @golden_master
 def test_adjacent_lookupU():
-    return adjacent_lookup_helper('U')
+    return adjacent_lookup_helper('U', False, 5)
 
 @golden_master
 def test_adjacent_lookupT():
-    return adjacent_lookup_helper('T')
+    return adjacent_lookup_helper('T', False, 4)
 
 @golden_master
 def test_adjacent_lookupA():
-    return adjacent_lookup_helper('A')
+    return adjacent_lookup_helper('A', False, 4)
 
 @golden_master
 def test_adjacent_lookupH():
-    return adjacent_lookup_helper('H')
+    return adjacent_lookup_helper('H', True, 4)
 

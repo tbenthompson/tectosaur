@@ -89,11 +89,6 @@ def runner(param, do_solve = True):
     # solving: u(x) + int(T*u) = int(U*t)
     # values in radial direction because the sphere is centered at (0,0,0)
 
-    # if flip_inner:
-    #     ua *= -1
-    # if flip_outer:
-    #     ub *= -1
-
     input_nd = tri_pts / np.linalg.norm(tri_pts, axis = 2)[:,:,np.newaxis]
     input_nd[:n_inner] *= ua
     input_nd[n_inner:] *= ub
@@ -103,23 +98,20 @@ def runner(param, do_solve = True):
     selfop = MassOp(3, m[0], m[1]).mat
 
     t = Timer()
-    eps = [0.08, 0.04, 0.02, 0.01]
+    eps = 0.01 * (2.0 ** -np.arange(10))
     Uop = SparseIntegralOp(
         eps, 20, 20, 7, 3, 6, 4.0,
         'U', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
     )
     t.report('U')
     Top = SparseIntegralOp(
-        eps, 20, 20, 7, 3, 6, 4.0,
-        'T', sm, pr, m[0], m[1], use_tables = False, remove_sing = False
+        eps, 20, 20, 10, 3, 6, 4.0,
+        'T', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
     )
     t.report('T')
 
-    # lhs = Top.mat + selfop
-    # rhs = -Uop.dot(input)
     lhs = Uop
     rhs = Top.dot(input) + selfop.dot(input)
-    t.report('setup system')
 
     soln = iterative_solve(lhs, cs, rhs)
 
@@ -150,29 +142,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-    # to_plot = disp_mag
-
-    # solve_for = 'disp'
-    # if solve_for == 'disp':
-    # elif solve_for == 'trac':
-    #     lhs = Uop.mat
-    #     rhs = (-Top.mat - selfop).dot(input)
-    #     soln = np.linalg.solve(lhs, rhs.T)
-    #     trac = np.array(soln).reshape((int(lhs.shape[0] / 9), 3, 3))
-    #     avg_face_trac = np.mean(trac, axis = 1)
-    #     trac_mag = np.sqrt(np.sum(avg_face_trac ** 2, axis = 1))
-    #     to_plot = trac_mag
-
-
-    # for var in [to_plot, input_mag]:
-    #     fig = plt.figure()
-    #     ax = fig.gca(projection='3d')
-    #     cmap = plt.get_cmap('Blues')
-    #     triang = tri.Triangulation(m[0][:,0], m[0][:,1], m[1])
-    #     collec = ax.plot_trisurf(triang, m[0][:,2], cmap=cmap, shade=False, linewidth=0.)
-    #     collec.set_array(var)
-    #     collec.autoscale()
-    #     plt.colorbar(collec)
-    # plt.show()
-
