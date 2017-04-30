@@ -23,6 +23,18 @@ class MassOp:
                     for d in range(3):
                         self.mat[9 * i + 3 * b1 + d, 9 * i + 3 * b2 + d] = entry
         self.shape = self.mat.shape
+        self.mat = self.mat.tocsr()
 
     def dot(self, v):
         return self.mat.dot(v)
+
+    def nearfield_dot(self, v):
+        return self.dot(v)
+
+    def nearfield_no_correction_dot(self, v):
+        return self.dot(v)
+
+    def farfield_dot(self, v):
+        shape = [self.shape[0]]
+        shape.extend(v.shape[1:])
+        return np.zeros(shape)

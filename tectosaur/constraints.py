@@ -4,7 +4,7 @@ from tectosaur.adjacency import find_touching_pts, find_free_edges
 import tectosaur.geometry as geom
 from collections import namedtuple
 
-IsolatedTermEQ = namedtuple('IsolatedTermEQ', 'lhs_dof terms const')
+IsolatedTermEQ = namedtuple('IsolatedTermEQ', 'lhs_dof terms rhs')
 Term = namedtuple('Term', 'val dof')
 ConstraintEQ = namedtuple('ConstraintEQ', 'terms rhs')
 
@@ -19,6 +19,55 @@ def check_if_crosses_fault(tri1, tri2, fault_touching_pts, fault_tris, pts):
         if side1 != side2:
             return True
     return False
+
+def elastic_rigid_body_constraints(pts, tris, basis_idxs):
+    fixed_pt_idx = basis_idxs[0]
+    fixed_pt = pts[tris[fixed_pt_idx[0], fixed_pt_idx[1]]]
+    lengthening_pt_idx = basis_idxs[1]
+    lengthening_pt = pts[tris[lengthening_pt_idx[0], lengthening_pt_idx[1]]]
+    in_plane_pt_idx = basis_idxs[2]
+    in_plane_pt = pts[tris[in_plane_pt_idx[0], in_plane_pt_idx[1]]]
+
+    # Fix the location of the first point.
+    cs = []
+    for d in range(3):
+        dof = fixed_pt_idx[0] * 9 + fixed_pt_idx[1] * 3 + d
+        cs.append(ConstraintEQ([Term(1.0, dof)], 0.0))
+
+    # Remove rotations between the two points.
+    sep_vec = lengthening_pt - fixed_pt
+
+    # Guaranteed to be orthogonal
+    if sep_vec[2] != 0.0:
+        orthogonal_vec1 = np.array([1, 1, (-sep_vec[0] - sep_vec[1]) / sep_vec[2]])
+    elif sep_vec[1] != 0.0:
+        orthogonal_vec1 = np.array([1, (-sep_vec[0] - sep_vec[2]) / sep_vec[1], 1])
+    else:
+        orthogonal_vec1 = np.array([(-sep_vec[1] - sep_vec[2]) / sep_vec[0], 1, 1])
+    orthogonal_vec1 /= np.linalg.norm(orthogonal_vec1)
+    orthogonal_vec2 = np.cross(sep_vec, orthogonal_vec1)
+
+    for v in [orthogonal_vec1, orthogonal_vec2]:
+        ts = []
+        for d in range(3):
+            dof = lengthening_pt_idx[0] * 9 + lengthening_pt_idx[1] * 3 + d
+            ts.append(Term(v[d], dof))
+        cs.append(ConstraintEQ(ts, 0.0))
+
+    # Keep the third point in the same plane as the first two points.
+    sep_vec2 = in_plane_pt - fixed_pt
+    plane_normal = np.cross(sep_vec, sep_vec2)
+    plane_normal /= np.linalg.norm(plane_normal)
+
+    ts = []
+    for d in range(3):
+        dof = in_plane_pt_idx[0] * 9 + in_plane_pt_idx[1] * 3 + d
+        ts.append(Term(plane_normal[d], dof))
+    cs.append(ConstraintEQ(ts, 0.0))
+
+    return cs
+
+
 
 def continuity_constraints(surface_tris, fault_tris, pts):
     n_surf_tris = surface_tris.shape[0]
@@ -57,9 +106,6 @@ def continuity_constraints(surface_tris, fault_tris, pts):
                 ))
     assert(len(touching_pt) == surface_tris.size - len(constraints) / 3)
     return constraints
-
-def sort_by_constrained_dof(cs):
-    return sorted(cs, key = lambda x: x.terms[0].dof)
 
 def free_edge_constraints(tris):
     free_edges = find_free_edges(tris)
@@ -105,7 +151,7 @@ def substitute(c_victim, entry_idx, c_in):
 
     out_terms = [t for i, t in enumerate(c_victim.terms) if i != entry_idx]
     out_terms.extend([Term(mult_factor * t.val, t.dof) for t in c_in.terms])
-    out_rhs = c_victim.rhs - mult_factor * c_in.const
+    out_rhs = c_victim.rhs - mult_factor * c_in.rhs
     return ConstraintEQ(out_terms, out_rhs)
 
 def combine_terms(c):
@@ -121,7 +167,10 @@ def filter_zero_terms(c):
     return ConstraintEQ([t for t in c.terms if np.abs(t.val) > 1e-15], c.rhs)
 
 def last_dof_idx(c):
-    return np.argmax([e.dof for e in c.terms])
+    return np.argmax([t.dof for t in c.terms])
+
+def max_dof(c):
+    return max([t.dof for t in c.terms])
 
 def make_reduced(c, matrix):
     for i, t in enumerate(c.terms):
@@ -132,8 +181,8 @@ def make_reduced(c, matrix):
             return make_reduced(c_filtered, matrix)
     return c
 
-def reduce_constraints(cs):
-    sorted_cs = sorted(cs, key = last_dof_idx)
+def reduce_constraints(cs, n_total_dofs):
+    sorted_cs = sorted(cs, key = max_dof)
     lower_tri_cs = dict()
     for c in sorted_cs:
         c_combined = combine_terms(c)
@@ -141,12 +190,19 @@ def reduce_constraints(cs):
         c_lower_tri = make_reduced(c_filtered, lower_tri_cs)
 
         if len(c_lower_tri.terms) == 0:
-            # print("REDUNDANT CONSTRAINT")
+            print("REDUNDANT CONSTRAINT")
             continue
 
         ldi = last_dof_idx(c_lower_tri)
         separated = isolate_term_on_lhs(c_lower_tri, ldi)
         lower_tri_cs[separated.lhs_dof] = separated
+
+    # Re-reduce to catch anything that slipped through the cracks.
+    for i in range(n_total_dofs):
+        if i not in lower_tri_cs:
+            continue
+        lower_tri_cs[i] = make_reduced(lower_tri_cs[i], lower_tri_cs)
+
     return lower_tri_cs
 
 def to_matrix(reduced_cs, n_total_dofs):
@@ -169,9 +225,9 @@ def to_matrix(reduced_cs, n_total_dofs):
     return cm
 
 def build_constraint_matrix(cs, n_total_dofs):
-    reduced_cs = reduce_constraints(cs)
+    reduced_cs = reduce_constraints(cs, n_total_dofs)
     mat = to_matrix(reduced_cs, n_total_dofs)
     rhs = np.zeros(mat.shape[0])
     for k, c in reduced_cs.items():
-        rhs[k] = c.const
+        rhs[k] = c.rhs
     return mat, rhs

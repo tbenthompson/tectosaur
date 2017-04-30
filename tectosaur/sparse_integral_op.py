@@ -250,6 +250,12 @@ class SparseIntegralOp:
         self.gpu_quad_pts = gpu.to_gpu(quad_pts.flatten(), float_type)
         self.gpu_quad_ns = gpu.to_gpu(quad_ns.flatten(), float_type)
 
+    def nearfield_dot(self, v):
+        return self.nearfield.dot(v)
+
+    def nearfield_no_correction_dot(self, v):
+        return self.nearfield.mat_no_correction.dot(v)
+
     def dot(self, v):
         out = self.nearfield.dot(v)
         return out + self.farfield_dot(v)

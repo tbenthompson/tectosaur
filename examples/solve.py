@@ -23,7 +23,7 @@ def iterative_solve(iop, constraints, rhs = None):
     timer.report('Build constraint matrix')
     cm = cm.tocsr()
     cmT = cm.T
-    nearfield_constrained = cmT.dot(iop.nearfield.dot(cm))
+    nearfield_constrained = cmT.dot(iop.nearfield_dot(cm))
     if rhs is None:
         rhs_constrained = cmT.dot(-iop.dot(c_rhs))
     else:
@@ -40,7 +40,7 @@ def iterative_solve(iop, constraints, rhs = None):
         out += cmT.dot(iop.farfield_dot(cm.dot(v)))
         return out
 
-    P = sparse.linalg.spilu(cmT.dot(iop.nearfield.mat_no_correction.dot(cm)))
+    P = sparse.linalg.spilu(cmT.dot(iop.nearfield_no_correction_dot(cm)))
     timer.report("Build preconditioner")
     def prec_f(x):
         return P.solve(x)

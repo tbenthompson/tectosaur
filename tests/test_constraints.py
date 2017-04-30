@@ -55,6 +55,24 @@ def test_constraint_matrix_rhs():
     cm, rhs = build_constraint_matrix(cs, 7)
     np.testing.assert_almost_equal(rhs, [0,0,0,1.0,3.0,0,0])
 
+def test_constraint_double():
+    cs = [
+        ConstraintEQ([Term(1, 0), Term(1, 1), Term(1, 2)], 0.0),
+        ConstraintEQ([Term(1, 0), Term(-1, 1), Term(1, 2)], 0.0),
+    ]
+    cm, rhs = build_constraint_matrix(cs, 3)
+    np.testing.assert_almost_equal(cm.todense(), np.array([[1, 0, -1]]).T)
+
+def test_constraint_triple():
+    cs = [
+        ConstraintEQ([Term(1, 0), Term(1, 1), Term(1, 2), Term(1, 3)], 0.0),
+        ConstraintEQ([Term(1, 0), Term(-1, 1), Term(1, 2), Term(1, 3)], 0.0),
+        ConstraintEQ([Term(1, 0), Term(1, 1), Term(-1, 2), Term(1, 3)], 0.0),
+    ]
+    cm, rhs = build_constraint_matrix(cs, 4)
+    np.testing.assert_almost_equal(cm.todense(), np.array([[1, 0, 0, -1]]).T)
+
+
 def test_free_edge_constraints():
     cs = free_edge_constraints([[0,1,2],[0,2,3],[0,3,4],[0,4,1]])
     dofs = [c.terms[0].dof for c in cs]
