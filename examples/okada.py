@@ -28,7 +28,7 @@ def build_constraints(surface_tris, fault_tris, pts):
     ))
     cs.extend(constraints.free_edge_constraints(surface_tris))
 
-    return constraints.sort_by_constrained_dof(cs)
+    return cs
 
 def refined_free_surface():
     w = 10
@@ -90,10 +90,10 @@ def refined_free_surface():
 
 def make_free_surface(w, n):
     corners = [[-w, -w, 0], [-w, w, 0], [w, w, 0], [w, -w, 0]]
-    return mesh.rect_surface(n, n, corners)
+    return mesh.make_rect(n, n, corners)
 
 def make_fault(L, top_depth):
-    return mesh.rect_surface(10, 10, [
+    return mesh.make_rect(10, 10, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
@@ -177,8 +177,8 @@ def test_okada():
         with open('okada.npy', 'rb') as f:
             soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
-    # u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-    # plot_results(obs_pts, surface_tris, u, vals)
+    u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
+    plot_results(obs_pts, surface_tris, u, vals)
     # print_error(obs_pts, u, vals)
 
     # np.save('okadaplateau.npy', [obs_pts, surface_tris, all_mesh, u, vals])

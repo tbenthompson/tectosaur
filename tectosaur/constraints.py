@@ -8,6 +8,16 @@ IsolatedTermEQ = namedtuple('IsolatedTermEQ', 'lhs_dof terms rhs')
 Term = namedtuple('Term', 'val dof')
 ConstraintEQ = namedtuple('ConstraintEQ', 'terms rhs')
 
+def build_composite_constraints(*cs_and_starts):
+    all_cs = []
+    for cs, start in cs_and_starts:
+        for c in cs:
+            all_cs.append(ConstraintEQ(
+                terms = [Term(t.val, t.dof + start) for t in c.terms],
+                rhs = c.rhs
+            ))
+    return all_cs
+
 def check_if_crosses_fault(tri1, tri2, fault_touching_pts, fault_tris, pts):
     for fault_tri_idx,_ in fault_touching_pts:
         fault_t = fault_tris[fault_tri_idx]
@@ -190,7 +200,7 @@ def reduce_constraints(cs, n_total_dofs):
         c_lower_tri = make_reduced(c_filtered, lower_tri_cs)
 
         if len(c_lower_tri.terms) == 0:
-            print("REDUNDANT CONSTRAINT")
+            # print("REDUNDANT CONSTRAINT")
             continue
 
         ldi = last_dof_idx(c_lower_tri)

@@ -3,8 +3,8 @@ from tectosaur.geometry import Side, which_side_point, tri_side
 import numpy as np
 
 def test_remove_duplicates():
-    surface1 = mesh.rect_surface(2, 2, [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]])
-    surface2 = mesh.rect_surface(2, 2, [[0, 0, 0], [-1, 0, 0], [-1, 1, 0], [0, 1, 0]])
+    surface1 = mesh.make_rect(2, 2, [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]])
+    surface2 = mesh.make_rect(2, 2, [[0, 0, 0], [-1, 0, 0], [-1, 1, 0], [0, 1, 0]])
     m_f = mesh.concat(surface1, surface2)
     assert(m_f[0].shape[0] == 6)
     assert(m_f[1].shape[0] == 4)
@@ -27,13 +27,8 @@ def test_refine():
     refined = mesh.refine((pts, tris))
     assert(refined[0].shape[0] == 9)
 
-# def test_sanitize():
-#     pts = np.array([[0,0,0],[1,0,0],[0,1,0]])
-#     tris = np.array([[0,1,2]])
-#     sanitized = mesh.sanitize((pts, tris))
-#     assert(sanitized[1].shape[0] == 1)
-#
-#     pts = np.array([[0,0,0],[1,0,0],[0.5,0.1,0]])
-#     tris = np.array([[0,1,2]])
-#     sanitized = mesh.sanitize((pts, tris))
-#     assert(sanitized[1].shape[0] == 1)
+def test_refine_to_size():
+    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,1,0]])
+    tris = np.array([[0, 1, 2], [3, 2, 1]])
+    m2 = mesh.refine_to_size((pts,tris), 0.2)
+    assert(m2[1].shape[0] == 8)

@@ -7,9 +7,25 @@ import tectosaur.sparse_integral_op as sparse_integral_op
 import tectosaur.mass_op as mass_op
 import tectosaur.quadrature as quad
 import tectosaur.mesh as mesh
+import tectosaur.find_nearfield
+import tectosaur.adjacency
 from tectosaur.test_decorators import slow, golden_master
 
 from laplace import laplace
+
+def test_nearfield():
+    corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
+    pts, tris = tectosaur.mesh.make_rect(3,3 ,corners)
+    assert(tris.shape[0] == 8)
+    va, ea = tectosaur.adjacency.find_adjacents(tris)
+    near_pairs = tectosaur.find_nearfield.find_nearfield(pts, tris, va, ea, 2.5)
+    check_for = [
+        (0, 5), (0, 6), (0, 3), (1, 7), (2, 7), (3, 0),
+        (4, 7), (5, 0), (6, 0), (7, 2), (7, 1), (7, 4)
+    ]
+    assert(len(near_pairs) == len(check_for))
+    for pair in check_for:
+        assert(pair in near_pairs)
 
 @golden_master
 def test_farfield_two_tris():
@@ -44,7 +60,7 @@ def test_gpu_vert_adjacent():
 def test_coincident_gpu():
     n = 4
     w = 4
-    pts, tris = mesh.rect_surface(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
+    pts, tris = mesh.make_rect(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
     out = nearfield_op.coincident(
         8, [0.1, 0.01], 'H', 1.0, 0.25, pts, tris, remove_sing = False
     )
@@ -53,7 +69,7 @@ def test_coincident_gpu():
 def full_integral_op_tester(k):
     pts = np.array([[0,0,0], [1,1,0], [0, 1, 1], [0,0,2]])
     tris = np.array([[0, 1, 2], [2, 1, 3]])
-    rect_mesh = mesh.rect_surface(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    rect_mesh = mesh.make_rect(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     out = np.zeros(1)
     for m in [(pts, tris), rect_mesh]:
         dense_op = dense_integral_op.DenseIntegralOp(
@@ -195,7 +211,7 @@ def test_coincident_laplace():
             assert(tryit(19,13,17,16) < 0.000005)
 
 def test_mass_op():
-    m = mesh.rect_surface(2, 2, [[0,0,0],[1,0,0],[1,1,0],[0,1,0]])
+    m = mesh.make_rect(2, 2, [[0,0,0],[1,0,0],[1,1,0],[0,1,0]])
     op = mass_op.MassOp(3, m[0], m[1])
     exact00 = quad.quadrature(
         lambda x: (1 - x[:,0] - x[:,1]) * (1 - x[:,0] - x[:,1]),

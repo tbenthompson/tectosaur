@@ -34,3 +34,6 @@ def test_xyhat_from_pt_random():
 
 def test_vec_angle180():
     np.testing.assert_almost_equal(vec_angle(np.array([1,1]),np.array([-1,-1])), np.pi)
+
+def test_tri_area():
+    np.testing.assert_almost_equal(tri_area(np.array([[0,0,0],[1,0,0],[0,1,0]])), 0.5)

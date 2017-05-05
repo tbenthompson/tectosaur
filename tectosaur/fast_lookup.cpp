@@ -831,7 +831,9 @@ NPArray<double> adjacent_lookup_from_standard(
 
 PYBIND11_PLUGIN(fast_lookup) {
     py::module m("fast_lookup");
-    m.def("barycentric_evalnd", barycentric_evalnd_py); m.def("get_edge_lens", get_edge_lens);
+    m.def("barycentric_evalnd", barycentric_evalnd_py); 
+    
+    m.def("get_edge_lens", get_edge_lens);
     m.def("get_longest_edge", get_longest_edge);
     m.def("get_origin_vertex", get_origin_vertex);
     m.def("relabel", relabel);

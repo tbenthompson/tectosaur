@@ -1,20 +1,13 @@
-import pickle
 import numpy as np
-import scipy.spatial
 
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
-import matplotlib.pyplot as plt
-
-import okada_wrapper
 
 import tectosaur.mesh as mesh
 from tectosaur.mass_op import MassOp
 from tectosaur.sparse_integral_op import SparseIntegralOp
-from tectosaur.dense_integral_op import DenseIntegralOp
-from tectosaur.quadrature import gauss2d_tri
+from tectosaur.sum_op import SumOp
 import tectosaur.constraints as constraints
-import tectosaur.geometry as geometry
 
 from solve import iterative_solve, direct_solve
 from tectosaur.util.timer import Timer
@@ -38,22 +31,6 @@ def build_constraints(inner_tris, outer_tris, full_mesh, solve_for):
     #     ))
     return cs
 
-def spherify(center, r, pts):
-    D = scipy.spatial.distance.cdist(pts, center.reshape((1,center.shape[0])))
-    return (r / D) * (pts - center) + center
-
-def make_sphere(center, r, refinements):
-    center = np.array(center)
-    pts = np.array([[0,-r,0],[r,0,0],[0,0,r],[-r,0,0],[0,0,-r],[0,r,0]])
-    tris = np.array([[1,0,2],[2,0,3],[3,0,4],[4,0,1],[5,1,2],[5,2,3],[5,3,4],[5,4,1]])
-    pts += center
-    m = pts, tris
-    for i in range(refinements):
-        m = mesh.refine(m)
-        m = (spherify(center, r, m[0]), m[1])
-    m = (m[0], m[1])
-    return m
-
 def check_normals(tri_pts, ns):
     center = np.mean(tri_pts, axis = 1)
     plt.plot(center[:, 0], center[:, 1], '*')
@@ -63,24 +40,6 @@ def check_normals(tri_pts, ns):
         data = np.array([start, end])
         plt.plot(data[:, 0], data[:, 1], 'k')
     plt.show()
-
-class SumOp:
-    def __init__(self, ops):
-        self.ops = ops
-        self.shape = ops[0].shape
-
-    def nearfield_dot(self, v):
-        return sum([op.nearfield_dot(v) for op in self.ops])
-
-    def nearfield_no_correction_dot(self, v):
-        return sum([op.nearfield_no_correction_dot(v) for op in self.ops])
-
-    def dot(self, v):
-        return sum([op.dot(v) for op in self.ops])
-
-    def farfield_dot(self, v):
-        return sum([op.farfield_dot(v) for op in self.ops])
-
 
 def runner(param, do_solve = True):
     solve_for = 'u'
@@ -96,8 +55,8 @@ def runner(param, do_solve = True):
 
     ua, ub = correct_displacement(a, b, pa, -pb, sm, pr, np.array([a, b]))
 
-    m_inner = make_sphere(center, a, refine)
-    m_outer = make_sphere(center, b, refine)
+    m_inner = mesh.make_sphere(center, a, refine)
+    m_outer = mesh.make_sphere(center, b, refine)
     m_outer = mesh.flip_normals(m_outer)
 
     m = mesh.concat(m_inner, m_outer)

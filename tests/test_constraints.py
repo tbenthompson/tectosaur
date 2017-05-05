@@ -78,3 +78,13 @@ def test_free_edge_constraints():
     dofs = [c.terms[0].dof for c in cs]
     assert(0 not in dofs)
     assert(len(dofs) == 8 * 3)
+
+def test_composite():
+    cs1 = [ConstraintEQ([Term(1, 0)], 2)]
+    cs2 = [ConstraintEQ([Term(1, 0)], 3)]
+    cs = build_composite_constraints((cs1, 2), (cs2, 3))
+    assert(cs[0].terms[0].dof == 2)
+    assert(cs[0].rhs == 2)
+    assert(cs[1].terms[0].dof == 3)
+    assert(cs[1].rhs == 3)
+
