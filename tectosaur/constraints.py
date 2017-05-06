@@ -88,6 +88,8 @@ def continuity_constraints(surface_tris, fault_tris, pts):
         fault_touching_pt = find_touching_pts(fault_tris)
     constraints = []
     for i, tpt in enumerate(touching_pt):
+        if len(tpt) == 0:
+            continue
 
         tri1_idx = tpt[0][0]
         tri1 = surface_tris[tri1_idx]
@@ -114,7 +116,7 @@ def continuity_constraints(surface_tris, fault_tris, pts):
                 constraints.append(ConstraintEQ(
                     [Term(1.0, dependent_dof), Term(-1.0, indepedent_dof)], 0.0
                 ))
-    assert(len(touching_pt) == surface_tris.size - len(constraints) / 3)
+
     return constraints
 
 def free_edge_constraints(tris):

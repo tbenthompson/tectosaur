@@ -167,5 +167,6 @@ def plot_mesh3d(pts, tris):
     verts = pts[tris]
     coll = Poly3DCollection(verts)
     coll.set_facecolor((0.0, 0.0, 0.0, 0.0))
+    coll.set_edgecolor((0.0, 0.0, 0.0, 1.0))
     ax.add_collection3d(coll)
     plt.show()

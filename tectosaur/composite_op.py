@@ -1,16 +1,19 @@
 import numpy as np
 
 class CompositeOp:
-    def __init__(self, *ops_and_starts):
+    def __init__(self, *ops_and_starts, shape = None):
         self.ops = [el[0] for el in ops_and_starts]
         self.row_start = [el[1] for el in ops_and_starts]
         self.col_start = [el[2] for el in ops_and_starts]
         n_rows = max([el[1] + el[0].shape[0] for el in ops_and_starts])
         n_cols = max([el[2] + el[0].shape[1] for el in ops_and_starts])
-        self.shape = (n_rows, n_cols)
+        if shape is None:
+            self.shape = (n_rows, n_cols)
+        else:
+            self.shape = shape
 
     def generic_dot(self, v, dot_name):
-        out = np.zeros(self.shape[0])
+        out = np.zeros([self.shape[0]] + list(v.shape[1:]))
         for i in range(len(self.ops)):
             op = self.ops[i]
             start_row_idx = self.row_start[i]

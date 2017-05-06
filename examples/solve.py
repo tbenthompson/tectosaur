@@ -19,7 +19,7 @@ def direct_solve(iop, constraints):
 
 def iterative_solve(iop, constraints, rhs = None):
     timer = Timer()
-    cm, c_rhs = build_constraint_matrix(constraints, iop.shape[0])
+    cm, c_rhs = build_constraint_matrix(constraints, iop.shape[1])
     timer.report('Build constraint matrix')
     cm = cm.tocsr()
     cmT = cm.T

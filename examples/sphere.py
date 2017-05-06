@@ -42,9 +42,9 @@ def check_normals(tri_pts, ns):
     plt.show()
 
 def runner(param, do_solve = True):
-    solve_for = 'u'
+    solve_for = 't'
 
-    refine = 3
+    refine = 4
     a = 1.0
     b = 2.0
     sm = 1.0
@@ -86,23 +86,42 @@ def runner(param, do_solve = True):
     selfop = MassOp(3, m[0], m[1])
 
     t = Timer()
-    Uop = SparseIntegralOp(
+    Hop = SparseIntegralOp(
         [], 1, 1, 7, 3, 6, 4.0,
-        'U', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
+        'H', sm, pr, m[0], m[1], use_tables = True, remove_sing = True
     )
-    t.report('U')
-    Top = SparseIntegralOp(
+    t.report('H')
+    Aop = SparseIntegralOp(
         [], 1, 1, 7, 3, 6, 4.0,
-        'T', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
+        'A', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
     )
-    t.report('T')
+    t.report('A')
 
+    selfop.mat *= 1
     if solve_for is 't':
-        lhs = Uop
-        rhs = Top.dot(input) + selfop.dot(input)
+        lhs = SumOp([Aop, selfop])
+        rhs = Hop.dot(input)
     else:
-        lhs = SumOp([Top, selfop])
-        rhs = Uop.dot(input)
+        lhs = Hop
+        rhs = Aop.dot(input) + selfop.dot(input)
+    # t = Timer()
+    # Uop = SparseIntegralOp(
+    #     [], 1, 1, 7, 3, 6, 4.0,
+    #     'U', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
+    # )
+    # t.report('U')
+    # Top = SparseIntegralOp(
+    #     [], 1, 1, 7, 3, 6, 4.0,
+    #     'T', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
+    # )
+    # t.report('T')
+
+    # if solve_for is 't':
+    #     lhs = Uop
+    #     rhs = Top.dot(input) + selfop.dot(input)
+    # else:
+    #     lhs = SumOp([Top, selfop])
+    #     rhs = Uop.dot(input)
 
     soln = iterative_solve(lhs, cs, rhs)
 

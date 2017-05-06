@@ -16,6 +16,8 @@ import tectosaur.util.gpu as gpu
 
 from tectosaur.util.timer import Timer
 
+import cppimport
+fast_assembly = cppimport.imp("tectosaur.fast_assembly").fast_assembly
 
 def interp_galerkin_mat(tri_pts, quad_rule):
     nt = tri_pts.shape[0]
@@ -48,73 +50,49 @@ def interp_galerkin_mat(tri_pts, quad_rule):
 
     return scipy.sparse.coo_matrix((vals, (rows, cols))), quad_pts, quad_ns
 
+
 def pairs_sparse_mat(obs_idxs, src_idxs, integrals):
-    rows = np.tile((
-        np.tile(obs_idxs[:,np.newaxis,np.newaxis], (1,3,3)) * 9 +
-            np.arange(3)[np.newaxis,:,np.newaxis] * 3 +
-            np.arange(3)[np.newaxis, np.newaxis, :]
-        )[:,:,:,np.newaxis,np.newaxis], (1,1,1,3,3)
-    ).flatten()
-    cols = np.tile((
-        np.tile(src_idxs[:,np.newaxis,np.newaxis], (1,3,3)) * 9 +
-            np.arange(3)[np.newaxis,:,np.newaxis] * 3 +
-            np.arange(3)[np.newaxis, np.newaxis, :]
-        )[:,np.newaxis,np.newaxis], (1,3,3,1,1)
-    ).flatten()
-    return integrals.flatten(), rows, cols
+    return integrals.reshape((-1, 9, 9)), obs_idxs, src_idxs
 
 def co_sparse_mat(co_indices, co_mat, correction):
     return pairs_sparse_mat(co_indices, co_indices, co_mat - correction)
 
-def derot_adj_mat(adj_mat, obs_clicks, src_clicks):
-    # The triangles were rotated prior to performing the adjacent nearfield
-    # quadrature. Therefore, the resulting matrix entries need to be
-    # "derotated" in order to be consistent with the global basis function
-    # numbering.
-
-    obs_derot = np.array(rotate_tri(-obs_clicks))
-    src_derot = np.array(rotate_tri(-src_clicks))
-
-    derot_mat = np.empty_like(adj_mat)
-    placeholder = np.arange(adj_mat.shape[0])
-    for b1 in range(3):
-        for b2 in range(3):
-            derot_mat[placeholder,b1,:,b2,:] =\
-                adj_mat[placeholder,obs_derot[b1],:,src_derot[b2],:]
-    return derot_mat
-
 def adj_sparse_mat(adj_mat, tri_idxs, obs_clicks, src_clicks, correction_mat):
-    derot_mat = derot_adj_mat(adj_mat, obs_clicks, src_clicks)
-    return pairs_sparse_mat(tri_idxs[:,0],tri_idxs[:,1], derot_mat - correction_mat)
+    adj_mat = adj_mat.astype(np.float32)
+    fast_assembly.derotate_adj_mat(adj_mat, obs_clicks, src_clicks)
+    return pairs_sparse_mat(tri_idxs[:,0],tri_idxs[:,1], adj_mat - correction_mat)
 
 def near_sparse_mat(near_mat, near_pairs, near_correction):
     return pairs_sparse_mat(near_pairs[:, 0], near_pairs[:, 1], near_mat - near_correction)
 
-def build_nearfield(co_data, ea_data, va_data, near_data):
-    # Optimizing this assembly process:
-    # 1) set up a C++ function that build the vals, rows, columns lists
-    # 2) Write my own coo to csr function.
-    # 3) Make a csr constructor that does less checking.
+def build_nearfield(co_data, ea_data, va_data, near_data, shape):
     t = Timer(tabs = 2)
     co_vals,co_rows,co_cols = co_sparse_mat(*co_data)
     ea_vals,ea_rows,ea_cols = adj_sparse_mat(*ea_data)
     va_vals,va_rows,va_cols = adj_sparse_mat(*va_data)
     near_vals,near_rows,near_cols = near_sparse_mat(*near_data)
     t.report("build pairs")
-    rows = np.hstack((co_rows, ea_rows, va_rows, near_rows))
-    cols = np.hstack((co_cols, ea_cols, va_cols, near_cols))
-    vals = np.hstack((co_vals, ea_vals, va_vals, near_vals))
+    rows = np.concatenate((co_rows, ea_rows, va_rows, near_rows))
+    cols = np.concatenate((co_cols, ea_cols, va_cols, near_cols))
+    vals = np.concatenate((co_vals, ea_vals, va_vals, near_vals))
     t.report("stack pairs")
-    mat = scipy.sparse.coo_matrix((vals, (rows, cols)))
-    t.report("to coo")
-    mat = mat.tocsr()
-    t.report("to csr")
+
+    data, indices, indptr = fast_assembly.make_bsr_matrix(
+        shape[0], shape[1], 9, 9, vals, rows, cols
+    )
+    t.report("to bsr")
+    mat = scipy.sparse.bsr_matrix((data, indices, indptr))
+    t.report('make bsr')
+
     return mat
 
 class NearfieldIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
             use_tables = False, remove_sing = False):
+        n = tris.shape[0] * 9
+        self.shape = (n, n)
+
         timer = Timer(tabs = 1)
         near_gauss = gauss4d_tri(nq_near, nq_near)
         far_quad = gauss4d_tri(nq_far, nq_far)
@@ -189,7 +167,8 @@ class NearfieldIntegralOp:
             (co_indices, co_mat, co_mat_correction),
             (ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_mat_correction),
             (va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks, va_mat_correction),
-            (nearfield_mat, nearfield_pairs, nearfield_correction)
+            (nearfield_mat, nearfield_pairs, nearfield_correction),
+            self.shape
         )
         timer.report("Assemble matrix")
         self.mat_no_correction = build_nearfield(
@@ -198,7 +177,8 @@ class NearfieldIntegralOp:
                 ea_src_clicks, 0 * ea_mat_correction),
             (va_mat_rot, va_tri_indices, va_obs_clicks,
                 va_src_clicks, 0 * va_mat_correction),
-            (nearfield_mat, nearfield_pairs, 0 * nearfield_correction)
+            (nearfield_mat, nearfield_pairs, 0 * nearfield_correction),
+            self.shape
         )
         timer.report("Assemble uncorrected matrix")
 
@@ -243,7 +223,7 @@ class SparseIntegralOp:
         self.interp_galerkin_mat, quad_pts, quad_ns = \
             interp_galerkin_mat(pts[tris], far_quad2d)
         self.nq = quad_pts.shape[0]
-        self.shape = self.nearfield.mat.shape
+        self.shape = self.nearfield.shape
         self.sm = sm
         self.pr = pr
         self.kernel = kernel
