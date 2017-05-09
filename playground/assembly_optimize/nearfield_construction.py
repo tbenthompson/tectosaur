@@ -16,6 +16,9 @@ derotate_adj_mat = helpers.derotate_adj_mat
 # total build took 0.14
 # dot took 0.01
 
+# final with bsr_matrix: 0.1
+# dot took 0.01
+
 def pairs_sparse_mat(obs_idxs, src_idxs, integrals):
     return integrals.reshape((-1, 9, 9)), obs_idxs, src_idxs
 

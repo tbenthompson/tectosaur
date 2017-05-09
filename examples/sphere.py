@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -41,17 +42,61 @@ def check_normals(tri_pts, ns):
         plt.plot(data[:, 0], data[:, 1], 'k')
     plt.show()
 
-def runner(param, do_solve = True):
-    solve_for = 't'
+def traction_bie(sm, pr, m, input, solve_for):
+    selfop = MassOp(3, m[0], m[1])
 
-    refine = 4
+    t = Timer()
+    Hop = SparseIntegralOp(
+        [], 1, 1, (10,20,10), 3, 6, 4.0,
+        'H', sm, pr, m[0], m[1], use_tables = True, remove_sing = True
+    )
+    t.report('H')
+    Aop = SparseIntegralOp(
+        [], 1, 1, 7, 3, 6, 4.0,
+        'A', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
+    )
+    t.report('A')
+
+    selfop.mat *= -1
+    if solve_for is 't':
+        lhs = SumOp([Aop, selfop])
+        rhs = Hop.dot(input)
+    else:
+        lhs = Hop
+        rhs = Aop.dot(input) + selfop.dot(input)
+    return lhs, rhs
+
+def displacement_bie(sm, pr, m, input, solve_for):
+    selfop = MassOp(3, m[0], m[1])
+
+    t = Timer()
+    Uop = SparseIntegralOp(
+        [], 1, 1, 7, 3, 6, 4.0,
+        'U', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
+    )
+    t.report('U')
+    Top = SparseIntegralOp(
+        [], 1, 1, 7, 3, 6, 4.0,
+        'T', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
+    )
+    t.report('T')
+
+    if solve_for is 't':
+        lhs = Uop
+        rhs = Top.dot(input) + selfop.dot(input)
+    else:
+        lhs = SumOp([Top, selfop])
+        rhs = Uop.dot(input)
+    return lhs, rhs
+
+def runner(solve_for, use_bie, refine):
     a = 1.0
     b = 2.0
     sm = 1.0
     pr = 0.25
     pa = 1.0
     pb = 2.0
-    center = [5, 0, 0]
+    center = [0, 0, 0]
 
     ua, ub = correct_displacement(a, b, pa, -pb, sm, pr, np.array([a, b]))
 
@@ -83,45 +128,10 @@ def runner(param, do_solve = True):
 
     input = input_nd.reshape(-1)
 
-    selfop = MassOp(3, m[0], m[1])
-
-    t = Timer()
-    Hop = SparseIntegralOp(
-        [], 1, 1, 7, 3, 6, 4.0,
-        'H', sm, pr, m[0], m[1], use_tables = True, remove_sing = True
-    )
-    t.report('H')
-    Aop = SparseIntegralOp(
-        [], 1, 1, 7, 3, 6, 4.0,
-        'A', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
-    )
-    t.report('A')
-
-    selfop.mat *= 1
-    if solve_for is 't':
-        lhs = SumOp([Aop, selfop])
-        rhs = Hop.dot(input)
-    else:
-        lhs = Hop
-        rhs = Aop.dot(input) + selfop.dot(input)
-    # t = Timer()
-    # Uop = SparseIntegralOp(
-    #     [], 1, 1, 7, 3, 6, 4.0,
-    #     'U', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
-    # )
-    # t.report('U')
-    # Top = SparseIntegralOp(
-    #     [], 1, 1, 7, 3, 6, 4.0,
-    #     'T', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
-    # )
-    # t.report('T')
-
-    # if solve_for is 't':
-    #     lhs = Uop
-    #     rhs = Top.dot(input) + selfop.dot(input)
-    # else:
-    #     lhs = SumOp([Top, selfop])
-    #     rhs = Uop.dot(input)
+    if use_bie == 'u':
+        lhs, rhs = displacement_bie(sm, pr, m, input, solve_for)
+    elif use_bie == 't':
+        lhs, rhs = traction_bie(sm, pr, m, input, solve_for)
 
     soln = iterative_solve(lhs, cs, rhs)
 
@@ -144,11 +154,7 @@ def runner(param, do_solve = True):
         np.testing.assert_almost_equal(mean_outer, ub, 1)
 
 def main():
-    params = [False]
-    outputs = [runner(p, do_solve = True) for p in params]
-    for i, o in enumerate(outputs):
-        np.save('debug/' + str(i) + '.npy', o)
-    outputs = [np.load('debug/' + str(i) + '.npy') for i in range(len(params))]
+    runner(sys.argv[1], sys.argv[2], int(sys.argv[3]))
 
 if __name__ == '__main__':
     main()

@@ -7,7 +7,7 @@ def pairs_func_name(singular, k_name):
     return 'single_pairs' + singular_label + k_name
 
 kernel_names = ['U', 'T', 'A', 'H']
-kernels = tectosaur.util.kernel_exprs.get_kernels()
+# kernels = tectosaur.util.kernel_exprs.get_kernels()
 
 def dn(dim):
     return ['x', 'y', 'z'][dim]

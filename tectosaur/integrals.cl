@@ -1,5 +1,5 @@
 <%
-from tectosaur.integral_utils import pairs_func_name, kernels, kernel_names, dn, kronecker
+from tectosaur.integral_utils import pairs_func_name, kernel_names, dn, kronecker
 %>
 #pragma OPENCL EXTENSION cl_khr_fp64: enable
 
@@ -12,9 +12,11 @@ from tectosaur.integral_utils import pairs_func_name, kernels, kernel_names, dn,
     ${prim.tri_info("src", "l")}
 
     Real result_temp[81];
+    Real kahanC[81];
 
     for (int iresult = 0; iresult < 81; iresult++) {
         result_temp[iresult] = 0;
+        kahanC[iresult] = 0;
     }
 
     ${prim.constants()}
@@ -66,7 +68,11 @@ from tectosaur.integral_utils import pairs_func_name, kernels, kernel_names, dn,
                         % for b_src in range(3):
                             {
                                 int idx = ${prim.temp_result_idx(d_obs, d_src, b_obs, b_src)};
-                                result_temp[idx] += obsb${b_obs} * srcb${b_src} * kernel_val;
+                                Real val = obsb${b_obs} * srcb${b_src} * kernel_val;
+                                Real y = val - kahanC[idx];
+                                Real t = result_temp[idx] + y;
+                                kahanC[idx] = (t - result_temp[idx]) - y;
+                                result_temp[idx] = t;
                             }
                         % endfor
                     % endfor

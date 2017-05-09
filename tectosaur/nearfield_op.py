@@ -41,24 +41,14 @@ def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular):
             gpu_result.data,
             np.int32(q[0].shape[0]), gpu_qx.data, gpu_qw.data,
             gpu_pts.data, gpu_obs_tris.data, gpu_src_tris.data,
-            np.float32(sm), np.float32(pr),
+            float_type(sm), float_type(pr),
         )
         out[start_idx:end_idx] = gpu_result.get()
 
-    call_size = 2 ** 14
+    call_size = 2 ** 7
     for I in gpu.intervals(n, call_size):
         call_integrator(*I)
     return out
-
-def cached_in(name, creator):
-    filename = os.path.join('cache_tectosaur', name + '.npy')
-    if not os.path.exists(filename):
-        dirname = os.path.dirname(filename)
-        print(dirname)
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
-        np.save(filename, *creator())
-    return np.load(filename)
 
 @cache
 def cached_coincident_quad(nq, eps, remove_sing):
@@ -90,7 +80,9 @@ def edge_adj(nq, eps, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
 
 @cache
 def cached_vert_adj_quad(nq):
-    return triangle_rules.vertex_adj_quad(nq, nq, nq)
+    if type(nq) is int:
+        nq = (nq, nq, nq)
+    return triangle_rules.vertex_adj_quad(nq[0], nq[1], nq[2])
 
 def vert_adj(nq, kernel, sm, pr, pts, obs_tris, src_tris):
     q = cached_vert_adj_quad(nq)

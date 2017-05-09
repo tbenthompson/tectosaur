@@ -148,7 +148,7 @@ def coincident_lookup_helper(K, remove_sing, correct_digits):
             flip = np.random.rand(1) > 0.5
 
             R = random_rotation()
-            print(R)
+            # print(R)
 
             pts = scale * np.array([[0,0,0],[1,0,0],[A,B,0]], dtype = np.float64)
             pts = R.dot(pts)
@@ -172,7 +172,7 @@ def coincident_lookup_helper(K, remove_sing, correct_digits):
             )
             A = op.mat
             B = op2.mat
-            print(A,B)
+            print(A[0,0],B[0,0])
             np.testing.assert_almost_equal(A, B, correct_digits)
             results.append(B)
         except BadTriangleError as e:
@@ -211,7 +211,7 @@ def adjacent_lookup_helper(K, remove_sing, correct_digits):
         translation = np.random.rand(3)
         R = random_rotation()
 
-        print(alpha, beta, phi, pr, scale, translation.tolist(), R.tolist())
+        # print(alpha, beta, phi, pr, scale, translation.tolist(), R.tolist())
 
         H = min_angle_isoceles_height
         pts = np.array([
@@ -238,6 +238,7 @@ def adjacent_lookup_helper(K, remove_sing, correct_digits):
 
         A = op.mat[:9,9:]
         B = op2.mat[:9,9:]
+        print("checking ", A[0,0], B[0,0])
         # np.testing.assert_almost_equal(A, B, correct_digits)
         results.append(B)
     return np.array(results)

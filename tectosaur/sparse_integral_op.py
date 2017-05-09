@@ -6,8 +6,8 @@ from tectosaur.adjacency import find_adjacents, vert_adj_prep, \
     edge_adj_prep, rotate_tri
 from tectosaur.find_nearfield import find_nearfield
 from tectosaur.quadrature import gauss4d_tri, gauss2d_tri
-import tectosaur.fmm as fmm
 import tectosaur.geometry as geometry
+
 #TODO: Split the cuda code into nearfield integrals and farfield.
 from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
     get_gpu_module, get_gpu_config, float_type

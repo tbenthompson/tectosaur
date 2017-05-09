@@ -1,4 +1,4 @@
-
+import tectosaur.fmm as fmm
 
 class FMMIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
