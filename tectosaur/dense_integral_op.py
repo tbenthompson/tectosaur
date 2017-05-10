@@ -5,6 +5,7 @@ from tectosaur.adjacency import find_adjacents, vert_adj_prep,\
 from tectosaur.find_nearfield import find_nearfield
 from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
     get_gpu_module, float_type
+from tectosaur.dense_op import DenseOp
 from tectosaur.quadrature import gauss4d_tri
 from tectosaur.util.timer import Timer
 from tectosaur.table_lookup import coincident_table, adjacent_table
@@ -64,7 +65,7 @@ def set_near_entries(mat, near_mat, near_entries):
     mat[near_entries[:,0],:,:,near_entries[:,1],:,:] = near_mat
     return mat
 
-class DenseIntegralOp:
+class DenseIntegralOp(DenseOp):
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
             nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
             use_tables = False, remove_sing = False):

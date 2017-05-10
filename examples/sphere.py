@@ -48,21 +48,22 @@ def traction_bie(sm, pr, m, input, solve_for):
     # with the displacement BIE? Is there something wrong with how I calculate things?
     # Maybe with the traction inputs?
     selfop = MassOp(3, m[0], m[1])
+    selfop.mat *= -1
 
-    nqv = 15
+    nqv = 16
     t = Timer()
+    from tectosaur.dense_integral_op import DenseIntegralOp
     Hop = SparseIntegralOp(
         [], 1, 1, (nqv,nqv*2,nqv), 3, 6, 4.0,
-        'H', sm, pr, m[0], m[1], use_tables = True, remove_sing = True
+        'H', sm, pr, m[0], m[1], use_tables = True
     )
     t.report('H')
     Aop = SparseIntegralOp(
         [], 1, 1, 7, 3, 6, 4.0,
-        'A', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
+        'A', sm, pr, m[0], m[1], use_tables = True
     )
     t.report('A')
 
-    selfop.mat *= -1
     if solve_for is 't':
         lhs = SumOp([Aop, selfop])
         rhs = Hop.dot(input)
@@ -77,12 +78,12 @@ def displacement_bie(sm, pr, m, input, solve_for):
     t = Timer()
     Uop = SparseIntegralOp(
         [], 1, 1, 7, 3, 6, 4.0,
-        'U', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
+        'U', sm, pr, m[0], m[1], use_tables = True
     )
     t.report('U')
     Top = SparseIntegralOp(
         [], 1, 1, 7, 3, 6, 4.0,
-        'T', sm, pr, m[0], m[1], use_tables = True, remove_sing = False
+        'T', sm, pr, m[0], m[1], use_tables = True
     )
     t.report('T')
 
@@ -146,6 +147,7 @@ def runner(solve_for, use_bie, refine):
     elif use_bie == 't':
         lhs, rhs = traction_bie(sm, pr, m, input, solve_for)
 
+    # soln = direct_solve(lhs, cs, rhs)
     soln = iterative_solve(lhs, cs, rhs)
 
     soln = np.array(soln).reshape((int(lhs.shape[0] / 9), 3, 3))

@@ -132,27 +132,12 @@ def test_okada():
         obs_pts = all_mesh[0][surface_pt_idxs,:]
 
         eps = [0.08, 0.04, 0.02, 0.01]
-        # iop = FMMIntegralOp(
-        #     eps, 18, 13, 6, 3, 7, 3.0, sm, pr, all_mesh[0], all_mesh[1]
-        # )
         iop = SparseIntegralOp(
             [], 0, 0, 6, 2, 6, 4.0,
             'H', sm, pr, all_mesh[0], all_mesh[1],
             use_tables = True,
             remove_sing = True
         )
-        # iop = DenseIntegralOp(
-        #     eps, 18, 16, 6, 3, 6, 4.0,
-        #     'H', sm, pr, all_mesh[0], all_mesh[1],
-        #     use_tables = False,
-        #     remove_sing = True
-        # )
-        # iop2 = DenseIntegralOp(
-        #     eps, 18, 16, 6, 3, 6, 4.0,
-        #     'H', sm, pr, all_mesh[0], all_mesh[1],
-        #     use_tables = True,
-        #     remove_sing = True
-        # )
         timer.report("Integrals")
 
         soln = iterative_solve(iop, cs)

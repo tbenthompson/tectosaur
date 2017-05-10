@@ -7,12 +7,15 @@ from tectosaur.constraints import lagrange_constraints, build_constraint_matrix
 
 # master-slave constrained direct solves look like:
 # Kˆ uˆ = ˆf, in which Kˆ = TT K T, ˆf = TT (f − K g).
-def direct_solve(iop, constraints):
-    cm, rhs = build_constraint_matrix(constraints, iop.shape[0])
+def direct_solve(iop, constraints, rhs = None):
+    cm, c_rhs = build_constraint_matrix(constraints, iop.shape[0])
     cm = cm.tocsr()
     cmT = cm.T
     iop_constrained = cmT.dot(cmT.dot(iop.mat.T).T)
-    rhs_constrained = cmT.dot(-iop.mat.dot(rhs))
+    if rhs is None:
+        rhs_constrained = cmT.dot(-iop.mat.dot(c_rhs))
+    else:
+        rhs_constrained = cmT.dot(rhs - iop.mat.dot(c_rhs))
     soln_constrained = np.linalg.solve(iop_constrained, rhs_constrained)
     soln = cm.dot(soln_constrained)
     return soln
@@ -51,7 +54,7 @@ def iterative_solve(iop, constraints, rhs = None):
         print(R)
         pass
     soln = sparse.linalg.gmres(
-        A, rhs_constrained, M = M, tol = 1e-8, callback = report_res, restart = 100
+        A, rhs_constrained, M = M, tol = 1e-8, callback = report_res, restart = 200
     )
     timer.report("GMRES")
     return cm.dot(soln[0]) + c_rhs
