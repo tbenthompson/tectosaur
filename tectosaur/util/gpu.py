@@ -127,8 +127,9 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
 
     module_info = dict()
     module_info['tmpl_args'] = tmpl_args
-    # Using these optimization options doesn't improve performance by very much, so
-    # I'd say they're not worth the risk.
+    compile_options = []
+    # Using these optimization options doesn't improve performance by very much, if any,
+    # so I'd say they're not worth the risk.
     # fast_opts = [
     #     '-cl-finite-math-only',
     #     '-cl-unsafe-math-optimizations',
@@ -139,7 +140,7 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
     # compile_options.extend(fast_opts)
     module_info['module'] = cl.Program(
         gpu_ctx, code
-    ).build(options = [])
+    ).build(options = compile_options)
 
     if tmpl_name not in gpu_module:
         gpu_module[tmpl_name] = []

@@ -50,9 +50,8 @@ def traction_bie(sm, pr, m, input, solve_for):
     selfop = MassOp(3, m[0], m[1])
     selfop.mat *= -1
 
-    nqv = 16
+    nqv = 15
     t = Timer()
-    from tectosaur.dense_integral_op import DenseIntegralOp
     Hop = SparseIntegralOp(
         [], 1, 1, (nqv,nqv*2,nqv), 3, 6, 4.0,
         'H', sm, pr, m[0], m[1], use_tables = True

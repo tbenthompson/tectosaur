@@ -105,7 +105,7 @@ class NearfieldIntegralOp:
             co_mat = coincident_table(kernel, sm, pr, pts, tris)
         timer.report("Coincident")
         co_mat_correction = pairs_quad(
-            kernel, sm, pr, pts, tris, tris, far_quad, False
+            kernel, sm, pr, pts, tris, tris, far_quad, False, True
         )
         timer.report("Coincident correction")
 
@@ -128,7 +128,7 @@ class NearfieldIntegralOp:
         ea_mat_correction = pairs_quad(
             kernel, sm, pr, pts,
             tris[ea_tri_indices[:,0]], tris[ea_tri_indices[:,1]],
-            far_quad, False
+            far_quad, False, False
         )
         timer.report("Edge adjacent correction")
 
@@ -143,7 +143,7 @@ class NearfieldIntegralOp:
         va_mat_correction = pairs_quad(
             kernel, sm, pr, pts,
             tris[va_tri_indices[:,0]], tris[va_tri_indices[:,1]],
-            far_quad, False
+            far_quad, False, False
         )
         timer.report("Vert adjacent correction")
 
@@ -154,12 +154,12 @@ class NearfieldIntegralOp:
 
         nearfield_mat = pairs_quad(
             kernel, sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
-            near_gauss, False
+            near_gauss, False, False
         )
         timer.report("Nearfield")
         nearfield_correction = pairs_quad(
             kernel, sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
-            far_quad, False
+            far_quad, False, False
         )
         timer.report("Nearfield correction")
 

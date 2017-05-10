@@ -13,14 +13,14 @@ def get_gpu_config():
 def get_gpu_module():
     return gpu.load_gpu('integrals.cl', tmpl_args = get_gpu_config())
 
-def get_pairs_integrator(kernel, singular):
-    return getattr(get_gpu_module(), pairs_func_name(singular, kernel))
+def get_pairs_integrator(kernel, singular, check0):
+    return getattr(get_gpu_module(), pairs_func_name(singular, kernel, check0))
 
 #TODO: One universal float type for all of tectosaur? tectosaur.config?
 #TODO: The general structure of this caller is similar to the other in tectosaur_tables and sparse_integral_op and dense_integral_op.
 float_type = np.float32
-def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular):
-    integrator = get_pairs_integrator(kernel, singular)
+def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular, check0):
+    integrator = get_pairs_integrator(kernel, singular, check0)
 
     gpu_qx, gpu_qw = gpu.quad_to_gpu(q, float_type)
 
@@ -45,7 +45,7 @@ def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular):
         )
         out[start_idx:end_idx] = gpu_result.get()
 
-    call_size = 2 ** 14
+    call_size = 2 ** 17
     for I in gpu.intervals(n, call_size):
         call_integrator(*I)
     return out
@@ -75,7 +75,7 @@ def cached_edge_adj_quad(nq, eps, remove_sing):
 
 def edge_adj(nq, eps, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
     q = cached_edge_adj_quad(nq, eps, remove_sing)
-    out = pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, True)
+    out = pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, True, False)
     return out
 
 @cache
@@ -86,5 +86,5 @@ def cached_vert_adj_quad(nq):
 
 def vert_adj(nq, kernel, sm, pr, pts, obs_tris, src_tris):
     q = cached_vert_adj_quad(nq)
-    out = pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, False)
+    out = pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, False, False)
     return out

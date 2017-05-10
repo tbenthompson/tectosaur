@@ -1,10 +1,13 @@
 import tectosaur.util.kernel_exprs
 
-def pairs_func_name(singular, k_name):
+def pairs_func_name(singular, k_name, check0):
     singular_label = 'N'
     if singular:
         singular_label = 'S'
-    return 'single_pairs' + singular_label + k_name
+    check0_label = 'N'
+    if check0:
+        check0_label = 'Z'
+    return 'single_pairs' + singular_label + check0_label + k_name
 
 kernel_names = ['U', 'T', 'A', 'H']
 # kernels = tectosaur.util.kernel_exprs.get_kernels()
