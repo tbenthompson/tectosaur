@@ -43,11 +43,15 @@ def check_normals(tri_pts, ns):
     plt.show()
 
 def traction_bie(sm, pr, m, input, solve_for):
+    # Why am I not able to get the same accuracy with the traction BIE as I am
+    # with the displacement BIE? Is there something wrong with how I calculate things?
+    # Maybe with the traction inputs?
     selfop = MassOp(3, m[0], m[1])
 
+    nqv = 15
     t = Timer()
     Hop = SparseIntegralOp(
-        [], 1, 1, (10,20,10), 3, 6, 4.0,
+        [], 1, 1, (nqv,nqv*2,nqv), 3, 6, 4.0,
         'H', sm, pr, m[0], m[1], use_tables = True, remove_sing = True
     )
     t.report('H')
@@ -94,17 +98,24 @@ def runner(solve_for, use_bie, refine):
     b = 2.0
     sm = 1.0
     pr = 0.25
-    pa = 1.0
-    pb = 2.0
+    pa = 3.0
+    pb = 1.0
     center = [0, 0, 0]
 
     ua, ub = correct_displacement(a, b, pa, -pb, sm, pr, np.array([a, b]))
+    print(correct_displacement(a, b, pa, -pb, sm, pr, np.array([a, b])))
+    print(correct_displacement(a, b, -pa, -pb, sm, pr, np.array([a, b])))
+    print(correct_displacement(a, b, -pa, pb, sm, pr, np.array([a, b])))
+    print(correct_displacement(a, b, pa, pb, sm, pr, np.array([a, b])))
 
+    t = Timer()
     m_inner = mesh.make_sphere(center, a, refine)
     m_outer = mesh.make_sphere(center, b, refine)
     m_outer = mesh.flip_normals(m_outer)
+    t.report('make meshes')
 
     m = mesh.concat(m_inner, m_outer)
+    t.report('concat meshes')
     print(m[1].shape)
     n_inner = m_inner[1].shape[0]
     inner_tris = m[1][:n_inner]
@@ -113,6 +124,7 @@ def runner(solve_for, use_bie, refine):
     # mesh.plot_mesh3d(*m)
 
     cs = build_constraints(inner_tris, outer_tris, m, solve_for)
+    t.report('build constraints')
 
     # solving: u(x) + int(T*u) = int(U*t)
     # values in radial direction because the sphere is centered at (0,0,0)
@@ -141,6 +153,8 @@ def runner(solve_for, use_bie, refine):
     outer_soln_mag = soln_mag[n_inner:]
     mean_inner = np.mean(inner_soln_mag)
     mean_outer = np.mean(outer_soln_mag)
+    print(np.std(inner_soln_mag))
+    print(np.std(outer_soln_mag))
 
     if solve_for is 't':
         print(mean_inner, pa)

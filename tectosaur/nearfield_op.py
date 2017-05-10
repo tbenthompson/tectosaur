@@ -45,7 +45,7 @@ def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular):
         )
         out[start_idx:end_idx] = gpu_result.get()
 
-    call_size = 2 ** 7
+    call_size = 2 ** 14
     for I in gpu.intervals(n, call_size):
         call_integrator(*I)
     return out
