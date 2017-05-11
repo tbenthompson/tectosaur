@@ -770,6 +770,7 @@ void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
     auto n_integrals = Iv.request().shape[0];    
     auto Iv_ptr = reinterpret_cast<double*>(Iv.request().ptr);
     auto out_ptr = reinterpret_cast<double*>(out.request().ptr);
+#pragma omp parallel for
     for (size_t i = 0; i < n_integrals; i++) {
         std::array<double,81> this_integral;
         for (int j = 0; j < 81; j++) {

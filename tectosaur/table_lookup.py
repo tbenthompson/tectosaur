@@ -169,7 +169,8 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
 
     t.report("from standard")
 
-    np.save('playground/vert_adj_test2.npy', (np.array(va.pts), np.array(va.obs_tris), np.array(va.src_tris)))
+    # np.save('playground/vert_adj_test2.npy', (np.array(va.pts), np.array(va.obs_tris), np.array(va.src_tris)))
+    # import sys; sys.exit()
     Iv = nearfield_op.vert_adj(
         nq_va, kernel, sm, pr,
         np.array(va.pts), np.array(va.obs_tris), np.array(va.src_tris)

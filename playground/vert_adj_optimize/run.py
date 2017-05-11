@@ -9,7 +9,7 @@ def vertex_adj_pairs_quad(K, sm, pr, pts, obs_tris, src_tris, nq):
     cfg = get_gpu_config()
     cfg['nq'] = nq
     cfg['group_size'] = group_size
-    integrator = getattr(gpu.load_gpu('old_fast_vert_adj.cl', tmpl_args = cfg), 'vert_adj_pairs' + K)
+    integrator = getattr(gpu.load_gpu('old_fast_vert_adj.cl', tmpl_args = cfg, tmpl_dir = '.'), 'vert_adj_pairs' + K)
 
     n = obs_tris.shape[0]
     out = np.empty((n, 3, 3, 3, 3), dtype = float_type)

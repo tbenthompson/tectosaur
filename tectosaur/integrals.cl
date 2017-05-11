@@ -62,24 +62,25 @@ from tectosaur.integral_utils import pairs_func_name, kernel_names, dn, kronecke
         % endif
 
         ${prim.tensor_kernels(k_name)}
+        obsb0 *= quadw;
+        obsb1 *= quadw;
+        obsb2 *= quadw;
 
-        % for d_obs in range(3):
-            % for d_src in range(3):
-                {
-                    Real kernel_val = quadw * K${d_obs}${d_src};
-                    % for b_obs in range(3):
-                        % for b_src in range(3):
-                            {
-                                int idx = ${prim.temp_result_idx(d_obs, d_src, b_obs, b_src)};
-                                Real val = obsb${b_obs} * srcb${b_src} * kernel_val;
-                                Real y = val - kahanC[idx];
-                                Real t = result_temp[idx] + y;
-                                kahanC[idx] = (t - result_temp[idx]) - y;
-                                result_temp[idx] = t;
-                            }
-                        % endfor
+        Real val, y, t;
+        % for b_obs in range(3):
+            % for d_obs in range(3):
+                % for b_src in range(3):
+                    % for d_src in range(3):
+                        <%
+                            idx = b_obs * 27 + d_obs * 9 + b_src * 3 + d_src;
+                        %> 
+                        val = obsb${b_obs} * srcb${b_src} * K${d_obs}${d_src};
+                        y = val - kahanC[${idx}];
+                        t = result_temp[${idx}] + y;
+                        kahanC[${idx}] = (t - result_temp[${idx}]) - y;
+                        result_temp[${idx}] = t;
                     % endfor
-                }
+                % endfor
             % endfor
         % endfor
     }
