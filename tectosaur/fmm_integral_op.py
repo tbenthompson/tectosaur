@@ -1,4 +1,4 @@
-import tectosaur.fmm as fmm
+import tectosaur.fmm_wrapper as fmm
 from tectosaur.sparse_integral_op import NearfieldIntegralOp, interp_galerkin_mat
 from tectosaur.quadrature import gauss2d_tri
 
@@ -34,9 +34,6 @@ class FMMIntegralOp:
 
     def farfield_dot(self, v):
         interp_v = self.interp_galerkin_mat.dot(v)
-        fmm_out = fmm.eval(
-            self.obs_kd, self.src_kd, self.fmm_mat, interp_v,
-            interp_v.shape[0]
-        )
+        fmm_out = fmm.eval(self.fmm_mat, interp_v)
         return self.interp_galerkin_mat.T.dot(fmm_out)
 

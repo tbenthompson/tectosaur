@@ -55,17 +55,8 @@ namespace py = pybind11;
 
 int main(int,char**);
 
-
-void check_shape(NPArrayD& arr) {
-    auto buf = arr.request();
-    if (buf.ndim != 2 || buf.shape[1] != 3) {
-        throw std::runtime_error("parameter requires n x 3 array.");
-    }
-}
-
-
-PYBIND11_PLUGIN(_fmm) {
-    py::module m("_fmm");
+PYBIND11_PLUGIN(fmm) {
+    py::module m("fmm");
 
     py::class_<Sphere>(m, "Sphere")
         .def_readonly("r", &Sphere::r)
@@ -84,8 +75,8 @@ PYBIND11_PLUGIN(_fmm) {
     py::class_<KDTree>(m, "KDTree")
         .def("__init__", 
         [] (KDTree& kd, NPArrayD np_pts, NPArrayD np_normals, size_t n_per_cell) {
-            check_shape(np_pts);
-            check_shape(np_normals);
+            check_shape<3>(np_pts);
+            check_shape<3>(np_normals);
             new (&kd) KDTree(
                 reinterpret_cast<Vec3*>(np_pts.request().ptr),
                 reinterpret_cast<Vec3*>(np_normals.request().ptr),
@@ -148,10 +139,10 @@ PYBIND11_PLUGIN(_fmm) {
 
     m.def("direct_eval", [](std::string k_name, NPArrayD obs_pts, NPArrayD obs_ns,
                             NPArrayD src_pts, NPArrayD src_ns, NPArrayD params) {
-        check_shape(obs_pts);
-        check_shape(obs_ns);
-        check_shape(src_pts);
-        check_shape(src_ns);
+        check_shape<3>(obs_pts);
+        check_shape<3>(obs_ns);
+        check_shape<3>(src_pts);
+        check_shape<3>(src_ns);
         auto K = get_by_name(k_name);
         std::vector<double> out(K.tensor_dim * K.tensor_dim *
                                 obs_pts.request().shape[0] *

@@ -4,13 +4,13 @@ import tectosaur.util.gpu as gpu
 from tectosaur.util.timer import Timer
 
 import cppimport
-_fmm = cppimport.imp("tectosaur._fmm._fmm")._fmm._fmm
-for k in dir(_fmm):
-    locals()[k] = getattr(_fmm, k)
+fmm = cppimport.imp("tectosaur.fmm.fmm").fmm.fmm
+for k in dir(fmm):
+    locals()[k] = getattr(fmm, k)
 
 float_type = np.float32
 def gpu_p2p_eval(fmm_mat, input_vals):
-    f = gpu.load_gpu('_fmm/p2p_kernel.cl', tmpl_args = dict()).p2p_kernel
+    f = gpu.load_gpu('fmm/p2p_kernel.cl', tmpl_args = dict()).p2p_kernel
 
     t = Timer()
     #TODO: Benchmark and check if its worth exposing the

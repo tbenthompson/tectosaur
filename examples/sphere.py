@@ -5,10 +5,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
 
+from tectosaur.fmm_integral_op import FMMIntegralOp
 import tectosaur.mesh as mesh
 from tectosaur.mass_op import MassOp
 from tectosaur.sparse_integral_op import SparseIntegralOp
-from tectosaur.fmm_integral_op import FMMIntegralOp
 from tectosaur.sum_op import SumOp
 import tectosaur.constraints as constraints
 
@@ -44,7 +44,7 @@ def check_normals(tri_pts, ns):
         plt.plot(data[:, 0], data[:, 1], 'k')
     plt.show()
 
-def traction_bie(sm, pr, m, input, solve_for):
+def traction_bie(sm, pr, m, input, solve_for, op_type):
     # Why am I not able to get the same accuracy with the traction BIE as I am
     # with the displacement BIE? Is there something wrong with how I calculate things?
     # Maybe with the traction inputs?
@@ -72,11 +72,11 @@ def traction_bie(sm, pr, m, input, solve_for):
         rhs = Aop.dot(input) + selfop.dot(input)
     return lhs, rhs
 
-def displacement_bie(sm, pr, m, input, solve_for):
+def displacement_bie(sm, pr, m, input, solve_for, op_type):
     selfop = MassOp(3, m[0], m[1])
 
     t = Timer()
-    Uop = FMMIntegralOp(
+    Uop = op_type(
         [], 1, 1, 5, 3, 4, 4.0,
         'U', sm, pr, m[0], m[1], use_tables = True
     )
@@ -95,7 +95,12 @@ def displacement_bie(sm, pr, m, input, solve_for):
         rhs = Uop.dot(input)
     return lhs, rhs
 
-def runner(solve_for, use_bie, refine):
+def runner(solve_for, use_bie, refine, use_fmm):
+    if use_fmm == 'fmm':
+        op_type = FMMIntegralOp
+    else:
+        op_type = SparseIntegralOp
+
     a = 1.0
     b = 2.0
     sm = 1.0
@@ -143,9 +148,9 @@ def runner(solve_for, use_bie, refine):
     input = input_nd.reshape(-1)
 
     if use_bie == 'u':
-        lhs, rhs = displacement_bie(sm, pr, m, input, solve_for)
+        lhs, rhs = displacement_bie(sm, pr, m, input, solve_for, op_type)
     elif use_bie == 't':
-        lhs, rhs = traction_bie(sm, pr, m, input, solve_for)
+        lhs, rhs = traction_bie(sm, pr, m, input, solve_for, op_type)
 
     # soln = direct_solve(lhs, cs, rhs)
     soln = iterative_solve(lhs, cs, rhs)
@@ -171,7 +176,7 @@ def runner(solve_for, use_bie, refine):
         np.testing.assert_almost_equal(mean_outer, ub, 1)
 
 def main():
-    runner(sys.argv[1], sys.argv[2], int(sys.argv[3]))
+    runner(sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4])
 
 if __name__ == '__main__':
     main()

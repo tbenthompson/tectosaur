@@ -4,11 +4,11 @@ import scipy.sparse
 import scipy.sparse.linalg
 import numpy as np
 
+import tectosaur.fmm_wrapper as fmm
 import tectosaur.mesh as mesh
 from tectosaur.util.timer import Timer
 from tectosaur.test_decorators import slow
 
-import tectosaur.fmm as fmm
 
 quiet_tests = False
 def test_print(*args, **kwargs):

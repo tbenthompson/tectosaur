@@ -136,8 +136,6 @@ class NearfieldIntegralOp:
             vert_adj_prep(tris, va)
         timer.report("Vert adjacency prep")
 
-        # np.save('playground/vert_adj_test2.npy', (np.array(pts), np.array(va_obs_tris), np.array(va_src_tris)))
-        # import sys; sys.exit()
         va_mat_rot = vert_adj(
             nq_vert_adjacent, kernel, sm, pr, pts, va_obs_tris, va_src_tris
         )
