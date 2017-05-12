@@ -47,3 +47,14 @@ std::vector<T> get_vector(NPArray<NPT>& np_arr) {
     return std::vector<T>(first, last);
 }
 
+template <int D>
+void check_shape(NPArrayD& arr) {
+    auto buf = arr.request();
+    if (buf.ndim != 2 || buf.shape[1] != D) {
+        std::string msg = "parameter requires n x ";
+        msg += D;
+        msg += " array.";
+        throw std::runtime_error(msg);
+    }
+}
+

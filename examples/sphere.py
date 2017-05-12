@@ -8,6 +8,7 @@ import matplotlib.tri as tri
 import tectosaur.mesh as mesh
 from tectosaur.mass_op import MassOp
 from tectosaur.sparse_integral_op import SparseIntegralOp
+from tectosaur.fmm_integral_op import FMMIntegralOp
 from tectosaur.sum_op import SumOp
 import tectosaur.constraints as constraints
 
@@ -75,13 +76,13 @@ def displacement_bie(sm, pr, m, input, solve_for):
     selfop = MassOp(3, m[0], m[1])
 
     t = Timer()
-    Uop = SparseIntegralOp(
-        [], 1, 1, 7, 3, 6, 4.0,
+    Uop = FMMIntegralOp(
+        [], 1, 1, 5, 3, 4, 4.0,
         'U', sm, pr, m[0], m[1], use_tables = True
     )
     t.report('U')
     Top = SparseIntegralOp(
-        [], 1, 1, 7, 3, 6, 4.0,
+        [], 1, 1, 5, 3, 4, 4.0,
         'T', sm, pr, m[0], m[1], use_tables = True
     )
     t.report('T')

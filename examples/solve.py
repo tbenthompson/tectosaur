@@ -25,13 +25,13 @@ def iterative_solve(iop, constraints, rhs = None):
     cm, c_rhs = build_constraint_matrix(constraints, iop.shape[1])
     timer.report('Build constraint matrix')
     cm = cm.tocsr()
+    timer.report('constraint matrix tocsr')
     cmT = cm.T
-    nearfield_constrained = cmT.dot(iop.nearfield_dot(cm))
     if rhs is None:
         rhs_constrained = cmT.dot(-iop.dot(c_rhs))
     else:
         rhs_constrained = cmT.dot(rhs - iop.dot(c_rhs))
-    timer.report('Constrain linear system')
+    timer.report('constrain rhs')
 
     n = rhs_constrained.shape[0]
 
@@ -39,14 +39,14 @@ def iterative_solve(iop, constraints, rhs = None):
     def mv(v):
         iter[0] += 1
         print(iter[0])
-        out = nearfield_constrained.dot(v)
-        out += cmT.dot(iop.farfield_dot(cm.dot(v)))
+        out = cmT.dot(iop.dot(cm.dot(v)))
         return out
 
     P = sparse.linalg.spilu(cmT.dot(iop.nearfield_no_correction_dot(cm)))
     timer.report("Build preconditioner")
     def prec_f(x):
         return P.solve(x)
+        # return x
     M = sparse.linalg.LinearOperator((n, n), matvec = prec_f)
     A = sparse.linalg.LinearOperator((n, n), matvec = mv)
 

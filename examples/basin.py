@@ -110,7 +110,7 @@ def couple_domains(mesh1, mesh2):
 def main():
     sm = 1.0
     pr = 0.25
-    basin_sm = 1.0
+    basin_sm = 0.00000001
 
     country_mesh, basin_mesh = build_meshes()
     n_country_dofs = country_mesh.n_dofs() * 2
@@ -127,9 +127,9 @@ def main():
     country_csT = constraints.constant_bc_constraints(
         country_mesh.get_start('surf'), country_mesh.get_past_end('surf'), [0.0, 0.0, 0.0]
     )
-    country_csT.extend(constraints.constant_bc_constraints(
-        country_mesh.get_start('fault'), country_mesh.get_past_end('fault'), [0.0, 0.0, 0.0]
-    ))
+    # country_csT.extend(constraints.constant_bc_constraints(
+    #     country_mesh.get_start('fault'), country_mesh.get_past_end('fault'), [0.0, 0.0, 0.0]
+    # ))
     country_cs = constraints.build_composite_constraints(
         (country_csU, 0), (country_csT, country_mesh.n_dofs())
     )
@@ -153,7 +153,7 @@ def main():
 
 
     Hop = SparseIntegralOp(
-        [], 0, 0, 6, 3, 6, 4.0, 'H', sm, pr, country_mesh.pts, country_mesh.tris,
+        [], 0, 0, (8, 16, 8), 3, 6, 4.0, 'H', sm, pr, country_mesh.pts, country_mesh.tris,
         use_tables = True, remove_sing = True
     )
     Aop = SparseIntegralOp(
@@ -161,6 +161,7 @@ def main():
         use_tables = True, remove_sing = False
     )
     country_mass = MassOp(3, country_mesh.pts, country_mesh.tris)
+    country_mass.mat *= -1
     country_op = CompositeOp(
         (Hop, 0, 0),
         (Aop, 0, country_mesh.n_dofs()),
