@@ -80,6 +80,14 @@ def displacement_bie(sm, pr, m, input, solve_for, op_type):
         [], 1, 1, 5, 3, 4, 4.0,
         'U', sm, pr, m[0], m[1], use_tables = True
     )
+    Uop2 = SparseIntegralOp(
+        [], 1, 1, 5, 3, 4, 4.0,
+        'U', sm, pr, m[0], m[1], use_tables = True
+    )
+    v = np.random.rand(Uop2.shape[1])
+    a = Uop2.dot(v)
+    b = Uop.dot(v)
+    import ipdb; ipdb.set_trace()
     t.report('U')
     Top = SparseIntegralOp(
         [], 1, 1, 5, 3, 4, 4.0,

@@ -180,8 +180,8 @@ def test_elasticH():
 def test_self_fmm():
     order = 60
     mac = 3.0
-    n = 3000
-    k_name = "elasticH"
+    n = 15000
+    k_name = "elasticU"
     params = [1.0, 0.25]
     pts = np.random.rand(n, 3)
     ns = np.random.rand(n, 3)

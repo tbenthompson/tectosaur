@@ -2,6 +2,7 @@ import numpy as np
 
 import tectosaur.triangle_rules as triangle_rules
 import tectosaur.nearfield_op as nearfield_op
+import tectosaur.fmm_integral_op as fmm_integral_op
 import tectosaur.dense_integral_op as dense_integral_op
 import tectosaur.sparse_integral_op as sparse_integral_op
 import tectosaur.mass_op as mass_op
@@ -248,3 +249,18 @@ def test_vert_adj_separate_bases():
     I1 = np.array([sub_basis(I0[i], obs_basis_tris[i], src_basis_tris[i]) for i in range(2)])
     # print(I[0,:,0,:,0], I1[0,:,0,:,0] + I1[1,:,0,:,0])
     np.testing.assert_almost_equal(I[0], I1[0] + I1[1], 6)
+
+def test_fmm_integral_op():
+    np.random.seed(13)
+    m = mesh.make_sphere([0,0,0], 1, 1)
+    args = [
+        [], 1, 1, 5, 3, 4, 3.0,
+        'U', 1.0, 0.25, m[0], m[1], True
+    ]
+    op = fmm_integral_op.FMMIntegralOp(*args)
+    op2 = sparse_integral_op.SparseIntegralOp(*args)
+
+    v = np.random.rand(op.shape[1])
+    a = op.farfield_dot(v)
+    b = op2.farfield_dot(v)
+    np.testing.assert_almost_equal(a, b)
