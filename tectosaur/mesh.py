@@ -76,6 +76,8 @@ def refine_to_size(m, threshold, fields = None):
         area = geometry.tri_area(t_pts)[0]
         if area < threshold:
             new_tris.append(t)
+            for i in range(len(fields)):
+                new_fields[i].append(t_fields[i])
             continue
 
         # find the longest edge

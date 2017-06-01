@@ -1,3 +1,4 @@
+import logging
 import time
 
 class Timer(object):
@@ -6,6 +7,7 @@ class Timer(object):
         self.silent = silent
         self.start = time.time()
         self.prefix = prefix
+        self.logger = logging.getLogger(__name__)
 
     def restart(self):
         self.start = time.time()
@@ -17,6 +19,6 @@ class Timer(object):
                 text += self.prefix + ' -- '
             text += name + " took "
             text += str(time.time() - self.start)
-            print(text)
+            self.logger.debug(text)
         if should_restart:
             self.restart()
