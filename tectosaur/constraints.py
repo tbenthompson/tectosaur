@@ -129,6 +129,12 @@ def free_edge_constraints(tris):
                 cs.append(ConstraintEQ([Term(1.0, dof)], 0.0))
     return cs
 
+def all_bc_constraints(start_tri, end_tri, vs):
+    cs = []
+    for i in range(start_tri * 9, end_tri * 9):
+        cs.append(ConstraintEQ([Term(1.0, i)], vs[i - start_tri * 9]))
+    return cs
+
 def constant_bc_constraints(start_tri, end_tri, value):
     cs = []
     for i in range(start_tri, end_tri):

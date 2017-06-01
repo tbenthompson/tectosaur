@@ -1,5 +1,8 @@
+import os
+
 import time
 import numpy as np
+import tectosaur
 from tectosaur.interpolate import barycentric_evalnd, cheb, cheb_wts, from_interval
 from tectosaur.standardize import standardize, transform_from_standard
 from tectosaur.geometry import tri_normal, xyhat_from_pt, projection, vec_angle
@@ -78,16 +81,20 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
     t.report("run interpolation for " + str(n_tris) + " tris")
     return out[:, :, 0], out[:, :, 1]
 
+def get_table_resource(filename):
+    return os.path.join(tectosaur.source_dir, os.pardir, 'data', filename)
+
 def coincident_table(kernel, sm, pr, pts, tris):
     t = Timer(prefix = 'coincident')
     if kernel is 'U':
-        filename = 'data/U_25_0.010000_16_0.000000_8_13_8_coincidenttable.npy'
+        filename = 'U_25_0.010000_16_0.000000_8_13_8_coincidenttable.npy'
     elif kernel is 'T':
-        filename = 'data/T_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy'
+        filename = 'T_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy'
     elif kernel is 'A':
-        filename = 'data/A_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy'
+        filename = 'A_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy'
     elif kernel is 'H':
-        filename = 'data/H_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
+        filename = 'H_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
+    filepath = get_table_resource(filename)
 
     params = filename.split('_')
 
@@ -99,7 +106,7 @@ def coincident_table(kernel, sm, pr, pts, tris):
 
     tri_pts = pts[tris]
 
-    table_data = np.load(filename)
+    table_data = np.load(filepath)
     table_limits = table_data[:,:,0]
     table_log_coeffs = table_data[:,:,1]
     t.report("load table")
@@ -130,15 +137,17 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
 
     flip_symmetry = False
     if kernel is 'U':
-        filename = 'data/U_25_0.010000_16_0.000000_7_8_adjacenttable.npy'
+        filename = 'U_25_0.010000_16_0.000000_7_8_adjacenttable.npy'
         flip_symmetry = True
     elif kernel is 'T':
-        filename = 'data/T_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
+        filename = 'T_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
     elif kernel is 'A':
-        filename = 'data/A_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
+        filename = 'A_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
     elif kernel is 'H':
-        filename = 'data/H_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
+        filename = 'H_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
         flip_symmetry = True
+    filepath = get_table_resource(filename)
+
     t = Timer(prefix = 'adjacent')
 
     params = filename.split('_')
@@ -148,7 +157,7 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
     interp_pts, interp_wts = adjacent_interp_pts_wts(n_phi, n_pr)
     t.report("generate interp pts wts")
 
-    table_data = np.load(filename)
+    table_data = np.load(filepath)
     table_limits = table_data[:,:,0]
     table_log_coeffs = table_data[:,:,1]
     t.report("load table")

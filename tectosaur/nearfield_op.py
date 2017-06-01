@@ -61,7 +61,7 @@ def cached_coincident_quad(nq, eps, remove_sing):
 
 def coincident(nq, eps, kernel, sm, pr, pts, tris, remove_sing):
     q = cached_coincident_quad(nq, eps, remove_sing)
-    out = pairs_quad(kernel, sm, pr, pts, tris, tris, q, True)
+    out = pairs_quad(kernel, sm, pr, pts, tris, tris, q, True, True)
     return out
 
 @cache

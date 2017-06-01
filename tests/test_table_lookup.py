@@ -6,7 +6,7 @@ from tectosaur.adjacency import rotate_tri
 from tectosaur.standardize import standardize, rotation_matrix, BadTriangleError
 from tectosaur.dense_integral_op import DenseIntegralOp
 from tectosaur.interpolate import to_interval
-from tectosaur.test_decorators import golden_master
+from tectosaur.test_decorators import golden_master, slow
 
 from tectosaur.table_lookup import *
 
@@ -65,7 +65,7 @@ def interp_pts_wts_test(pts, wts, f):
         test_pt = np.random.rand(1, pts.shape[1]) * 2 - 1
         correct = f(test_pt)
         res = fast_lookup.barycentric_evalnd(pts, wts, fvs, test_pt)
-        print(test_pt, res, correct)
+        # print(test_pt, res, correct)
         err = np.abs(res - correct)
         max_err = max(err, max_err)
     return max_err
@@ -74,13 +74,13 @@ def test_coincident_interp_pts_wts():
     pts, wts = coincident_interp_pts_wts(10,10,9)
     f = lambda xs: (np.sin(xs[:,0]) * np.exp(np.cos(xs[:,1]) * xs[:,2]))[:, np.newaxis]
     max_err = interp_pts_wts_test(pts, wts, f)
-    print(max_err)
+    # print(max_err)
 
 def test_adjacent_interp_pts_wts():
     pts, wts = adjacent_interp_pts_wts(10,9)
     f = lambda xs: (np.sin(xs[:,0]) * np.cos(xs[:,1]))[:, np.newaxis]
     max_err = interp_pts_wts_test(pts, wts, f)
-    print(max_err)
+    # print(max_err)
 
 def test_separate():
     i = 5
@@ -179,18 +179,22 @@ def coincident_lookup_helper(K, remove_sing, correct_digits):
             print("Bad tri: " + str(e.code))
     return np.array(results)
 
+@slow
 @golden_master
 def test_coincident_lookupU():
     return coincident_lookup_helper('U', False, 5)
 
+@slow
 @golden_master
 def test_coincident_lookupT():
     return coincident_lookup_helper('T', False, 4)
 
+@slow
 @golden_master
 def test_coincident_lookupA():
     return coincident_lookup_helper('A', False, 4)
 
+@slow
 @golden_master
 def test_coincident_lookupH():
     return coincident_lookup_helper('H', True, 0)
@@ -243,18 +247,22 @@ def adjacent_lookup_helper(K, remove_sing, correct_digits):
         results.append(B)
     return np.array(results)
 
+@slow
 @golden_master
 def test_adjacent_lookupU():
     return adjacent_lookup_helper('U', False, 5)
 
+@slow
 @golden_master
 def test_adjacent_lookupT():
     return adjacent_lookup_helper('T', False, 4)
 
+@slow
 @golden_master
 def test_adjacent_lookupA():
     return adjacent_lookup_helper('A', False, 4)
 
+@slow
 @golden_master
 def test_adjacent_lookupH():
     return adjacent_lookup_helper('H', True, 4)

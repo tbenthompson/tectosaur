@@ -106,7 +106,7 @@ class DenseIntegralOp(DenseOp):
             nearfield_pairs = np.array([], dtype = np.int).reshape(0,2)
         nearfield_mat = pairs_quad(
             kernel, sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
-            near_gauss, False
+            near_gauss, False, False
         )
         timer.report("Nearfield")
 

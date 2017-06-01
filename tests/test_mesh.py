@@ -30,5 +30,13 @@ def test_refine():
 def test_refine_to_size():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,1,0]])
     tris = np.array([[0, 1, 2], [3, 2, 1]])
-    m2 = mesh.refine_to_size((pts,tris), 0.2)
+    m2, _ = mesh.refine_to_size((pts,tris), 0.2)
+    np.testing.assert_almost_equal(m2[0][m2[1][1]], [[1,0,0],[0.5,0.5,0],[0.5,0,0]])
     assert(m2[1].shape[0] == 8)
+
+def test_refine_to_size_with_field():
+    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,1,0]])
+    tris = np.array([[0, 1, 2], [3, 2, 1]])
+    m2, fs = mesh.refine_to_size((pts,tris), 0.2, [pts[tris]])
+    np.testing.assert_almost_equal(fs[0], m2[0][m2[1]])
+
