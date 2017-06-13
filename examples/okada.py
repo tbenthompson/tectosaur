@@ -19,7 +19,7 @@ def build_constraints(surface_tris, fault_tris, pts):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
 
-    cs = constraints.continuity_constraints(surface_tris, fault_tris, pts)
+    cs = []#constraints.continuity_constraints(surface_tris, fault_tris, pts)
 
     # X component = 1
     # Y comp = Z comp = 0
@@ -35,13 +35,13 @@ def make_free_surface(w, n):
     return mesh.make_rect(n, n, corners)
 
 def make_fault(L, top_depth):
-    return mesh.make_rect(10, 10, [
+    return mesh.make_rect(7, 7, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
 
 def make_meshes(fault_L, top_depth):
-    surface = make_free_surface(10, 50)
+    surface = make_free_surface(10, 61)
     # surface = refined_free_surface()
     # Sloping plateau
     sloping_plateau = False
@@ -63,6 +63,13 @@ def test_okada():
     load_soln = False
 
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth)
+
+    # to check that the fault-surface alignment is correct
+    # plt.triplot(all_mesh[0][:,0], all_mesh[0][:,1], surface_tris, linewidth = 0.3)
+    # plt.triplot(all_mesh[0][:,0], all_mesh[0][:,1], fault_tris, linewidth = 0.3)
+    # plt.plot(all_mesh[0][:,0], all_mesh[0][:,1], 'o', markersize = 3)
+    # plt.show()
+
     if not load_soln:
         timer = Timer()
         timer.report("Mesh")

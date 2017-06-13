@@ -103,6 +103,7 @@ def edge_adj_clicks(pair):
 
 def edge_adj_prep(tris, ea):
     out = adj_prep(tris, ea, edge_adj_clicks)
-    assert(np.all(out[3][:, 0] == out[4][:, 1]))
-    assert(np.all(out[3][:, 1] == out[4][:, 0]))
+    # These assertions are not true with triple junctions...
+    # assert(np.all(out[3][:, 0] == out[4][:, 1]))
+    # assert(np.all(out[3][:, 1] == out[4][:, 0]))
     return out

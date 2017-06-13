@@ -61,6 +61,29 @@ def refine(m):
     new_tris = np.array(new_tris)
     return remove_duplicate_pts((new_pts, new_tris))
 
+def selective_refine(m, should_refine):
+    new_pts = m[0].tolist()
+    new_tris = []
+    for i in range(m[1].shape[0]):
+        t = m[1][i]
+        if not should_refine[i]:
+            new_tris.append(t)
+        else:
+            first_new = len(new_pts)
+            c0 = m[0][t[0]]
+            c1 = m[0][t[1]]
+            c2 = m[0][t[2]]
+            new_pts.append((c0 + c1) / 2)
+            new_pts.append((c1 + c2) / 2)
+            new_pts.append((c2 + c0) / 2)
+            new_tris.append((t[0], first_new, first_new + 2))
+            new_tris.append((t[1], first_new + 1, first_new))
+            new_tris.append((t[2], first_new + 2, first_new + 1))
+            new_tris.append((first_new, first_new + 1, first_new + 2))
+    new_pts = np.array(new_pts)
+    new_tris = np.array(new_tris)
+    return remove_duplicate_pts((new_pts, new_tris))
+
 def refine_to_size(m, threshold, fields = None):
     if fields is None:
         fields = []

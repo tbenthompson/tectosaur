@@ -105,7 +105,6 @@ def continuity_constraints(surface_tris, fault_tris, pts):
                 )
             )
             if crosses:
-                print("HI")
                 continue
 
             for d in range(3):

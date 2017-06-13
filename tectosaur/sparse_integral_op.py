@@ -237,8 +237,7 @@ class SparseIntegralOp:
         return self.nearfield.mat_no_correction.dot(v)
 
     def dot(self, v):
-        out = self.nearfield.dot(v)
-        return out + self.farfield_dot(v)
+        return self.nearfield.dot(v) + self.farfield_dot(v)
 
     def farfield_dot(self, v):
         interp_v = self.interp_galerkin_mat.dot(v).flatten()

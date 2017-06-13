@@ -85,9 +85,6 @@ def cached_vert_adj_quad(nq):
     return triangle_rules.vertex_adj_quad(nq[0], nq[1], nq[2])
 
 def vert_adj(nq, kernel, sm, pr, pts, obs_tris, src_tris):
-    from tectosaur.util.timer import Timer
-    t = Timer()
     q = cached_vert_adj_quad(nq)
-    t.report("make vert adj quad")
     out = pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, False, False)
     return out
