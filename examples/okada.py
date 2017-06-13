@@ -10,6 +10,9 @@ import tectosaur.adjacency as adjacency
 import tectosaur.constraints as constraints
 from tectosaur.sparse_integral_op import SparseIntegralOp
 from tectosaur.dense_integral_op import DenseIntegralOp
+from tectosaur.mass_op import MassOp
+from tectosaur.neg_op import NegOp
+from tectosaur.sum_op import SumOp
 from tectosaur.util.timer import Timer
 from tectosaur.interior import interior_integral
 
@@ -19,7 +22,7 @@ def build_constraints(surface_tris, fault_tris, pts):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
 
-    cs = []#constraints.continuity_constraints(surface_tris, fault_tris, pts)
+    cs = constraints.continuity_constraints(surface_tris, fault_tris, pts)
 
     # X component = 1
     # Y comp = Z comp = 0
@@ -81,13 +84,16 @@ def test_okada():
         obs_pts = all_mesh[0][surface_pt_idxs,:]
 
         eps = [0.08, 0.04, 0.02, 0.01]
-        iop = SparseIntegralOp(
+        T_op = SparseIntegralOp(
             [], 0, 0, 6, 2, 6, 4.0,
-            'H', sm, pr, all_mesh[0], all_mesh[1],
+            'T', sm, pr, all_mesh[0], all_mesh[1],
             use_tables = True,
             remove_sing = True
         )
         timer.report("Integrals")
+
+        mass_op = MassOp(3, all_mesh[0], all_mesh[1])
+        iop = SumOp([T_op, mass_op])
 
         soln = iterative_solve(iop, cs)
         # soln = direct_solve(iop, cs)
