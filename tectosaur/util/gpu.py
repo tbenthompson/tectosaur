@@ -13,16 +13,20 @@ gpu_ctx = None
 gpu_queue = None
 gpu_module = dict()
 
-def check_initialized():
+def initialize_with_ctx(ctx):
     global gpu_initialized, gpu_ctx, gpu_queue
-    if not gpu_initialized:
-        gpu_ctx = cl.create_some_context()
-        gpu_queue = cl.CommandQueue(gpu_ctx)
-        gpu_initialized = True
+    gpu_ctx = ctx
+    gpu_queue = cl.CommandQueue(gpu_ctx)
+    gpu_initialized = True
 
-        # Lazy import to avoid a circular dependency
-        import tectosaur.viennacl as viennacl
-        viennacl.setup(gpu_ctx.int_ptr, gpu_ctx.devices[0].int_ptr, gpu_queue.int_ptr)
+    # Lazy import to avoid a circular dependency
+    import tectosaur.viennacl as viennacl
+    viennacl.setup(gpu_ctx.int_ptr, gpu_ctx.devices[0].int_ptr, gpu_queue.int_ptr)
+
+def check_initialized():
+    global gpu_initialized
+    if not gpu_initialized:
+        initialize_with_ctx(cl.create_some_context())
 
 def to_gpu(arr, float_type = np.float32):
     check_initialized()
