@@ -5,6 +5,7 @@ import matplotlib.tri as tri
 import okada_wrapper
 import scipy.spatial
 
+import tectosaur
 import tectosaur.mesh as mesh
 import tectosaur.adjacency as adjacency
 import tectosaur.constraints as constraints
@@ -38,13 +39,13 @@ def make_free_surface(w, n):
     return mesh.make_rect(n, n, corners)
 
 def make_fault(L, top_depth):
-    return mesh.make_rect(7, 7, [
+    return mesh.make_rect(15, 15, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
 
-def make_meshes(fault_L, top_depth):
-    surface = make_free_surface(10, 61)
+def make_meshes(fault_L, top_depth, n_surf):
+    surface = make_free_surface(10, n_surf)
     # surface = refined_free_surface()
     # Sloping plateau
     sloping_plateau = False
@@ -58,14 +59,14 @@ def make_meshes(fault_L, top_depth):
     fault_tris = all_mesh[1][surface[1].shape[0]:]
     return all_mesh, surface_tris, fault_tris
 
-def test_okada():
+def test_okada(n_surf):
     sm = 1.0
     pr = 0.25
     fault_L = 1.0
     top_depth = -0.5
     load_soln = False
 
-    all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth)
+    all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth, n_surf)
 
     # to check that the fault-surface alignment is correct
     # plt.triplot(all_mesh[0][:,0], all_mesh[0][:,1], surface_tris, linewidth = 0.3)
@@ -118,10 +119,10 @@ def test_okada():
             soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-    plot_results(obs_pts, surface_tris, u, vals)
-    # print_error(obs_pts, u, vals)
+    # plot_results(obs_pts, surface_tris, u, vals)
+    return print_error(obs_pts, u, vals)
 
-    # np.save('okadaplateau.npy', [obs_pts, surface_tris, all_mesh, u, vals])
+    np.save('okada.npy', [obs_pts, surface_tris, all_mesh, u, vals])
     # cond1 = np.logical_and(obs_pts[:,1] > -0.4, obs_pts[:,1] < -0.25)
     # cond2 = np.logical_and(obs_pts[:,1] < 0.4, obs_pts[:,1] > 0.25)
     # plt.plot(obs_pts[cond1, 0], vals[cond1,0],'r.')
@@ -214,10 +215,18 @@ def print_error(pts, correct, est):
     diff = correct[close,:] - est[close,:]
     l2diff = np.sum(diff ** 2)
     l2correct = np.sum(correct[close,:] ** 2)
+    linferr = np.max(np.abs(diff))
     print("L2diff: " + str(l2diff))
     print("L2correct: " + str(l2correct))
     print("L2relerr: " + str(l2diff / l2correct))
-    print("maxerr: " + str(np.max(np.abs(diff))))
+    print("maxerr: " + str(linferr))
+    return linferr
 
 if __name__ == '__main__':
-    test_okada()
+    import logging
+    tectosaur.logger.setLevel(logging.ERROR)
+    #n = [8, 16, 32, 64, 128, 256]
+    #l2 = [0.0149648012534, 0.030572079265, 0.00867837671259, 0.00105034618493, 6.66984415273e-05, 4.07689295549e-06]
+    #linf = [0.008971091166208367, 0.014749192806577716, 0.0093510756645549115, 0.0042803891552975898, 0.0013886177492512669, 0.000338113427521]
+
+    print([test_okada(n) for n in [128]])

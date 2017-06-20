@@ -1,21 +1,26 @@
-optimization todo:
--- adjacent interpolation
--- adjacent from standard
--- preconditioner
--- build constraint matrix
--- assemble
--- vert adj prep
+FMM P2P and standard direct algorithm disagree in value. YIKES!
 
-sphere todo:
--- test the adjacent traction integrals for a range of angles
--- try constraining average displacement to be zero
--- compare w/ 3bem?
--- use tectosaur tables?
+BASIN:
+-- no A* for fault in basin
+-- debug the basin problem.
+-- brendan suggested that i compare to a full-space solution transitioning from a half-space to test the continuity boundary conditions
+-- check on the free_edge_constraints stuff for basin, seems a little sketchy in terms of dofs...
 
 
 
 
 
+# -- this green's function construction could go faster if i didn't reassemble the surface matrices for each green's function, then i would just need a bunch of solves.
+
+
+
+# -- figure out to reference data dir in a finalized python installation
+# -- CombinedMesh is handy even without multiple meshes, should i modify it or extend it so that it can be used more nicely for a single mesh situation (and has a better name!).
+# -- should i create a nicer mesh data structure? consisting of the vertex and tri arrays with some other nice tools
+# -- figure out to properly scale the vectors and variables involved to nondimensionalize and get the iterative residual to be reasonable and maintain reasonable matrix conditioning.
+
+
+# debug surface/fault intersection
 
 
 Adapt to 2D and Laplace in 3D.
@@ -34,29 +39,25 @@ Adapt to 2D and Laplace in 3D.
 use FMM for okada
 -- just try it out first, make sure its accurate.
 
-sphere test
--- do two problems:
-  -- 1) impose displacement BCs and solve for traction on the boundary
-  -- 2) vice-versa
--- interior evaluation.
-
 -- interior evaluation -- this is easy except near the surface, use sinh quadrature? test it against the adaptive quadrature. also, maybe i can just interpolate from one element length away to the surface value and avoid nearfield integrals?
--- deal with low angle vertex adjacent cases -- these can be very expensive!
-
-think about volume integrals -- only ever need to do volume integrals with U and A kernels --> no divergences, not even cauchy principal value integrals because the extra source dimension reduces the order of the singularity by one, still should do transformations to reduce the order of the singularity -- probably can remove it completely, in which case there are only some big 5 dimensional low order gauss integrals to do. alternatively, i could do another interpolation table... the adjacent trick would work
-
 
 CODE:
 
 SCIENCE:
 fault intersecting surface -- pretty much works
+# Surface-fault joining algorithm
+# a surface can be treated as locally 2d, so it can be easily delaunay triangulated. therefore:
+# 1) forget the local triangulation of the surface
+# 2) project the top of the fault onto the topography.
+# 3) add the fault top vertices to the surface vertices
+# 4) re-delaunay the local triangulation of the surface. 
+# 5) refine the triangulation until the triangles are reasonably sized.
+
 variety of boundary conditions
 gravity
 -- test the 3D kernels
 play with time stepping combined with fault friction 
 plasticity? the plastic opening condition, maybe a viscoplastic opening condition? the kinematic consistency idea from brendan is really interesting! compare with a FEM model of explicit volumetric plasticity
-
-CORRECTNESS/BLACKBOXYNESS:
 
 METHOD:
 interior integrals for spatially varying body forces
@@ -64,7 +65,14 @@ interior integrals for spatially varying body forces
 -- setup a golden master test matching with old 3bem results
 
 OPTIMIZATIONS:
-constraint construction
-adjacency
-figure out preconditioning, spilu is slow, but is there a better alternative? spai-based fmm inverse. sparse approximate inverse from FMM sparsity pattern
+-- figure out preconditioning, spilu is slow, but is there a better alternative? spai-based fmm inverse. sparse approximate inverse from FMM sparsity pattern
+-- adjacent interpolation
+-- adjacent from standard
+-- build constraint matrix
+-- assemble
+-- vert adj prep
+-- for some reason vert adj takes about the same time with GPU vs CPU, this indicates the GPU version is massively inefficient... why?
+-- deal with low angle vertex adjacent cases -- these can be very expensive!
+-- optimize the vertex adjacent integrals -- maybe check the angle between the triangles and choose an order based on that? either way, the standard VA pairs require only (4,4,4) quadrature while the really difficult ones require (9, 16, 6) for 1e-4 error.
+
 
