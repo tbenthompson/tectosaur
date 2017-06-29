@@ -1,3 +1,4 @@
+import numpy as np
 
 def remove_duplicate_pts(m):
     threshold = (np.max(m[0]) - np.min(m[0])) * 1e-13
@@ -30,7 +31,10 @@ def concat_two(m1, m2):
     return remove_duplicate_pts(newm)
 
 def concat(*ms):
-    return reduce(lambda x,y: concat_two(x,y), ms)
+    m_full = ms[0]
+    for m in ms[1:]:
+        m_full = concat_two(m_full, m)
+    return m_full
 
 def flip_normals(m):
     return (m[0], np.array([[m[1][i,0],m[1][i,2],m[1][i,1]] for i in range(m[1].shape[0])]))

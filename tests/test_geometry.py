@@ -1,4 +1,8 @@
-from tectosaur.geometry import *
+from tectosaur.util.geometry import *
+
+def test_longest_edge():
+    assert(get_longest_edge(get_edge_lens(np.array([[0,0,0],[1,0,0],[0.5,0.5,0]]))) == 0)
+    assert(get_longest_edge(get_edge_lens(np.array([[0,0,0],[0.5,0.5,0],[1,0,0]]))) == 2)
 
 def test_xyhat_from_pt_simple():
     P = np.array([0.5,0.5,0.0])
@@ -37,3 +41,16 @@ def test_vec_angle180():
 
 def test_tri_area():
     np.testing.assert_almost_equal(tri_area(np.array([[0,0,0],[1,0,0],[0,1,0]])), 0.5)
+
+def test_which_side_pt():
+    tri = np.array([[0,0,0],[1,0,0],[0,1,0]])
+    assert(which_side_point(tri, np.array([0,0,-1])) == Side.behind)
+    assert(which_side_point(tri, np.array([0,0,1])) == Side.front)
+    assert(which_side_point(tri, np.array([0,0,0])) == Side.intersect)
+
+def test_tri_side():
+    assert(tri_side([Side.front, Side.front, Side.front]) == Side.front);
+    assert(tri_side([Side.intersect, Side.front, Side.front]) == Side.front);
+    assert(tri_side([Side.intersect, Side.intersect, Side.front]) == Side.front);
+    assert(tri_side([Side.behind, Side.intersect, Side.behind]) == Side.behind);
+

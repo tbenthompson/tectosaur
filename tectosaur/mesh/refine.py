@@ -1,4 +1,6 @@
 import numpy as np
+from tectosaur.mesh.modify import remove_duplicate_pts
+import tectosaur.util.geometry as geometry
 
 def refine(m):
     pts, tris = m
@@ -64,7 +66,7 @@ def refine_to_size(m, threshold, fields = None):
 
         # find the longest edge
         # split in two along that edge.
-        long_edge = get_longest_edge(get_edge_lens(t_pts))
+        long_edge = geometry.get_longest_edge(geometry.get_edge_lens(t_pts))
 
         if long_edge == 0:
             edge_indices = [0, 1]
