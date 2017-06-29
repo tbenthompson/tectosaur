@@ -6,11 +6,10 @@ import okada_wrapper
 import scipy.spatial
 
 import tectosaur
-import tectosaur.mesh as mesh
-import tectosaur.adjacency as adjacency
+import tectosaur.mesh.mesh as mesh
+import tectosaur.mesh.adjacency as adjacency
 import tectosaur.constraints as constraints
 from tectosaur.sparse_integral_op import SparseIntegralOp
-from tectosaur.dense_integral_op import DenseIntegralOp
 from tectosaur.mass_op import MassOp
 from tectosaur.neg_op import NegOp
 from tectosaur.sum_op import SumOp

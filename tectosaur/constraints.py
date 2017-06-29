@@ -1,6 +1,6 @@
 import scipy.sparse
 import numpy as np
-from tectosaur.adjacency import find_touching_pts, find_free_edges
+from tectosaur.mesh.adjacency import find_touching_pts, find_free_edges
 import tectosaur.geometry as geom
 from collections import namedtuple
 

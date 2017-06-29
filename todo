@@ -1,4 +1,11 @@
-FMM P2P and standard direct algorithm disagree in value. YIKES!
+Split into:
+tectosaur_fmm
+-- FMM P2P and standard direct algorithm disagree in value. YIKES!
+-- GPU FMM
+
+tectosaur
+
+debug surface/fault intersection
 
 BASIN:
 -- no A* for fault in basin
@@ -15,12 +22,8 @@ BASIN:
 
 
 # -- figure out to reference data dir in a finalized python installation
-# -- CombinedMesh is handy even without multiple meshes, should i modify it or extend it so that it can be used more nicely for a single mesh situation (and has a better name!).
-# -- should i create a nicer mesh data structure? consisting of the vertex and tri arrays with some other nice tools
-# -- figure out to properly scale the vectors and variables involved to nondimensionalize and get the iterative residual to be reasonable and maintain reasonable matrix conditioning.
+# -- figure out to properly scale the vectors and variables involved to nondimensionalize and get the iterative residual to be reasonable and maintain reasonable matrix conditioning ===> write out the linear system with the nondimensionalization included. this should actually done by the solver tools, not in tectosaur proper.
 
-
-# debug surface/fault intersection
 
 
 Adapt to 2D and Laplace in 3D.
@@ -31,9 +34,7 @@ Adapt to 2D and Laplace in 3D.
 -- set up golden master tests that match with current 3D tectosaur results
 -- set up golden master tests that match with old 3bem results
 
--- GPU FMM
 
--- actually use the interpolation table based integrals in an okada problem
 -- what to do about interelement angles that are greater than pi, for adjacent table lookup?
 
 use FMM for okada
@@ -71,8 +72,11 @@ OPTIMIZATIONS:
 -- build constraint matrix
 -- assemble
 -- vert adj prep
--- for some reason vert adj takes about the same time with GPU vs CPU, this indicates the GPU version is massively inefficient... why?
 -- deal with low angle vertex adjacent cases -- these can be very expensive!
+
+-- for some reason vert adj takes about the same time with GPU vs CPU, this indicates the GPU version is massively inefficient... why?
 -- optimize the vertex adjacent integrals -- maybe check the angle between the triangles and choose an order based on that? either way, the standard VA pairs require only (4,4,4) quadrature while the really difficult ones require (9, 16, 6) for 1e-4 error.
 
+# -- CombinedMesh is handy even without multiple meshes, should i modify it or extend it so that it can be used more nicely for a single mesh situation (and has a better name!).
+# -- should i create a nicer mesh data structure? consisting of the vertex and tri arrays with some other nice tools
 

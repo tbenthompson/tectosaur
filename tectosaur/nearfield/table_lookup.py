@@ -6,7 +6,6 @@ import tectosaur
 from tectosaur.interpolate import barycentric_evalnd, cheb, cheb_wts, from_interval
 from tectosaur.standardize import standardize, transform_from_standard
 from tectosaur.geometry import tri_normal, xyhat_from_pt, projection, vec_angle
-from tectosaur.adjacency import rotate_tri
 import tectosaur.limit as limit
 import tectosaur.nearfield_op as nearfield_op
 from tectosaur.util.timer import Timer

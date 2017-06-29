@@ -1,6 +1,6 @@
 import numpy as np
 
-from tectosaur.adjacency import find_adjacents, vert_adj_prep,\
+from tectosaur.mesh.adjacency import find_adjacents, vert_adj_prep,\
     edge_adj_prep, rotate_tri
 from tectosaur.find_nearfield import find_nearfield
 from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\

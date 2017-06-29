@@ -2,9 +2,9 @@ import os
 import numpy as np
 import scipy.sparse
 
-from tectosaur.adjacency import find_adjacents, vert_adj_prep, \
+from tectosaur.mesh.adjacency import find_adjacents, vert_adj_prep, \
     edge_adj_prep, rotate_tri
-from tectosaur.find_nearfield import find_nearfield
+from tectosaur.mesh.find_nearfield import find_nearfield
 from tectosaur.quadrature import gauss4d_tri, gauss2d_tri
 import tectosaur.geometry as geometry
 
