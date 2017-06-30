@@ -10,7 +10,7 @@ Tectosaur is an implementation of the elastic boundary element method, oriented 
 * material property contrasts
 
 2. Problems with millions of elements can be solved in minutes on a desktop computer. 
-3. No need for meshing is ideal for problems where the fault is the topic of interest.
+3. No need for volumetric meshing is ideal for problems where the fault is the topic of interest.
 4. Rapid model iteration
 
 Further documentation and examples will absolutely be available in the future! Until then, however, tectosaur will be rapidly changing and developing and any users should expect little to no support and frequent API breaking changes. 
