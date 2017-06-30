@@ -7,8 +7,6 @@ tectosaur_fmm
 -- FMM P2P and standard direct algorithm disagree in value. YIKES!
 -- GPU FMM
 
-tectosaur
-
 debug surface/fault intersection
 
 BASIN:

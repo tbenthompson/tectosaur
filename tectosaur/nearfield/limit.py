@@ -1,5 +1,4 @@
 import numpy as np
-import scipy.interpolate
 
 def make_terms(n_terms, log_terms, inv_term = False):
     if log_terms > 0:
@@ -63,6 +62,7 @@ def aitken(seq, its = 1):
     return S[2:] - ((S[2:] - S[1:-1]) ** 2 / ((S[2:] - S[1:-1]) - (S[1:-1] - S[:-2])))
 
 def richardson_quad(h_vals, include_log, quad_builder):
+    import scipy.interpolate
     n = len(h_vals)
     I = scipy.interpolate.BarycentricInterpolator(h_vals)
     xs = None

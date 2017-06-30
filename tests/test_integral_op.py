@@ -2,6 +2,7 @@ import numpy as np
 
 import tectosaur.nearfield.triangle_rules as triangle_rules
 import tectosaur.nearfield.vert_adj as nearfield_op
+import tectosaur.nearfield.limit as limit
 
 # import tectosaur.ops.fmm_integral_op as fmm_integral_op
 import tectosaur.ops.dense_integral_op as dense_integral_op
@@ -114,63 +115,6 @@ def test_full_integral_opA():
 def test_full_integral_opH():
     return full_integral_op_tester('H')
 
-# tri_ref = np.array([[0,0,0],[1,0,0],[0,1,0]])
-# tri_down = np.array([[1,0,0],[0,0,0],[0,-1,0]])
-# tri_up_right = np.array([[0,1,0],[1,0,0],[1,1,0]])
-# def test_weakly_singular_adjacent():
-#     # When one of the basis functions is zero along the edge where the triangles
-#     # touch, the integral is no longer hypersingular, but instead is only weakly
-#     # singular.
-#     weakly_singular = [(2, 2), (2, 0), (2, 1), (0, 2), (1, 2)]
-#     nq1 = 7
-#     q1 = triangle_rules.edge_adj_quad(0, nq1, nq1, nq1, nq1, True)
-#     nq2 = 8
-#     q2 = triangle_rules.edge_adj_quad(0, nq2, nq2, nq2, nq2, True)
-#     for i, j in weakly_singular:
-#         K = lambda pts: laplace(tri_ref, tri_down, i, j, 0, pts)
-#         v = quad.quadrature(K, q1)
-#         v2 = quad.quadrature(K, q2)
-#         assert(np.abs((v - v2) / v2) < 0.014)
-
-@slow
-def test_edge_adj_quad():
-    # The complement of the nonsingular and weakly singular sets above.
-    # These basis function pairs are both non-zero along the triangle boundary
-    hypersingular = [(0, 0), (0, 1), (1, 0), (1, 1)]
-    eps = 0.01
-    q1 = triangle_rules.edge_adj_quad(eps, 8, 8, 8, False)
-    q2 = triangle_rules.edge_adj_quad(eps, 9, 9, 9, False)
-    for i, j in hypersingular:
-        K = lambda pts: laplace(tri_ref, tri_down, i, j, eps, pts)
-        v = quad.quadrature(K, q1)
-        v2 = quad.quadrature(K, q2)
-        np.testing.assert_almost_equal(v, v2, 3)
-
-@slow
-def test_cancellation():
-    result = []
-    for n_eps in range(1,4):
-        eps = 8 ** (-np.arange(n_eps).astype(np.float) - 1)
-        qc = quad.richardson_quad(
-            eps, lambda e: triangle_rules.coincident_quad(e, 15, 15, 15, 20)
-        )
-        qa = quad.richardson_quad(
-            eps, lambda e: triangle_rules.edge_adj_quad(e, 15, 15, 15, False)
-        )
-
-        Kco = lambda pts: laplace(tri_ref, tri_ref, 1, 1, pts[:,4], pts)
-        Kadj_down = lambda pts: laplace(tri_ref, tri_down, 1, 0, pts[:,4], pts)
-        tri_ref_rotated = [tri_ref[1], tri_ref[2], tri_ref[0]]
-        Kadj_up_right = lambda pts: laplace(
-                tri_ref_rotated, tri_up_right, 0, 1, pts[:,4], pts
-        )
-        Ic = quad.quadrature(Kco, qc)
-        Ia1 = quad.quadrature(Kadj_down, qa)
-        Ia2 = quad.quadrature(Kadj_up_right, qa)
-        nondivergent = Ic + Ia1 + Ia2
-        result.append(nondivergent)
-    assert(abs(result[2] - result[1]) < 0.5 * abs(result[1] - result[0]))
-
 def check_simple(q, digits):
     est = quad.quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q)
     correct = 1.0 / 576.0
@@ -184,28 +128,19 @@ def check_simple(q, digits):
     correct = 1.0 / 3024.0
     np.testing.assert_almost_equal(est, correct, digits)
 
-def test_edge_adjacent_simple():
-    nq = 11
-    q = triangle_rules.edge_adj_quad(1.0, nq, nq, nq, nq, False)
-    check_simple(q, 6)
-
 def test_vertex_adjacent_simple():
     nq = 8
     q = triangle_rules.vertex_adj_quad(nq, nq, nq)
     check_simple(q, 7)
 
-def test_coincident_simple():
-    nq = 12
-    q = triangle_rules.coincident_quad(1.0, nq, nq, nq, nq)
-    check_simple(q, 5)
 
 @slow
 def test_coincident_laplace():
-    tri = [
+    tri = np.array([
         [0, 0, 0],
         [0, 0, 1],
         [1, 0, 0]
-    ]
+    ])
 
     eps = 0.01
     for i in range(3):
@@ -217,9 +152,6 @@ def test_coincident_laplace():
                 q = triangle_rules.coincident_quad(eps, n1, n2, n3, n4)
                 result = quad.quadrature(K, q)
                 return np.abs((result - exact) / exact)
-            # assert(tryit(7,6,4,10) < 0.005)
-            # assert(tryit(14,9,7,10) < 0.0005)
-            # assert(tryit(13,12,11,13) < 0.00005)
             assert(tryit(19,13,17,16) < 0.000005)
 
 def test_mass_op():

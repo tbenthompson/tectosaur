@@ -3,10 +3,6 @@ import pyopencl as cl
 import pyopencl.array
 import os
 
-import mako.template
-import mako.runtime
-import mako.exceptions
-import mako.lookup
 
 gpu_initialized = False
 gpu_ctx = None
@@ -87,15 +83,10 @@ def get_tectosaur_dir():
     tectosaur_dir = os.path.dirname(tectosaur.__file__)
     return tectosaur_dir
 
-def get_template(tmpl_name, tmpl_dir):
-    template_dirs = [get_tectosaur_dir()]
-    if tmpl_dir is not None:
-        template_dirs.append(tmpl_dir)
-    lookup = mako.lookup.TemplateLookup(directories = template_dirs)
-    return lookup.get_template(tmpl_name)
 
 def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
         no_caching = False, tmpl_args = None):
+
 
     if tmpl_args is None:
         tmpl_args = dict()
@@ -114,6 +105,16 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
 
             if tmpl_args_match:
                 return module_info['module']
+
+    import mako.exceptions
+    import mako.lookup
+
+    def get_template(tmpl_name, tmpl_dir):
+        template_dirs = [get_tectosaur_dir()]
+        if tmpl_dir is not None:
+            template_dirs.append(tmpl_dir)
+        lookup = mako.lookup.TemplateLookup(directories = template_dirs)
+        return lookup.get_template(tmpl_name)
 
 
     tmpl = get_template(tmpl_name, tmpl_dir)

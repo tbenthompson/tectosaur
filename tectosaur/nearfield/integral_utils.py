@@ -1,4 +1,3 @@
-import tectosaur.kernels.kernel_exprs
 
 def pairs_func_name(singular, k_name, check0):
     singular_label = 'N'
@@ -10,6 +9,7 @@ def pairs_func_name(singular, k_name, check0):
     return 'single_pairs' + singular_label + check0_label + k_name
 
 kernel_names = ['U', 'T', 'A', 'H']
+# import tectosaur.kernels.kernel_exprs
 # kernels = tectosaur.util.kernel_exprs.get_kernels()
 
 def dn(dim):
