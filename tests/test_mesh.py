@@ -1,6 +1,7 @@
 from tectosaur.mesh.refine import refine, selective_refine, refine_to_size
-from tectosaur.mesh.modify import concat
+from tectosaur.mesh.modify import concat, flip_normals
 from tectosaur.mesh.mesh_gen import make_rect
+from tectosaur.util.geometry import tri_normal
 import numpy as np
 
 def test_remove_duplicates():
@@ -9,6 +10,14 @@ def test_remove_duplicates():
     m_f = concat(surface1, surface2)
     assert(m_f[0].shape[0] == 6)
     assert(m_f[1].shape[0] == 4)
+
+def test_flip_normals():
+    m = make_rect(2, 2, [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]])
+    m_flip = flip_normals(m)
+    for i in range(m[1].shape[0]):
+        n1 = tri_normal(m[0][m[1][i,:]])
+        n2 = tri_normal(m_flip[0][m_flip[1][i,:]])
+        np.testing.assert_almost_equal(n1, -n2)
 
 def test_refine():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,1,0]])
