@@ -1,4 +1,4 @@
-from tectosaur.limit import *
+from tectosaur.nearfield.limit import *
 
 def test_poly_limit():
     xs = 2.0 ** -np.arange(4)

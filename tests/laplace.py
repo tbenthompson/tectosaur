@@ -1,4 +1,4 @@
-from tectosaur.geometry import *
+from tectosaur.util.geometry import *
 import numpy as np
 
 def laplace(tri1, tri2, i, j, eps, pts):

@@ -1,5 +1,5 @@
-import tectosaur.geometry as geometry
-from tectosaur.quadrature import gauss2d_tri
+import tectosaur.util.geometry as geometry
+from tectosaur.util.quadrature import gauss2d_tri
 import numpy as np
 import scipy.sparse
 

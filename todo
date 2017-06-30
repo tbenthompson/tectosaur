@@ -1,3 +1,7 @@
+Get my test suite in good shape so that I can run it in no time flat... mark things slow
+figure out where the startup time is going. i'm suspicious that there's a lot of startup time
+coming from opencl and cppimport.
+
 Split into:
 tectosaur_fmm
 -- FMM P2P and standard direct algorithm disagree in value. YIKES!

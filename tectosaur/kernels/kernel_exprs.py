@@ -1,7 +1,7 @@
 import os
 import pickle
 
-from tectosaur.util.sympy_to_cpp import to_cpp
+from tectosaur.kernels.sympy_to_cpp import to_cpp
 
 def get_kernel(kernel_builder):
     out = dict()

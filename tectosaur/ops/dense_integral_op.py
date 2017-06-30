@@ -2,13 +2,13 @@ import numpy as np
 
 from tectosaur.mesh.adjacency import find_adjacents, vert_adj_prep,\
     edge_adj_prep, rotate_tri
-from tectosaur.find_nearfield import find_nearfield
-from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
+from tectosaur.mesh.find_nearfield import find_nearfield
+from tectosaur.nearfield.vert_adj import coincident, pairs_quad, edge_adj, vert_adj,\
     get_gpu_module, float_type
-from tectosaur.dense_op import DenseOp
-from tectosaur.quadrature import gauss4d_tri
+from tectosaur.ops.dense_op import DenseOp
+from tectosaur.util.quadrature import gauss4d_tri
 from tectosaur.util.timer import Timer
-from tectosaur.table_lookup import coincident_table, adjacent_table
+from tectosaur.nearfield.table_lookup import coincident_table, adjacent_table
 import tectosaur.util.gpu as gpu
 import tectosaur.viennacl as viennacl
 

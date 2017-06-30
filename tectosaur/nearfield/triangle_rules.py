@@ -1,6 +1,5 @@
-import tectosaur.quadrature as quad
+import tectosaur.util.quadrature as quad
 import numpy as np
-import cppimport
 
 def coincident_quad(eps, n_outer_sing, n_outer_smooth, n_theta, n_rho):
     rho_quad = quad.sinh_transform(quad.gaussxw(n_rho), -1, eps)

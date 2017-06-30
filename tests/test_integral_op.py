@@ -1,25 +1,32 @@
 import numpy as np
 
-import tectosaur.triangle_rules as triangle_rules
-import tectosaur.nearfield_op as nearfield_op
-import tectosaur.fmm_integral_op as fmm_integral_op
-import tectosaur.dense_integral_op as dense_integral_op
-import tectosaur.sparse_integral_op as sparse_integral_op
-import tectosaur.mass_op as mass_op
-import tectosaur.quadrature as quad
-import tectosaur.mesh as mesh
-import tectosaur.find_nearfield
-import tectosaur.adjacency
-from tectosaur.test_decorators import slow, golden_master
+import tectosaur.nearfield.triangle_rules as triangle_rules
+import tectosaur.nearfield.vert_adj as nearfield_op
+
+# import tectosaur.ops.fmm_integral_op as fmm_integral_op
+import tectosaur.ops.dense_integral_op as dense_integral_op
+import tectosaur.ops.sparse_integral_op as sparse_integral_op
+import tectosaur.ops.mass_op as mass_op
+
+import tectosaur.util.quadrature as quad
+
+import tectosaur.mesh.mesh_gen as mesh_gen
+import tectosaur.mesh.find_nearfield as find_nearfield
+import tectosaur.mesh.adjacency as adjacency
+
+from tectosaur.util.test_decorators import slow, golden_master
 
 from laplace import laplace
 
+import tectosaur, logging
+tectosaur.logger.setLevel(logging.ERROR)
+
 def test_nearfield():
     corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
-    pts, tris = tectosaur.mesh.make_rect(3,3 ,corners)
+    pts, tris = mesh_gen.make_rect(3,3 ,corners)
     assert(tris.shape[0] == 8)
-    va, ea = tectosaur.adjacency.find_adjacents(tris)
-    near_pairs = tectosaur.find_nearfield.find_nearfield(pts, tris, va, ea, 2.5)
+    va, ea = adjacency.find_adjacents(tris)
+    near_pairs = find_nearfield.find_nearfield(pts, tris, va, ea, 2.5)
     check_for = [
         (0, 5), (0, 6), (0, 3), (1, 7), (2, 7), (3, 0),
         (4, 7), (5, 0), (6, 0), (7, 2), (7, 1), (7, 4)
@@ -28,7 +35,7 @@ def test_nearfield():
     for pair in check_for:
         assert(pair in near_pairs)
 
-@golden_master
+@golden_master()
 def test_farfield_two_tris():
     pts = np.array(
         [[1, 0, 0], [2, 0, 0], [1, 1, 0],
@@ -39,7 +46,7 @@ def test_farfield_two_tris():
     out = dense_integral_op.farfield('H', 1.0, 0.25, pts, obs_tris, src_tris, 3)
     return out
 
-@golden_master
+@golden_master()
 def test_gpu_edge_adjacent():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
     obs_tris = np.array([[0,1,2]]).astype(np.int32)
@@ -49,7 +56,7 @@ def test_gpu_edge_adjacent():
     )
     return out
 
-@golden_master
+@golden_master()
 def test_gpu_vert_adjacent():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
     obs_tris = np.array([[1,2,0]]).astype(np.int32)
@@ -57,11 +64,11 @@ def test_gpu_vert_adjacent():
     out = nearfield_op.vert_adj(3, 'H', 1.0, 0.25, pts, obs_tris, src_tris)
     return out
 
-@golden_master
+@golden_master()
 def test_coincident_gpu():
     n = 4
     w = 4
-    pts, tris = mesh.make_rect(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
+    pts, tris = mesh_gen.make_rect(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
     out = nearfield_op.coincident(
         8, [0.1, 0.01], 'H', 1.0, 0.25, pts, tris, remove_sing = False
     )
@@ -70,56 +77,60 @@ def test_coincident_gpu():
 def full_integral_op_tester(k):
     pts = np.array([[0,0,0], [1,1,0], [0, 1, 1], [0,0,2]])
     tris = np.array([[0, 1, 2], [2, 1, 3]])
-    rect_mesh = mesh.make_rect(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    rect_mesh = mesh_gen.make_rect(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     out = np.zeros(1)
     for m in [(pts, tris), rect_mesh]:
         dense_op = dense_integral_op.DenseIntegralOp(
             [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, 1.0, 0.25, m[0], m[1]
         )
         np.random.seed(100)
-        dense_res = dense_op.dot(np.random.rand(dense_op.shape[1]))
+        x = np.random.rand(dense_op.shape[1])
+        dense_res = dense_op.dot(x)
         sparse_op = sparse_integral_op.SparseIntegralOp(
             [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, 1.0, 0.25, m[0], m[1]
         )
-        np.random.seed(100)
-        sparse_res = sparse_op.dot(np.random.rand(sparse_op.shape[1]))
+        sparse_res = sparse_op.dot(x)
         assert(np.max(np.abs(sparse_res - dense_res)) < 2e-6)
         out = np.hstack((out, sparse_res))
     return out
 
-@golden_master
+@slow
+@golden_master(digits = 5)
 def test_full_integral_opU():
     return full_integral_op_tester('U')
 
-@golden_master
+@slow
+@golden_master(digits = 5)
 def test_full_integral_opT():
     return full_integral_op_tester('T')
 
-@golden_master
+@slow
+@golden_master(digits = 5)
 def test_full_integral_opA():
     return full_integral_op_tester('A')
 
-@golden_master
+@slow
+@golden_master(digits = 5)
 def test_full_integral_opH():
     return full_integral_op_tester('H')
 
-tri_ref = np.array([[0,0,0],[1,0,0],[0,1,0]])
-tri_down = np.array([[1,0,0],[0,0,0],[0,-1,0]])
-tri_up_right = np.array([[0,1,0],[1,0,0],[1,1,0]])
-def test_weakly_singular_adjacent():
-    # When one of the basis functions is zero along the edge where the triangles
-    # touch, the integral is no longer hypersingular, but instead is only weakly
-    # singular.
-    weakly_singular = [(2, 2), (2, 0), (2, 1), (0, 2), (1, 2)]
-    nq1 = 7
-    q1 = triangle_rules.edge_adj_quad(0, nq1, nq1, nq1, nq1, True)
-    nq2 = 8
-    q2 = triangle_rules.edge_adj_quad(0, nq2, nq2, nq2, nq2, True)
-    for i, j in weakly_singular:
-        K = lambda pts: laplace(tri_ref, tri_down, i, j, 0, pts)
-        v = quad.quadrature(K, q1)
-        v2 = quad.quadrature(K, q2)
-        assert(np.abs((v - v2) / v2) < 0.014)
+# tri_ref = np.array([[0,0,0],[1,0,0],[0,1,0]])
+# tri_down = np.array([[1,0,0],[0,0,0],[0,-1,0]])
+# tri_up_right = np.array([[0,1,0],[1,0,0],[1,1,0]])
+# def test_weakly_singular_adjacent():
+#     # When one of the basis functions is zero along the edge where the triangles
+#     # touch, the integral is no longer hypersingular, but instead is only weakly
+#     # singular.
+#     weakly_singular = [(2, 2), (2, 0), (2, 1), (0, 2), (1, 2)]
+#     nq1 = 7
+#     q1 = triangle_rules.edge_adj_quad(0, nq1, nq1, nq1, nq1, True)
+#     nq2 = 8
+#     q2 = triangle_rules.edge_adj_quad(0, nq2, nq2, nq2, nq2, True)
+#     for i, j in weakly_singular:
+#         K = lambda pts: laplace(tri_ref, tri_down, i, j, 0, pts)
+#         v = quad.quadrature(K, q1)
+#         v2 = quad.quadrature(K, q2)
+#         assert(np.abs((v - v2) / v2) < 0.014)
 
 @slow
 def test_edge_adj_quad():
@@ -212,7 +223,7 @@ def test_coincident_laplace():
             assert(tryit(19,13,17,16) < 0.000005)
 
 def test_mass_op():
-    m = mesh.make_rect(2, 2, [[0,0,0],[1,0,0],[1,1,0],[0,1,0]])
+    m = mesh_gen.make_rect(2, 2, [[0,0,0],[1,0,0],[1,1,0],[0,1,0]])
     op = mass_op.MassOp(3, m[0], m[1])
     exact00 = quad.quadrature(
         lambda x: (1 - x[:,0] - x[:,1]) * (1 - x[:,0] - x[:,1]),
@@ -245,22 +256,23 @@ def test_vert_adj_separate_bases():
     src_tris = np.array([[0,4,3], [0,4,3]])
     I0 = nearfield_op.vert_adj(nq, K, 1.0, 0.25, pts, obs_tris, src_tris)
 
-    from tectosaur.table_lookup import sub_basis
-    I1 = np.array([sub_basis(I0[i], obs_basis_tris[i], src_basis_tris[i]) for i in range(2)])
-    # print(I[0,:,0,:,0], I1[0,:,0,:,0] + I1[1,:,0,:,0])
+    from tectosaur.nearfield.table_lookup import fast_lookup
+    I1 = np.array([fast_lookup.sub_basis(
+        I0[i].flatten().tolist(), obs_basis_tris[i].tolist(), src_basis_tris[i].tolist()
+    ) for i in range(2)]).reshape((2,3,3,3,3))
     np.testing.assert_almost_equal(I[0], I1[0] + I1[1], 6)
 
-def test_fmm_integral_op():
-    np.random.seed(13)
-    m = mesh.make_sphere([0,0,0], 1, 1)
-    args = [
-        [], 1, 1, 5, 3, 4, 3.0,
-        'U', 1.0, 0.25, m[0], m[1], True
-    ]
-    op = fmm_integral_op.FMMIntegralOp(*args)
-    op2 = sparse_integral_op.SparseIntegralOp(*args)
-
-    v = np.random.rand(op.shape[1])
-    a = op.farfield_dot(v)
-    b = op2.farfield_dot(v)
-    np.testing.assert_almost_equal(a, b)
+# def test_fmm_integral_op():
+#     np.random.seed(13)
+#     m = mesh_gen.make_sphere([0,0,0], 1, 1)
+#     args = [
+#         [], 1, 1, 5, 3, 4, 3.0,
+#         'U', 1.0, 0.25, m[0], m[1], True
+#     ]
+#     op = fmm_integral_op.FMMIntegralOp(*args)
+#     op2 = sparse_integral_op.SparseIntegralOp(*args)
+#
+#     v = np.random.rand(op.shape[1])
+#     a = op.farfield_dot(v)
+#     b = op2.farfield_dot(v)
+#     np.testing.assert_almost_equal(a, b)

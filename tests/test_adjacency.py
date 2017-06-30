@@ -1,6 +1,6 @@
 import numpy as np
 
-from tectosaur.adjacency import *
+from tectosaur.mesh.adjacency import *
 
 tris = [[0, 1, 2], [2, 1, 3], [0, 4, 5]]
 def test_find_adjacents():

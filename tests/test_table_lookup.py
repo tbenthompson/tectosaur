@@ -1,17 +1,15 @@
 import numpy as np
 
-import tectosaur.geometry as geometry
-import tectosaur.nearfield_op as nearfield_op
-from tectosaur.adjacency import rotate_tri
-from tectosaur.standardize import standardize, rotation_matrix, BadTriangleError
-from tectosaur.dense_integral_op import DenseIntegralOp
-from tectosaur.interpolate import to_interval
-from tectosaur.test_decorators import golden_master, slow
+import tectosaur.util.geometry as geometry
+from tectosaur.mesh.adjacency import rotate_tri
+import tectosaur.nearfield.vert_adj as nearfield_op
+from tectosaur.nearfield.standardize import standardize, rotation_matrix, BadTriangleError
+from tectosaur.nearfield.interpolate import to_interval
+from tectosaur.ops.dense_integral_op import DenseIntegralOp
 
-from tectosaur.table_lookup import *
+from tectosaur.nearfield.table_lookup import *
 
-# Most of the tests for the table lookup are indirect through the integral op tests,
-# these are just for specific sub-functions
+from tectosaur.util.test_decorators import golden_master, slow
 
 def test_find_va_rotations():
     res = fast_lookup.find_va_rotations([1,3,5],[2,3,4])
@@ -116,8 +114,8 @@ def test_sub_basis():
         tri2 = pts[[0,2,3]].tolist()
         full_tri = pts[[0,1,3]].tolist()
         input = np.ones(81).tolist()
-        tri1area = np.linalg.norm(tri_normal(np.hstack((tri1, np.zeros((3,1))))))
-        tri2area = np.linalg.norm(tri_normal(np.hstack((tri2, np.zeros((3,1))))))
+        tri1area = np.linalg.norm(geometry.tri_normal(np.hstack((tri1, np.zeros((3,1))))))
+        tri2area = np.linalg.norm(geometry.tri_normal(np.hstack((tri2, np.zeros((3,1))))))
         I1 = np.array(fast_lookup.sub_basis(input, tri1, full_tri))
         I2 = np.array(fast_lookup.sub_basis(input, tri2, full_tri))
         result = tri1area * I1 + tri2area * I2
@@ -180,22 +178,22 @@ def coincident_lookup_helper(K, remove_sing, correct_digits):
     return np.array(results)
 
 @slow
-@golden_master
+@golden_master()
 def test_coincident_lookupU():
     return coincident_lookup_helper('U', False, 5)
 
 @slow
-@golden_master
+@golden_master()
 def test_coincident_lookupT():
     return coincident_lookup_helper('T', False, 4)
 
 @slow
-@golden_master
+@golden_master()
 def test_coincident_lookupA():
     return coincident_lookup_helper('A', False, 4)
 
 @slow
-@golden_master
+@golden_master()
 def test_coincident_lookupH():
     return coincident_lookup_helper('H', True, 0)
 
@@ -248,22 +246,22 @@ def adjacent_lookup_helper(K, remove_sing, correct_digits):
     return np.array(results)
 
 @slow
-@golden_master
+@golden_master()
 def test_adjacent_lookupU():
     return adjacent_lookup_helper('U', False, 5)
 
 @slow
-@golden_master
+@golden_master()
 def test_adjacent_lookupT():
     return adjacent_lookup_helper('T', False, 4)
 
 @slow
-@golden_master
+@golden_master()
 def test_adjacent_lookupA():
     return adjacent_lookup_helper('A', False, 4)
 
 @slow
-@golden_master
+@golden_master()
 def test_adjacent_lookupH():
     return adjacent_lookup_helper('H', True, 4)
 

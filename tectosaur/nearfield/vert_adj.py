@@ -1,17 +1,17 @@
 import os
 import numpy as np
 
-import tectosaur.triangle_rules as triangle_rules
-from tectosaur.quadrature import richardson_quad
+import tectosaur.nearfield.triangle_rules as triangle_rules
+from tectosaur.nearfield.limit import richardson_quad
 import tectosaur.util.gpu as gpu
 from tectosaur.util.caching import cache
-from tectosaur.integral_utils import pairs_func_name
+from tectosaur.nearfield.integral_utils import pairs_func_name
 
 def get_gpu_config():
     return {'block_size': 128, 'float_type': gpu.np_to_c_type(float_type)}
 
 def get_gpu_module():
-    return gpu.load_gpu('integrals.cl', tmpl_args = get_gpu_config())
+    return gpu.load_gpu('nearfield/integrals.cl', tmpl_args = get_gpu_config())
 
 def get_pairs_integrator(kernel, singular, check0):
     return getattr(get_gpu_module(), pairs_func_name(singular, kernel, check0))

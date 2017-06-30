@@ -1,7 +1,7 @@
 import scipy.sparse
 import numpy as np
 from tectosaur.mesh.adjacency import find_touching_pts, find_free_edges
-import tectosaur.geometry as geom
+import tectosaur.util.geometry as geom
 from collections import namedtuple
 
 IsolatedTermEQ = namedtuple('IsolatedTermEQ', 'lhs_dof terms rhs')

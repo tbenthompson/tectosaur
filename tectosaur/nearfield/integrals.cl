@@ -1,5 +1,5 @@
 <%
-from tectosaur.integral_utils import pairs_func_name, kernel_names, dn, kronecker
+from tectosaur.nearfield.integral_utils import pairs_func_name, kernel_names, dn, kronecker
 %>
 #pragma OPENCL EXTENSION cl_khr_fp64: enable
 

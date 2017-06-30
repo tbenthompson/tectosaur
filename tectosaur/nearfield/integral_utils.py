@@ -1,4 +1,4 @@
-import tectosaur.util.kernel_exprs
+import tectosaur.kernels.kernel_exprs
 
 def pairs_func_name(singular, k_name, check0):
     singular_label = 'N'

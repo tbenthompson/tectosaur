@@ -5,19 +5,19 @@ import scipy.sparse
 from tectosaur.mesh.adjacency import find_adjacents, vert_adj_prep, \
     edge_adj_prep, rotate_tri
 from tectosaur.mesh.find_nearfield import find_nearfield
-from tectosaur.quadrature import gauss4d_tri, gauss2d_tri
-import tectosaur.geometry as geometry
+from tectosaur.util.quadrature import gauss4d_tri, gauss2d_tri
+import tectosaur.util.geometry as geometry
 
 #TODO: Split the cuda code into nearfield integrals and farfield.
-from tectosaur.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
+from tectosaur.nearfield.vert_adj import coincident, pairs_quad, edge_adj, vert_adj,\
     get_gpu_module, get_gpu_config, float_type
-from tectosaur.table_lookup import coincident_table, adjacent_table
+from tectosaur.nearfield.table_lookup import coincident_table, adjacent_table
 import tectosaur.util.gpu as gpu
 
 from tectosaur.util.timer import Timer
 
 import cppimport
-fast_assembly = cppimport.imp("tectosaur.fast_assembly").fast_assembly
+fast_assembly = cppimport.imp("tectosaur.ops.fast_assembly").ops.fast_assembly
 
 def interp_galerkin_mat(tri_pts, quad_rule):
     nt = tri_pts.shape[0]

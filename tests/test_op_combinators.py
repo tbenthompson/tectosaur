@@ -1,7 +1,7 @@
 import numpy as np
-from tectosaur.dense_op import DenseOp
-from tectosaur.composite_op import CompositeOp
-from tectosaur.sum_op import SumOp
+from tectosaur.ops.dense_op import DenseOp
+from tectosaur.ops.composite_op import CompositeOp
+from tectosaur.ops.sum_op import SumOp
 
 def test_composite_op():
     n = 20

@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.interpolate
 
 def make_terms(n_terms, log_terms, inv_term = False):
     if log_terms > 0:

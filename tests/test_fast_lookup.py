@@ -1,22 +1,19 @@
 import numpy as np
 import time
 
-from tectosaur.interpolate import barycentric_evalnd
-from tectosaur.table_lookup import coincident_table
+from tectosaur.nearfield.interpolate import barycentric_evalnd
+from tectosaur.nearfield.table_lookup import coincident_table, fast_lookup
+
+from tectosaur.util.test_decorators import golden_master
 
 from test_interpolate import ptswts3d
 
-from tectosaur.test_decorators import golden_master
-
-import cppimport
-fast_lookup = cppimport.imp("tectosaur.fast_lookup").fast_lookup
-
-@golden_master
+@golden_master()
 def test_coincident_lookup_single():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0]])
     tris = np.array([[0,1,2]] * 100)
     start = time.time()
-    res = coincident_table('H', 1.0, 0.25, pts, tris, True)
+    res = coincident_table('H', 1.0, 0.25, pts, tris)
     end = time.time()
     print(end - start)
     return res

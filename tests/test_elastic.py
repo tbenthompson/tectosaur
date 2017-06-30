@@ -1,11 +1,7 @@
 import numpy as np
-import dill
-import sympy
 
-from tectosaur.tensors import *
-from tectosaur.elastic import *
-from tectosaur.sparse_integral_op import farfield_pts_wrapper
-from tectosaur.test_decorators import slow
+from tectosaur.kernels.tensors import *
+from tectosaur.util.test_decorators import slow
 
 def test_tensors():
     t = [[0, -1], [1, 0]]
@@ -24,6 +20,10 @@ def test_outer():
 
 @slow
 def test_kernels():
+    import sympy
+    from tectosaur.ops.sparse_integral_op import farfield_pts_wrapper
+    import dill
+    from tectosaur.kernels.elastic import U,T,A,H,all_args
     with open('tests/3d_kernels.pkl', 'rb') as f:
         all_kernels = dill.load(f)
 

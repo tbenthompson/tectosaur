@@ -12,19 +12,21 @@ except AttributeError as e:
         return ob
 
 
-def golden_master(test_fnc):
-    try:
-        save = pytest.config.getoption("--save-golden-masters")
-    except AttributeError as e:
-        save = False
-    @wraps(test_fnc)
-    def wrapper():
-        result = test_fnc()
-        test_name = test_fnc.__name__
-        filename = 'tests/golden_masters/' + test_name + '.npy'
-        if save:
-            np.save(filename, result)
-        correct = np.load(filename)
-        np.testing.assert_almost_equal(result, correct, 6)
-    return wrapper
+def golden_master(digits = 6):
+    def decorator(test_fnc):
+        try:
+            save = pytest.config.getoption("--save-golden-masters")
+        except AttributeError as e:
+            save = False
+        @wraps(test_fnc)
+        def wrapper():
+            result = test_fnc()
+            test_name = test_fnc.__name__
+            filename = 'tests/golden_masters/' + test_name + '.npy'
+            if save:
+                np.save(filename, result)
+            correct = np.load(filename)
+            np.testing.assert_almost_equal(result, correct, digits)
+        return wrapper
+    return decorator
 

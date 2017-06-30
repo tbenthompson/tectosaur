@@ -2,18 +2,17 @@ import os
 
 import time
 import numpy as np
+
 import tectosaur
-from tectosaur.standardize import standardize, transform_from_standard
-from tectosaur.geometry import tri_normal, xyhat_from_pt, projection, vec_angle
-import tectosaur.limit as limit
-import tectosaur.nearfield_op as nearfield_op
 from tectosaur.util.timer import Timer
+import tectosaur.nearfield.limit as limit
+import tectosaur.nearfield.vert_adj as nearfield_op
 import tectosaur.util.gpu as gpu
 
-from tectosaur.table_params import *
+from tectosaur.nearfield.table_params import *
 
 import cppimport
-fast_lookup = cppimport.imp("tectosaur.fast_lookup").fast_lookup
+fast_lookup = cppimport.imp("tectosaur.nearfield.fast_lookup").nearfield.fast_lookup
 
 def lookup_interpolation_gpu(table_limits, table_log_coeffs,
         interp_pts, interp_wts, pts):
@@ -22,7 +21,7 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
 
     float_type = np.float64
     gpu_cfg = {'float_type': gpu.np_to_c_type(float_type)}
-    module = gpu.load_gpu('table_lookup.cl', tmpl_args = gpu_cfg)
+    module = gpu.load_gpu('nearfield/table_lookup.cl', tmpl_args = gpu_cfg)
     dims = interp_pts.shape[1]
     fnc = getattr(module, 'lookup_interpolation' + str(dims))
 
@@ -53,6 +52,8 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
     t.report("run interpolation for " + str(n_tris) + " tris")
     return out[:, :, 0], out[:, :, 1]
 
+#TODO: This should be moved and generalized to some kind of "get_resource" function that
+# is able to deal with an installed tectosaur.
 def get_table_resource(filename):
     return os.path.join(tectosaur.source_dir, os.pardir, 'data', filename)
 

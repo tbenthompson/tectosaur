@@ -1,11 +1,7 @@
-from tectosaur.quadrature import *
+from tectosaur.util.quadrature import *
+from tectosaur.nearfield.limit import richardson_quad
 
 import numpy as np
-
-def test_gauss():
-    est = quadrature(lambda x: x ** 7, map_to(gaussxw(4), [0, 1]))
-    exact = 1.0 / 8.0
-    np.testing.assert_almost_equal(est, exact)
 
 def test_richardson_quad():
     gauss_q = gaussxw(11)
@@ -30,6 +26,12 @@ def test_log_richardson():
     vals = np.log(h) + h ** 2
     est = np.sum(vals * q[1])
     np.testing.assert_almost_equal(est, 0.0)
+
+
+def test_gauss():
+    est = quadrature(lambda x: x ** 7, map_to(gaussxw(4), [0, 1]))
+    exact = 1.0 / 8.0
+    np.testing.assert_almost_equal(est, exact)
 
 def test_sinh():
     eps = 0.01
