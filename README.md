@@ -1,7 +1,7 @@
 Observe the tectonosaurus and the elastosaurus romp pleasantly through the fields of stress.
 
 
-Tectosaur is an implementation of the elastic boundary element method, oriented towards problems involving faults. Though it can certainly be used for non-fault elasticity problems, too! Tectosaur is built on a new numerical integration methodology for computing Green's function integrals. This allows a great deal of flexibility in the problems it can solve. The use of  efficient algorithms like the Fast Multipole Method and the use of parallelization and GPU acceleration lead to very rapid solution of very large problems. To summarize the practical capabilities of tectosaur:
+Tectosaur is an implementation of the elastic boundary element method, oriented towards problems involving faults. It can certainly be used for non-fault elasticity problems, too! Tectosaur is built on a new numerical integration methodology for computing Green's function integrals. This allows a great deal of flexibility in the problems it can solve. The use of  efficient algorithms like the Fast Multipole Method and the use of parallelization and GPU acceleration lead to very rapid solution of very large problems. To summarize the practical capabilities of tectosaur:
 
 1. Solving complex geometric static elastic boundary value problems including
 
