@@ -1,10 +1,7 @@
 import numpy as np
 import scipy.linalg
-import scipy.interpolate
 from math import factorial
-
-from tectosaur.tri_gauss import get_tri_gauss
-from tectosaur.limit import limit
+from tectosaur.util.tri_gauss import get_tri_gauss
 
 # Derives the n-point gauss quadrature rule
 def gaussxw(n):
@@ -25,34 +22,6 @@ def map_to(qr, interval):
 # Integrate!
 def quadrature(f, qr):
     return sum(f(qr[0]) * qr[1])
-
-def richardson_quad(h_vals, include_log, quad_builder):
-    n = len(h_vals)
-    I = scipy.interpolate.BarycentricInterpolator(h_vals)
-    xs = None
-    ws = None
-    for i in range(n):
-        inner_xs, inner_ws = quad_builder(h_vals[i])
-        if len(inner_xs.shape) == 1:
-            inner_xs = inner_xs.reshape((inner_xs.shape[0], 1))
-        inner_xs = np.hstack((
-            inner_xs,
-            np.array([[h_vals[i]]] * inner_xs.shape[0])
-        ))
-
-        y = [0] * n
-        y[i] = 1.0
-        n_log_terms = 1 if include_log else 0
-        I0 = limit(h_vals, y, n_log_terms)[0]
-        inner_ws *= I0
-
-        if xs is None:
-            xs = inner_xs
-            ws = inner_ws
-        else:
-            xs = np.vstack((xs, inner_xs))
-            ws = np.append(ws, inner_ws)
-    return xs, ws
 
 # Sinh transform for integrals of the form \int_{-1}^1 f(x)<F12>
 # check that the b-distance(eps) is being computed properly, i think it should

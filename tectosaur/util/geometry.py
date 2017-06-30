@@ -1,9 +1,5 @@
 import numpy as np
 
-import cppimport
-fast_lookup = cppimport.imp("tectosaur.fast_lookup").fast_lookup
-xyhat_from_pt = fast_lookup.xyhat_from_pt
-
 def projection(V, b):
     return (V.dot(b) * b) / (np.linalg.norm(b) ** 2)
 

@@ -11,7 +11,7 @@ import numpy as np
 # check that triangle internal angles are greater than 20 degrees
 
 import cppimport
-fast_lookup = cppimport.imp("tectosaur.fast_lookup").fast_lookup
+fast_lookup = cppimport.imp("tectosaur.nearfield.fast_lookup").nearfield.fast_lookup
 
 class BadTriangleError(Exception):
     def __init__(self, code):
@@ -38,6 +38,7 @@ rotate1_to_xaxis = tolist_args(fast_lookup.rotate1_to_xaxis)
 rotate2_to_xyplane = tolist_args(fast_lookup.rotate2_to_xyplane)
 full_standardize_rotate = tolist_args(fast_lookup.full_standardize_rotate)
 scale = tolist_args(fast_lookup.scale)
+xyhat_from_pt = tolist_args(fast_lookup.xyhat_from_pt)
 
 standardize_unwrapped = tolist_args(fast_lookup.standardize);
 def standardize(*args):

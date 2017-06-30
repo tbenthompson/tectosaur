@@ -1,9 +1,41 @@
-from tectosaur.standardize import *
-import tectosaur.quadrature as quad
-import tectosaur.limit as limit
-from tectosaur_tables.gpu_integrator import coincident_integral, adjacent_integral
-from tectosaur.test_decorators import slow
+from tectosaur.nearfield.standardize import *
+from tectosaur.util.geometry import tri_pt, linear_basis_tri
+from tectosaur.util.test_decorators import slow
 
+import tectosaur_tables.coincident as coincident
+
+
+def test_xyhat_from_pt_simple():
+    P = np.array([0.5,0.5,0.0])
+    T = np.array([[0,0,0],[1,0,0],[0,1,0]])
+    xyhat = xyhat_from_pt(P.tolist(), T.tolist())
+    np.testing.assert_almost_equal(xyhat, [0.5, 0.5])
+
+def test_xyhat_from_pt_harder():
+    P = np.array([0,2.0,0.0])
+    T = np.array([[0,2,0],[0,3,0],[0,2,1]])
+    xyhat = xyhat_from_pt(P.tolist(), T.tolist())
+    np.testing.assert_almost_equal(xyhat, [0.0, 0.0])
+
+    P = np.array([0,2.5,0.5])
+    T = np.array([[0,2,0],[0,3,0],[0,2,1]])
+    xyhat = xyhat_from_pt(P.tolist(), T.tolist())
+    np.testing.assert_almost_equal(xyhat, [0.5, 0.5])
+
+    P = np.array([0,3.0,0.5])
+    T = np.array([[0,2,0],[0,4,0],[0,2,1]])
+    xyhat = xyhat_from_pt(P.tolist(), T.tolist())
+    np.testing.assert_almost_equal(xyhat, [0.5, 0.5])
+
+def test_xyhat_from_pt_random():
+    for i in range(20):
+        xhat = np.random.rand(1)[0]
+        yhat = np.random.rand(1)[0] * (1 - xhat)
+        T = np.random.rand(3,3)
+        P = tri_pt(linear_basis_tri(xhat, yhat), T)
+        xhat2, yhat2 = xyhat_from_pt(P.tolist(), T.tolist())
+        np.testing.assert_almost_equal(xhat, xhat2)
+        np.testing.assert_almost_equal(yhat, yhat2)
 
 def test_origin_vertex():
     assert(get_origin_vertex(get_edge_lens(np.array([[0,0,0],[1,0,0],[0.2,0.5,0]]))) == 0)
@@ -50,7 +82,8 @@ def test_check_bad_tri():
 def test_standardize():
     # out = standardize(np.array([[0,0,0],[0.2,0,0],[0.4,0.5,0]]))
     # np.testing.assert_almost_equal(out, [[0,0,0],[0.4,0.5,0],[0.2,0,0]])
-    out,_,_,_,_ = standardize(np.array([[0,0,0],[1,0.0,0],[0.0,0.5,0]]), 20, True)
+    code, out,_,_,_,_ = standardize(np.array([[0,0,0],[1,0.0,0],[0.0,0.5,0]]), 20, True)
+    assert(code == 0);
     np.testing.assert_almost_equal(out, [[0,0,0],[1.0,0.0,0],[0.2,0.4,0]])
 
 def co_integrals(K, tri, rho_order, theta_order, tol, eps_start, n_steps, sm, pr):
@@ -63,20 +96,6 @@ def co_integrals(K, tri, rho_order, theta_order, tol, eps_start, n_steps, sm, pr
     vals = np.array(vals)
     return epsvs, vals
 
-def adj_integrals(K, obs_tri, src_tri, rho_order, theta_order, tol, eps_start, n_steps, sm, pr):
-    epsvs = eps_start * (2.0 ** (-np.arange(n_steps)))
-    vals = []
-    for eps in epsvs:
-        vals.append(adjacent_integral(
-            tol, K, obs_tri, src_tri, eps, sm, pr, rho_order, theta_order
-        ))
-
-    vals = np.array(vals)
-    return epsvs, vals
-
-def take_limits(epsvs, vals, include_log):
-    return np.array([limit.limit(epsvs, vals[:, i], include_log) for i in range(81)])
-
 # To test whether the standardization procedure and the transform_from_standard function
 # are working properly, I compare the results of a direct integration with the results
 # of a standardized triangle integration and subsequent unstandardization.
@@ -85,9 +104,9 @@ def take_limits(epsvs, vals, include_log):
 # This is not strictly necessary, but avoiding it would require much higher accuracy and lower
 # epsilon values before the scaled and unscaled integrals matched each other (in the limit,
 # of course, they should match!)
-def standardized_tri_tester(K, sm, pr, rho_order, theta_order, tol, eps_start, n_steps, tri):
+def standardized_tri_tester(K, sm, pr, rho_order, theta_order, tol, starting_eps, n_eps, tri):
     include_log = True
-    standard_tri, labels, translation, R, scale = standardize(
+    code, standard_tri, labels, translation, R, scale = standardize(
         np.array(tri), 20, True
     )
     is_flipped = not (labels[1] == ((labels[0] + 1) % 3))
@@ -97,16 +116,16 @@ def standardized_tri_tester(K, sm, pr, rho_order, theta_order, tol, eps_start, n
         [[0,0,0],[1,0,0],[standard_tri[2][0],standard_tri[2][1],0]]
     )
 
-    correct_epsvs, correct_vals = co_integrals(
-        K, tri, rho_order, theta_order, tol, eps_start, n_steps, sm, pr
+    p = coincident.make_coincident_params(
+        K, 1e-3, 25, True, True, 25, 25, starting_eps, n_eps, K == 'H', 1, 1, 1
     )
-    correct_limits = take_limits(correct_epsvs, correct_vals, include_log)
+
+    correct_limits = coincident.eval_tri_integral(tri, pr, p)
     correct_limits = correct_limits[:,0].reshape((3,3,3,3))
 
     # 1) calculate the standardized integrals
-    epsvs, standard_vals = co_integrals(
-        K, standard_tri, rho_order, theta_order, tol, eps_start * scale, n_steps, 1.0, pr
-    )
+    p.starting_eps = starting_eps * scale
+    epsvs, standard_vals = coincident.eval_tri_integral_no_limit(standard_tri, pr, p)
 
     # 2) convert them to the appropriate values for true triangles
     unstandardized_vals = np.array([
@@ -118,7 +137,10 @@ def standardized_tri_tester(K, sm, pr, rho_order, theta_order, tol, eps_start, n
     ])
 
     # 3) take the limit in true space, not standardized space
-    unstandardized_limits = take_limits(epsvs / scale, unstandardized_vals, include_log)
+    unstandardized_limits = coincident.take_limits(
+        epsvs / scale, unstandardized_vals,
+        1 if p.include_log else 0, starting_eps
+    )
     unstandardized_limits = unstandardized_limits[:,0].reshape((3,3,3,3))
 
     A = unstandardized_limits[0,0,0,0]
@@ -126,8 +148,8 @@ def standardized_tri_tester(K, sm, pr, rho_order, theta_order, tol, eps_start, n
 
     print(
         str(tol) +
-        " " + str(eps_start) +
-        " " + str(n_steps) +
+        " " + str(starting_eps) +
+        " " + str(n_eps) +
         " " + str(A) +
         " " + str(B)
     )
@@ -137,7 +159,7 @@ def standardized_tri_tester(K, sm, pr, rho_order, theta_order, tol, eps_start, n
 
 def kernel_properties_tester(K, sm, pr):
     test_tris = [
-        # [[0.0,0.0,0.0], [1.0,0.0,0.0], [0.4,0.3,0.0]], #NO TRANSFORMATION
+        [[0.0,0.0,0.0], [1.0,0.0,0.0], [0.4,0.3,0.0]], #NO TRANSFORMATION
         [[0.0,0.0,0.0], [2.0,0.0,0.0], [0.8,0.6,0.0]], # JUST SCALE
         [[0.0,0.0,0.0], [0.0,1.0,0.0], [-0.3,0.4,0.0]], # JUST ROTATE
         [[0.0,0.0,0.0], [0.0,1.1,0.0], [-0.3,0.4,0.0]], # ROTATE + SCALE

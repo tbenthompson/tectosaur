@@ -2,14 +2,15 @@
 setup_pybind11(cfg)
 cfg['compiler_args'].extend(['-std=c++14', '-O3', '-Wall', '-fopenmp'])
 cfg['linker_args'] = ['-fopenmp']
-cfg['dependencies'] = ['lib/timing.hpp']
-from tectosaur.table_params import min_angle_isoceles_height, table_min_internal_angle, minlegalA, minlegalB, maxlegalA, maxlegalB, min_intersect_angle
+cfg['dependencies'] = ['../lib/pybind11_nparray.hpp', '../lib/vec_tensor.hpp', '../lib/timing.hpp']
+from tectosaur.nearfield.table_params import min_angle_isoceles_height,\
+     table_min_internal_angle, minlegalA, minlegalB, maxlegalA, maxlegalB, min_intersect_angle
 %>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include "lib/pybind11_nparray.hpp"
-#include "lib/vec_tensor.hpp"
-#include "lib/timing.hpp"
+#include "../lib/pybind11_nparray.hpp"
+#include "../lib/vec_tensor.hpp"
+#include "../lib/timing.hpp"
 
 namespace py = pybind11;
 
@@ -228,7 +229,7 @@ py::tuple scale_pyshim(const Tensor3& tri) {
 }
 
 struct StandardizeResult {
-    int code;
+    int bad_tri_code;
     Tensor3 tri;
     std::array<int,3> labels;
     Vec3 translation;
@@ -263,7 +264,7 @@ StandardizeResult standardize(const Tensor3& tri, double angle_lim, bool should_
 py::tuple standardize_pyshim(const Tensor3& tri, double angle_lim, bool should_relabel) {
     auto out = standardize(tri, angle_lim, should_relabel);
     return py::make_tuple(
-        out.code, out.tri, out.labels, out.translation, out.R, out.scale
+        out.bad_tri_code, out.tri, out.labels, out.translation, out.R, out.scale
     );
 }
 

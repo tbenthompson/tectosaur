@@ -18,7 +18,7 @@ cfg['libraries'] = ['OpenCL']
 #include "viennacl/matrix.hpp"
 #include "viennacl/linalg/prod.hpp" 
 
-#include "lib/pybind11_nparray.hpp"
+#include "../lib/pybind11_nparray.hpp"
 
 namespace py = pybind11;
 

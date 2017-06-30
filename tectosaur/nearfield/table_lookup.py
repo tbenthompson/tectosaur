@@ -3,7 +3,6 @@ import os
 import time
 import numpy as np
 import tectosaur
-from tectosaur.interpolate import barycentric_evalnd, cheb, cheb_wts, from_interval
 from tectosaur.standardize import standardize, transform_from_standard
 from tectosaur.geometry import tri_normal, xyhat_from_pt, projection, vec_angle
 import tectosaur.limit as limit
@@ -15,32 +14,6 @@ from tectosaur.table_params import *
 
 import cppimport
 fast_lookup = cppimport.imp("tectosaur.fast_lookup").fast_lookup
-
-def adjacent_interp_pts_wts(n_phi, n_pr):
-    phihats = cheb(-1, 1, n_phi)
-    prhats = cheb(-1, 1, n_pr)
-    Ph,Nh = np.meshgrid(phihats,prhats)
-    interp_pts = np.array([Ph.ravel(), Nh.ravel()]).T
-
-    phiwts = cheb_wts(-1, 1, n_phi)
-    prwts = cheb_wts(-1, 1, n_pr)
-    interp_wts = np.outer(prwts, phiwts).ravel()
-    return interp_pts.copy(), interp_wts.copy()
-
-def coincident_interp_pts_wts(n_A, n_B, n_pr):
-    Ahats = cheb(-1, 1, n_A)
-    Bhats = cheb(-1, 1, n_B)
-    prhats = cheb(-1, 1, n_pr)
-    Ah,Bh,Nh = np.meshgrid(Ahats, Bhats, prhats)
-    interp_pts = np.array([Ah.ravel(),Bh.ravel(), Nh.ravel()]).T
-
-    Awts = cheb_wts(-1,1,n_A)
-    Bwts = cheb_wts(-1,1,n_B)
-    prwts = cheb_wts(-1,1,n_pr)
-    # meshgrid behaves in a slightly strange manner such that Bwts must go first
-    # in this outer product!
-    interp_wts = np.outer(np.outer(Bwts, Awts),prwts).ravel()
-    return interp_pts.copy(), interp_wts.copy()
 
 def lookup_interpolation_gpu(table_limits, table_log_coeffs,
         interp_pts, interp_wts, pts):

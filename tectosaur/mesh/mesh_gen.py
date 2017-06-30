@@ -1,9 +1,5 @@
 import scipy.spatial
-from functools import reduce
 import numpy as np
-
-import tectosaur.util.geometry as geometry
-from tectosaur.standardize import get_edge_lens, get_longest_edge
 
 # Corners are ordered: lower left, lower right, upper right, upper left
 def rect_points(corners, xhat_vals, yhat_vals):
