@@ -1,7 +1,13 @@
 import logging
 import sys
 import os
+
 source_dir = os.path.dirname(os.path.realpath(__file__))
+data_dir = os.path.join(source_dir, 'data')
+
+def get_data_filepath(filename):
+    return os.path.join(data_dir, filename)
+
 
 from .mesh.mesh_gen import make_rect, make_sphere
 from .mesh.modify import concat

@@ -52,11 +52,6 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
     t.report("run interpolation for " + str(n_tris) + " tris")
     return out[:, :, 0], out[:, :, 1]
 
-#TODO: This should be moved and generalized to some kind of "get_resource" function that
-# is able to deal with an installed tectosaur.
-def get_table_resource(filename):
-    return os.path.join(tectosaur.source_dir, os.pardir, 'data', filename)
-
 def coincident_table(kernel, sm, pr, pts, tris):
     t = Timer(prefix = 'coincident')
     if kernel is 'U':
@@ -67,7 +62,7 @@ def coincident_table(kernel, sm, pr, pts, tris):
         filename = 'A_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy'
     elif kernel is 'H':
         filename = 'H_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
-    filepath = get_table_resource(filename)
+    filepath = tectosaur.get_data_filepath(filename)
 
     params = filename.split('_')
 
@@ -119,7 +114,7 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
     elif kernel is 'H':
         filename = 'H_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
         flip_symmetry = True
-    filepath = get_table_resource(filename)
+    filepath = tectosaur.get_data_filepath(filename)
 
     t = Timer(prefix = 'adjacent')
 
