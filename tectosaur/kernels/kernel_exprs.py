@@ -1,6 +1,7 @@
 import os
 import pickle
 
+import tectosaur
 from tectosaur.kernels.sympy_to_cpp import to_cpp
 
 def get_kernel(kernel_builder):
@@ -16,7 +17,7 @@ def get_kernel(kernel_builder):
     return out
 
 def get_kernels():
-    filename = 'data/kernels.pkl'
+    filename = tectosaur.get_data_filepath('kernels.pkl')
     if os.path.exists(filename):
         with open(filename, 'rb') as f:
             kernels = pickle.load(f)

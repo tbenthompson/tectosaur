@@ -1,13 +1,11 @@
+set up the wrappers for cubature in a separate library -- I think that would be a hit in the python community.
+think about cleaning up the way that imports are done with cppimport... beauty!
+
 send aagaard a thank you email and comment on appreciating learning more about pylith.
+make sure sdist is set up to include all subdirectories -- google how to do this properly
 
 see Lemma 3.2 in Ethridge and Greengard 2001 for a clue in how to interpolate our nearfield integrals for 2D log singular problems.
 
-Split into:
-tectosaur_fmm
--- FMM P2P and standard direct algorithm disagree in value. YIKES!
--- GPU FMM
-
-debug surface/fault intersection
 
 BASIN:
 -- no A* for fault in basin
@@ -16,38 +14,9 @@ BASIN:
 -- check on the free_edge_constraints stuff for basin, seems a little sketchy in terms of dofs...
 
 
-
-
-
-# -- this green's function construction could go faster if i didn't reassemble the surface matrices for each green's function, then i would just need a bunch of solves.
-
-
-
-# -- figure out to reference data dir in a finalized python installation: looks like i should use a MANIFEST.in and include the data directory as a subdirectory of tectosaur/nearfield.
-
-
-
-Adapt to 2D and Laplace in 3D.
--- create new 3bem golden master tests for each new step in development
--- catalog all the issues that would need to be resolved
--- parameterize everything on both the spatial dimension and the kernel tensor dimension
--- write 2D table construction code, should i use high order transformed gauss rules or should i use the adaptive integrators?
--- set up golden master tests that match with current 3D tectosaur results
--- set up golden master tests that match with old 3bem results
-
-
--- what to do about interelement angles that are greater than pi, for adjacent table lookup?
-
-use FMM for okada
--- just try it out first, make sure its accurate.
-
--- interior evaluation -- this is easy except near the surface, use sinh quadrature? test it against the adaptive quadrature. also, maybe i can just interpolate from one element length away to the surface value and avoid nearfield integrals?
-
-CODE:
-
 SCIENCE:
-fault intersecting surface -- pretty much works
-# Surface-fault joining algorithm
+fault intersecting surface -- this is actually a really hard problem, i should read about this problem and how to have conforming 
+# Surface-fault joining algorithm?? 
 # a surface can be treated as locally 2d, so it can be easily delaunay triangulated. therefore:
 # 1) forget the local triangulation of the surface
 # 2) project the top of the fault onto the topography.
@@ -61,10 +30,18 @@ gravity
 play with time stepping combined with fault friction 
 plasticity? the plastic opening condition, maybe a viscoplastic opening condition? the kinematic consistency idea from brendan is really interesting! compare with a FEM model of explicit volumetric plasticity
 
-METHOD:
-interior integrals for spatially varying body forces
-2D
--- setup a golden master test matching with old 3bem results
+
+
+2D AND LAPLACE
+Adapt to 2D and Laplace in 3D.
+-- create new 3bem golden master tests for each new step in development
+-- catalog all the issues that would need to be resolved
+-- parameterize everything on both the spatial dimension and the kernel tensor dimension
+-- write 2D table construction code, should i use high order transformed gauss rules or should i use the adaptive integrators?
+-- set up golden master tests that match with current 3D tectosaur results
+-- set up golden master tests that match with old 3bem results
+
+
 
 OPTIMIZATIONS:
 -- figure out preconditioning, spilu is slow, but is there a better alternative? spai-based fmm inverse. sparse approximate inverse from FMM sparsity pattern
@@ -74,10 +51,11 @@ OPTIMIZATIONS:
 -- assemble
 -- vert adj prep
 -- deal with low angle vertex adjacent cases -- these can be very expensive!
-
 -- for some reason vert adj takes about the same time with GPU vs CPU, this indicates the GPU version is massively inefficient... why?
 -- optimize the vertex adjacent integrals -- maybe check the angle between the triangles and choose an order based on that? either way, the standard VA pairs require only (4,4,4) quadrature while the really difficult ones require (9, 16, 6) for 1e-4 error.
 
+
+PROBLEMDESCRIPTION
 # -- CombinedMesh is handy even without multiple meshes, should i modify it or extend it so that it can be used more nicely for a single mesh situation (and has a better name!).
 # -- should i create a nicer mesh data structure? consisting of the vertex and tri arrays with some other nice tools
 
