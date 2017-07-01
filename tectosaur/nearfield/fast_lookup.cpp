@@ -2,15 +2,19 @@
 setup_pybind11(cfg)
 cfg['compiler_args'].extend(['-std=c++14', '-O3', '-Wall', '-fopenmp'])
 cfg['linker_args'] = ['-fopenmp']
-cfg['dependencies'] = ['../lib/pybind11_nparray.hpp', '../lib/vec_tensor.hpp', '../lib/timing.hpp']
+cfg['dependencies'] = [
+    '../include/pybind11_nparray.hpp',
+    '../include/vec_tensor.hpp',
+    '../include/timing.hpp'
+]
 from tectosaur.nearfield.table_params import min_angle_isoceles_height,\
      table_min_internal_angle, minlegalA, minlegalB, maxlegalA, maxlegalB, min_intersect_angle
 %>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include "../lib/pybind11_nparray.hpp"
-#include "../lib/vec_tensor.hpp"
-#include "../lib/timing.hpp"
+#include "../include/pybind11_nparray.hpp"
+#include "../include/vec_tensor.hpp"
+#include "../include/timing.hpp"
 
 namespace py = pybind11;
 

@@ -1,6 +1,6 @@
-Get my test suite in good shape so that I can run it in no time flat... mark things slow
-figure out where the startup time is going. i'm suspicious that there's a lot of startup time
-coming from opencl and cppimport.
+send aagaard a thank you email and comment on appreciating learning more about pylith.
+
+see Lemma 3.2 in Ethridge and Greengard 2001 for a clue in how to interpolate our nearfield integrals for 2D log singular problems.
 
 Split into:
 tectosaur_fmm
@@ -23,8 +23,7 @@ BASIN:
 
 
 
-# -- figure out to reference data dir in a finalized python installation
-# -- figure out to properly scale the vectors and variables involved to nondimensionalize and get the iterative residual to be reasonable and maintain reasonable matrix conditioning ===> write out the linear system with the nondimensionalization included. this should actually done by the solver tools, not in tectosaur proper.
+# -- figure out to reference data dir in a finalized python installation: looks like i should use a MANIFEST.in and include the data directory as a subdirectory of tectosaur/nearfield.
 
 
 

@@ -1,10 +1,10 @@
 <%
 setup_pybind11(cfg)
-cfg['dependencies'] = ['../lib/pybind11_nparray.hpp']
+cfg['dependencies'] = ['../include/pybind11_nparray.hpp']
 %> 
 
 #include <iostream>
-#include "../lib/pybind11_nparray.hpp"
+#include "../include/pybind11_nparray.hpp"
 
 namespace py = pybind11;
 

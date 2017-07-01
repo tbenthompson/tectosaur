@@ -21,7 +21,7 @@ def get_kernels():
         with open(filename, 'rb') as f:
             kernels = pickle.load(f)
     else:
-        import tectosaur.elastic as elastic
+        import tectosaur.kernels.elastic as elastic
         kernels = dict()
         for k_name in ['U','T','A','H']:
             kernels[k_name] = get_kernel(getattr(elastic, k_name))
