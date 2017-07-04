@@ -10,7 +10,7 @@ def dn(dim):
 #define Real ${float_type}
 
 <%namespace name="prim" file="../integral_primitives.cl"/>
-<%def name="integrate_pair(k_name, limit, check0)">
+<%def name="integrate_pair(K, limit, check0)">
     ${prim.tri_info("obs", "nobs")}
     ${prim.tri_info("src", "nsrc")}
 
@@ -22,8 +22,7 @@ def dn(dim):
         kahanC[iresult] = 0;
     }
 
-    ${prim.params(k_name)}
-    ${prim.constants(k_name)}
+    ${K.constants_code}
     
     for (int iq = 0; iq < n_quad_pts; iq++) {
         <% 
@@ -65,7 +64,7 @@ def dn(dim):
         }
         % endif
 
-        ${prim.tensor_kernels(k_name)}
+        ${K.tensor_code}
         obsb0 *= quadw;
         obsb1 *= quadw;
         obsb2 *= quadw;
@@ -90,9 +89,9 @@ def dn(dim):
     }
 </%def>
 
-<%def name="single_pairs(k_name, limit, check0)">
+<%def name="single_pairs(K, limit, check0)">
 __kernel
-void ${pairs_func_name(limit, k_name, check0)}(__global Real* result, 
+void ${pairs_func_name(limit, K.name, check0)}(__global Real* result, 
     int n_quad_pts, __global Real* quad_pts, __global Real* quad_wts,
     __global Real* pts, __global int* obs_tris, __global int* src_tris, 
     __global Real* params)
@@ -101,7 +100,7 @@ void ${pairs_func_name(limit, k_name, check0)}(__global Real* result,
 
     ${prim.get_triangle("obs_tri", "obs_tris", "i")}
     ${prim.get_triangle("src_tri", "src_tris", "i")}
-    ${integrate_pair(k_name, limit, check0)}
+    ${integrate_pair(K, limit, check0)}
     
     for (int iresult = 0; iresult < 81; iresult++) {
         result[i * 81 + iresult] = obs_jacobian * src_jacobian * result_temp[iresult];
@@ -109,9 +108,9 @@ void ${pairs_func_name(limit, k_name, check0)}(__global Real* result,
 }
 </%def>
 
-<%def name="farfield_tris(k_name)">
+<%def name="farfield_tris(K)">
 __kernel
-void farfield_tris${k_name}(__global Real* result,
+void farfield_tris${K.name}(__global Real* result,
     int n_quad_pts, __global Real* quad_pts, __global Real* quad_wts,
     __global Real* pts, int n_obs_tris, __global int* obs_tris, 
     int n_src_tris, __global int* src_tris, 
@@ -122,7 +121,7 @@ void farfield_tris${k_name}(__global Real* result,
 
     ${prim.get_triangle("obs_tri", "obs_tris", "i")}
     ${prim.get_triangle("src_tri", "src_tris", "j")}
-    ${integrate_pair(k_name, limit = False, check0 = False)}
+    ${integrate_pair(K, limit = False, check0 = False)}
 
     % for d_obs in range(3):
     % for d_src in range(3):
@@ -140,9 +139,9 @@ void farfield_tris${k_name}(__global Real* result,
 }
 </%def>
 
-<%def name="farfield_pts(k_name, need_obsn, need_srcn)">
+<%def name="farfield_pts(K)">
 __kernel
-void farfield_pts${k_name}(
+void farfield_pts${K.name}(
     __global Real* result, __global Real* obs_pts, __global Real* obs_ns,
     __global Real* src_pts, __global Real* src_ns, __global Real* input,
     __global Real* params, int n_obs, int n_src)
@@ -159,7 +158,7 @@ void farfield_pts${k_name}(
         % endfor
     }
 
-    % if need_obsn:
+    % if K.needs_obsn:
     % for d in range(3):
     Real nobs${dn(d)};
     % endfor
@@ -170,15 +169,14 @@ void farfield_pts${k_name}(
     }
     % endif
 
-    % if need_srcn:
+    % if K.needs_srcn:
     __local Real sh_src_ns[3 * ${block_size}];
     % endif
     __local Real sh_src_pts[3 * ${block_size}];
     __local Real sh_input[3 * ${block_size}];
 
     
-    ${prim.params(k_name)}
-    ${prim.constants(k_name)}
+    ${K.constants_code}
 
     Real sumx = 0.0;
     Real sumy = 0.0;
@@ -191,7 +189,7 @@ void farfield_pts${k_name}(
         int idx = tile * ${block_size} + local_id;
         if (idx < n_src) {
             for (int k = 0; k < 3; k++) {
-                % if need_srcn:
+                % if K.needs_srcn:
                 sh_src_ns[local_id * 3 + k] = src_ns[idx * 3 + k];
                 % endif
                 sh_src_pts[local_id * 3 + k] = src_pts[idx * 3 + k];
@@ -212,7 +210,7 @@ void farfield_pts${k_name}(
             if (r2 == 0.0) {
                 continue;
             }
-            % if need_srcn:
+            % if K.needs_srcn:
             % for d in range(3):
             Real nsrc${dn(d)} = sh_src_ns[k * 3 + ${d}];
             % endfor
@@ -222,7 +220,7 @@ void farfield_pts${k_name}(
             Real in${dn(d)} = sh_input[k * 3 + ${d}];
             % endfor
 
-            ${prim.vector_kernels(k_name)}
+            ${K.vector_code}
         }
     }
 
@@ -237,10 +235,10 @@ void farfield_pts${k_name}(
 ${prim.geometry_fncs()}
 
 % for K in kernels:
-${farfield_pts(K.name, K.needs_obsn, K.needs_srcn)}
-${farfield_tris(K.name)}
-${single_pairs(K.name, limit = True, check0 = True)}
-${single_pairs(K.name, limit = True, check0 = False)}
-${single_pairs(K.name, limit = False, check0 = True)}
-${single_pairs(K.name, limit = False, check0 = False)}
+${farfield_pts(K)}
+${farfield_tris(K)}
+${single_pairs(K, limit = True, check0 = True)}
+${single_pairs(K, limit = True, check0 = False)}
+${single_pairs(K, limit = False, check0 = True)}
+${single_pairs(K, limit = False, check0 = False)}
 % endfor

@@ -9,6 +9,8 @@ cfg['dependencies'] = [
 ]
 from tectosaur.nearfield.table_params import min_angle_isoceles_height,\
      table_min_internal_angle, minlegalA, minlegalB, maxlegalA, maxlegalB, min_intersect_angle
+
+from tectosaur.kernels import kernels
 %>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -272,31 +274,34 @@ py::tuple standardize_pyshim(const Tensor3& tri, double angle_lim, bool should_r
     );
 }
 
-int get_kernel_idx(std::string K) {
-    if (K == "elasticU") { return 0; }
-    else if (K == "elasticT") { return 1; }
-    else if (K == "elasticA") { return 2; }
-    else if (K == "elasticH") { return 3; }
-    else { return -1; }
-}
+struct KernelProps {
+    int scale_power;
+    int sm_power;
+    bool flip_negate;
+};
 
-int kernel_scale_power[4] = {-3, -2, -2, -1};
-int kernel_sm_power[4] = {1, 0, 0, -1};
-bool kernel_flip_negate[4] = {false, true, true, false};
+KernelProps get_kernel_props(std::string K) {
+    % for K in kernels:
+        if (K == "${K.name}") { 
+            return {
+                ${K.scale_type}, ${K.sm_power}, ${str(K.flip_negate).lower()}
+            };
+        }
+    % endfor
+    else { throw std::runtime_error("unknown kernel"); }
+}
 
 std::array<double,81> transform_from_standard(const std::array<double,81>& I,
     std::string K, double sm, const std::array<int,3>& labels,
     const Vec3& translation, const Tensor3& R, double scale) 
 {
-    int K_idx = get_kernel_idx(K);
+    auto props = get_kernel_props(K);
 
-    int sm_power = kernel_sm_power[K_idx]; 
-    int scale_power = kernel_scale_power[K_idx]; 
-    bool flip_negate = (labels[1] != (labels[0] + 1) % 3) && kernel_flip_negate[K_idx];
+    bool flip_negate = (labels[1] != (labels[0] + 1) % 3) && props.flip_negate;
 
     std::array<double,81> out;
 
-    double scale_times_sm = std::pow(scale, scale_power) * std::pow(sm, sm_power);
+    double scale_times_sm = std::pow(scale, props.scale_power) * std::pow(sm, props.sm_power);
     for (int sb1 = 0; sb1 < 3; sb1++) {
         for (int sb2 = 0; sb2 < 3; sb2++) {
             auto cb1 = labels[sb1];

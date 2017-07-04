@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 
 import tectosaur.util.geometry as geometry
@@ -254,6 +255,8 @@ def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
         # np.testing.assert_almost_equal(A, B, correct_digits)
         results.append(op.mat[:9,9:])
     return np.array(results)
+
+
 
 @golden_master()
 def test_adjacent_fast_lookupU():
