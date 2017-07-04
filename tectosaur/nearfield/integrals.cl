@@ -5,7 +5,7 @@ from tectosaur.nearfield.integral_utils import pairs_func_name, kernel_names, dn
 
 #define Real ${float_type}
 
-<%namespace name="prim" file="integral_primitives.cl"/>
+<%namespace name="prim" file="../integral_primitives.cl"/>
 
 <%def name="integrate_pair(k_name, limit, check0)">
     ${prim.tri_info("obs", "n")}

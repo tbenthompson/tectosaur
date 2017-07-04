@@ -22,7 +22,7 @@ def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near, sm, pr):
 
     interp_v = IGmat.dot(input).flatten()
     nbody_result = farfield_pts_wrapper(
-        K, obs_pts.shape[0], obs_pts.flatten(), obs_ns.flatten(),
-        quad_pts.shape[0], gpu_quad_pts, gpu_quad_ns, interp_v, sm, pr
+        K, obs_pts.flatten(), obs_ns.flatten(),
+        gpu_quad_pts, gpu_quad_ns, interp_v, sm, pr
     )
     return nbody_result

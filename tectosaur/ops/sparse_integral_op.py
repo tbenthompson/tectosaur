@@ -185,8 +185,11 @@ class NearfieldIntegralOp:
     def dot(self, v):
         return self.mat.dot(v)
 
-def farfield_pts_wrapper(K, n_obs, obs_pts, obs_ns, n_src, src_pts, src_ns, vec, sm, pr):
+def farfield_pts_wrapper(K, obs_pts, obs_ns, src_pts, src_ns, vec, sm, pr):
     gpu_farfield_fnc = getattr(get_gpu_module(), "farfield_pts" + K)
+
+    n_obs = obs_pts.shape[0]
+    n_src = src_pts.shape[0]
 
     gpu_result = gpu.empty_gpu(n_obs * 3, float_type)
     gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)
@@ -242,8 +245,8 @@ class SparseIntegralOp:
     def farfield_dot(self, v):
         interp_v = self.interp_galerkin_mat.dot(v).flatten()
         nbody_result = farfield_pts_wrapper(
-            self.kernel, self.nq, self.gpu_quad_pts, self.gpu_quad_ns,
-            self.nq, self.gpu_quad_pts, self.gpu_quad_ns, interp_v, self.sm, self.pr
+            self.kernel, self.gpu_quad_pts, self.gpu_quad_ns,
+            self.gpu_quad_pts, self.gpu_quad_ns, interp_v, self.sm, self.pr
         )
         out = self.interp_galerkin_mat.T.dot(nbody_result)
         return out

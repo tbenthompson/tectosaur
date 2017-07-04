@@ -52,9 +52,8 @@ class FMMIntegralOp:
         interp_v = self.interp_galerkin_mat.dot(v)
         fmm_out = fmm.eval(self.fmm_mat, interp_v)
         nbody_result = farfield_pts_wrapper(
-            self.kernel, self.nq, self.gpu_quad_pts, self.gpu_quad_ns,
-            self.nq, self.gpu_quad_pts, self.gpu_quad_ns, interp_v, self.sm, self.pr
+            self.kernel, self.gpu_quad_pts, self.gpu_quad_ns,
+            self.gpu_quad_pts, self.gpu_quad_ns, interp_v, self.sm, self.pr
         )
-        import ipdb; ipdb.set_trace()
         return self.interp_galerkin_mat.T.dot(fmm_out)
 

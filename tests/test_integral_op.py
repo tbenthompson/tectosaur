@@ -65,7 +65,7 @@ def test_gpu_vert_adjacent():
     out = nearfield_op.vert_adj(3, 'H', 1.0, 0.25, pts, obs_tris, src_tris)
     return out
 
-@golden_master()
+@golden_master(5)
 def test_coincident_gpu():
     n = 4
     w = 4
