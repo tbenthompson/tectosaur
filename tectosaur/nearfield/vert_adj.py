@@ -19,7 +19,7 @@ def get_pairs_integrator(kernel, singular, check0):
 #TODO: One universal float type for all of tectosaur? tectosaur.config?
 #TODO: The general structure of this caller is similar to the other in tectosaur_tables and sparse_integral_op and dense_integral_op.
 float_type = np.float32
-def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular, check0):
+def pairs_quad(kernel, params, pts, obs_tris, src_tris, q, singular, check0):
     integrator = get_pairs_integrator(kernel, singular, check0)
 
     gpu_qx, gpu_qw = gpu.quad_to_gpu(q, float_type)
@@ -30,6 +30,7 @@ def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular, check0):
         return out
 
     gpu_pts = gpu.to_gpu(pts, float_type)
+    gpu_params = gpu.to_gpu(np.array(params), float_type)
 
     def call_integrator(start_idx, end_idx):
         n_items = end_idx - start_idx
@@ -41,7 +42,7 @@ def pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, singular, check0):
             gpu_result.data,
             np.int32(q[0].shape[0]), gpu_qx.data, gpu_qw.data,
             gpu_pts.data, gpu_obs_tris.data, gpu_src_tris.data,
-            float_type(sm), float_type(pr),
+            gpu_params.data
         )
         out[start_idx:end_idx] = gpu_result.get()
 
@@ -59,9 +60,9 @@ def cached_coincident_quad(nq, eps, remove_sing):
         lambda e: triangle_rules.coincident_quad(e, nq[0], nq[1], nq[2], nq[3])
     )
 
-def coincident(nq, eps, kernel, sm, pr, pts, tris, remove_sing):
+def coincident(nq, eps, kernel, params, pts, tris, remove_sing):
     q = cached_coincident_quad(nq, eps, remove_sing)
-    out = pairs_quad(kernel, sm, pr, pts, tris, tris, q, True, True)
+    out = pairs_quad(kernel, params, pts, tris, tris, q, True, True)
     return out
 
 @cache
@@ -73,9 +74,9 @@ def cached_edge_adj_quad(nq, eps, remove_sing):
         lambda e: triangle_rules.edge_adj_quad(e, nq[0], nq[1], nq[2], nq[3], False)
     )
 
-def edge_adj(nq, eps, kernel, sm, pr, pts, obs_tris, src_tris, remove_sing):
+def edge_adj(nq, eps, kernel, params, pts, obs_tris, src_tris, remove_sing):
     q = cached_edge_adj_quad(nq, eps, remove_sing)
-    out = pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, True, False)
+    out = pairs_quad(kernel, params, pts, obs_tris, src_tris, q, True, False)
     return out
 
 @cache
@@ -84,7 +85,7 @@ def cached_vert_adj_quad(nq):
         nq = (nq, nq, nq)
     return triangle_rules.vertex_adj_quad(nq[0], nq[1], nq[2])
 
-def vert_adj(nq, kernel, sm, pr, pts, obs_tris, src_tris):
+def vert_adj(nq, kernel, params, pts, obs_tris, src_tris):
     q = cached_vert_adj_quad(nq)
-    out = pairs_quad(kernel, sm, pr, pts, obs_tris, src_tris, q, False, False)
+    out = pairs_quad(kernel, params, pts, obs_tris, src_tris, q, False, False)
     return out

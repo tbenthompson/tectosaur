@@ -12,13 +12,14 @@ from tectosaur.nearfield.table_lookup import coincident_table, adjacent_table
 import tectosaur.util.gpu as gpu
 import tectosaur.viennacl as viennacl
 
-def farfield(kernel, sm, pr, pts, obs_tris, src_tris, n_q):
+def farfield(kernel, params, pts, obs_tris, src_tris, n_q):
     integrator = getattr(get_gpu_module(), "farfield_tris" + kernel)
     q = gauss4d_tri(n_q, n_q)
 
     gpu_qx, gpu_qw = gpu.quad_to_gpu(q, float_type)
     gpu_pts = gpu.to_gpu(pts, float_type)
     gpu_src_tris = gpu.to_gpu(src_tris, np.int32)
+    gpu_params = gpu.to_gpu(np.array(params), float_type)
 
     n = obs_tris.shape[0]
     out = np.empty(
@@ -36,7 +37,7 @@ def farfield(kernel, sm, pr, pts, obs_tris, src_tris, n_q):
             gpu_pts.data,
             np.int32(n_items), gpu_obs_tris.data,
             np.int32(src_tris.shape[0]), gpu_src_tris.data,
-            float_type(sm), float_type(pr)
+            gpu_params.data
         )
         out[start_idx:end_idx] = gpu_result.get()
 
@@ -67,16 +68,16 @@ def set_near_entries(mat, near_mat, near_entries):
 
 class DenseIntegralOp(DenseOp):
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
+            nq_far, nq_near, near_threshold, kernel, params, pts, tris,
             use_tables = False, remove_sing = False):
         near_gauss = gauss4d_tri(nq_near, nq_near)
 
         timer = Timer(tabs = 1, silent = True)
         co_indices = np.arange(tris.shape[0])
         if not use_tables:
-            co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris, remove_sing)
+            co_mat = coincident(nq_coincident, eps, kernel, params, pts, tris, remove_sing)
         else:
-            co_mat = coincident_table(kernel, sm, pr, pts, tris)
+            co_mat = coincident_table(kernel, params, pts, tris)
         timer.report("Coincident")
 
         va, ea = find_adjacents(tris)
@@ -87,30 +88,30 @@ class DenseIntegralOp(DenseOp):
         timer.report("Edge adjacency prep")
         if not use_tables:
             ea_mat_rot = edge_adj(
-                nq_edge_adjacent, eps, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris, remove_sing
+                nq_edge_adjacent, eps, kernel, params, pts, ea_obs_tris, ea_src_tris, remove_sing
             )
         else:
             ea_mat_rot = adjacent_table(
-                nq_vert_adjacent, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris
+                nq_vert_adjacent, kernel, params, pts, ea_obs_tris, ea_src_tris
             )
         timer.report("Edge adjacent")
 
         va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
             vert_adj_prep(tris, va)
         timer.report("Vert adjacency prep")
-        va_mat_rot = vert_adj(nq_vert_adjacent, kernel, sm, pr, pts, va_obs_tris, va_src_tris)
+        va_mat_rot = vert_adj(nq_vert_adjacent, kernel, params, pts, va_obs_tris, va_src_tris)
         timer.report("Vert adjacent")
 
         nearfield_pairs = np.array(find_nearfield(pts, tris, va, ea, near_threshold))
         if nearfield_pairs.size == 0:
             nearfield_pairs = np.array([], dtype = np.int).reshape(0,2)
         nearfield_mat = pairs_quad(
-            kernel, sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
+            kernel, params, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
             near_gauss, False, False
         )
         timer.report("Nearfield")
 
-        out = farfield(kernel, sm, pr, pts, tris, tris, nq_far)
+        out = farfield(kernel, params, pts, tris, tris, nq_far)
 
         timer.report("Farfield")
         out = set_co_entries(out, co_mat, co_indices)

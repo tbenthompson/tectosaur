@@ -44,7 +44,8 @@ def test_farfield_two_tris():
     )
     obs_tris = np.array([[0, 1, 2]], dtype = np.int)
     src_tris = np.array([[3, 4, 5]], dtype = np.int)
-    out = dense_integral_op.farfield('H', 1.0, 0.25, pts, obs_tris, src_tris, 3)
+    params = [1.0, 0.25]
+    out = dense_integral_op.farfield('H', params, pts, obs_tris, src_tris, 3)
     return out
 
 @golden_master()
@@ -52,8 +53,9 @@ def test_gpu_edge_adjacent():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
     obs_tris = np.array([[0,1,2]]).astype(np.int32)
     src_tris = np.array([[1,0,3]]).astype(np.int32)
+    params = [1.0, 0.25]
     out = nearfield_op.edge_adj(
-        8, [0.1, 0.01], 'H', 1.0, 0.25, pts, obs_tris, src_tris, remove_sing = False
+        8, [0.1, 0.01], 'H', params, pts, obs_tris, src_tris, remove_sing = False
     )
     return out
 
@@ -62,7 +64,8 @@ def test_gpu_vert_adjacent():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
     obs_tris = np.array([[1,2,0]]).astype(np.int32)
     src_tris = np.array([[1,3,4]]).astype(np.int32)
-    out = nearfield_op.vert_adj(3, 'H', 1.0, 0.25, pts, obs_tris, src_tris)
+    params = [1.0, 0.25]
+    out = nearfield_op.vert_adj(3, 'H', params, pts, obs_tris, src_tris)
     return out
 
 @golden_master(5)
@@ -70,8 +73,9 @@ def test_coincident_gpu():
     n = 4
     w = 4
     pts, tris = mesh_gen.make_rect(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
+    params = [1.0, 0.25]
     out = nearfield_op.coincident(
-        8, [0.1, 0.01], 'H', 1.0, 0.25, pts, tris, remove_sing = False
+        8, [0.1, 0.01], 'H', params, pts, tris, remove_sing = False
     )
     return out
 
@@ -80,15 +84,16 @@ def full_integral_op_tester(k):
     tris = np.array([[0, 1, 2], [2, 1, 3]])
     rect_mesh = mesh_gen.make_rect(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     out = np.zeros(1)
+    params = [1.0, 0.25]
     for m in [(pts, tris), rect_mesh]:
         dense_op = dense_integral_op.DenseIntegralOp(
-            [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, 1.0, 0.25, m[0], m[1]
+            [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, params, m[0], m[1]
         )
         np.random.seed(100)
         x = np.random.rand(dense_op.shape[1])
         dense_res = dense_op.dot(x)
         sparse_op = sparse_integral_op.SparseIntegralOp(
-            [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, 1.0, 0.25, m[0], m[1]
+            [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, params, m[0], m[1]
         )
         sparse_res = sparse_op.dot(x)
         assert(np.max(np.abs(sparse_res - dense_res)) < 2e-6)
@@ -170,13 +175,14 @@ def test_mass_op():
 
 def test_vert_adj_separate_bases():
     K = 'H'
+    params = [1.0, 0.25]
     obs_tris = np.array([[0,1,2]])
     src_tris = np.array([[0,4,3]])
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[-0.5,0,0],[0,0,-2],[0.5,0.5,0]])
 
     nq = 6
 
-    I = nearfield_op.vert_adj(nq, K, 1.0, 0.25, pts, obs_tris, src_tris)
+    I = nearfield_op.vert_adj(nq, K, params, pts, obs_tris, src_tris)
 
     obs_basis_tris = np.array([
         [[0,0],[0.5,0.5],[0,1]], [[0,0],[1,0],[0.5,0.5]]
@@ -186,7 +192,7 @@ def test_vert_adj_separate_bases():
     ])
     obs_tris = np.array([[0,5,2], [0,1,5]])
     src_tris = np.array([[0,4,3], [0,4,3]])
-    I0 = nearfield_op.vert_adj(nq, K, 1.0, 0.25, pts, obs_tris, src_tris)
+    I0 = nearfield_op.vert_adj(nq, K, params, pts, obs_tris, src_tris)
 
     from tectosaur.nearfield.table_lookup import fast_lookup
     I1 = np.array([fast_lookup.sub_basis(

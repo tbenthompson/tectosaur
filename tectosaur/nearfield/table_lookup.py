@@ -52,8 +52,8 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
     t.report("run interpolation for " + str(n_tris) + " tris")
     return out[:, :, 0], out[:, :, 1]
 
-def coincident_table(kernel, sm, pr, pts, tris):
-    t = Timer(prefix = 'coincident')
+def coincident_table(kernel, params, pts, tris):
+    t = Timer(prefix = 'coincident', silent = True)
     if kernel is 'U':
         filename = 'U_25_0.010000_16_0.000000_8_13_8_coincidenttable.npy'
     elif kernel is 'T':
@@ -64,11 +64,11 @@ def coincident_table(kernel, sm, pr, pts, tris):
         filename = 'H_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
     filepath = tectosaur.get_data_filepath(filename)
 
-    params = filename.split('_')
+    tableparams = filename.split('_')
 
-    n_A = int(params[5])
-    n_B = int(params[6])
-    n_pr = int(params[7])
+    n_A = int(tableparams[5])
+    n_B = int(tableparams[6])
+    n_pr = int(tableparams[7])
 
     interp_pts, interp_wts = coincident_interp_pts_wts(n_A, n_B, n_pr)
 
@@ -81,7 +81,7 @@ def coincident_table(kernel, sm, pr, pts, tris):
 
     # Shift to a three step process
     # 1) Get interpolation points
-    pts, standard_tris = fast_lookup.coincident_lookup_pts(tri_pts, pr);
+    pts, standard_tris = fast_lookup.coincident_lookup_pts(tri_pts, params[1])
     t.report("get pts")
 
     # 2) Perform interpolation --> GPU!
@@ -92,14 +92,14 @@ def coincident_table(kernel, sm, pr, pts, tris):
 
     # 3) Transform to real space
     out = fast_lookup.coincident_lookup_from_standard(
-        standard_tris, interp_vals, log_coeffs, kernel, sm
+        standard_tris, interp_vals, log_coeffs, kernel, params[0]
     ).reshape((-1, 3, 3, 3, 3))
     t.report("from standard")
 
 
     return out
 
-def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
+def adjacent_table(nq_va, kernel, params, pts, obs_tris, src_tris):
     if obs_tris.shape[0] == 0:
         return np.zeros((0,3,3,3,3))
 
@@ -116,11 +116,11 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
         flip_symmetry = True
     filepath = tectosaur.get_data_filepath(filename)
 
-    t = Timer(prefix = 'adjacent')
+    t = Timer(prefix = 'adjacent', silent = True)
 
-    params = filename.split('_')
-    n_phi = int(params[5])
-    n_pr = int(params[6])
+    tableparams = filename.split('_')
+    n_phi = int(tableparams[5])
+    n_pr = int(tableparams[6])
 
     interp_pts, interp_wts = adjacent_interp_pts_wts(n_phi, n_pr)
     t.report("generate interp pts wts")
@@ -132,7 +132,7 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
 
     obs_tris_pts = pts[obs_tris]
     src_tris_pts = pts[src_tris]
-    va, ea = fast_lookup.adjacent_lookup_pts(obs_tris_pts, src_tris_pts, pr, flip_symmetry)
+    va, ea = fast_lookup.adjacent_lookup_pts(obs_tris_pts, src_tris_pts, params[1], flip_symmetry)
     t.report("get pts")
 
     interp_vals, log_coeffs = lookup_interpolation_gpu(
@@ -141,7 +141,7 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
     t.report("interpolation")
 
     out = fast_lookup.adjacent_lookup_from_standard(
-        obs_tris_pts, interp_vals, log_coeffs, ea, kernel, sm
+        obs_tris_pts, interp_vals, log_coeffs, ea, kernel, params[0]
     ).reshape((-1, 3, 3, 3, 3))
 
     t.report("from standard")
@@ -149,7 +149,7 @@ def adjacent_table(nq_va, kernel, sm, pr, pts, obs_tris, src_tris):
     # np.save('playground/vert_adj_test2.npy', (np.array(va.pts), np.array(va.obs_tris), np.array(va.src_tris)))
     # import sys; sys.exit()
     Iv = nearfield_op.vert_adj(
-        nq_va, kernel, sm, pr,
+        nq_va, kernel, params,
         np.array(va.pts), np.array(va.obs_tris), np.array(va.src_tris)
     )
     t.report('vert adj subpairs')

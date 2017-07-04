@@ -44,7 +44,7 @@ def test_kernels():
         obs_n = np.array([params[13:16]])
         nbody_result = farfield_pts_wrapper(
             name_from_idx[k_idx], obs_pt, obs_n,
-            src_pt, src_n, V, params[0], params[1]
+            src_pt, src_n, V, params[0:2]
         ).reshape((1,3))
         return nbody_result[0, i]
 

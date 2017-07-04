@@ -19,7 +19,8 @@ from tectosaur.nearfield.integral_utils import pairs_func_name, kernel_names, dn
         kahanC[iresult] = 0;
     }
 
-    ${prim.constants()}
+    ${prim.params(k_name)}
+    ${prim.constants(k_name)}
     
     for (int iq = 0; iq < n_quad_pts; iq++) {
         <% 
@@ -91,7 +92,7 @@ __kernel
 void ${pairs_func_name(limit, k_name, check0)}(__global Real* result, 
     int n_quad_pts, __global Real* quad_pts, __global Real* quad_wts,
     __global Real* pts, __global int* obs_tris, __global int* src_tris, 
-    Real G, Real nu)
+    __global Real* params)
 {
     const int i = get_global_id(0);
 
@@ -110,7 +111,8 @@ __kernel
 void farfield_tris${k_name}(__global Real* result,
     int n_quad_pts, __global Real* quad_pts, __global Real* quad_wts,
     __global Real* pts, int n_obs_tris, __global int* obs_tris, 
-    int n_src_tris, __global int* src_tris, Real G, Real nu)
+    int n_src_tris, __global int* src_tris, 
+    __global Real* params)
 {
     const int i = get_global_id(0);
     const int j = get_global_id(1);
@@ -135,12 +137,12 @@ void farfield_tris${k_name}(__global Real* result,
 }
 </%def>
 
-<%def name="farfield_pts(k_name, need_obsn, need_srcn, constants_code)">
+<%def name="farfield_pts(k_name, need_obsn, need_srcn)">
 __kernel
 void farfield_pts${k_name}(
     __global Real* result, __global Real* obs_pts, __global Real* obs_ns,
     __global Real* src_pts, __global Real* src_ns, __global Real* input,
-    Real G, Real nu, int n_obs, int n_src)
+    __global Real* params, int n_obs, int n_src)
 {
     int i = get_global_id(0);
     int local_id = get_local_id(0);
@@ -172,7 +174,8 @@ void farfield_pts${k_name}(
     __local Real sh_input[3 * ${block_size}];
 
     
-    ${prim.constants()}
+    ${prim.params(k_name)}
+    ${prim.constants(k_name)}
 
     Real sumx = 0.0;
     Real sumy = 0.0;
@@ -230,10 +233,10 @@ void farfield_pts${k_name}(
 
 ${prim.geometry_fncs()}
 
-${farfield_pts("U", False, False, U_const_code)}
-${farfield_pts("T", False, True, T_const_code)}
-${farfield_pts("A", True, False, A_const_code)}
-${farfield_pts("H", True, True, H_const_code)}
+${farfield_pts("U", False, False)}
+${farfield_pts("T", False, True)}
+${farfield_pts("A", True, False)}
+${farfield_pts("H", True, True)}
 
 % for k_name in kernel_names:
 ${farfield_tris(k_name)}

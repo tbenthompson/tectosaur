@@ -68,19 +68,49 @@ ${pt_pfx}${dn(dim)} += ${basis_pfx}b${basis} * ${tri_name(basis,dim)};
 ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 </%def>
 
-<%def name="constants()">
-const Real CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
-const Real CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
-const Real CsT0 = (1-2.0*nu)/(8.0*M_PI*(1.0-nu));
-const Real CsT1 = 3.0/(8.0*M_PI*(1.0-nu));
-const Real CsH0 = G/(4*M_PI*(1-nu));
-const Real CsH1 = 1-2*nu;
-const Real CsH2 = -1+4*nu;
-const Real CsH3 = 3*nu;
+<%def name="params(k_name)">
+% if k_name is 'U' or k_name is 'T' or k_name is 'A' or k_name is 'H':
+    const Real G = params[0];
+    const Real nu = params[1];
+% else:
+    // no params
+% endif
+</%def>
+<%def name="constants(k_name)">
+% if k_name is 'U':
+    const Real CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
+    const Real CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
+% elif k_name is 'T' or k_name is 'A':
+    const Real CsT0 = (1-2.0*nu)/(8.0*M_PI*(1.0-nu));
+    const Real CsT1 = 3.0/(8.0*M_PI*(1.0-nu));
+% elif k_name is 'H':
+    const Real CsH0 = G/(4*M_PI*(1-nu));
+    const Real CsH1 = 1-2*nu;
+    const Real CsH2 = -1+4*nu;
+    const Real CsH3 = 3*nu;
+% else:
+    // no constants
+% endif
 </%def>
 
 <%def name="vector_kernels(k_name)">
-% if k_name is 'U':
+% if k_name is 'invr':
+    Real kernel_val = 1.0 / sqrt(r2);
+    sumx += kernel_val * inx;
+% elif k_name is 'tensor_invr':
+    Real kernel_val = 1.0 / sqrt(r2);
+    Real insum = inx + iny + inz;
+    sumx += kernel_val * insum;
+    sumy += kernel_val * insum;
+    sumz += kernel_val * insum;
+% elif k_name is 'one':
+    sumx += inx;
+% elif k_name is 'laplace_double':
+    Real r = sqrt(r2);
+    Real rn = lx * Dx + ly * Dy + lz * Dz;
+    Real kernel_val = rn / (4 * M_PI * r2 * r);
+    sumx += kernel_val * inx;
+% elif k_name is 'U':
     Real invr = 1.0 / sqrt(r2);
     Real Q1 = CsU0 * invr;
     Real Q2 = CsU1 * invr / r2;

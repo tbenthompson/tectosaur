@@ -88,7 +88,7 @@ def build_nearfield(co_data, ea_data, va_data, near_data, shape):
 
 class NearfieldIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
+            nq_far, nq_near, near_threshold, kernel, params, pts, tris,
             use_tables = False, remove_sing = False):
         n = tris.shape[0] * 9
         self.shape = (n, n)
@@ -100,12 +100,12 @@ class NearfieldIntegralOp:
 
         co_indices = np.arange(tris.shape[0])
         if not use_tables:
-            co_mat = coincident(nq_coincident, eps, kernel, sm, pr, pts, tris, remove_sing)
+            co_mat = coincident(nq_coincident, eps, kernel, params, pts, tris, remove_sing)
         else:
-            co_mat = coincident_table(kernel, sm, pr, pts, tris)
+            co_mat = coincident_table(kernel, params, pts, tris)
         timer.report("Coincident")
         co_mat_correction = pairs_quad(
-            kernel, sm, pr, pts, tris, tris, far_quad, False, True
+            kernel, params, pts, tris, tris, far_quad, False, True
         )
         timer.report("Coincident correction")
 
@@ -117,16 +117,16 @@ class NearfieldIntegralOp:
         timer.report("Edge adjacency prep")
         if not use_tables:
             ea_mat_rot = edge_adj(
-                nq_edge_adjacent, eps, kernel, sm, pr, pts,
+                nq_edge_adjacent, eps, kernel, params, pts,
                 ea_obs_tris, ea_src_tris, remove_sing
             )
         else:
             ea_mat_rot = adjacent_table(
-                nq_vert_adjacent, kernel, sm, pr, pts, ea_obs_tris, ea_src_tris
+                nq_vert_adjacent, kernel, params, pts, ea_obs_tris, ea_src_tris
             )
         timer.report("Edge adjacent")
         ea_mat_correction = pairs_quad(
-            kernel, sm, pr, pts,
+            kernel, params, pts,
             tris[ea_tri_indices[:,0]], tris[ea_tri_indices[:,1]],
             far_quad, False, False
         )
@@ -137,11 +137,11 @@ class NearfieldIntegralOp:
         timer.report("Vert adjacency prep")
 
         va_mat_rot = vert_adj(
-            nq_vert_adjacent, kernel, sm, pr, pts, va_obs_tris, va_src_tris
+            nq_vert_adjacent, kernel, params, pts, va_obs_tris, va_src_tris
         )
         timer.report("Vert adjacent")
         va_mat_correction = pairs_quad(
-            kernel, sm, pr, pts,
+            kernel, params, pts,
             tris[va_tri_indices[:,0]], tris[va_tri_indices[:,1]],
             far_quad, False, False
         )
@@ -153,12 +153,12 @@ class NearfieldIntegralOp:
         timer.report("Find nearfield")
 
         nearfield_mat = pairs_quad(
-            kernel, sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
+            kernel, params, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
             near_gauss, False, False
         )
         timer.report("Nearfield")
         nearfield_correction = pairs_quad(
-            kernel, sm, pr, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
+            kernel, params, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
             far_quad, False, False
         )
         timer.report("Nearfield correction")
@@ -185,7 +185,7 @@ class NearfieldIntegralOp:
     def dot(self, v):
         return self.mat.dot(v)
 
-def farfield_pts_wrapper(K, obs_pts, obs_ns, src_pts, src_ns, vec, sm, pr):
+def farfield_pts_wrapper(K, obs_pts, obs_ns, src_pts, src_ns, vec, params):
     gpu_farfield_fnc = getattr(get_gpu_module(), "farfield_pts" + K)
 
     n_obs = obs_pts.shape[0]
@@ -197,6 +197,7 @@ def farfield_pts_wrapper(K, obs_pts, obs_ns, src_pts, src_ns, vec, sm, pr):
     gpu_src_pts = gpu.to_gpu(src_pts, float_type)
     gpu_src_ns = gpu.to_gpu(src_ns, float_type)
     gpu_vec = gpu.to_gpu(vec, float_type)
+    gpu_params = gpu.to_gpu(np.array(params), float_type)
 
     local_size = get_gpu_config()['block_size']
     n_blocks = int(np.ceil(n_obs / local_size))
@@ -207,18 +208,18 @@ def farfield_pts_wrapper(K, obs_pts, obs_ns, src_pts, src_ns, vec, sm, pr):
         gpu_obs_pts.data, gpu_obs_ns.data,
         gpu_src_pts.data, gpu_src_ns.data,
         gpu_vec.data,
-        float_type(sm), float_type(pr),
+        gpu_params.data,
         np.int32(n_obs), np.int32(n_src),
     )
     return gpu_result.get()
 
 class SparseIntegralOp:
     def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
+            nq_far, nq_near, near_threshold, kernel, params, pts, tris,
             use_tables = False, remove_sing = False):
         self.nearfield = NearfieldIntegralOp(
             eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, sm, pr, pts, tris,
+            nq_far, nq_near, near_threshold, kernel, params, pts, tris,
             use_tables, remove_sing
         )
 
@@ -227,8 +228,7 @@ class SparseIntegralOp:
             interp_galerkin_mat(pts[tris], far_quad2d)
         self.nq = quad_pts.shape[0]
         self.shape = self.nearfield.shape
-        self.sm = sm
-        self.pr = pr
+        self.params = params
         self.kernel = kernel
         self.gpu_quad_pts = gpu.to_gpu(quad_pts.flatten(), float_type)
         self.gpu_quad_ns = gpu.to_gpu(quad_ns.flatten(), float_type)
@@ -246,7 +246,7 @@ class SparseIntegralOp:
         interp_v = self.interp_galerkin_mat.dot(v).flatten()
         nbody_result = farfield_pts_wrapper(
             self.kernel, self.gpu_quad_pts, self.gpu_quad_ns,
-            self.gpu_quad_pts, self.gpu_quad_ns, interp_v, self.sm, self.pr
+            self.gpu_quad_pts, self.gpu_quad_ns, interp_v, self.params
         )
         out = self.interp_galerkin_mat.T.dot(nbody_result)
         return out

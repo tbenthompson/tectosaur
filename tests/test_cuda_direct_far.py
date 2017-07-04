@@ -34,8 +34,9 @@ def run_kernel(n, k_name, flops, testit = False, timeit = False):
 
     get_gpu_module() #preload module so it doesn't get counted in the runtime
     start = time.time()
+    params = [1.0, 0.25]
     result = farfield_pts_wrapper(
-        k_name, obs_pts, obs_ns, src_pts, src_ns, weights, 1.0, 0.25
+        k_name, obs_pts, obs_ns, src_pts, src_ns, weights, params
     ).reshape((n, 3))
     runtime = time.time() - start
     if timeit:

@@ -133,17 +133,20 @@ def test_sub_basis_rotation():
     B = fast_lookup.sub_basis(A.flatten().tolist(), [[0,0],[1,0],[0,1]], [[0,1],[0,0],[1,0]])
     np.testing.assert_almost_equal(A[:,:,[1,2,0],:], np.array(B).reshape((3,3,3,3)))
 
-def coincident_lookup_helper(K, remove_sing, correct_digits):
+def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
     np.random.seed(113)
 
+
     results = []
-    for i in range(10):
+    for i in range(n_tests):
         try:
             A = np.random.rand(1)[0] * 0.5
             B = np.random.rand(1)[0]
             pr = np.random.rand(1)[0] * 0.5
             scale = np.random.rand(1)[0]
             flip = np.random.rand(1) > 0.5
+
+            params = [1.0, pr]
 
             R = random_rotation()
             # print(R)
@@ -156,26 +159,30 @@ def coincident_lookup_helper(K, remove_sing, correct_digits):
             else:
                 tris = np.array([[0,1,2]])
 
-            eps_scale = np.sqrt(np.linalg.norm(tri_normal(pts)))
+            eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(pts)))
             eps = 0.01 * (2.0 ** -np.arange(8))# / eps_scale
             if K is 'H':
                 eps = [0.08, 0.04, 0.02, 0.01]
             op = DenseIntegralOp(
-                eps, 25, 15, 10, 3, 10, 3.0, K, 1.0, pr,
-                pts, tris, remove_sing = remove_sing
-            )
-            op2 = DenseIntegralOp(
-                eps, 15, 15, 10, 3, 10, 3.0, K, 1.0, pr,
+                eps, 15, 15, 10, 3, 10, 3.0, K, params,
                 pts, tris, use_tables = True, remove_sing = remove_sing
             )
-            A = op.mat
-            B = op2.mat
-            print(A[0,0],B[0,0])
-            np.testing.assert_almost_equal(A, B, correct_digits)
-            results.append(B)
+            # op2 = DenseIntegralOp(
+            #     eps, 25, 15, 10, 3, 10, 3.0, K, params,
+            #     pts, tris, remove_sing = remove_sing
+            # )
+            # A = op.mat
+            # B = op2.mat
+            # print(A[0,0],B[0,0])
+            # np.testing.assert_almost_equal(A, B, correct_digits)
+            results.append(op.mat)
         except BadTriangleError as e:
             print("Bad tri: " + str(e.code))
     return np.array(results)
+
+@golden_master()
+def test_coincident_lookupU_fast():
+    return coincident_lookup_helper('U', False, 5, 1)
 
 @slow
 @golden_master()
@@ -197,15 +204,18 @@ def test_coincident_lookupA():
 def test_coincident_lookupH():
     return coincident_lookup_helper('H', True, 0)
 
-def adjacent_lookup_helper(K, remove_sing, correct_digits):
+def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
     np.random.seed(973)
 
+
     results = []
-    for i in range(10):
+    for i in range(n_tests):
         # We want phi in [0, 3*pi/2] because the old method doesn't work for
         # phi >= 3*np.pi/2
         phi = to_interval(min_intersect_angle, 1.4 * np.pi, np.random.rand(1)[0])
         pr = np.random.rand(1)[0] * 0.5
+
+        params = [1.0, pr]
         alpha = np.random.rand(1)[0] * 3 + 1
         beta = np.random.rand(1)[0] * 3 + 1
 
@@ -227,23 +237,27 @@ def adjacent_lookup_helper(K, remove_sing, correct_digits):
         tris = np.array([[0,1,3],[1,0,2]])
 
         eps = 0.01 * (2.0 ** -np.arange(10))
-        eps_scale = np.sqrt(np.linalg.norm(tri_normal(pts[tris[0]])))
+        eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(pts[tris[0]])))
 
         op = DenseIntegralOp(
-            eps, 1, 20, 1, 1, 1, 3.0, K, 1.0, pr,
-            pts, tris, remove_sing = remove_sing
-        )
-        op2 = DenseIntegralOp(
-            eps, 3, 3, 10, 3, 10, 3.0, K, 1.0, pr,
+            eps, 3, 3, 10, 3, 10, 3.0, K, params,
             pts, tris, use_tables = True
         )
 
-        A = op.mat[:9,9:]
-        B = op2.mat[:9,9:]
-        print("checking ", A[0,0], B[0,0])
+        # op2 = DenseIntegralOp(
+        #     eps, 1, 20, 1, 1, 1, 3.0, K, params,
+        #     pts, tris, remove_sing = remove_sing
+        # )
+        # A = op.mat[:9,9:]
+        # B = op2.mat[:9,9:]
+        # print("checking ", A[0,0], B[0,0])
         # np.testing.assert_almost_equal(A, B, correct_digits)
-        results.append(B)
+        results.append(op.mat[:9,9:])
     return np.array(results)
+
+@golden_master()
+def test_adjacent_lookupU_fast():
+    return adjacent_lookup_helper('U', False, 5, 1)
 
 @slow
 @golden_master()
