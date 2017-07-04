@@ -6,13 +6,8 @@ import okada_wrapper
 import scipy.spatial
 
 import tectosaur
-import tectosaur.mesh.mesh as mesh
 import tectosaur.mesh.adjacency as adjacency
 import tectosaur.constraints as constraints
-from tectosaur.sparse_integral_op import SparseIntegralOp
-from tectosaur.mass_op import MassOp
-from tectosaur.neg_op import NegOp
-from tectosaur.sum_op import SumOp
 from tectosaur.util.timer import Timer
 from tectosaur.interior import interior_integral
 
@@ -35,10 +30,10 @@ def build_constraints(surface_tris, fault_tris, pts):
 
 def make_free_surface(w, n):
     corners = [[-w, -w, 0], [-w, w, 0], [w, w, 0], [w, -w, 0]]
-    return mesh.make_rect(n, n, corners)
+    return tectosaur.make_rect(n, n, corners)
 
 def make_fault(L, top_depth):
-    return mesh.make_rect(15, 15, [
+    return tectosaur.make_rect(15, 15, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
@@ -53,7 +48,7 @@ def make_meshes(fault_L, top_depth, n_surf):
         x_co = surface[0][:,1]
         surface[0][:,2] = np.where(x_co > 0, np.where(x_co < 2, x_co / 2.0, 1.0), 0.0)
     fault = make_fault(fault_L, top_depth)
-    all_mesh = mesh.concat(surface, fault)
+    all_mesh = tectosaur.concat(surface, fault)
     surface_tris = all_mesh[1][:surface[1].shape[0]]
     fault_tris = all_mesh[1][surface[1].shape[0]:]
     return all_mesh, surface_tris, fault_tris
@@ -61,6 +56,7 @@ def make_meshes(fault_L, top_depth, n_surf):
 def test_okada(n_surf):
     sm = 1.0
     pr = 0.25
+    k_params = [sm, pr]
     fault_L = 1.0
     top_depth = -0.5
     load_soln = False
@@ -84,16 +80,16 @@ def test_okada(n_surf):
         obs_pts = all_mesh[0][surface_pt_idxs,:]
 
         eps = [0.08, 0.04, 0.02, 0.01]
-        T_op = SparseIntegralOp(
+        T_op = tectosaur.SparseIntegralOp(
             [], 0, 0, 6, 2, 6, 4.0,
-            'T', sm, pr, all_mesh[0], all_mesh[1],
+            'elasticT', k_params, all_mesh[0], all_mesh[1],
             use_tables = True,
             remove_sing = True
         )
         timer.report("Integrals")
 
-        mass_op = MassOp(3, all_mesh[0], all_mesh[1])
-        iop = SumOp([T_op, mass_op])
+        mass_op = tectosaur.MassOp(3, all_mesh[0], all_mesh[1])
+        iop = tectosaur.SumOp([T_op, mass_op])
 
         soln = iterative_solve(iop, cs)
         # soln = direct_solve(iop, cs)
@@ -138,7 +134,7 @@ def plot_interior_displacement(fault_L, top_depth, sm, pr, all_mesh, soln):
         X, Y = np.meshgrid(xs, xs)
         obs_pts = np.array([X.flatten(), Y.flatten(), -z * np.ones(X.size)]).T
         # exact_disp = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-        interior_disp = -interior_integral(obs_pts, obs_pts, all_mesh, soln, 'T', 3, 8, sm, pr);
+        interior_disp = -interior_integral(obs_pts, obs_pts, all_mesh, soln, 'elasticT', 3, 8, sm, pr);
         interior_disp = interior_disp.reshape((-1, 3))
         # for d in range(1):
         #     plt.figure()
@@ -223,9 +219,11 @@ def print_error(pts, correct, est):
 
 if __name__ == '__main__':
     import logging
-    tectosaur.logger.setLevel(logging.ERROR)
+    tectosaur.logger.setLevel(logging.DEBUG)
     #n = [8, 16, 32, 64, 128, 256]
     #l2 = [0.0149648012534, 0.030572079265, 0.00867837671259, 0.00105034618493, 6.66984415273e-05, 4.07689295549e-06]
     #linf = [0.008971091166208367, 0.014749192806577716, 0.0093510756645549115, 0.0042803891552975898, 0.0013886177492512669, 0.000338113427521]
 
-    print([test_okada(n) for n in [128]])
+    test_okada(32)
+
+    # print([test_okada(n) for n in [128]])

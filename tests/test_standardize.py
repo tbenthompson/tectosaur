@@ -117,7 +117,7 @@ def standardized_tri_tester(K, sm, pr, rho_order, theta_order, tol, starting_eps
     )
 
     p = coincident.make_coincident_params(
-        K, 1e-3, 25, True, True, 25, 25, starting_eps, n_eps, K == 'H', 1, 1, 1
+        K, 1e-3, 25, True, True, 25, 25, starting_eps, n_eps, K == 'elasticH', 1, 1, 1
     )
 
     correct_limits = coincident.eval_tri_integral(tri, pr, p)
@@ -177,16 +177,16 @@ def kernel_properties_tester(K, sm, pr):
 
 @slow
 def test_U_properties():
-    kernel_properties_tester('U', 1.0, 0.25)
+    kernel_properties_tester('elasticU', 1.0, 0.25)
 
 @slow
 def test_T_properties():
-    kernel_properties_tester('T', 1.0, 0.25)
+    kernel_properties_tester('elasticT', 1.0, 0.25)
 
 @slow
 def test_A_properties():
-    kernel_properties_tester('A', 1.0, 0.25)
+    kernel_properties_tester('elasticA', 1.0, 0.25)
 
 @slow
 def test_H_properties():
-    kernel_properties_tester('H', 1.0, 0.25)
+    kernel_properties_tester('elasticH', 1.0, 0.25)

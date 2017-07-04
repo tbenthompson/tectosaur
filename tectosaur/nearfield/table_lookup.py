@@ -53,7 +53,7 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
     return out[:, :, 0], out[:, :, 1]
 
 def coincident_table(kernel, params, pts, tris):
-    t = Timer(prefix = 'coincident', silent = True)
+    t = Timer(prefix = 'coincident')
     if kernel is 'elasticU':
         filename = 'elasticU_25_0.010000_16_0.000000_8_13_8_coincidenttable.npy'
     elif kernel is 'elasticT':
@@ -116,7 +116,7 @@ def adjacent_table(nq_va, kernel, params, pts, obs_tris, src_tris):
         flip_symmetry = True
     filepath = tectosaur.get_data_filepath(filename)
 
-    t = Timer(prefix = 'adjacent', silent = True)
+    t = Timer(prefix = 'adjacent')
 
     tableparams = filename.split('_')
     n_phi = int(tableparams[5])

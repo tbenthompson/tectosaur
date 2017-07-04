@@ -18,6 +18,15 @@ def test_sym_skw():
 def test_outer():
     np.testing.assert_almost_equal(tensor_outer([0, 1], [1, 2]), [[0, 0], [1, 2]])
 
+def f():
+    x = 0
+    return g(x)
+
+f()
+f()
+f()
+
+
 @slow
 def test_kernels():
     import sympy
@@ -28,7 +37,7 @@ def test_kernels():
         all_kernels = dill.load(f)
 
     kernel_builders = [U, T, A, H]
-    name_from_idx = ['U', 'T', 'A', 'H']
+    name_from_idx = ['elasticU', 'elasticT', 'elasticA', 'elasticH']
 
 ## 0.999912664648 [ 1.  0.  0.] [[ 0.04484328  0.61542118  0.61866593]] [[ 0.42195645  0.26927334  0.34952787]] 0.578332
 ## 0.999884855908 [ 1.  0.  0.] [[ 0.64798468  0.75984156  0.9303776 ]] [[ 0.9142682  0.6666224  0.2419737]] 0.743974

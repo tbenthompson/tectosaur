@@ -280,28 +280,15 @@ struct KernelProps {
     bool flip_negate;
 };
 
-KernelProps get_kernel_props(std::string K) {
-    % for K in kernels:
-        if (K == "${K.name}") { 
-            return {
-                ${K.scale_type}, ${K.sm_power}, ${str(K.flip_negate).lower()}
-            };
-        }
-    % endfor
-    else { throw std::runtime_error("unknown kernel"); }
-}
-
 std::array<double,81> transform_from_standard(const std::array<double,81>& I,
-    std::string K, double sm, const std::array<int,3>& labels,
+    const KernelProps& k_props, double sm, const std::array<int,3>& labels,
     const Vec3& translation, const Tensor3& R, double scale) 
 {
-    auto props = get_kernel_props(K);
-
-    bool flip_negate = (labels[1] != (labels[0] + 1) % 3) && props.flip_negate;
-
     std::array<double,81> out;
 
-    double scale_times_sm = std::pow(scale, props.scale_power) * std::pow(sm, props.sm_power);
+    bool flip_negate = (labels[1] != (labels[0] + 1) % 3) && k_props.flip_negate;
+    double scale_times_sm = std::pow(scale, k_props.scale_power) * std::pow(sm, k_props.sm_power);
+
     for (int sb1 = 0; sb1 < 3; sb1++) {
         for (int sb2 = 0; sb2 < 3; sb2++) {
             auto cb1 = labels[sb1];
@@ -334,6 +321,24 @@ std::array<double,81> transform_from_standard(const std::array<double,81>& I,
         }
     }
     return out;
+}
+
+KernelProps get_kernel_props(std::string K) {
+    % for K in kernels:
+        if (K == "${K.name}") { 
+            return {
+                ${K.scale_type}, ${K.sm_power}, ${str(K.flip_negate).lower()}
+            };
+        }
+    % endfor
+    else { throw std::runtime_error("unknown kernel"); }
+}
+
+std::array<double,81> transform_from_standard_pyshim(const std::array<double,81>& I,
+    std::string K, double sm, const std::array<int,3>& labels,
+    const Vec3& translation, const Tensor3& R, double scale) {
+
+    return transform_from_standard(I, get_kernel_props(K), sm, labels, translation, R, scale);
 }
 
 NPArray<double> barycentric_evalnd_py(NPArray<double> pts, NPArray<double> wts, NPArray<double> vals, NPArray<double> xhat) {
@@ -432,6 +437,8 @@ NPArray<double> coincident_lookup_from_standard(
     auto* interp_vals_ptr = reinterpret_cast<double*>(interp_vals.request().ptr);
     auto* log_coeffs_ptr = reinterpret_cast<double*>(log_coeffs.request().ptr);
 
+    auto kernel_props = get_kernel_props(kernel);
+
 #pragma omp parallel for
     for (size_t i = 0; i < n_tris; i++) {
         auto log_standard_scale = log(sqrt(length(tri_normal(standard_tris[i].tri))));
@@ -443,7 +450,7 @@ NPArray<double> coincident_lookup_from_standard(
         }
 
         auto transformed = transform_from_standard(
-            interp_vals_array, kernel, sm,
+            interp_vals_array, kernel_props, sm,
             standard_tris[i].labels, standard_tris[i].translation,
             standard_tris[i].R, standard_tris[i].scale
         );
@@ -808,6 +815,8 @@ NPArray<double> adjacent_lookup_from_standard(
     auto* log_coeffs_ptr = reinterpret_cast<double*>(log_coeffs.request().ptr);
     auto* obs_tris_ptr = reinterpret_cast<double*>(obs_tris.request().ptr);
 
+    auto kernel_props = get_kernel_props(kernel);
+
 #pragma omp parallel for
     for (size_t i = 0; i < n_tris; i++) {
         Tensor3 tri;
@@ -827,7 +836,7 @@ NPArray<double> adjacent_lookup_from_standard(
         }
 
         auto transformed = transform_from_standard(
-            interp_vals_array, kernel, sm,
+            interp_vals_array, kernel_props, sm,
             standardized_res.labels, standardized_res.translation,
             standardized_res.R, standardized_res.scale
         );
@@ -862,7 +871,7 @@ PYBIND11_PLUGIN(fast_lookup) {
 
     m.def("get_split_pt", get_split_pt);
 
-    m.def("transform_from_standard", transform_from_standard);
+    m.def("transform_from_standard", transform_from_standard_pyshim);
     m.def("sub_basis", sub_basis);
 
     

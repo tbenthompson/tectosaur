@@ -12,8 +12,14 @@ def get_data_filepath(filename):
 from .mesh.mesh_gen import make_rect, make_sphere
 from .mesh.modify import concat
 from .mesh.refine import refine, refine_to_size, selective_refine
-# from .constraints import continuity_constraints, constant_bc_constraints, free_edge_constraints, \
-#     build_constraint_matrix, all_bc_constraints
+
+from .ops.sparse_integral_op import SparseIntegralOp
+from .ops.mass_op import MassOp
+from .ops.neg_op import NegOp
+from .ops.sum_op import SumOp
+
+from .constraints import continuity_constraints, constant_bc_constraints, free_edge_constraints, \
+    build_constraint_matrix, all_bc_constraints
 # from .sparse_integral_op import SparseIntegralOp
 # from .combined_mesh import CombinedMesh
 

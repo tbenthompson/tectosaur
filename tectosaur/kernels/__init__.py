@@ -1,5 +1,6 @@
 class Kernel:
-    def __init__(self, name, needs_obsn, needs_srcn, scale_type, sm_power, flip_negate,
+    def __init__(self, name, spatial_dim, tensor_dim, needs_obsn, needs_srcn,
+            scale_type, sm_power, flip_negate,
             constants_code, vector_code, tensor_code):
         self.name = name
         self.needs_obsn = needs_obsn
@@ -12,7 +13,7 @@ class Kernel:
         self.tensor_code = tensor_code
 
 elasticU = Kernel(
-    'elasticU', False, False, -3, 1, False,
+    'elasticU', 3, 3, False, False, -3, 1, False,
     '''
     const Real G = params[0];
     const Real nu = params[1];
@@ -119,17 +120,17 @@ def TA_tensor_code(k_name):
     '''.format(**TA_args(k_name))
 
 elasticT = Kernel(
-    'elasticT', False, True, -2, 0, True,
+    'elasticT', 3, 3, False, True, -2, 0, True,
     TA_const_code, TA_vector_code('T'), TA_tensor_code('T')
 )
 
 elasticA = Kernel(
-    'elasticA', True, False, -2, 0, True,
+    'elasticA', 3, 3, True, False, -2, 0, True,
     TA_const_code, TA_vector_code('A'), TA_tensor_code('A')
 )
 
 elasticH = Kernel(
-    'elasticH', True, True, -1, -1, False,
+    'elasticH', 3, 3, True, True, -1, -1, False,
     '''
     const Real G = params[0];
     const Real nu = params[1];

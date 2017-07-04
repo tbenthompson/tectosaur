@@ -1,8 +1,8 @@
 import numpy as np
-from tectosaur.quadrature import gauss2d_tri
+from tectosaur.util.quadrature import gauss2d_tri
 import tectosaur.util.gpu as gpu
 
-from tectosaur.sparse_integral_op import interp_galerkin_mat, farfield_pts_wrapper
+from tectosaur.ops.sparse_integral_op import interp_galerkin_mat, farfield_pts_wrapper
 
 #TODO:
 #1) Write using just one order and no nearfield/farfield split
