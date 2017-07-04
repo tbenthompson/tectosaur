@@ -12,7 +12,8 @@ from test_interpolate import ptswts3d
 def test_coincident_lookup_single():
     pts = np.array([[0,0,0],[1,0,0],[0,1,0]])
     tris = np.array([[0,1,2]] * 100)
-    res = coincident_table('H', 1.0, 0.25, pts, tris)
+    params = [1.0, 0.25]
+    res = coincident_table('elasticH', params, pts, tris)
     return res
 
 def test_fast_interp():

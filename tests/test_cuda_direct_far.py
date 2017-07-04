@@ -54,19 +54,19 @@ def run_kernel(n, k_name, flops, testit = False, timeit = False):
     #     )
 
 def test_U():
-    run_kernel(1000, 'U', 28, testit = True)
+    run_kernel(1000, 'elasticU', 28, testit = True)
 
 def test_T():
-    run_kernel(1000, 'T', 63, testit = True)
+    run_kernel(1000, 'elasticT', 63, testit = True)
 
 def test_A():
-    run_kernel(1000, 'A', 63, testit = True)
+    run_kernel(1000, 'elasticA', 63, testit = True)
 
 def test_H():
-    run_kernel(1000, 'H', 102, testit = True)
+    run_kernel(1000, 'elasticH', 102, testit = True)
 
 if __name__ == '__main__':
-    run_kernel(128 * 512, 'U', 28, timeit = True)
-    run_kernel(128 * 512, 'A', 63, timeit = True)
-    run_kernel(128 * 512, 'T', 63, timeit = True)
-    run_kernel(128 * 512, 'H', 102, timeit = True)
+    run_kernel(128 * 512, 'elasticU', 28, timeit = True)
+    run_kernel(128 * 512, 'elasticA', 63, timeit = True)
+    run_kernel(128 * 512, 'elasticT', 63, timeit = True)
+    run_kernel(128 * 512, 'elasticH', 102, timeit = True)

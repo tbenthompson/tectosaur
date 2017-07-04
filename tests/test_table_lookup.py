@@ -161,7 +161,7 @@ def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
 
             eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(pts)))
             eps = 0.01 * (2.0 ** -np.arange(8))# / eps_scale
-            if K is 'H':
+            if K is 'elasticH':
                 eps = [0.08, 0.04, 0.02, 0.01]
             op = DenseIntegralOp(
                 eps, 15, 15, 10, 3, 10, 3.0, K, params,
@@ -182,27 +182,27 @@ def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
 
 @golden_master()
 def test_coincident_fast_lookupU():
-    return coincident_lookup_helper('U', False, 5, 1)
+    return coincident_lookup_helper('elasticU', False, 5, 1)
 
 @slow
 @golden_master()
 def test_coincident_lookupU():
-    return coincident_lookup_helper('U', False, 5)
+    return coincident_lookup_helper('elasticU', False, 5)
 
 @slow
 @golden_master()
 def test_coincident_lookupT():
-    return coincident_lookup_helper('T', False, 4)
+    return coincident_lookup_helper('elasticT', False, 4)
 
 @slow
 @golden_master()
 def test_coincident_lookupA():
-    return coincident_lookup_helper('A', False, 4)
+    return coincident_lookup_helper('elasticA', False, 4)
 
 @slow
 @golden_master()
 def test_coincident_lookupH():
-    return coincident_lookup_helper('H', True, 0)
+    return coincident_lookup_helper('elasticH', True, 0)
 
 def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
     np.random.seed(973)
@@ -257,25 +257,25 @@ def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
 
 @golden_master()
 def test_adjacent_fast_lookupU():
-    return adjacent_lookup_helper('U', False, 5, 1)
+    return adjacent_lookup_helper('elasticU', False, 5, 1)
 
 @slow
 @golden_master()
 def test_adjacent_lookupU():
-    return adjacent_lookup_helper('U', False, 5)
+    return adjacent_lookup_helper('elasticU', False, 5)
 
 @slow
 @golden_master()
 def test_adjacent_lookupT():
-    return adjacent_lookup_helper('T', False, 4)
+    return adjacent_lookup_helper('elasticT', False, 4)
 
 @slow
 @golden_master()
 def test_adjacent_lookupA():
-    return adjacent_lookup_helper('A', False, 4)
+    return adjacent_lookup_helper('elasticA', False, 4)
 
 @slow
 @golden_master()
 def test_adjacent_lookupH():
-    return adjacent_lookup_helper('H', True, 4)
+    return adjacent_lookup_helper('elasticH', True, 4)
 

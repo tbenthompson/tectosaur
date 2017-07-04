@@ -45,7 +45,7 @@ def test_farfield_two_tris():
     obs_tris = np.array([[0, 1, 2]], dtype = np.int)
     src_tris = np.array([[3, 4, 5]], dtype = np.int)
     params = [1.0, 0.25]
-    out = dense_integral_op.farfield('H', params, pts, obs_tris, src_tris, 3)
+    out = dense_integral_op.farfield('elasticH', params, pts, obs_tris, src_tris, 3)
     return out
 
 @golden_master()
@@ -55,7 +55,7 @@ def test_gpu_edge_adjacent():
     src_tris = np.array([[1,0,3]]).astype(np.int32)
     params = [1.0, 0.25]
     out = nearfield_op.edge_adj(
-        8, [0.1, 0.01], 'H', params, pts, obs_tris, src_tris, remove_sing = False
+        8, [0.1, 0.01], 'elasticH', params, pts, obs_tris, src_tris, remove_sing = False
     )
     return out
 
@@ -65,7 +65,7 @@ def test_gpu_vert_adjacent():
     obs_tris = np.array([[1,2,0]]).astype(np.int32)
     src_tris = np.array([[1,3,4]]).astype(np.int32)
     params = [1.0, 0.25]
-    out = nearfield_op.vert_adj(3, 'H', params, pts, obs_tris, src_tris)
+    out = nearfield_op.vert_adj(3, 'elasticH', params, pts, obs_tris, src_tris)
     return out
 
 @golden_master(5)
@@ -75,7 +75,7 @@ def test_coincident_gpu():
     pts, tris = mesh_gen.make_rect(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
     params = [1.0, 0.25]
     out = nearfield_op.coincident(
-        8, [0.1, 0.01], 'H', params, pts, tris, remove_sing = False
+        8, [0.1, 0.01], 'elasticH', params, pts, tris, remove_sing = False
     )
     return out
 
@@ -103,22 +103,22 @@ def full_integral_op_tester(k):
 @slow
 @golden_master(digits = 5)
 def test_full_integral_opU():
-    return full_integral_op_tester('U')
+    return full_integral_op_tester('elasticU')
 
 @slow
 @golden_master(digits = 5)
 def test_full_integral_opT():
-    return full_integral_op_tester('T')
+    return full_integral_op_tester('elasticT')
 
 @slow
 @golden_master(digits = 5)
 def test_full_integral_opA():
-    return full_integral_op_tester('A')
+    return full_integral_op_tester('elasticA')
 
 @slow
 @golden_master(digits = 5)
 def test_full_integral_opH():
-    return full_integral_op_tester('H')
+    return full_integral_op_tester('elasticH')
 
 def check_simple(q, digits):
     est = quad.quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q)
@@ -174,7 +174,7 @@ def test_mass_op():
     np.testing.assert_almost_equal(op.mat[0,3], exact03)
 
 def test_vert_adj_separate_bases():
-    K = 'H'
+    K = 'elasticH'
     params = [1.0, 0.25]
     obs_tris = np.array([[0,1,2]])
     src_tris = np.array([[0,4,3]])

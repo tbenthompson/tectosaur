@@ -5,7 +5,15 @@ import tectosaur.nearfield.triangle_rules as triangle_rules
 from tectosaur.nearfield.limit import richardson_quad
 import tectosaur.util.gpu as gpu
 from tectosaur.util.caching import cache
-from tectosaur.nearfield.integral_utils import pairs_func_name
+
+def pairs_func_name(singular, k_name, check0):
+    singular_label = 'N'
+    if singular:
+        singular_label = 'S'
+    check0_label = 'N'
+    if check0:
+        check0_label = 'Z'
+    return 'single_pairs' + singular_label + check0_label + k_name
 
 def get_gpu_config():
     return {'block_size': 128, 'float_type': gpu.np_to_c_type(float_type)}

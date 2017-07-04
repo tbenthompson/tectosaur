@@ -272,11 +272,11 @@ py::tuple standardize_pyshim(const Tensor3& tri, double angle_lim, bool should_r
     );
 }
 
-int get_kernel_idx(char K) {
-    if (K == 'U') { return 0; }
-    else if (K == 'T') { return 1; }
-    else if (K == 'A') { return 2; }
-    else if (K == 'H') { return 3; }
+int get_kernel_idx(std::string K) {
+    if (K == "elasticU") { return 0; }
+    else if (K == "elasticT") { return 1; }
+    else if (K == "elasticA") { return 2; }
+    else if (K == "elasticH") { return 3; }
     else { return -1; }
 }
 
@@ -285,7 +285,7 @@ int kernel_sm_power[4] = {1, 0, 0, -1};
 bool kernel_flip_negate[4] = {false, true, true, false};
 
 std::array<double,81> transform_from_standard(const std::array<double,81>& I,
-    char K, double sm, const std::array<int,3>& labels,
+    std::string K, double sm, const std::array<int,3>& labels,
     const Vec3& translation, const Tensor3& R, double scale) 
 {
     int K_idx = get_kernel_idx(K);
@@ -418,7 +418,7 @@ py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
 
 NPArray<double> coincident_lookup_from_standard(
     std::vector<StandardizeResult> standard_tris, 
-    NPArray<double> interp_vals, NPArray<double> log_coeffs, char kernel, double sm)
+    NPArray<double> interp_vals, NPArray<double> log_coeffs, std::string kernel, double sm)
 {
     auto n_tris = standard_tris.size();
     auto out = make_array<double>({n_tris, 81});
@@ -793,7 +793,7 @@ void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
 
 NPArray<double> adjacent_lookup_from_standard(
     NPArray<double> obs_tris, NPArray<double> interp_vals, NPArray<double> log_coeffs,
-    EdgeAdjacentLookupTris ea, char kernel, double sm)
+    EdgeAdjacentLookupTris ea, std::string kernel, double sm)
 {
     auto n_tris = obs_tris.request().shape[0];
     auto out = make_array<double>({n_tris, 81});

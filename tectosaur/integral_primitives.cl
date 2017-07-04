@@ -69,7 +69,7 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 </%def>
 
 <%def name="params(k_name)">
-% if k_name is 'U' or k_name is 'T' or k_name is 'A' or k_name is 'H':
+% if k_name.startswith('elastic'):
     const Real G = params[0];
     const Real nu = params[1];
 % else:
@@ -77,13 +77,13 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 % endif
 </%def>
 <%def name="constants(k_name)">
-% if k_name is 'U':
+% if k_name is 'elasticU':
     const Real CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
     const Real CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
-% elif k_name is 'T' or k_name is 'A':
+% elif k_name is 'elasticT' or k_name is 'elasticA':
     const Real CsT0 = (1-2.0*nu)/(8.0*M_PI*(1.0-nu));
     const Real CsT1 = 3.0/(8.0*M_PI*(1.0-nu));
-% elif k_name is 'H':
+% elif k_name is 'elasticH':
     const Real CsH0 = G/(4*M_PI*(1-nu));
     const Real CsH1 = 1-2*nu;
     const Real CsH2 = -1+4*nu;
@@ -107,22 +107,22 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
     sumx += inx;
 % elif k_name is 'laplace_double':
     Real r = sqrt(r2);
-    Real rn = lx * Dx + ly * Dy + lz * Dz;
+    Real rn = nsrcx * Dx + nsrcy * Dy + nsrcz * Dz;
     Real kernel_val = rn / (4 * M_PI * r2 * r);
     sumx += kernel_val * inx;
-% elif k_name is 'U':
+% elif k_name is 'elasticU':
     Real invr = 1.0 / sqrt(r2);
     Real Q1 = CsU0 * invr;
     Real Q2 = CsU1 * invr / r2;
-    Real ddi = Dx*Sx + Dy*Sy + Dz*Sz;
-    sumx += Q1*Sx + Q2*Dx*ddi;
-    sumy += Q1*Sy + Q2*Dy*ddi;
-    sumz += Q1*Sz + Q2*Dz*ddi;
-% elif k_name is 'T' or k_name is 'A':
+    Real ddi = Dx*inx + Dy*iny + Dz*inz;
+    sumx += Q1*inx + Q2*Dx*ddi;
+    sumy += Q1*iny + Q2*Dy*ddi;
+    sumz += Q1*inz + Q2*Dz*ddi;
+% elif k_name is 'elasticT' or k_name is 'elasticA':
     <%
-        minus_or_plus = '-' if k_name is 'T' else '+'
-        plus_or_minus = '+' if k_name is 'T' else '-'
-        n_name = 'l' if k_name is 'T' else 'n'
+        minus_or_plus = '-' if k_name is 'elasticT' else '+'
+        plus_or_minus = '+' if k_name is 'elasticT' else '-'
+        n_name = 'nsrc' if k_name is 'elasticT' else 'nobs'
     %>
     Real invr = 1.0 / sqrt(r2);
     Real invr2 = invr * invr;
@@ -133,39 +133,39 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
     Real A = ${plus_or_minus}CsT0 * invr3;
     Real C = ${minus_or_plus}CsT1 * invr3 * invr2;
 
-    Real rnddi = C * rn * (Dx*Sx + Dy*Sy + Dz*Sz);
+    Real rnddi = C * rn * (Dx*inx + Dy*iny + Dz*inz);
 
     Real nxdy = ${n_name}x*Dy-${n_name}y*Dx;
     Real nzdx = ${n_name}z*Dx-${n_name}x*Dz;
     Real nzdy = ${n_name}z*Dy-${n_name}y*Dz;
 
     sumx += A*(
-        - rn * Sx
-        ${minus_or_plus} nxdy * Sy
-        ${plus_or_minus} nzdx * Sz)
+        - rn * inx
+        ${minus_or_plus} nxdy * iny
+        ${plus_or_minus} nzdx * inz)
         + Dx*rnddi;
     sumy += A*(
-        ${plus_or_minus} nxdy * Sx
-        - rn * Sy
-        ${plus_or_minus} nzdy * Sz)
+        ${plus_or_minus} nxdy * inx
+        - rn * iny
+        ${plus_or_minus} nzdy * inz)
         + Dy*rnddi;
     sumz += A*(
-        ${minus_or_plus} nzdx * Sx 
-        ${minus_or_plus} nzdy * Sy 
-        - rn * Sz)
+        ${minus_or_plus} nzdx * inx 
+        ${minus_or_plus} nzdy * iny 
+        - rn * inz)
         + Dz*rnddi;
-% elif k_name is 'H':
+% elif k_name is 'elasticH':
     Real invr = 1.0 / sqrt(r2);
     Real invr2 = invr * invr;
     Real invr3 = invr2 * invr;
 
-    Real rn = invr*(lx * Dx + ly * Dy + lz * Dz);
-    Real rm = invr*(nx * Dx + ny * Dy + nz * Dz);
-    Real mn = nx * lx + ny * ly + nz * lz;
+    Real rn = invr*(nsrcx * Dx + nsrcy * Dy + nsrcz * Dz);
+    Real rm = invr*(nobsx * Dx + nobsy * Dy + nobsz * Dz);
+    Real mn = nobsx * nsrcx + nobsy * nsrcy + nobsz * nsrcz;
 
-    Real sn = Sx*lx + Sy*ly + Sz*lz;
-    Real sd = invr*(Sx*Dx + Sy*Dy + Sz*Dz);
-    Real sm = Sx*nx + Sy*ny + Sz*nz;
+    Real sn = inx*nsrcx + iny*nsrcy + inz*nsrcz;
+    Real sd = invr*(inx*Dx + iny*Dy + inz*Dz);
+    Real sm = inx*nobsx + iny*nobsy + inz*nobsz;
 
     Real Q = CsH0 * invr3;
     Real A = Q * 3 * rn;
@@ -177,14 +177,14 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
     Real DT = invr*(B*3*sn*rm + C*sd*mn + A*(nu*sm - 5*sd*rm));
     Real ST = A*nu*rm + B*mn;
 
-    sumx += lx*NT + nx*MT + Dx*DT + ST*Sx;
-    sumy += ly*NT + ny*MT + Dy*DT + ST*Sy;
-    sumz += lz*NT + nz*MT + Dz*DT + ST*Sz;
+    sumx += nsrcx*NT + nobsx*MT + Dx*DT + ST*inx;
+    sumy += nsrcy*NT + nobsy*MT + Dy*DT + ST*iny;
+    sumz += nsrcz*NT + nobsz*MT + Dz*DT + ST*inz;
 %endif
 </%def>
 
 <%def name="tensor_kernels(k_name)">
-% if k_name is 'U':
+% if k_name is 'elasticU':
     Real invr = 1.0 / sqrt(r2);
     Real Q1 = CsU0 * invr;
     Real Q2 = CsU1 * invr / r2;
@@ -197,11 +197,11 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
     Real K20 = Q2*Dz*Dx;
     Real K21 = Q2*Dz*Dy;
     Real K22 = Q2*Dz*Dz + Q1;
-% elif k_name is 'T' or k_name is 'A':
+% elif k_name is 'elasticT' or k_name is 'elasticA':
     <%
-        minus_or_plus = '-' if k_name is 'T' else '+'
-        plus_or_minus = '+' if k_name is 'T' else '-'
-        n_name = 'l' if k_name is 'T' else 'n'
+        minus_or_plus = '-' if k_name is 'elasticT' else '+'
+        plus_or_minus = '+' if k_name is 'elasticT' else '-'
+        n_name = 'nsrc' if k_name is 'elasticT' else 'nobs'
     %>
     Real invr = 1.0 / sqrt(r2);
     Real invr2 = invr * invr;
@@ -225,7 +225,7 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
     Real K20 = A * ${minus_or_plus}nzdx + C*Dz*rn*Dx;
     Real K21 = A * ${minus_or_plus}nzdy + C*Dz*rn*Dy;
     Real K22 = A * -rn                  + C*Dz*rn*Dz;
-% elif k_name is 'H':
+% elif k_name is 'elasticH':
     Real invr = 1.0 / sqrt(r2);
     Real invr2 = invr * invr;
     Real invr3 = invr2 * invr;
@@ -233,37 +233,37 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
     Real Dory = invr * Dy;
     Real Dorz = invr * Dz;
 
-    Real rn = lx * Dorx + ly * Dory + lz * Dorz;
-    Real rm = nx * Dorx + ny * Dory + nz * Dorz;
-    Real mn = nx * lx + ny * ly + nz * lz;
+    Real rn = nsrcx * Dorx + nsrcy * Dory + nsrcz * Dorz;
+    Real rm = nobsx * Dorx + nobsy * Dory + nobsz * Dorz;
+    Real mn = nobsx * nsrcx + nobsy * nsrcy + nobsz * nsrcz;
 
     Real Q = CsH0 * invr3;
     Real A = Q * 3 * rn;
     Real B = Q * CsH1;
     Real C = Q * CsH3;
 
-    Real MTx = Q*CsH2*lx + A*CsH1*Dorx;
-    Real MTy = Q*CsH2*ly + A*CsH1*Dory;
-    Real MTz = Q*CsH2*lz + A*CsH1*Dorz;
+    Real MTx = Q*CsH2*nsrcx + A*CsH1*Dorx;
+    Real MTy = Q*CsH2*nsrcy + A*CsH1*Dory;
+    Real MTz = Q*CsH2*nsrcz + A*CsH1*Dorz;
 
-    Real NTx = B*nx + C*Dorx*rm;
-    Real NTy = B*ny + C*Dory*rm;
-    Real NTz = B*nz + C*Dorz*rm;
+    Real NTx = B*nobsx + C*Dorx*rm;
+    Real NTy = B*nobsy + C*Dory*rm;
+    Real NTz = B*nobsz + C*Dorz*rm;
 
-    Real DTx = B*3*lx*rm + C*Dorx*mn + A*(nu*nx - 5*Dorx*rm);
-    Real DTy = B*3*ly*rm + C*Dory*mn + A*(nu*ny - 5*Dory*rm);
-    Real DTz = B*3*lz*rm + C*Dorz*mn + A*(nu*nz - 5*Dorz*rm);
+    Real DTx = B*3*nsrcx*rm + C*Dorx*mn + A*(nu*nobsx - 5*Dorx*rm);
+    Real DTy = B*3*nsrcy*rm + C*Dory*mn + A*(nu*nobsy - 5*Dory*rm);
+    Real DTz = B*3*nsrcz*rm + C*Dorz*mn + A*(nu*nobsz - 5*Dorz*rm);
 
     Real ST = A*nu*rm + B*mn;
 
-    Real K00 = lx*NTx + nx*MTx + Dorx*DTx + ST;
-    Real K01 = lx*NTy + nx*MTy + Dorx*DTy;
-    Real K02 = lx*NTz + nx*MTz + Dorx*DTz;
-    Real K10 = ly*NTx + ny*MTx + Dory*DTx;
-    Real K11 = ly*NTy + ny*MTy + Dory*DTy + ST;
-    Real K12 = ly*NTz + ny*MTz + Dory*DTz;
-    Real K20 = lz*NTx + nz*MTx + Dorz*DTx;
-    Real K21 = lz*NTy + nz*MTy + Dorz*DTy;
-    Real K22 = lz*NTz + nz*MTz + Dorz*DTz + ST;
+    Real K00 = nsrcx*NTx + nobsx*MTx + Dorx*DTx + ST;
+    Real K01 = nsrcx*NTy + nobsx*MTy + Dorx*DTy;
+    Real K02 = nsrcx*NTz + nobsx*MTz + Dorx*DTz;
+    Real K10 = nsrcy*NTx + nobsy*MTx + Dory*DTx;
+    Real K11 = nsrcy*NTy + nobsy*MTy + Dory*DTy + ST;
+    Real K12 = nsrcy*NTz + nobsy*MTz + Dory*DTz;
+    Real K20 = nsrcz*NTx + nobsz*MTx + Dorz*DTx;
+    Real K21 = nsrcz*NTy + nobsz*MTy + Dorz*DTy;
+    Real K22 = nsrcz*NTz + nobsz*MTz + Dorz*DTz + ST;
 % endif
 </%def>

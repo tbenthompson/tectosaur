@@ -1,15 +1,18 @@
 <%
-from tectosaur.nearfield.integral_utils import pairs_func_name, kernel_names, dn, kronecker
+from tectosaur.nearfield.vert_adj import pairs_func_name
+from tectosaur.kernels import kernels
+
+def dn(dim):
+    return ['x', 'y', 'z'][dim]
 %>
 #pragma OPENCL EXTENSION cl_khr_fp64: enable
 
 #define Real ${float_type}
 
 <%namespace name="prim" file="../integral_primitives.cl"/>
-
 <%def name="integrate_pair(k_name, limit, check0)">
-    ${prim.tri_info("obs", "n")}
-    ${prim.tri_info("src", "l")}
+    ${prim.tri_info("obs", "nobs")}
+    ${prim.tri_info("src", "nsrc")}
 
     Real result_temp[81];
     Real kahanC[81];
@@ -47,7 +50,7 @@ from tectosaur.nearfield.integral_utils import pairs_func_name, kernel_names, dn
 
         % if limit:
             % for dim in range(3):
-                x${dn(dim)} -= eps * sqrt(obs_jacobian) * n${dn(dim)};
+                x${dn(dim)} -= eps * sqrt(obs_jacobian) * nobs${dn(dim)};
             % endfor
         % endif
 
@@ -158,11 +161,11 @@ void farfield_pts${k_name}(
 
     % if need_obsn:
     % for d in range(3):
-    Real n${dn(d)};
+    Real nobs${dn(d)};
     % endfor
     if (i < n_obs) {
         % for d in range(3):
-        n${dn(d)} = obs_ns[i * 3 + ${d}];
+        nobs${dn(d)} = obs_ns[i * 3 + ${d}];
         % endfor
     }
     % endif
@@ -211,12 +214,12 @@ void farfield_pts${k_name}(
             }
             % if need_srcn:
             % for d in range(3):
-            Real l${dn(d)} = sh_src_ns[k * 3 + ${d}];
+            Real nsrc${dn(d)} = sh_src_ns[k * 3 + ${d}];
             % endfor
             % endif
 
             % for d in range(3):
-            Real S${dn(d)} = sh_input[k * 3 + ${d}];
+            Real in${dn(d)} = sh_input[k * 3 + ${d}];
             % endfor
 
             ${prim.vector_kernels(k_name)}
@@ -233,15 +236,11 @@ void farfield_pts${k_name}(
 
 ${prim.geometry_fncs()}
 
-${farfield_pts("U", False, False)}
-${farfield_pts("T", False, True)}
-${farfield_pts("A", True, False)}
-${farfield_pts("H", True, True)}
-
-% for k_name in kernel_names:
-${farfield_tris(k_name)}
-${single_pairs(k_name, limit = True, check0 = True)}
-${single_pairs(k_name, limit = True, check0 = False)}
-${single_pairs(k_name, limit = False, check0 = True)}
-${single_pairs(k_name, limit = False, check0 = False)}
+% for K in kernels:
+${farfield_pts(K.name, K.needs_obsn, K.needs_srcn)}
+${farfield_tris(K.name)}
+${single_pairs(K.name, limit = True, check0 = True)}
+${single_pairs(K.name, limit = True, check0 = False)}
+${single_pairs(K.name, limit = False, check0 = True)}
+${single_pairs(K.name, limit = False, check0 = False)}
 % endfor

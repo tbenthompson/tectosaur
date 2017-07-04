@@ -189,7 +189,11 @@ def farfield_pts_wrapper(K, obs_pts, obs_ns, src_pts, src_ns, vec, params):
     gpu_farfield_fnc = getattr(get_gpu_module(), "farfield_pts" + K)
 
     n_obs = obs_pts.shape[0]
+    if len(obs_pts.shape) == 1:
+        n_obs //= 3
     n_src = src_pts.shape[0]
+    if len(src_pts.shape) == 1:
+        n_src //= 3
 
     gpu_result = gpu.empty_gpu(n_obs * 3, float_type)
     gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)
