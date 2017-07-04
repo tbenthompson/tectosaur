@@ -785,6 +785,7 @@ void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
 
         int out_idx = va.original_pair_idx[i];
         for (int j = 0; j < 81; j++) {
+#pragma omp atomic
             out_ptr[out_idx * 81 + j] += res[j];
         }
     }

@@ -181,7 +181,7 @@ def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
     return np.array(results)
 
 @golden_master()
-def test_coincident_lookupU_fast():
+def test_coincident_fast_lookupU():
     return coincident_lookup_helper('U', False, 5, 1)
 
 @slow
@@ -256,7 +256,7 @@ def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
     return np.array(results)
 
 @golden_master()
-def test_adjacent_lookupU_fast():
+def test_adjacent_fast_lookupU():
     return adjacent_lookup_helper('U', False, 5, 1)
 
 @slow
