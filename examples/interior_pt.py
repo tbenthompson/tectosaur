@@ -1,5 +1,5 @@
 import numpy as np
-import cppimport
+from cppimport import cppimport
 import matplotlib.pyplot as plt
 
 n = 100
@@ -11,7 +11,7 @@ Y = Y * 4 - 2
 out = np.empty((n,n))
 for i in range(n):
     for j in range(n):
-        adaptive_integrate = cppimport.imp('adaptive_integrate')
+        adaptive_integrate = cppimport('adaptive_integrate')
         res = np.array(adaptive_integrate.integrate_interior(
             "T", [X[i,j],Y[i,j],0.2],[0,1,0],
             [[0,0,0],[1,0,0],[0,1,0]],

@@ -16,8 +16,8 @@ import tectosaur.util.gpu as gpu
 
 from tectosaur.util.timer import Timer
 
-import cppimport
-fast_assembly = cppimport.imp("tectosaur.ops.fast_assembly").ops.fast_assembly
+from cppimport import cppimport
+fast_assembly = cppimport("tectosaur.ops.fast_assembly")
 
 def interp_galerkin_mat(tri_pts, quad_rule):
     nt = tri_pts.shape[0]

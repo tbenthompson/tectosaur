@@ -4,9 +4,6 @@ import numpy as np
 
 from tectosaur.ops.sparse_integral_op import farfield_pts_wrapper, get_gpu_module
 
-# import cppimport
-# fmm = cppimport.imp("tectosaur._fmm._fmm")._fmm._fmm
-
 def normalize(vs):
     return vs / np.linalg.norm(vs, axis = 1).reshape((vs.shape[0], 1))
 

@@ -1,10 +1,6 @@
-test the interior evaluaton function
-
-set up the wrappers for cubature in a separate library -- I think that would be a hit in the python community.
-think about cleaning up the way that imports are done with cppimport... beauty!
-
 send aagaard a thank you email and comment on appreciating learning more about pylith.
-make sure sdist is set up to include all subdirectories -- google how to do this properly
+
+setup a nice packaging system to allow everything to be installed via pip (except stupid opencl)
 
 see Lemma 3.2 in Ethridge and Greengard 2001 for a clue in how to interpolate our nearfield integrals for 2D log singular problems.
 

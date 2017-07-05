@@ -10,8 +10,8 @@ import numpy as np
 # scale triangle so that 1 vertex is at (1, 0, 0) and store scale factor
 # check that triangle internal angles are greater than 20 degrees
 
-import cppimport
-fast_lookup = cppimport.imp("tectosaur.nearfield.fast_lookup").nearfield.fast_lookup
+from cppimport import cppimport
+fast_lookup = cppimport("tectosaur.nearfield.fast_lookup")
 
 class BadTriangleError(Exception):
     def __init__(self, code):
