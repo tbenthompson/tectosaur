@@ -15,6 +15,8 @@ import tectosaur.mesh.mesh_gen as mesh_gen
 import tectosaur.mesh.find_nearfield as find_nearfield
 import tectosaur.mesh.adjacency as adjacency
 
+from tectosaur.interior import interior_integral
+
 from tectosaur.util.test_decorators import slow, golden_master, kernel
 
 from laplace import laplace
@@ -184,19 +186,23 @@ def test_vert_adj_separate_bases():
         I0[i].flatten().tolist(), obs_basis_tris[i].tolist(), src_basis_tris[i].tolist()
     ) for i in range(2)]).reshape((2,3,3,3,3))
     np.testing.assert_almost_equal(I[0], I1[0] + I1[1], 6)
-#
-# @golden_master()
-# def test_interior():
-#     corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
-#     pts, tris = mesh_gen.make_rect(3,3 ,corners)
-#     obs_pts = pts.copy()
-#     obs_pts[:,2] += 1.0
-#     obs_ns = np.random.rand(*obs_pts.shape)
-#     obs_ns /= np.linalg.norm(obs_ns, axis = 1)
-#
-#     input = np.ones(
-#
-#     interior_integral(obs_pts, obs_ns, (pts, tris),
+
+@golden_master()
+def test_interior(request):
+    np.random.seed(10)
+    corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
+    pts, tris = mesh_gen.make_rect(3,3 ,corners)
+    obs_pts = pts.copy()
+    obs_pts[:,2] += 1.0
+    obs_ns = np.random.rand(*obs_pts.shape)
+    obs_ns /= np.linalg.norm(obs_ns, axis = 1)[:,np.newaxis]
+
+    input = np.ones(tris.shape[0] * 9)
+
+    K = 'elasticH'
+    params = [1.0, 0.25]
+
+    return interior_integral(obs_pts, obs_ns, (pts, tris), input, K, 4, 4, params)
 
 
 # def test_fmm_integral_op():

@@ -114,6 +114,7 @@ def test_okada(n_surf):
             soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
+    plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln)
     # plot_results(obs_pts, surface_tris, u, vals)
     return print_error(obs_pts, u, vals)
 
@@ -126,15 +127,14 @@ def test_okada(n_surf):
     # plt.plot(obs_pts[cond2, 0], u[cond2,0],'b.')
     # plt.show()
 
-    # plot_interior_displacement(fault_L, top_depth, sm, pr, all_mesh, soln)
 
-def plot_interior_displacement(fault_L, top_depth, sm, pr, all_mesh, soln):
+def plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln):
     xs = np.linspace(-10, 10, 100)
     for i, z in enumerate(np.linspace(0.1, 4.0, 100)):
         X, Y = np.meshgrid(xs, xs)
         obs_pts = np.array([X.flatten(), Y.flatten(), -z * np.ones(X.size)]).T
         # exact_disp = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-        interior_disp = -interior_integral(obs_pts, obs_pts, all_mesh, soln, 'elasticT', 3, 8, sm, pr);
+        interior_disp = -interior_integral(obs_pts, obs_pts, all_mesh, soln, 'elasticT', 3, 8, k_params);
         interior_disp = interior_disp.reshape((-1, 3))
         # for d in range(1):
         #     plt.figure()
