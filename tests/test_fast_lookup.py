@@ -9,7 +9,7 @@ from tectosaur.util.test_decorators import golden_master
 from test_interpolate import ptswts3d
 
 @golden_master()
-def test_coincident_lookup_single():
+def test_coincident_lookup_single(request):
     pts = np.array([[0,0,0],[1,0,0],[0,1,0]])
     tris = np.array([[0,1,2]] * 100)
     params = [1.0, 0.25]

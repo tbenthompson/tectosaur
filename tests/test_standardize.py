@@ -1,6 +1,6 @@
 from tectosaur.nearfield.standardize import *
 from tectosaur.util.geometry import tri_pt, linear_basis_tri
-from tectosaur.util.test_decorators import slow
+from tectosaur.util.test_decorators import slow, kernel
 
 import tectosaur_tables.coincident as coincident
 
@@ -146,13 +146,13 @@ def standardized_tri_tester(K, sm, pr, rho_order, theta_order, tol, starting_eps
     A = unstandardized_limits[0,0,0,0]
     B = correct_limits[0,0,0,0]
 
-    print(
-        str(tol) +
-        " " + str(starting_eps) +
-        " " + str(n_eps) +
-        " " + str(A) +
-        " " + str(B)
-    )
+    # print(
+    #     str(tol) +
+    #     " " + str(starting_eps) +
+    #     " " + str(n_eps) +
+    #     " " + str(A) +
+    #     " " + str(B)
+    # )
     err = np.abs((unstandardized_limits[:,0,:,0] - correct_limits[:,0,:,0]) / np.max(np.abs(correct_limits[:,0,:,0])))
     assert(np.all(err < 0.03))
     # np.testing.assert_almost_equal(unstandardized_limits, correct_limits, 4)
@@ -171,22 +171,11 @@ def kernel_properties_tester(K, sm, pr):
         [[1.0,0.0,0.0], [0.0,-0.3,0.45], [0.0,0.35,1.1]]
     ]
     for t in test_tris:
-        print("TESTING " + str(t))
+        # print("TESTING " + str(t))
         standardized_tri_tester(K, sm, pr, 50, 50, 0.005, 0.08, 3, t)
-        print("SUCCESS")
+        # print("SUCCESS")
 
 @slow
-def test_U_properties():
-    kernel_properties_tester('elasticU', 1.0, 0.25)
+def test_U_properties(kernel):
+    kernel_properties_tester(kernel, 1.0, 0.25)
 
-@slow
-def test_T_properties():
-    kernel_properties_tester('elasticT', 1.0, 0.25)
-
-@slow
-def test_A_properties():
-    kernel_properties_tester('elasticA', 1.0, 0.25)
-
-@slow
-def test_H_properties():
-    kernel_properties_tester('elasticH', 1.0, 0.25)

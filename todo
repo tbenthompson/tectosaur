@@ -1,4 +1,3 @@
-parameterized fixtures for pytesting of kernels.
 test the interior evaluaton function
 
 set up the wrappers for cubature in a separate library -- I think that would be a hit in the python community.

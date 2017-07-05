@@ -10,7 +10,7 @@ from tectosaur.ops.sparse_integral_op import interp_galerkin_mat, farfield_pts_w
 #3) Use a correction for the nearfield so that the farfield can just be an all-pairs nbody problem
 #4) Use FMM for the farfield component
 
-def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near, sm, pr):
+def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near, params):
     float_type = np.float32
 
     far_quad = gauss2d_tri(nq_far)
@@ -23,6 +23,6 @@ def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near, sm, pr):
     interp_v = IGmat.dot(input).flatten()
     nbody_result = farfield_pts_wrapper(
         K, obs_pts.flatten(), obs_ns.flatten(),
-        gpu_quad_pts, gpu_quad_ns, interp_v, sm, pr
+        gpu_quad_pts, gpu_quad_ns, interp_v, params
     )
     return nbody_result

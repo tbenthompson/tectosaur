@@ -184,6 +184,20 @@ def test_vert_adj_separate_bases():
         I0[i].flatten().tolist(), obs_basis_tris[i].tolist(), src_basis_tris[i].tolist()
     ) for i in range(2)]).reshape((2,3,3,3,3))
     np.testing.assert_almost_equal(I[0], I1[0] + I1[1], 6)
+#
+# @golden_master()
+# def test_interior():
+#     corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
+#     pts, tris = mesh_gen.make_rect(3,3 ,corners)
+#     obs_pts = pts.copy()
+#     obs_pts[:,2] += 1.0
+#     obs_ns = np.random.rand(*obs_pts.shape)
+#     obs_ns /= np.linalg.norm(obs_ns, axis = 1)
+#
+#     input = np.ones(
+#
+#     interior_integral(obs_pts, obs_ns, (pts, tris),
+
 
 # def test_fmm_integral_op():
 #     np.random.seed(13)

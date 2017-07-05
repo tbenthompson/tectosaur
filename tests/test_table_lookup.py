@@ -134,9 +134,8 @@ def test_sub_basis_rotation():
     B = fast_lookup.sub_basis(A.flatten().tolist(), [[0,0],[1,0],[0,1]], [[0,1],[0,0],[1,0]])
     np.testing.assert_almost_equal(A[:,:,[1,2,0],:], np.array(B).reshape((3,3,3,3)))
 
-def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10, fixed_seed = True):
-    if fixed_seed:
-        np.random.seed(113)
+def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
+    np.random.seed(113)
 
 
     results = []
@@ -184,16 +183,15 @@ def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10, fixed
 
 @golden_master()
 def test_coincident_fast_lookup(request, kernel):
-    return coincident_lookup_helper(kernel, False, 5, 1, False)
+    return coincident_lookup_helper(kernel, False, 5, 1)
 
 @slow
 @golden_master()
 def test_coincident_lookup(request, kernel):
     return coincident_lookup_helper(kernel, False, 5)
 
-def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10, fixed_seed = True):
-    if fixed_seed:
-        np.random.seed(973)
+def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
+    np.random.seed(973)
 
 
     results = []
@@ -245,7 +243,7 @@ def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10, fixed_s
 
 @golden_master()
 def test_adjacent_fast_lookup(request, kernel):
-    return adjacent_lookup_helper(kernel, False, 5, 1, False)
+    return adjacent_lookup_helper(kernel, False, 5, 1)
 
 @slow
 @golden_master()
