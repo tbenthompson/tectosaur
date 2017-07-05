@@ -7,7 +7,7 @@ except (IOError, ImportError):
    description = open('README.md').read()
 
 setuptools.setup(
-    packages = ['tectosaur'],
+    packages = setuptools.find_packages(),
     install_requires = ['numpy', 'sympy', 'scipy', 'mako', 'cppimport', 'joblib'],
     zip_safe = False,
 
