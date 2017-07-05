@@ -10,7 +10,7 @@ from tectosaur.ops.dense_integral_op import DenseIntegralOp
 
 from tectosaur.nearfield.table_lookup import *
 
-from tectosaur.util.test_decorators import golden_master, slow
+from tectosaur.util.test_decorators import golden_master, slow, kernel
 
 def test_find_va_rotations():
     res = fast_lookup.find_va_rotations([1,3,5],[2,3,4])
@@ -134,8 +134,9 @@ def test_sub_basis_rotation():
     B = fast_lookup.sub_basis(A.flatten().tolist(), [[0,0],[1,0],[0,1]], [[0,1],[0,0],[1,0]])
     np.testing.assert_almost_equal(A[:,:,[1,2,0],:], np.array(B).reshape((3,3,3,3)))
 
-def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
-    np.random.seed(113)
+def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10, fixed_seed = True):
+    if fixed_seed:
+        np.random.seed(113)
 
 
     results = []
@@ -182,31 +183,17 @@ def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
     return np.array(results)
 
 @golden_master()
-def test_coincident_fast_lookupU():
-    return coincident_lookup_helper('elasticU', False, 5, 1)
+def test_coincident_fast_lookup(request, kernel):
+    return coincident_lookup_helper(kernel, False, 5, 1, False)
 
 @slow
 @golden_master()
-def test_coincident_lookupU():
-    return coincident_lookup_helper('elasticU', False, 5)
+def test_coincident_lookup(request, kernel):
+    return coincident_lookup_helper(kernel, False, 5)
 
-@slow
-@golden_master()
-def test_coincident_lookupT():
-    return coincident_lookup_helper('elasticT', False, 4)
-
-@slow
-@golden_master()
-def test_coincident_lookupA():
-    return coincident_lookup_helper('elasticA', False, 4)
-
-@slow
-@golden_master()
-def test_coincident_lookupH():
-    return coincident_lookup_helper('elasticH', True, 0)
-
-def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
-    np.random.seed(973)
+def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10, fixed_seed = True):
+    if fixed_seed:
+        np.random.seed(973)
 
 
     results = []
@@ -256,29 +243,11 @@ def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
         results.append(op.mat[:9,9:])
     return np.array(results)
 
-
-
 @golden_master()
-def test_adjacent_fast_lookupU():
-    return adjacent_lookup_helper('elasticU', False, 5, 1)
+def test_adjacent_fast_lookup(request, kernel):
+    return adjacent_lookup_helper(kernel, False, 5, 1, False)
 
 @slow
 @golden_master()
-def test_adjacent_lookupU():
-    return adjacent_lookup_helper('elasticU', False, 5)
-
-@slow
-@golden_master()
-def test_adjacent_lookupT():
-    return adjacent_lookup_helper('elasticT', False, 4)
-
-@slow
-@golden_master()
-def test_adjacent_lookupA():
-    return adjacent_lookup_helper('elasticA', False, 4)
-
-@slow
-@golden_master()
-def test_adjacent_lookupH():
-    return adjacent_lookup_helper('elasticH', True, 4)
-
+def test_adjacent_lookup(request, kernel):
+    return adjacent_lookup_helper(kernel, False, 5)

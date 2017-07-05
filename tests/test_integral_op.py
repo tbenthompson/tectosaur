@@ -15,7 +15,7 @@ import tectosaur.mesh.mesh_gen as mesh_gen
 import tectosaur.mesh.find_nearfield as find_nearfield
 import tectosaur.mesh.adjacency as adjacency
 
-from tectosaur.util.test_decorators import slow, golden_master
+from tectosaur.util.test_decorators import slow, golden_master, kernel
 
 from laplace import laplace
 
@@ -37,7 +37,7 @@ def test_nearfield():
         assert(pair in near_pairs)
 
 @golden_master()
-def test_farfield_two_tris():
+def test_farfield_two_tris(request):
     pts = np.array(
         [[1, 0, 0], [2, 0, 0], [1, 1, 0],
         [5, 0, 0], [6, 0, 0], [5, 1, 0]]
@@ -49,7 +49,7 @@ def test_farfield_two_tris():
     return out
 
 @golden_master()
-def test_gpu_edge_adjacent():
+def test_gpu_edge_adjacent(request):
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
     obs_tris = np.array([[0,1,2]]).astype(np.int32)
     src_tris = np.array([[1,0,3]]).astype(np.int32)
@@ -60,7 +60,7 @@ def test_gpu_edge_adjacent():
     return out
 
 @golden_master()
-def test_gpu_vert_adjacent():
+def test_gpu_vert_adjacent(request):
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
     obs_tris = np.array([[1,2,0]]).astype(np.int32)
     src_tris = np.array([[1,3,4]]).astype(np.int32)
@@ -69,7 +69,7 @@ def test_gpu_vert_adjacent():
     return out
 
 @golden_master(5)
-def test_coincident_gpu():
+def test_coincident_gpu(request):
     n = 4
     w = 4
     pts, tris = mesh_gen.make_rect(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
@@ -102,23 +102,8 @@ def full_integral_op_tester(k):
 
 @slow
 @golden_master(digits = 5)
-def test_full_integral_opU():
-    return full_integral_op_tester('elasticU')
-
-@slow
-@golden_master(digits = 5)
-def test_full_integral_opT():
-    return full_integral_op_tester('elasticT')
-
-@slow
-@golden_master(digits = 5)
-def test_full_integral_opA():
-    return full_integral_op_tester('elasticA')
-
-@slow
-@golden_master(digits = 5)
-def test_full_integral_opH():
-    return full_integral_op_tester('elasticH')
+def test_full_integral_op(request, kernel):
+    return full_integral_op_tester(kernel)
 
 def check_simple(q, digits):
     est = quad.quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q)

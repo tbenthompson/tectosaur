@@ -2,6 +2,8 @@ import pytest
 import numpy as np
 from functools import wraps
 
+from tectosaur.kernels import kernels
+
 try:
     slow = pytest.mark.skipif(
         not pytest.config.getoption("--runslow"),
@@ -19,9 +21,9 @@ def golden_master(digits = 6):
         except AttributeError as e:
             save = False
         @wraps(test_fnc)
-        def wrapper():
-            result = test_fnc()
-            test_name = test_fnc.__name__
+        def wrapper(request, *args, **kwargs):
+            result = test_fnc(request, *args, **kwargs)
+            test_name = request.node.name
             filename = 'tests/golden_masters/' + test_name + '.npy'
             if save:
                 np.save(filename, result)
@@ -30,3 +32,6 @@ def golden_master(digits = 6):
         return wrapper
     return decorator
 
+@pytest.fixture(params = [K.name for K in kernels])
+def kernel(request):
+    return request.param

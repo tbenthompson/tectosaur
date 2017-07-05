@@ -18,15 +18,6 @@ def test_sym_skw():
 def test_outer():
     np.testing.assert_almost_equal(tensor_outer([0, 1], [1, 2]), [[0, 0], [1, 2]])
 
-def f():
-    x = 0
-    return g(x)
-
-f()
-f()
-f()
-
-
 @slow
 def test_kernels():
     import sympy

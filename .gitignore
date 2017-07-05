@@ -14,5 +14,8 @@ cache_tectosaur
 oprofile_data
 *.o
 kernels.pkl
-*.npy
 *.lprof
+
+*.npy
+!tests/golden_masters/*.npy
+!tectosaur/data/*.npy
