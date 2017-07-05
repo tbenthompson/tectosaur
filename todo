@@ -1,9 +1,5 @@
-send aagaard a thank you email and comment on appreciating learning more about pylith.
-
+GENERAL:
 setup a nice packaging system to allow everything to be installed via pip (except stupid opencl)
-
-see Lemma 3.2 in Ethridge and Greengard 2001 for a clue in how to interpolate our nearfield integrals for 2D log singular problems.
-
 
 BASIN:
 -- no A* for fault in basin
@@ -56,4 +52,5 @@ OPTIMIZATIONS:
 PROBLEMDESCRIPTION
 # -- CombinedMesh is handy even without multiple meshes, should i modify it or extend it so that it can be used more nicely for a single mesh situation (and has a better name!).
 # -- should i create a nicer mesh data structure? consisting of the vertex and tri arrays with some other nice tools
+# play with pygmsh, is it useful? anything else similar?
 

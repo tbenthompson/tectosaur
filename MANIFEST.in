@@ -1,1 +1,8 @@
 recursive-include tectosaur/data *
+recursive-include tectosaur *.cpp *.hpp *.h *.cl
+include tests/*.py
+include tests/3d_kernels.pkl
+include tests/golden_masters/*.npy
+include tectosaur/include/*
+include README.md
+global-exclude .rendered.*
