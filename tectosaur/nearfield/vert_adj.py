@@ -26,7 +26,9 @@ def get_pairs_integrator(kernel, singular, check0):
 
 #TODO: One universal float type for all of tectosaur? tectosaur.config?
 #TODO: The general structure of this caller is similar to the other in tectosaur_tables and sparse_integral_op and dense_integral_op.
-float_type = np.float32
+float_type = np.float64
+if float_type == np.float64:
+    print('warning: float type is set to double precision')
 def pairs_quad(kernel, params, pts, obs_tris, src_tris, q, singular, check0):
     integrator = get_pairs_integrator(kernel, singular, check0)
 

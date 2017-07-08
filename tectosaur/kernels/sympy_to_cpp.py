@@ -36,14 +36,13 @@ def cpp_pow(expr):
     else:
         return cpp_func('pow')(expr)
 
-ft = 'double'
 to_cpp_map = dict()
 to_cpp_map[sympy.Mul] = cpp_binop('*')
 to_cpp_map[sympy.Add] = cpp_binop('+')
 to_cpp_map[sympy.Symbol] = lambda e: str(e)
-to_cpp_map[sympy.Number] = lambda e: ft + '(' + mpmath.nstr(float(e), 17) + ')'
-to_cpp_map[sympy.numbers.Pi] = lambda e: ft + '(M_PI)'
-to_cpp_map[sympy.NumberSymbol] = lambda e: ft + '(' + str(e) + ')'
+to_cpp_map[sympy.Number] = lambda e: 'Real(' + mpmath.nstr(float(e), 17) + ')'
+to_cpp_map[sympy.numbers.Pi] = lambda e: 'Real(M_PI)'
+to_cpp_map[sympy.NumberSymbol] = lambda e: 'Real(' + str(e) + ')'
 to_cpp_map[sympy.Function] = lambda e: cpp_func(str(e.func))(ft, e)
 to_cpp_map[sympy.Pow] = cpp_pow
 

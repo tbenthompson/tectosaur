@@ -14,6 +14,7 @@ from .mesh.modify import concat
 from .mesh.refine import refine, refine_to_size, selective_refine
 
 from .ops.sparse_integral_op import SparseIntegralOp
+# from .ops.fmm_integral_op import FMMIntegralOp
 from .ops.mass_op import MassOp
 from .ops.neg_op import NegOp
 from .ops.sum_op import SumOp

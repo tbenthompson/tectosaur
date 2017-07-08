@@ -1,8 +1,10 @@
-import tectosaur.fmm_wrapper as fmm
-from tectosaur.quadrature import gauss2d_tri
-
 import numpy as np
-from tectosaur.sparse_integral_op import NearfieldIntegralOp, interp_galerkin_mat, farfield_pts_wrapper
+
+import tectosaur_fmm.fmm_wrapper as fmm
+from tectosaur.util.quadrature import gauss2d_tri
+
+from tectosaur.ops.sparse_integral_op import NearfieldIntegralOp,\
+    interp_galerkin_mat, farfield_pts_wrapper
 import tectosaur.util.gpu as gpu
 
 class FMMIntegralOp:
@@ -21,13 +23,13 @@ class FMMIntegralOp:
         self.shape = self.nearfield.mat.shape
         quad_ns = quad_ns.reshape(quad_pts.shape)
 
-        order = 200
-        mac = 3.0
+        order = 100
+        mac = 2.6
         self.obs_kd = fmm.KDTree(quad_pts, quad_ns, order)
         self.src_kd = fmm.KDTree(quad_pts, quad_ns, order)
         self.fmm_mat = fmm.fmmmmmmm(
             self.obs_kd, self.src_kd,
-            fmm.FMMConfig(1.1, mac, order, 'elastic' + kernel, [sm, pr])
+            fmm.FMMConfig(1.1, mac, order, kernel, [sm, pr])
         )
 
         self.nq = quad_pts.shape[0]

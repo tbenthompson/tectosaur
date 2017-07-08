@@ -17,15 +17,8 @@ def get_kernel(kernel_builder):
     return out
 
 def get_kernels():
-    filename = tectosaur.get_data_filepath('kernels.pkl')
-    if os.path.exists(filename):
-        with open(filename, 'rb') as f:
-            kernels = pickle.load(f)
-    else:
-        import tectosaur.kernels.elastic as elastic
-        kernels = dict()
-        for k_name in ['U','T','A','H']:
-            kernels[k_name] = get_kernel(getattr(elastic, k_name))
-        with open(filename, 'wb') as f:
-            pickle.dump(kernels, f)
+    import tectosaur.kernels.elastic as elastic
+    kernels = dict()
+    for k_name in ['U','T','A','H']:
+        kernels[k_name] = get_kernel(getattr(elastic, k_name))
     return kernels

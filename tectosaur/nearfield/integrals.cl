@@ -178,9 +178,12 @@ void farfield_pts${K.name}(
     
     ${K.constants_code}
 
-    Real sumx = 0.0;
-    Real sumy = 0.0;
-    Real sumz = 0.0;
+    Real kahansumx = 0.0;
+    Real kahansumy = 0.0;
+    Real kahansumz = 0.0;
+    Real kahantempx = 0.0;
+    Real kahantempy = 0.0;
+    Real kahantempz = 0.0;
 
     int j = 0;
     int tile = 0;
@@ -220,13 +223,24 @@ void farfield_pts${K.name}(
             Real in${dn(d)} = sh_input[k * 3 + ${d}];
             % endfor
 
+            Real sumx = 0.0;
+            Real sumy = 0.0;
+            Real sumz = 0.0;
             ${K.vector_code}
+            % for d in range(3):
+                { //TODO: Is kahan summation necessary here?
+                    Real y = sum${dn(d)} - kahantemp${dn(d)};
+                    Real t = kahansum${dn(d)} + y;
+                    kahantemp${dn(d)} = (t - kahansum${dn(d)}) - y;
+                    kahansum${dn(d)} = t;
+                }
+            % endfor
         }
     }
 
     if (i < n_obs) {
         % for d in range(3):
-        result[i * 3 + ${d}] = sum${dn(d)};
+        result[i * 3 + ${d}] = kahansum${dn(d)};
         % endfor
     }
 }

@@ -1,6 +1,3 @@
-GENERAL:
-setup a nice packaging system to allow everything to be installed via pip (except stupid opencl)
-
 BASIN:
 -- no A* for fault in basin
 -- debug the basin problem.
@@ -52,5 +49,47 @@ OPTIMIZATIONS:
 PROBLEMDESCRIPTION
 # -- CombinedMesh is handy even without multiple meshes, should i modify it or extend it so that it can be used more nicely for a single mesh situation (and has a better name!).
 # -- should i create a nicer mesh data structure? consisting of the vertex and tri arrays with some other nice tools
-# play with pygmsh, is it useful? anything else similar?
 
+
+
+
+# move this list elsewhere
+# libraries i should remember:
+#  pygmsh
+#  meshio
+#  https://github.com/nschloe/quadpy
+#  krypy
+#  https://github.com/ghisvail/pyNFFT and https://github.com/enthought/nfftpy
+#  https://github.com/olgabot/prettyplotlib
+#  https://github.com/pyamg/pyamg
+
+#  pygbe
+#  bem++ 
+#  
+#  exafmm
+#  petrbg
+#  petfmm
+#
+#  libmesh
+#  dealii
+#  fenics
+#  lifev
+# 
+#  chombo
+# 
+#  MOOSE
+#   
+#  blocks
+#  specfem
+#  bicycle
+#  unicycle (viscoelastic, barbot)
+#  qdyn
+#  dunham fdm
+#  ampuero SEM
+
+# immersed boundary stuff:
+# https://github.com/barbagroup/cuIBM
+# https://travis-ci.org/barbagroup/PetIBM
+# the biros and ying navier stokes stuff
+
+# lots of good stuff here: https://github.com/barbagroup

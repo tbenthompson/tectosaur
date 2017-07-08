@@ -3,6 +3,8 @@ class Kernel:
             scale_type, sm_power, flip_negate,
             constants_code, vector_code, tensor_code):
         self.name = name
+        self.spatial_dim = spatial_dim
+        self.tensor_dim = tensor_dim
         self.needs_obsn = needs_obsn
         self.needs_srcn = needs_srcn
         self.scale_type = scale_type
@@ -216,19 +218,40 @@ kernels = [
     elasticH
 ]
 
-# % if k_name is 'invr':
-#     Real kernel_val = 1.0 / sqrt(r2);
-#     sumx += kernel_val * inx;
-# % elif k_name is 'tensor_invr':
-#     Real kernel_val = 1.0 / sqrt(r2);
-#     Real insum = inx + iny + inz;
-#     sumx += kernel_val * insum;
-#     sumy += kernel_val * insum;
-#     sumz += kernel_val * insum;
-# % elif k_name is 'one':
-#     sumx += inx;
-# % elif k_name is 'laplace_double':
-#     Real r = sqrt(r2);
-#     Real rn = nsrcx * Dx + nsrcy * Dy + nsrcz * Dz;
-#     Real kernel_val = rn / (4 * M_PI * r2 * r);
-#     sumx += kernel_val * inx;
+invr = Kernel(
+    'invr', 3, 1, False, False, 0, 0, False, '',
+    '''
+    Real kernel_val = 1.0 / sqrt(r2);
+    sumx += kernel_val * inx;
+    ''',
+    ''
+)
+tensor_invr = Kernel(
+    'tensor_invr', 3, 3, False, False, 0, 0, False, '',
+    '''
+    Real kernel_val = 1.0 / sqrt(r2);
+    Real insum = inx + iny + inz;
+    sumx += kernel_val * insum;
+    sumy += kernel_val * insum;
+    sumz += kernel_val * insum;
+    ''',
+    ''
+)
+
+one = Kernel('one', 3, 1, False, False, 0, 0, False, '', 'sumx += inx;', '')
+
+laplace_double = Kernel(
+    'laplace_double', 3, 1, False, False, 0, 0, False, '',
+    '''
+    Real r = sqrt(r2);
+    Real rn = nsrcx * Dx + nsrcy * Dy + nsrcz * Dz;
+    Real kernel_val = rn / (4 * M_PI * r2 * r);
+    sumx += kernel_val * inx;
+    ''',
+    ''
+)
+
+fmm_kernels = [
+    invr, tensor_invr, one, laplace_double
+]
+fmm_kernels.extend(kernels)
