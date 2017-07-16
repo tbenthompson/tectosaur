@@ -52,7 +52,7 @@ void check_shape(NPArrayD& arr) {
     auto buf = arr.request();
     if (buf.ndim != 2 || buf.shape[1] != D) {
         std::string msg = "parameter requires n x ";
-        msg += D;
+        msg += std::to_string(D);
         msg += " array.";
         throw std::runtime_error(msg);
     }

@@ -1,6 +1,6 @@
 <%
 from tectosaur.nearfield.vert_adj import pairs_func_name
-from tectosaur.kernels import kernels
+from tectosaur.kernels import elastic_kernels, kernels
 
 def dn(dim):
     return ['x', 'y', 'z'][dim]
@@ -141,7 +141,7 @@ void farfield_tris${K.name}(__global Real* result,
 
 <%def name="farfield_pts(K)">
 __kernel
-void farfield_pts${K.name}(
+void farfield_pts${K.name}${K.spatial_dim}(
     __global Real* result, __global Real* obs_pts, __global Real* obs_ns,
     __global Real* src_pts, __global Real* src_ns, __global Real* input,
     __global Real* params, int n_obs, int n_src)
@@ -226,7 +226,7 @@ void farfield_pts${K.name}(
             Real sumx = 0.0;
             Real sumy = 0.0;
             Real sumz = 0.0;
-            ${K.vector_code}
+            ${prim.call_vector_code(K)}
             % for d in range(3):
                 { //TODO: Is kahan summation necessary here?
                     Real y = sum${dn(d)} - kahantemp${dn(d)};
@@ -248,11 +248,14 @@ void farfield_pts${K.name}(
 
 ${prim.geometry_fncs()}
 
-% for K in kernels:
-${farfield_pts(K)}
-${farfield_tris(K)}
+% for K in elastic_kernels:
 ${single_pairs(K, limit = True, check0 = True)}
 ${single_pairs(K, limit = True, check0 = False)}
 ${single_pairs(K, limit = False, check0 = True)}
 ${single_pairs(K, limit = False, check0 = False)}
+${farfield_tris(K)}
+% endfor
+
+% for K in kernels:
+${farfield_pts(K)}
 % endfor

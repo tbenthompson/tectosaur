@@ -18,19 +18,21 @@
 struct Timer {
     typedef std::chrono::high_resolution_clock::time_point Time;
     Time t_start;
-    int time_us = 0;
 
-    void start() {
+    Timer() {
+        restart(); 
+    }
+
+    void restart() {
         t_start = std::chrono::high_resolution_clock::now();
     }
 
-    void stop() {
-        time_us += std::chrono::duration_cast<std::chrono::microseconds>(
+    void report(std::string name) {
+        int time_us = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::high_resolution_clock::now() - t_start
         ).count();
-    }
-
-    int get_time() {
-        return time_us;
+        std::string text = name + " took " + std::to_string(time_us) + "us";
+        std::cout << text << std::endl;
+        restart();
     }
 };

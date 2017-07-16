@@ -63,7 +63,9 @@ def test_H():
     run_kernel(1000, 'elasticH', 102, testit = True)
 
 if __name__ == '__main__':
-    run_kernel(128 * 512, 'elasticU', 28, timeit = True)
-    run_kernel(128 * 512, 'elasticA', 63, timeit = True)
-    run_kernel(128 * 512, 'elasticT', 63, timeit = True)
-    run_kernel(128 * 512, 'elasticH', 102, timeit = True)
+    n = 32 * 512
+    run_kernel(n, 'elasticU', 28, timeit = True)
+    run_kernel(n, 'elasticA', 63, timeit = True)
+    run_kernel(n, 'elasticT', 63, timeit = True)
+    run_kernel(n, 'elasticH', 102, timeit = True)
+    run_kernel(n, 'laplaceS', 3, timeit = True)

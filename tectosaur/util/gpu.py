@@ -12,7 +12,10 @@ gpu_module = dict()
 def initialize_with_ctx(ctx):
     global gpu_initialized, gpu_ctx, gpu_queue
     gpu_ctx = ctx
-    gpu_queue = cl.CommandQueue(gpu_ctx)
+    gpu_queue = cl.CommandQueue(
+        gpu_ctx,
+        properties=cl.command_queue_properties.PROFILING_ENABLE
+    )
     gpu_initialized = True
 
     # Lazy import to avoid a circular dependency
@@ -133,6 +136,8 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
     module_info = dict()
     module_info['tmpl_args'] = tmpl_args
     compile_options = []
+    debug_opts = ['-g']
+    # compile_options.extend(debug_opts)
     # Using these optimization options doesn't improve performance by very much, if any,
     # so I'd say they're not worth the risk.
     # fast_opts = [

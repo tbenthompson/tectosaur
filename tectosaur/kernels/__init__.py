@@ -23,7 +23,7 @@ elasticU = Kernel(
     const Real CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
     ''',
     '''
-    Real invr = 1.0 / sqrt(r2);
+    Real invr = rsqrt(r2);
     Real Q1 = CsU0 * invr;
     Real Q2 = CsU1 * invr / r2;
     Real ddi = Dx*inx + Dy*iny + Dz*inz;
@@ -32,7 +32,7 @@ elasticU = Kernel(
     sumz += Q1*inz + Q2*Dz*ddi;
     ''',
     '''
-    Real invr = 1.0 / sqrt(r2);
+    Real invr = rsqrt(r2);
     Real Q1 = CsU0 * invr;
     Real Q2 = CsU1 * invr / r2;
     Real K00 = Q2*Dx*Dx + Q1;
@@ -63,7 +63,7 @@ def TA_args(k_name):
 
 def TA_vector_code(k_name):
     return '''
-        Real invr = 1.0 / sqrt(r2);
+        Real invr = rsqrt(r2);
         Real invr2 = invr * invr;
         Real invr3 = invr2 * invr;
 
@@ -97,7 +97,7 @@ def TA_vector_code(k_name):
 
 def TA_tensor_code(k_name):
     return '''
-        Real invr = 1.0 / sqrt(r2);
+        Real invr = rsqrt(r2);
         Real invr2 = invr * invr;
         Real invr3 = invr2 * invr;
 
@@ -142,7 +142,7 @@ elasticH = Kernel(
     const Real CsH3 = 3*nu;
     ''',
     '''
-    Real invr = 1.0 / sqrt(r2);
+    Real invr = rsqrt(r2);
     Real invr2 = invr * invr;
     Real invr3 = invr2 * invr;
 
@@ -169,7 +169,7 @@ elasticH = Kernel(
     sumz += nsrcz*NT + nobsz*MT + Dz*DT + ST*inz;
     ''',
     '''
-    Real invr = 1.0 / sqrt(r2);
+    Real invr = rsqrt(r2);
     Real invr2 = invr * invr;
     Real invr3 = invr2 * invr;
     Real Dorx = invr * Dx;
@@ -211,47 +211,81 @@ elasticH = Kernel(
     '''
 )
 
-kernels = [
+laplace2S = Kernel(
+    'laplaceS', 2, 1, False, False, 0, 0, False, '',
+    None,
+    '''
+    Real K00 = log(sqrt(r2)) / (2.0 * M_PI);
+    '''
+)
+
+laplace2D = Kernel(
+    'laplaceD', 2, 1, False, True, 0, 0, False, '',
+    None,
+    '''
+    Real r = sqrt(r2);
+    Real rn = nsrcx * Dx + nsrcy * Dy;
+    Real K00 = rn / (2 * M_PI * r2);
+    '''
+)
+
+laplace2H = Kernel(
+    'laplaceH', 2, 1, True, True, 0, 0, False, '',
+    None,
+    '''
+    Real rn = nsrcx * Dx + nsrcy * Dy;
+    Real rm = nobsx * Dx + nobsy * Dy;
+    Real nm = nobsx * nsrcx + nobsy * nsrcy;
+    Real K00 = (-nm + ((2 * rn * rm) / r2)) / (2 * M_PI * r2);
+    '''
+)
+
+laplace3S = Kernel(
+    'laplaceS', 3, 1, False, False, 0, 0, False, '',
+    None,
+    '''
+    Real K00 = 1.0 / (4.0 * M_PI * sqrt(r2));
+    '''
+)
+
+laplace3D = Kernel(
+    'laplaceD', 3, 1, False, True, 0, 0, False, '',
+    None,
+    '''
+    Real r = sqrt(r2);
+    Real rn = nsrcx * Dx + nsrcy * Dy + nsrcz * Dz;
+    Real K00 = rn / (4 * M_PI * r2 * r);
+    '''
+)
+
+laplace3H = Kernel(
+    'laplaceH', 3, 1, True, True, 0, 0, False, '',
+    None,
+    '''
+    Real r = sqrt(r2);
+    Real rn = nsrcx * Dx + nsrcy * Dy + nsrcz * Dz;
+    Real rm = nobsx * Dx + nobsy * Dy + nobsz * Dz;
+    Real nm = nobsx * nsrcx + nobsy * nsrcy + nobsz * nsrcz;
+    Real K00 = - ((nm / (r * r2)) - ((3 * rn * rm)/(r2 * r2 * r))) / (4 * M_PI);
+    '''
+)
+
+one2 = Kernel('one', 2, 1, False, False, 0, 0, False, '', None, 'Real K00 = 1.0;')
+one3 = Kernel('one', 3, 1, False, False, 0, 0, False, '', None, 'Real K00 = 1.0;')
+
+one_kernels = [one2, one3]
+
+laplace_kernels = [
+    laplace2S, laplace2D, laplace2H,
+    laplace3S, laplace3D, laplace3H
+]
+
+elastic_kernels = [
     elasticU,
     elasticT,
     elasticA,
     elasticH
 ]
 
-invr = Kernel(
-    'invr', 3, 1, False, False, 0, 0, False, '',
-    '''
-    Real kernel_val = 1.0 / sqrt(r2);
-    sumx += kernel_val * inx;
-    ''',
-    ''
-)
-tensor_invr = Kernel(
-    'tensor_invr', 3, 3, False, False, 0, 0, False, '',
-    '''
-    Real kernel_val = 1.0 / sqrt(r2);
-    Real insum = inx + iny + inz;
-    sumx += kernel_val * insum;
-    sumy += kernel_val * insum;
-    sumz += kernel_val * insum;
-    ''',
-    ''
-)
-
-one = Kernel('one', 3, 1, False, False, 0, 0, False, '', 'sumx += inx;', '')
-
-laplace_double = Kernel(
-    'laplace_double', 3, 1, False, False, 0, 0, False, '',
-    '''
-    Real r = sqrt(r2);
-    Real rn = nsrcx * Dx + nsrcy * Dy + nsrcz * Dz;
-    Real kernel_val = rn / (4 * M_PI * r2 * r);
-    sumx += kernel_val * inx;
-    ''',
-    ''
-)
-
-fmm_kernels = [
-    invr, tensor_invr, one, laplace_double
-]
-fmm_kernels.extend(kernels)
+fmm_kernels = one_kernels + laplace_kernels + elastic_kernels
+kernels = one_kernels + laplace_kernels + elastic_kernels

@@ -206,7 +206,7 @@ def farfield_pts_wrapper(K, obs_pts, obs_ns, src_pts, src_ns, vec, params):
     local_size = get_gpu_config()['block_size']
     n_blocks = int(np.ceil(n_obs / local_size))
     global_size = local_size * n_blocks
-    gpu_farfield_fnc(
+    ev = gpu_farfield_fnc(
         gpu.gpu_queue, (global_size,), (local_size,),
         gpu_result.data,
         gpu_obs_pts.data, gpu_obs_ns.data,
@@ -215,6 +215,7 @@ def farfield_pts_wrapper(K, obs_pts, obs_ns, src_pts, src_ns, vec, params):
         gpu_params.data,
         np.int32(n_obs), np.int32(n_src),
     )
+    ev.wait()
     return gpu_result.get()
 
 class SparseIntegralOp:
@@ -248,6 +249,7 @@ class SparseIntegralOp:
 
     def farfield_dot(self, v):
         interp_v = self.interp_galerkin_mat.dot(v).flatten()
+        # TODO: Don't re-send the data to the gpu each time!
         nbody_result = farfield_pts_wrapper(
             self.kernel, self.gpu_quad_pts, self.gpu_quad_ns,
             self.gpu_quad_pts, self.gpu_quad_ns, interp_v, self.params
