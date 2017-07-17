@@ -21,41 +21,38 @@ void farfield_pts${K.name}${K.spatial_dim}(
     int i = get_global_id(0);
     int local_id = get_local_id(0);
 
-    % for d in range(3):
+    % for d in range(K.spatial_dim):
     Real obsp${dn(d)};
     % endfor
     if (i < n_obs) {
-        % for d in range(3):
+        % for d in range(K.spatial_dim):
         obsp${dn(d)} = obs_pts[i * 3 + ${d}];
         % endfor
     }
 
     % if K.needs_obsn:
-    % for d in range(3):
+    % for d in range(K.spatial_dim):
     Real nobs${dn(d)};
     % endfor
     if (i < n_obs) {
-        % for d in range(3):
+        % for d in range(K.spatial_dim):
         nobs${dn(d)} = obs_ns[i * 3 + ${d}];
         % endfor
     }
     % endif
 
     % if K.needs_srcn:
-    __local Real sh_src_ns[3 * ${block_size}];
+    __local Real sh_src_ns[${K.spatial_dim} * ${block_size}];
     % endif
-    __local Real sh_src_pts[3 * ${block_size}];
-    __local Real sh_input[3 * ${block_size}];
+    __local Real sh_src_pts[${K.spatial_dim} * ${block_size}];
+    __local Real sh_input[${K.tensor_dim} * ${block_size}];
 
     
     ${K.constants_code}
 
-    Real kahansumx = 0.0;
-    Real kahansumy = 0.0;
-    Real kahansumz = 0.0;
-    Real kahantempx = 0.0;
-    Real kahantempy = 0.0;
-    Real kahantempz = 0.0;
+    % for d in range(K.tensor_dim):
+    Real sum${dn(d)} = 0.0;
+    % endfor
 
     int j = 0;
     int tile = 0;
@@ -63,12 +60,14 @@ void farfield_pts${K.name}${K.spatial_dim}(
         barrier(CLK_LOCAL_MEM_FENCE);
         int idx = tile * ${block_size} + local_id;
         if (idx < n_src) {
-            for (int k = 0; k < 3; k++) {
+            for (int k = 0; k < ${K.spatial_dim}; k++) {
                 % if K.needs_srcn:
-                sh_src_ns[local_id * 3 + k] = src_ns[idx * 3 + k];
+                sh_src_ns[local_id * ${K.spatial_dim} + k] = src_ns[idx * ${K.spatial_dim} + k];
                 % endif
-                sh_src_pts[local_id * 3 + k] = src_pts[idx * 3 + k];
-                sh_input[local_id * 3 + k] = input[idx * 3 + k];
+                sh_src_pts[local_id * ${K.spatial_dim} + k] = src_pts[idx * ${K.spatial_dim} + k];
+            }
+            for (int k = 0; k < ${K.tensor_dim}; k++) {
+                sh_input[local_id * ${K.tensor_dim} + k] = input[idx * ${K.tensor_dim} + k];
             }
         }
         barrier(CLK_LOCAL_MEM_FENCE);
@@ -77,42 +76,34 @@ void farfield_pts${K.name}${K.spatial_dim}(
             continue;
         }
         for (int k = 0; k < ${block_size} && k < n_src - j; k++) {
-            Real Dx = sh_src_pts[k * 3] - obspx;
-            Real Dy = sh_src_pts[k * 3 + 1] - obspy;
-            Real Dz = sh_src_pts[k * 3 + 2] - obspz;
+            % for d in range(K.spatial_dim):
+                Real D${dn(d)} = sh_src_pts[k * ${K.spatial_dim} + ${d}] - obsp${dn(d)};
+            % endfor
 
-            Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
+            Real r2 = Dx * Dx;
+            % for d in range(1, K.spatial_dim):
+                r2 += D${dn(d)} * D${dn(d)};
+            % endfor
             if (r2 == 0.0) {
                 continue;
             }
             % if K.needs_srcn:
-            % for d in range(3):
-            Real nsrc${dn(d)} = sh_src_ns[k * 3 + ${d}];
+            % for d in range(K.spatial_dim):
+            Real nsrc${dn(d)} = sh_src_ns[k * ${K.spatial_dim} + ${d}];
             % endfor
             % endif
 
-            % for d in range(3):
-            Real in${dn(d)} = sh_input[k * 3 + ${d}];
+            % for d in range(K.tensor_dim):
+            Real in${dn(d)} = sh_input[k * ${K.tensor_dim} + ${d}];
             % endfor
 
-            Real sumx = 0.0;
-            Real sumy = 0.0;
-            Real sumz = 0.0;
             ${prim.call_vector_code(K)}
-            % for d in range(3):
-                { //TODO: Is kahan summation necessary here?
-                    Real y = sum${dn(d)} - kahantemp${dn(d)};
-                    Real t = kahansum${dn(d)} + y;
-                    kahantemp${dn(d)} = (t - kahansum${dn(d)}) - y;
-                    kahansum${dn(d)} = t;
-                }
-            % endfor
         }
     }
 
     if (i < n_obs) {
-        % for d in range(3):
-        result[i * 3 + ${d}] = kahansum${dn(d)};
+        % for d in range(K.tensor_dim):
+        result[i * ${K.tensor_dim} + ${d}] = sum${dn(d)};
         % endfor
     }
 }
