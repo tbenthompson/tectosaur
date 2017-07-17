@@ -1,5 +1,5 @@
 <%
-from tectosaur.nearfield.vert_adj import pairs_func_name
+from tectosaur.nearfield.nearfield_op import pairs_func_name
 from tectosaur.kernels import elastic_kernels, kernels
 
 def dn(dim):
@@ -10,6 +10,7 @@ def dn(dim):
 #define Real ${float_type}
 
 <%namespace name="prim" file="../integral_primitives.cl"/>
+
 <%def name="integrate_pair(K, limit, check0)">
     ${prim.tri_info("obs", "nobs")}
     ${prim.tri_info("src", "nsrc")}
@@ -246,6 +247,38 @@ void farfield_pts${K.name}${K.spatial_dim}(
 }
 </%def>
 
+<%def name="farfield_tris(K)">
+__kernel
+void farfield_tris${K.name}(__global Real* result,
+    int n_quad_pts, __global Real* quad_pts, __global Real* quad_wts,
+    __global Real* pts, int n_obs_tris, __global int* obs_tris, 
+    int n_src_tris, __global int* src_tris, 
+    __global Real* params)
+{
+    const int i = get_global_id(0);
+    const int j = get_global_id(1);
+
+    ${prim.get_triangle("obs_tri", "obs_tris", "i")}
+    ${prim.get_triangle("src_tri", "src_tris", "j")}
+    ${integrate_pair(K, limit = False, check0 = False)}
+
+    % for d_obs in range(3):
+    % for d_src in range(3):
+    % for b_obs in range(3):
+    % for b_src in range(3):
+    result[
+        (i * 9 + ${b_obs} * 3 + ${d_obs}) * n_src_tris * 9 +
+        (j * 9 + ${b_src} * 3 + ${d_src})
+        ] = obs_jacobian * src_jacobian * 
+            result_temp[${prim.temp_result_idx(d_obs, d_src, b_obs, b_src)}];
+    % endfor
+    % endfor
+    % endfor
+    % endfor
+}
+</%def>
+
+
 ${prim.geometry_fncs()}
 
 % for K in elastic_kernels:
@@ -254,8 +287,4 @@ ${single_pairs(K, limit = True, check0 = False)}
 ${single_pairs(K, limit = False, check0 = True)}
 ${single_pairs(K, limit = False, check0 = False)}
 ${farfield_tris(K)}
-% endfor
-
-% for K in kernels:
-${farfield_pts(K)}
 % endfor

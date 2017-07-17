@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 from functools import wraps
 
-from tectosaur.kernels import kernels
+from tectosaur.kernels import elastic_kernels
 
 try:
     slow = pytest.mark.skipif(
@@ -32,6 +32,6 @@ def golden_master(digits = 6):
         return wrapper
     return decorator
 
-@pytest.fixture(params = [K.name for K in kernels])
+@pytest.fixture(params = [K.name for K in elastic_kernels])
 def kernel(request):
     return request.param

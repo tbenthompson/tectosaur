@@ -2,7 +2,8 @@ import numpy as np
 from tectosaur.util.quadrature import gauss2d_tri
 import tectosaur.util.gpu as gpu
 
-from tectosaur.ops.sparse_integral_op import interp_galerkin_mat, farfield_pts_wrapper
+from tectosaur.ops.sparse_integral_op import interp_galerkin_mat
+from tectosaur.farfield import farfield_pts_direct
 
 #TODO:
 #1) Write using just one order and no nearfield/farfield split
@@ -21,7 +22,7 @@ def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near, params):
     gpu_quad_ns = gpu.to_gpu(quad_ns.flatten(), float_type)
 
     interp_v = IGmat.dot(input).flatten()
-    nbody_result = farfield_pts_wrapper(
+    nbody_result = farfield_pts_direct(
         K, obs_pts.flatten(), obs_ns.flatten(),
         gpu_quad_pts, gpu_quad_ns, interp_v, params
     )

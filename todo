@@ -1,3 +1,7 @@
+unify sparse integral op and dense integral op.
+get rid of farfield_tris opencl functions
+interior redesign to separate and use fmm
+
 BASIN:
 -- no A* for fault in basin
 -- debug the basin problem.

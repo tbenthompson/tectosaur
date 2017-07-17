@@ -1,7 +1,7 @@
 import numpy as np
 
 import tectosaur.nearfield.triangle_rules as triangle_rules
-import tectosaur.nearfield.vert_adj as nearfield_op
+import tectosaur.nearfield.nearfield_op as nearfield_op
 import tectosaur.nearfield.limit as limit
 
 # import tectosaur.ops.fmm_integral_op as fmm_integral_op

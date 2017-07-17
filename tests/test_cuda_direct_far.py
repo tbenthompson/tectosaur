@@ -2,7 +2,7 @@ import time
 import cppimport
 import numpy as np
 
-from tectosaur.ops.sparse_integral_op import farfield_pts_wrapper, get_gpu_module
+from tectosaur.farfield import farfield_pts_direct, get_gpu_module
 
 def normalize(vs):
     return vs / np.linalg.norm(vs, axis = 1).reshape((vs.shape[0], 1))
@@ -32,7 +32,7 @@ def run_kernel(n, k_name, flops, testit = False, timeit = False):
     get_gpu_module() #preload module so it doesn't get counted in the runtime
     start = time.time()
     params = [1.0, 0.25]
-    result = farfield_pts_wrapper(
+    result = farfield_pts_direct(
         k_name, obs_pts, obs_ns, src_pts, src_ns, weights, params
     ).reshape((n, 3))
     runtime = time.time() - start

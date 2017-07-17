@@ -6,7 +6,7 @@ import numpy as np
 import tectosaur
 from tectosaur.util.timer import Timer
 import tectosaur.nearfield.limit as limit
-import tectosaur.nearfield.vert_adj as nearfield_op
+import tectosaur.nearfield.nearfield_op as nearfield_op
 import tectosaur.util.gpu as gpu
 
 from tectosaur.nearfield.table_params import *
