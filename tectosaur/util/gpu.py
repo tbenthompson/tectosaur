@@ -140,14 +140,14 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
     # compile_options.extend(debug_opts)
     # Using these optimization options doesn't improve performance by very much, if any,
     # so I'd say they're not worth the risk.
-    # fast_opts = [
-    #     '-cl-finite-math-only',
-    #     '-cl-unsafe-math-optimizations',
-    #     '-cl-no-signed-zeros',
-    #     '-cl-mad-enable',
-    #     '-cl-strict-aliasing'
-    # ]
-    # compile_options.extend(fast_opts)
+    fast_opts = [
+        # '-cl-finite-math-only',
+        '-cl-unsafe-math-optimizations',
+        # '-cl-no-signed-zeros',
+        '-cl-mad-enable',
+        # '-cl-strict-aliasing'
+    ]
+    compile_options.extend(fast_opts)
     module_info['module'] = cl.Program(
         gpu_ctx, code
     ).build(options = compile_options)

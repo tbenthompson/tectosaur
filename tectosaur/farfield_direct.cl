@@ -111,6 +111,6 @@ void farfield_pts${K.name}${K.spatial_dim}(
 
 ${prim.geometry_fncs()}
 
-% for K in kernels:
+% for name,K in kernels.items():
 ${farfield_pts(K)}
 % endfor

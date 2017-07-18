@@ -32,6 +32,6 @@ def golden_master(digits = 6):
         return wrapper
     return decorator
 
-@pytest.fixture(params = [K.name for K in elastic_kernels])
+@pytest.fixture(params = [name for name,K in elastic_kernels.items()])
 def kernel(request):
     return request.param

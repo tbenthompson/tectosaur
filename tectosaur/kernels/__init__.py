@@ -15,7 +15,7 @@ class Kernel:
         self.tensor_code = tensor_code
 
 elasticU = Kernel(
-    'elasticU', 3, 3, False, False, -3, 1, False,
+    'elasticU3', 3, 3, False, False, -3, 1, False,
     '''
     const Real G = params[0];
     const Real nu = params[1];
@@ -122,17 +122,17 @@ def TA_tensor_code(k_name):
     '''.format(**TA_args(k_name))
 
 elasticT = Kernel(
-    'elasticT', 3, 3, False, True, -2, 0, True,
+    'elasticT3', 3, 3, False, True, -2, 0, True,
     TA_const_code, TA_vector_code('T'), TA_tensor_code('T')
 )
 
 elasticA = Kernel(
-    'elasticA', 3, 3, True, False, -2, 0, True,
+    'elasticA3', 3, 3, True, False, -2, 0, True,
     TA_const_code, TA_vector_code('A'), TA_tensor_code('A')
 )
 
 elasticH = Kernel(
-    'elasticH', 3, 3, True, True, -1, -1, False,
+    'elasticH3', 3, 3, True, True, -1, -1, False,
     '''
     const Real G = params[0];
     const Real nu = params[1];
@@ -212,7 +212,7 @@ elasticH = Kernel(
 )
 
 laplace2S = Kernel(
-    'laplaceS', 2, 1, False, False, 0, 0, False, '',
+    'laplaceS2', 2, 1, False, False, 0, 0, False, '',
     None,
     '''
     Real K00 = log(sqrt(r2)) / (2.0 * M_PI);
@@ -220,7 +220,7 @@ laplace2S = Kernel(
 )
 
 laplace2D = Kernel(
-    'laplaceD', 2, 1, False, True, 0, 0, False, '',
+    'laplaceD2', 2, 1, False, True, 0, 0, False, '',
     None,
     '''
     Real r = sqrt(r2);
@@ -230,7 +230,7 @@ laplace2D = Kernel(
 )
 
 laplace2H = Kernel(
-    'laplaceH', 2, 1, True, True, 0, 0, False, '',
+    'laplaceH2', 2, 1, True, True, 0, 0, False, '',
     None,
     '''
     Real rn = nsrcx * Dx + nsrcy * Dy;
@@ -241,15 +241,18 @@ laplace2H = Kernel(
 )
 
 laplace3S = Kernel(
-    'laplaceS', 3, 1, False, False, 0, 0, False, '',
+    'laplaceS3', 3, 1, False, False, 0, 0, False,
+    '''
+    Real C = 1.0 / (4.0 * M_PI);
+    ''',
     None,
     '''
-    Real K00 = 1.0 / (4.0 * M_PI * sqrt(r2));
+    Real K00 = rsqrt(r2) * C;
     '''
 )
 
 laplace3D = Kernel(
-    'laplaceD', 3, 1, False, True, 0, 0, False, '',
+    'laplaceD3', 3, 1, False, True, 0, 0, False, '',
     None,
     '''
     Real r = sqrt(r2);
@@ -259,7 +262,7 @@ laplace3D = Kernel(
 )
 
 laplace3H = Kernel(
-    'laplaceH', 3, 1, True, True, 0, 0, False, '',
+    'laplaceH3', 3, 1, True, True, 0, 0, False, '',
     None,
     '''
     Real r = sqrt(r2);
@@ -270,22 +273,26 @@ laplace3H = Kernel(
     '''
 )
 
-one2 = Kernel('one', 2, 1, False, False, 0, 0, False, '', None, 'Real K00 = 1.0;')
-one3 = Kernel('one', 3, 1, False, False, 0, 0, False, '', None, 'Real K00 = 1.0;')
+one2 = Kernel('one2', 2, 1, False, False, 0, 0, False, '', None, 'Real K00 = 1.0;')
+one3 = Kernel('one3', 3, 1, False, False, 0, 0, False, '', None, 'Real K00 = 1.0;')
 
-one_kernels = [one2, one3]
+def make_kernel_dict(ks):
+    return {K.name: K for K in ks}
 
-laplace_kernels = [
+one_kernels = make_kernel_dict([one2, one3])
+
+laplace_kernels = make_kernel_dict([
     laplace2S, laplace2D, laplace2H,
     laplace3S, laplace3D, laplace3H
-]
+])
 
-elastic_kernels = [
+elastic_kernels = make_kernel_dict([
     elasticU,
     elasticT,
     elasticA,
     elasticH
-]
+])
 
-fmm_kernels = one_kernels + laplace_kernels + elastic_kernels
-kernels = one_kernels + laplace_kernels + elastic_kernels
+kernels = dict(one_kernels)
+kernels.update(laplace_kernels)
+kernels.update(elastic_kernels)

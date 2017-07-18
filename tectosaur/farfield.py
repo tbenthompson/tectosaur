@@ -21,7 +21,7 @@ def farfield_pts_direct(K, obs_pts, obs_ns, src_pts, src_ns, vec, params):
     if len(src_pts.shape) == 1:
         n_src //= dim
 
-    tensor_dim = vec.shape[0] // n_obs
+    tensor_dim = vec.shape[1]
 
     gpu_result = gpu.empty_gpu(n_obs * tensor_dim, float_type)
     gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)
