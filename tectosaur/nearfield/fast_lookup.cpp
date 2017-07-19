@@ -324,7 +324,7 @@ std::array<double,81> transform_from_standard(const std::array<double,81>& I,
 }
 
 KernelProps get_kernel_props(std::string K) {
-    % for K in kernels:
+    % for k_name, K in kernels.items():
         if (K == "${K.name}") { 
             return {
                 ${K.scale_type}, ${K.sm_power}, ${str(K.flip_negate).lower()}

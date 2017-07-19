@@ -13,7 +13,7 @@ def dn(dim):
 
 <%def name="farfield_pts(K)">
 __kernel
-void farfield_pts${K.name}${K.spatial_dim}(
+void farfield_pts${K.name}(
     __global Real* result, __global Real* obs_pts, __global Real* obs_ns,
     __global Real* src_pts, __global Real* src_ns, __global Real* input,
     __global Real* params, int n_obs, int n_src)

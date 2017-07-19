@@ -4,8 +4,9 @@ import scipy.sparse
 
 from tectosaur.util.quadrature import gauss2d_tri
 
-from tectosaur.nearfield.nearfield_op import coincident, pairs_quad, edge_adj, vert_adj,\
-    get_gpu_module, get_gpu_config
+from tectosaur.farfield import farfield_pts_direct
+
+from tectosaur.nearfield.nearfield_op import NearfieldIntegralOp
 from tectosaur.nearfield.table_lookup import coincident_table, adjacent_table
 
 import tectosaur.util.geometry as geometry
@@ -64,8 +65,8 @@ class SparseIntegralOp:
         self.shape = self.nearfield.shape
         self.params = params
         self.kernel = kernel
-        self.gpu_quad_pts = gpu.to_gpu(quad_pts.flatten(), float_type)
-        self.gpu_quad_ns = gpu.to_gpu(quad_ns.flatten(), float_type)
+        self.gpu_quad_pts = gpu.to_gpu(quad_pts, float_type)
+        self.gpu_quad_ns = gpu.to_gpu(quad_ns, float_type)
 
     def nearfield_dot(self, v):
         return self.nearfield.dot(v)
@@ -78,8 +79,7 @@ class SparseIntegralOp:
 
     def farfield_dot(self, v):
         interp_v = self.interp_galerkin_mat.dot(v).flatten()
-        # TODO: Don't re-send the data to the gpu each time!
-        nbody_result = farfield_pts_wrapper(
+        nbody_result = farfield_pts_direct(
             self.kernel, self.gpu_quad_pts, self.gpu_quad_ns,
             self.gpu_quad_pts, self.gpu_quad_ns, interp_v, self.params
         )

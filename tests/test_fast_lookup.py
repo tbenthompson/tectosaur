@@ -13,7 +13,7 @@ def test_coincident_lookup_single(request):
     pts = np.array([[0,0,0],[1,0,0],[0,1,0]])
     tris = np.array([[0,1,2]] * 100)
     params = [1.0, 0.25]
-    res = coincident_table('elasticH', params, pts, tris)
+    res = coincident_table('elasticH3', params, pts, tris)
     return res
 
 def test_fast_interp():

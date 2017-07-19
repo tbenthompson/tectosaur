@@ -6,7 +6,6 @@ import numpy as np
 import tectosaur
 from tectosaur.util.timer import Timer
 import tectosaur.nearfield.limit as limit
-import tectosaur.nearfield.nearfield_op as nearfield_op
 import tectosaur.util.gpu as gpu
 
 from tectosaur.nearfield.table_params import *
@@ -54,13 +53,13 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
 
 def coincident_table(kernel, params, pts, tris):
     t = Timer(prefix = 'coincident')
-    if kernel is 'elasticU':
+    if kernel is 'elasticU3':
         filename = 'elasticU_25_0.010000_16_0.000000_8_13_8_coincidenttable.npy'
-    elif kernel is 'elasticT':
+    elif kernel is 'elasticT3':
         filename = 'elasticT_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy'
-    elif kernel is 'elasticA':
+    elif kernel is 'elasticA3':
         filename = 'elasticA_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy'
-    elif kernel is 'elasticH':
+    elif kernel is 'elasticH3':
         filename = 'elasticH_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
     filepath = tectosaur.get_data_filepath(filename)
 
@@ -104,14 +103,14 @@ def adjacent_table(nq_va, kernel, params, pts, obs_tris, src_tris):
         return np.zeros((0,3,3,3,3))
 
     flip_symmetry = False
-    if kernel is 'elasticU':
+    if kernel is 'elasticU3':
         filename = 'elasticU_25_0.010000_16_0.000000_7_8_adjacenttable.npy'
         flip_symmetry = True
-    elif kernel is 'elasticT':
+    elif kernel is 'elasticT3':
         filename = 'elasticT_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
-    elif kernel is 'elasticA':
+    elif kernel is 'elasticA3':
         filename = 'elasticA_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
-    elif kernel is 'elasticH':
+    elif kernel is 'elasticH3':
         filename = 'elasticH_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
         flip_symmetry = True
     filepath = tectosaur.get_data_filepath(filename)
@@ -146,8 +145,8 @@ def adjacent_table(nq_va, kernel, params, pts, obs_tris, src_tris):
 
     t.report("from standard")
 
-    # np.save('playground/vert_adj_test2.npy', (np.array(va.pts), np.array(va.obs_tris), np.array(va.src_tris)))
-    # import sys; sys.exit()
+    # TODO: Return the info necessary for vert_adj instead of actually running it
+    import tectosaur.nearfield.nearfield_op as nearfield_op
     Iv = nearfield_op.vert_adj(
         nq_va, kernel, params,
         np.array(va.pts), np.array(va.obs_tris), np.array(va.src_tris)

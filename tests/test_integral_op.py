@@ -47,7 +47,7 @@ def test_farfield_two_tris(request):
     obs_tris = np.array([[0, 1, 2]], dtype = np.int)
     src_tris = np.array([[3, 4, 5]], dtype = np.int)
     params = [1.0, 0.25]
-    out = dense_integral_op.farfield('elasticH', params, pts, obs_tris, src_tris, 3)
+    out = dense_integral_op.farfield('elasticH3', params, pts, obs_tris, src_tris, 3)
     return out
 
 @golden_master()
@@ -57,7 +57,7 @@ def test_gpu_edge_adjacent(request):
     src_tris = np.array([[1,0,3]]).astype(np.int32)
     params = [1.0, 0.25]
     out = nearfield_op.edge_adj(
-        8, [0.1, 0.01], 'elasticH', params, pts, obs_tris, src_tris, remove_sing = False
+        8, [0.1, 0.01], 'elasticH3', params, pts, obs_tris, src_tris, remove_sing = False
     )
     return out
 
@@ -67,17 +67,17 @@ def test_gpu_vert_adjacent(request):
     obs_tris = np.array([[1,2,0]]).astype(np.int32)
     src_tris = np.array([[1,3,4]]).astype(np.int32)
     params = [1.0, 0.25]
-    out = nearfield_op.vert_adj(3, 'elasticH', params, pts, obs_tris, src_tris)
+    out = nearfield_op.vert_adj(3, 'elasticH3', params, pts, obs_tris, src_tris)
     return out
 
-@golden_master(5)
+@golden_master(4)
 def test_coincident_gpu(request):
     n = 4
     w = 4
     pts, tris = mesh_gen.make_rect(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
     params = [1.0, 0.25]
     out = nearfield_op.coincident(
-        8, [0.1, 0.01], 'elasticH', params, pts, tris, remove_sing = False
+        8, [0.1, 0.01], 'elasticH3', params, pts, tris, remove_sing = False
     )
     return out
 
@@ -161,7 +161,7 @@ def test_mass_op():
     np.testing.assert_almost_equal(op.mat[0,3], exact03)
 
 def test_vert_adj_separate_bases():
-    K = 'elasticH'
+    K = 'elasticH3'
     params = [1.0, 0.25]
     obs_tris = np.array([[0,1,2]])
     src_tris = np.array([[0,4,3]])
@@ -199,7 +199,7 @@ def test_interior(request):
 
     input = np.ones(tris.shape[0] * 9)
 
-    K = 'elasticH'
+    K = 'elasticH3'
     params = [1.0, 0.25]
 
     return interior_integral(obs_pts, obs_ns, (pts, tris), input, K, 4, 4, params)

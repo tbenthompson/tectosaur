@@ -26,7 +26,7 @@ def run_kernel(n, k_name, flops, testit = False, timeit = False):
     obs_ns = normalize(np.random.rand(n, 3))
     src_pts = np.random.rand(n, 3)
     src_ns = obs_ns
-    weights = np.random.rand(n, 3)
+    weights = np.random.rand(n, 3).flatten()
 
 
     get_gpu_module() #preload module so it doesn't get counted in the runtime
@@ -51,21 +51,21 @@ def run_kernel(n, k_name, flops, testit = False, timeit = False):
     #     )
 
 def test_U():
-    run_kernel(1000, 'elasticU', 28, testit = True)
+    run_kernel(1000, 'elasticU3', 28, testit = True)
 
 def test_T():
-    run_kernel(1000, 'elasticT', 63, testit = True)
+    run_kernel(1000, 'elasticT3', 63, testit = True)
 
 def test_A():
-    run_kernel(1000, 'elasticA', 63, testit = True)
+    run_kernel(1000, 'elasticA3', 63, testit = True)
 
 def test_H():
-    run_kernel(1000, 'elasticH', 102, testit = True)
+    run_kernel(1000, 'elasticH3', 102, testit = True)
 
 if __name__ == '__main__':
     n = 32 * 512
-    run_kernel(n, 'elasticU', 28, timeit = True)
-    run_kernel(n, 'elasticA', 63, timeit = True)
-    run_kernel(n, 'elasticT', 63, timeit = True)
-    run_kernel(n, 'elasticH', 102, timeit = True)
-    run_kernel(n, 'laplaceS', 3, timeit = True)
+    run_kernel(n, 'elasticU3', 28, timeit = True)
+    run_kernel(n, 'elasticA3', 63, timeit = True)
+    run_kernel(n, 'elasticT3', 63, timeit = True)
+    run_kernel(n, 'elasticH3', 102, timeit = True)
+    run_kernel(n, 'laplaceS3', 3, timeit = True)

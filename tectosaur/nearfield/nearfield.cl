@@ -281,7 +281,7 @@ void farfield_tris${K.name}(__global Real* result,
 
 ${prim.geometry_fncs()}
 
-% for K in elastic_kernels:
+% for k_name,K in elastic_kernels.items():
 ${single_pairs(K, limit = True, check0 = True)}
 ${single_pairs(K, limit = True, check0 = False)}
 ${single_pairs(K, limit = False, check0 = True)}

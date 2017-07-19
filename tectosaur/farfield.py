@@ -11,17 +11,12 @@ def get_gpu_module():
     return gpu.load_gpu('farfield_direct.cl', tmpl_args = get_gpu_config())
 
 def farfield_pts_direct(K, obs_pts, obs_ns, src_pts, src_ns, vec, params):
-    dim = 3
-    gpu_farfield_fnc = getattr(get_gpu_module(), "farfield_pts" + K + str(dim))
+    gpu_farfield_fnc = getattr(get_gpu_module(), "farfield_pts" + K)
 
-    n_obs = obs_pts.shape[0]
-    if len(obs_pts.shape) == 1:
-        n_obs //= dim
+    n_obs, dim = obs_pts.shape
     n_src = src_pts.shape[0]
-    if len(src_pts.shape) == 1:
-        n_src //= dim
 
-    tensor_dim = vec.shape[1]
+    tensor_dim = int(vec.shape[0] / n_src)
 
     gpu_result = gpu.empty_gpu(n_obs * tensor_dim, float_type)
     gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)

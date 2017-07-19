@@ -1,12 +1,19 @@
+import scipy.sparse
 import numpy as np
 
+from tectosaur import float_type
+
+from tectosaur.mesh.find_nearfield import find_nearfield
+import tectosaur.mesh.adjacency as adjacency
+
 from tectosaur.nearfield.limit import richardson_quad
+from tectosaur.nearfield.table_lookup import coincident_table, adjacent_table
 import tectosaur.nearfield.triangle_rules as triangle_rules
 
+from tectosaur.util.quadrature import gauss4d_tri
 from tectosaur.util.caching import cache
+from tectosaur.util.timer import Timer
 import tectosaur.util.gpu as gpu
-
-from tectosaur import float_type
 
 from cppimport import cppimport
 fast_assembly = cppimport("tectosaur.ops.fast_assembly")
@@ -159,11 +166,11 @@ class NearfieldIntegralOp:
         )
         timer.report("Coincident correction")
 
-        va, ea = find_adjacents(tris)
+        va, ea = adjacency.find_adjacents(tris)
         timer.report("Find adjacency")
 
         ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
-            edge_adj_prep(tris, ea)
+            adjacency.edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
         if not use_tables:
             ea_mat_rot = edge_adj(
@@ -183,7 +190,7 @@ class NearfieldIntegralOp:
         timer.report("Edge adjacent correction")
 
         va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
-            vert_adj_prep(tris, va)
+            adjacency.vert_adj_prep(tris, va)
         timer.report("Vert adjacency prep")
 
         va_mat_rot = vert_adj(
