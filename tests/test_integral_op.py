@@ -21,8 +21,8 @@ from tectosaur.util.test_decorators import slow, golden_master, kernel
 
 from laplace import laplace
 
-import tectosaur, logging
-tectosaur.logger.setLevel(logging.ERROR)
+# import tectosaur, logging
+# tectosaur.logger.setLevel(logging.ERROR)
 
 def test_nearfield():
     corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
@@ -47,18 +47,7 @@ def test_farfield_two_tris(request):
     obs_tris = np.array([[0, 1, 2]], dtype = np.int)
     src_tris = np.array([[3, 4, 5]], dtype = np.int)
     params = [1.0, 0.25]
-    out = dense_integral_op.farfield('elasticH3', params, pts, obs_tris, src_tris, 3)
-    return out
-
-@golden_master()
-def test_gpu_edge_adjacent(request):
-    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
-    obs_tris = np.array([[0,1,2]]).astype(np.int32)
-    src_tris = np.array([[1,0,3]]).astype(np.int32)
-    params = [1.0, 0.25]
-    out = nearfield_op.edge_adj(
-        8, [0.1, 0.01], 'elasticH3', params, pts, obs_tris, src_tris, remove_sing = False
-    )
+    out = dense_integral_op.farfield_tris('elasticH3', params, pts, obs_tris, src_tris, 3)
     return out
 
 @golden_master()
@@ -70,17 +59,6 @@ def test_gpu_vert_adjacent(request):
     out = nearfield_op.vert_adj(3, 'elasticH3', params, pts, obs_tris, src_tris)
     return out
 
-@golden_master(4)
-def test_coincident_gpu(request):
-    n = 4
-    w = 4
-    pts, tris = mesh_gen.make_rect(n, n, [[-w, -w, 0], [w, -w, 0], [w, w, 0], [-w, w, 0]])
-    params = [1.0, 0.25]
-    out = nearfield_op.coincident(
-        8, [0.1, 0.01], 'elasticH3', params, pts, tris, remove_sing = False
-    )
-    return out
-
 def full_integral_op_tester(k):
     pts = np.array([[0,0,0], [1,1,0], [0, 1, 1], [0,0,2]])
     tris = np.array([[0, 1, 2], [2, 1, 3]])
@@ -89,16 +67,16 @@ def full_integral_op_tester(k):
     params = [1.0, 0.25]
     for m in [(pts, tris), rect_mesh]:
         dense_op = dense_integral_op.DenseIntegralOp(
-            [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, params, m[0], m[1]
+            [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, params, m[0], m[1], use_tables = True
         )
         np.random.seed(100)
         x = np.random.rand(dense_op.shape[1])
         dense_res = dense_op.dot(x)
         sparse_op = sparse_integral_op.SparseIntegralOp(
-            [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, params, m[0], m[1]
+            [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, params, m[0], m[1], use_tables = True
         )
         sparse_res = sparse_op.dot(x)
-        assert(np.max(np.abs(sparse_res - dense_res)) < 2e-6)
+        assert(np.max(np.abs(sparse_res - dense_res)) < 3e-5)
         out = np.hstack((out, sparse_res))
     return out
 
@@ -204,6 +182,9 @@ def test_interior(request):
 
     return interior_integral(obs_pts, obs_ns, (pts, tris), input, K, 4, 4, params)
 
+
+if __name__ == '__main__':
+    full_integral_op_tester('elasticU3')
 
 # def test_fmm_integral_op():
 #     np.random.seed(13)

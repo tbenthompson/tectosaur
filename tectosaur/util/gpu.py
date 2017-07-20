@@ -3,6 +3,8 @@ import pyopencl as cl
 import pyopencl.array
 import os
 
+import tectosaur
+
 
 gpu_initialized = False
 gpu_ctx = None
@@ -107,6 +109,7 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
                 tmpl_args_match = tmpl_args_match and compare(v, tmpl_args[k])
 
             if tmpl_args_match:
+                tectosaur.logger.debug('returning cached gpu module ' + tmpl_name)
                 return module_info['module']
 
     import mako.exceptions
@@ -120,6 +123,9 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
         return lookup.get_template(tmpl_name)
 
 
+    import time
+    start = time.time()
+    tectosaur.logger.debug('start compiling ' + tmpl_name + ' with args ' + str(tmpl_args))
     tmpl = get_template(tmpl_name, tmpl_dir)
     try:
         code = tmpl.render(**tmpl_args)
@@ -142,15 +148,16 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
     # so I'd say they're not worth the risk.
     fast_opts = [
         # '-cl-finite-math-only',
-        '-cl-unsafe-math-optimizations',
+        # '-cl-unsafe-math-optimizations',
         # '-cl-no-signed-zeros',
-        '-cl-mad-enable',
+        # '-cl-mad-enable',
         # '-cl-strict-aliasing'
     ]
     compile_options.extend(fast_opts)
     module_info['module'] = cl.Program(
         gpu_ctx, code
     ).build(options = compile_options)
+    tectosaur.logger.debug('compile took: ' + str(time.time() - start))
 
     if tmpl_name not in gpu_module:
         gpu_module[tmpl_name] = []

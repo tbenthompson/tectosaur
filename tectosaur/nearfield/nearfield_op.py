@@ -34,7 +34,8 @@ def get_gpu_module():
     return gpu.load_gpu('nearfield/nearfield.cl', tmpl_args = get_gpu_config())
 
 def get_pairs_integrator(kernel, singular, check0):
-    return getattr(get_gpu_module(), pairs_func_name(singular, kernel, check0))
+    module = get_gpu_module()
+    return getattr(module, pairs_func_name(singular, kernel, check0))
 
 def pairs_quad(kernel, params, pts, obs_tris, src_tris, q, singular, check0):
     integrator = get_pairs_integrator(kernel, singular, check0)
@@ -68,42 +69,10 @@ def pairs_quad(kernel, params, pts, obs_tris, src_tris, q, singular, check0):
         call_integrator(*I)
     return out
 
-@cache
-def cached_coincident_quad(nq, eps, remove_sing):
-    if type(nq) is int:
-        nq = (nq, nq, nq, nq)
-    return richardson_quad(
-        eps, remove_sing,
-        lambda e: triangle_rules.coincident_quad(e, nq[0], nq[1], nq[2], nq[3])
-    )
-
-def coincident(nq, eps, kernel, params, pts, tris, remove_sing):
-    q = cached_coincident_quad(nq, eps, remove_sing)
-    out = pairs_quad(kernel, params, pts, tris, tris, q, True, True)
-    return out
-
-@cache
-def cached_edge_adj_quad(nq, eps, remove_sing):
-    if type(nq) is int:
-        nq = (nq, nq, nq, nq)
-    return richardson_quad(
-        eps, remove_sing,
-        lambda e: triangle_rules.edge_adj_quad(e, nq[0], nq[1], nq[2], nq[3], False)
-    )
-
-def edge_adj(nq, eps, kernel, params, pts, obs_tris, src_tris, remove_sing):
-    q = cached_edge_adj_quad(nq, eps, remove_sing)
-    out = pairs_quad(kernel, params, pts, obs_tris, src_tris, q, True, False)
-    return out
-
-@cache
-def cached_vert_adj_quad(nq):
+def vert_adj(nq, kernel, params, pts, obs_tris, src_tris):
     if type(nq) is int:
         nq = (nq, nq, nq)
-    return triangle_rules.vertex_adj_quad(nq[0], nq[1], nq[2])
-
-def vert_adj(nq, kernel, params, pts, obs_tris, src_tris):
-    q = cached_vert_adj_quad(nq)
+    q = triangle_rules.vertex_adj_quad(nq[0], nq[1], nq[2])
     out = pairs_quad(kernel, params, pts, obs_tris, src_tris, q, False, False)
     return out
 
