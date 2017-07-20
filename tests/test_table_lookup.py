@@ -181,7 +181,7 @@ def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
             print("Bad tri: " + str(e.code))
     return np.array(results)
 
-@golden_master()
+@golden_master(4)
 def test_coincident_fast_lookup(request, kernel):
     return coincident_lookup_helper(kernel, False, 5, 1)
 

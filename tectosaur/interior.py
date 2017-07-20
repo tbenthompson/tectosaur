@@ -2,6 +2,7 @@ import numpy as np
 from tectosaur.util.quadrature import gauss2d_tri
 import tectosaur.util.gpu as gpu
 
+from tectosaur import float_type
 from tectosaur.ops.sparse_integral_op import interp_galerkin_mat
 from tectosaur.farfield import farfield_pts_direct
 
@@ -12,7 +13,6 @@ from tectosaur.farfield import farfield_pts_direct
 #4) Use FMM for the farfield component
 
 def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near, params):
-    float_type = np.float32
 
     far_quad = gauss2d_tri(nq_far)
     IGmat, quad_pts, quad_ns = interp_galerkin_mat(

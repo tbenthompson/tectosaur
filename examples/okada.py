@@ -62,6 +62,7 @@ def test_okada():
     n_fault = 15
 
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth, n_surf, n_fault)
+    tectosaur.logger.info('n_elements: ' + str(all_mesh[1].shape[0]))
 
     # to check that the fault-surface alignment is correct
     # plt.triplot(all_mesh[0][:,0], all_mesh[0][:,1], surface_tris, linewidth = 0.3)
@@ -115,18 +116,20 @@ def test_okada():
             soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-    plot_results(obs_pts, surface_tris, u, vals)
+    # plot_results(obs_pts, surface_tris, u, vals)
     plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln)
-    return print_error(obs_pts, u, vals)
+    # return print_error(obs_pts, u, vals)
 
 def plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln):
     xs = np.linspace(-10, 10, 100)
-    for i, z in enumerate(np.linspace(0.1, 4.0, 100)):
+    # for i, z in enumerate(np.linspace(0.1, 4.0, 100)):
+    for i, z in [(0, 1.0)]:
         X, Y = np.meshgrid(xs, xs)
         obs_pts = np.array([X.flatten(), Y.flatten(), -z * np.ones(X.size)]).T
         # exact_disp = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-        interior_disp = -interior_integral(obs_pts, obs_pts, all_mesh, soln, 'elasticT3', 3, 8, k_params);
-        interior_disp = interior_disp.reshape((-1, 3))
+        interior_disp = -interior_integral(
+            obs_pts, obs_pts, all_mesh, soln, 'elasticT3', 3, 8, k_params
+        ).reshape((-1, 3))
         # for d in range(1):
         #     plt.figure()
         #     plt.imshow(exact_disp[:,d].reshape((xs.shape[0], -1)), interpolation = 'none')
@@ -209,12 +212,11 @@ def print_error(pts, correct, est):
     return linferr
 
 if __name__ == '__main__':
-    import logging
-    tectosaur.logger.setLevel(logging.DEBUG)
+    test_okada()
+
+    # import logging
+    # tectosaur.logger.setLevel(logging.DEBUG)
+
     #n = [8, 16, 32, 64, 128, 256]
     #l2 = [0.0149648012534, 0.030572079265, 0.00867837671259, 0.00105034618493, 6.66984415273e-05, 4.07689295549e-06]
     #linf = [0.008971091166208367, 0.014749192806577716, 0.0093510756645549115, 0.0042803891552975898, 0.0013886177492512669, 0.000338113427521]
-
-    test_okada()
-
-    # print([test_okada(n) for n in [128]])

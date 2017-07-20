@@ -17,6 +17,7 @@ def farfield_pts_direct(K, obs_pts, obs_ns, src_pts, src_ns, vec, params):
     n_src = src_pts.shape[0]
 
     tensor_dim = int(vec.shape[0] / n_src)
+    print(obs_pts.shape, n_src, tensor_dim)
 
     gpu_result = gpu.empty_gpu(n_obs * tensor_dim, float_type)
     gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)
@@ -29,7 +30,7 @@ def farfield_pts_direct(K, obs_pts, obs_ns, src_pts, src_ns, vec, params):
     local_size = get_gpu_config()['block_size']
     n_blocks = int(np.ceil(n_obs / local_size))
     global_size = local_size * n_blocks
-    ev = gpu_farfield_fnc(
+    gpu_farfield_fnc(
         gpu.gpu_queue, (global_size,), (local_size,),
         gpu_result.data,
         gpu_obs_pts.data, gpu_obs_ns.data,
@@ -38,6 +39,5 @@ def farfield_pts_direct(K, obs_pts, obs_ns, src_pts, src_ns, vec, params):
         gpu_params.data,
         np.int32(n_obs), np.int32(n_src),
     )
-    ev.wait()
     return gpu_result.get()
 

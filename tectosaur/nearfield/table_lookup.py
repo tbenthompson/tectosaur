@@ -18,7 +18,7 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
 
     t = Timer(silent = True)
 
-    float_type = np.float64
+    float_type = tectosaur.float_type
     gpu_cfg = {'float_type': gpu.np_to_c_type(float_type)}
     module = gpu.load_gpu('nearfield/table_lookup.cl', tmpl_args = gpu_cfg)
     dims = interp_pts.shape[1]
