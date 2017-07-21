@@ -3,11 +3,12 @@ from tectosaur.util.quadrature import gauss2d_tri
 import numpy as np
 import scipy.sparse
 
+from cppimport import cppimport
+_mass_op = cppimport("tectosaur.ops._mass_op")
+
 class MassOp:
-    #TODO: Can this just be done using interp_galerkin_mat??
     def __init__(self, nq, pts, tris):
         qx, qw = gauss2d_tri(nq)
-        self.mat = scipy.sparse.dok_matrix((tris.shape[0] * 9, tris.shape[0] * 9))
 
         tri_pts = pts[tris]
         basis = geometry.linear_basis_tri_arr(qx)
@@ -15,15 +16,16 @@ class MassOp:
         unscaled_normals = geometry.unscaled_normals(tri_pts)
         jacobians = geometry.jacobians(unscaled_normals)
 
+        basis_factors = []
         for b1 in range(3):
             for b2 in range(3):
-                basis_factor = sum(qw * (basis[:,b1]*basis[:,b2]))
-                for i in range(tris.shape[0]):
-                    entry = jacobians[i] * basis_factor
-                    for d in range(3):
-                        self.mat[9 * i + 3 * b1 + d, 9 * i + 3 * b2 + d] = entry
-        self.shape = self.mat.shape
-        self.mat = self.mat.tocsr()
+                basis_factors.append(np.sum(qw * (basis[:,b1]*basis[:,b2])))
+        basis_factors = np.array(basis_factors)
+        rows, cols, vals = _mass_op.build_op(basis_factors, jacobians)
+
+        n_rows = tris.shape[0] * 9
+        self.shape = (n_rows, n_rows)
+        self.mat = scipy.sparse.csr_matrix((vals, (rows, cols)), shape = self.shape)
 
     def dot(self, v):
         return self.mat.dot(v)
