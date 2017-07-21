@@ -1,26 +1,34 @@
 from tectosaur.constraints import *
+from tectosaur.constraint_builders import *
 import numpy as np
 
+from cppimport import cppimport
+fc = cppimport('tectosaur.fast_constraints')
+
 def test_rearrange_constraint_eq():
-    eqtn = ConstraintEQ([Term(3,0),Term(-1,1),Term(4,2)], 13.7)
-    rearr = isolate_term_on_lhs(eqtn, 2)
-    assert(rearr ==
-        IsolatedTermEQ(2, [Term(-3.0 / 4.0, 0), Term(1.0 / 4.0, 1)], 13.7 / 4.0))
+    eqtn = fc.ConstraintEQ([fc.Term(3,0),fc.Term(-1,1),fc.Term(4,2)], 13.7)
+    rearr = fc.isolate_term_on_lhs(eqtn, 2)
+    assert(rearr.lhs_dof == 2)
+    assert(rearr.terms[0].val == -0.75)
+    assert(rearr.terms[0].dof == 0)
+    assert(rearr.terms[1].val == 0.25)
+    assert(rearr.terms[1].dof == 1)
+    assert(rearr.rhs == 13.7 / 4.0)
 
 def subs_test(victim, sub_in, correct):
-    in_rearr = isolate_term_on_lhs(sub_in, 0)
-    result = substitute(victim, 0, in_rearr)
+    in_rearr = fc.isolate_term_on_lhs(sub_in, 0)
+    result = fc.substitute(victim, 0, in_rearr)
     assert(result == correct)
+
+def test_subs_rhs():
+    eqtn0 = fc.ConstraintEQ([fc.Term(1,1), fc.Term(3,1)], 4.0)
+    eqtn1 = fc.ConstraintEQ([fc.Term(1,1)], 2.0)
+    correct = fc.ConstraintEQ([fc.Term(3,1)], 2.0)
+    subs_test(eqtn0, eqtn1, correct)
 
 def test_combine_terms():
     assert(combine_terms(ConstraintEQ([Term(1, 1), Term(2, 1)], 0.0)) ==
             ConstraintEQ([Term(3,1)], 0.0))
-
-def test_subs_rhs():
-    eqtn0 = ConstraintEQ([Term(1,1), Term(3,1)], 4.0)
-    eqtn1 = ConstraintEQ([Term(1,1)], 2.0)
-    correct = ConstraintEQ([Term(3,1)], 2.0)
-    subs_test(eqtn0, eqtn1, correct)
 
 def test_filter_zero():
     assert(filter_zero_terms(ConstraintEQ([Term(1, 0), Term(0, 1)], 0.0)) ==
@@ -88,3 +96,5 @@ def test_composite():
     assert(cs[1].terms[0].dof == 3)
     assert(cs[1].rhs == 3)
 
+if __name__ == '__main__':
+    test_rearrange_constraint_eq()

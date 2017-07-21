@@ -1,4 +1,6 @@
-remove names of nearfield kernels
+fast constraint matrix and construction
+fast find adjacent and adj prep
+fix interior bug
 interior redesign to separate and use fmm
 
 BASIN:
@@ -41,9 +43,7 @@ OPTIMIZATIONS:
 -- figure out preconditioning, spilu is slow, but is there a better alternative? spai-based fmm inverse. sparse approximate inverse from FMM sparsity pattern
 -- adjacent interpolation
 -- adjacent from standard
--- build constraint matrix
 -- assemble
--- vert adj prep
 -- deal with low angle vertex adjacent cases -- these can be very expensive!
 -- for some reason vert adj takes about the same time with GPU vs CPU, this indicates the GPU version is massively inefficient... why?
 -- optimize the vertex adjacent integrals -- maybe check the angle between the triangles and choose an order based on that? either way, the standard VA pairs require only (4,4,4) quadrature while the really difficult ones require (9, 16, 6) for 1e-4 error.

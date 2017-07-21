@@ -23,7 +23,6 @@ def direct_solve(iop, constraints, rhs = None):
     soln = cm.dot(soln_constrained)
     return soln
 
-@profile
 def iterative_solve(iop, constraints, rhs = None, tol = 1e-8):
     timer = Timer(logger = logger)
     cm, c_rhs = build_constraint_matrix(constraints, iop.shape[1])

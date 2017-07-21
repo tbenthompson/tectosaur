@@ -63,6 +63,7 @@ def find_free_edges(tris):
 def rotate_tri(clicks):
     return [np.mod(clicks, 3), np.mod((1 + clicks), 3), np.mod((2 + clicks), 3)]
 
+#TODO: Prep functions should be moved closer to nearfield_op
 def adj_prep(tris, adj, clicks_fnc):
     tri_indices = np.empty((len(adj), 2), dtype = np.int)
     obs_clicks = np.empty(len(adj), dtype = np.int)
