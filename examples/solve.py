@@ -2,8 +2,11 @@ import numpy as np
 import scipy.sparse as sparse
 import scipy.sparse.linalg
 
+from tectosaur import setup_logger
 from tectosaur.util.timer import Timer
 from tectosaur.constraints import lagrange_constraints, build_constraint_matrix
+
+logger = setup_logger(__name__)
 
 # master-slave constrained direct solves look like:
 # Kˆ uˆ = ˆf, in which Kˆ = TT K T, ˆf = TT (f − K g).
@@ -20,8 +23,9 @@ def direct_solve(iop, constraints, rhs = None):
     soln = cm.dot(soln_constrained)
     return soln
 
-def iterative_solve(iop, constraints, rhs = None):
-    timer = Timer()
+@profile
+def iterative_solve(iop, constraints, rhs = None, tol = 1e-8):
+    timer = Timer(logger = logger)
     cm, c_rhs = build_constraint_matrix(constraints, iop.shape[1])
     timer.report('Build constraint matrix')
     cm = cm.tocsr()
@@ -38,23 +42,23 @@ def iterative_solve(iop, constraints, rhs = None):
     iter = [0]
     def mv(v):
         iter[0] += 1
-        print(iter[0])
+        logger.debug('iteration # ' + str(iter[0]))
         out = cmT.dot(iop.dot(cm.dot(v)))
         return out
 
-    P = sparse.linalg.spilu(cmT.dot(iop.nearfield_no_correction_dot(cm)))
+    # P = sparse.linalg.spilu(cmT.dot(iop.nearfield_no_correction_dot(cm)))
     timer.report("Build preconditioner")
     def prec_f(x):
-        return P.solve(x)
-        # return x
+        # return P.solve(x)
+        return x
     M = sparse.linalg.LinearOperator((n, n), matvec = prec_f)
     A = sparse.linalg.LinearOperator((n, n), matvec = mv)
 
     def report_res(R):
-        print(R)
+        logger.debug('residual: ' + str(R))
         pass
     soln = sparse.linalg.gmres(
-        A, rhs_constrained, M = M, tol = 1e-8, callback = report_res, restart = 200
+        A, rhs_constrained, M = M, tol = tol, callback = report_res, restart = 200
     )
     timer.report("GMRES")
     return cm.dot(soln[0]) + c_rhs

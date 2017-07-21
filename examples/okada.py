@@ -12,11 +12,13 @@ import tectosaur.mesh.adjacency as adjacency
 import tectosaur.constraints as constraints
 from tectosaur.util.timer import Timer
 from tectosaur.interior import interior_integral
-from tectosaur.ops.sparse_integral_op import SparseIntegralOp
+from tectosaur.ops.sparse_integral_op import SparseIntegralOp, FMMFarfield
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.sum_op import SumOp
 
 from solve import iterative_solve, direct_solve
+
+logger = tectosaur.setup_logger('okada')
 
 def build_constraints(surface_tris, fault_tris, pts):
     n_surf_tris = surface_tris.shape[0]
@@ -58,8 +60,8 @@ def test_okada():
     fault_L = 1.0
     top_depth = -0.5
     load_soln = False
-    n_surf = 30
-    n_fault = 15
+    n_surf = 50
+    n_fault = n_surf // 5
 
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth, n_surf, n_fault)
     tectosaur.logger.info('n_elements: ' + str(all_mesh[1].shape[0]))
@@ -71,7 +73,7 @@ def test_okada():
     # plt.show()
 
     if not load_soln:
-        timer = Timer()
+        timer = Timer(logger = logger)
         timer.report("Mesh")
 
         cs = build_constraints(surface_tris, fault_tris, all_mesh[0])
@@ -80,20 +82,19 @@ def test_okada():
         surface_pt_idxs = np.unique(surface_tris)
         obs_pts = all_mesh[0][surface_pt_idxs,:]
 
-        eps = [0.08, 0.04, 0.02, 0.01]
+
         T_op = SparseIntegralOp(
-        # T_op = tectosaur.FMMIntegralOp(
-            [], 0, 0, 6, 2, 6, 4.0,
+            6, 2, 6, 4.0,
             'elasticT3', k_params, all_mesh[0], all_mesh[1],
-            use_tables = True,
-            remove_sing = True
+            farfield_op_type = FMMFarfield
         )
         timer.report("Integrals")
 
         mass_op = MassOp(3, all_mesh[0], all_mesh[1])
         iop = SumOp([T_op, mass_op])
+        timer.report('mass op/sum op')
 
-        soln = iterative_solve(iop, cs)
+        soln = iterative_solve(iop, cs, tol = 1e-6)
         # soln = direct_solve(iop, cs)
         timer.report("Solve")
 
@@ -117,8 +118,8 @@ def test_okada():
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
     # plot_results(obs_pts, surface_tris, u, vals)
-    plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln)
-    # return print_error(obs_pts, u, vals)
+    # plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln)
+    return print_error(obs_pts, u, vals)
 
 def plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln):
     xs = np.linspace(-10, 10, 100)

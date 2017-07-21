@@ -13,11 +13,15 @@ if float_type == np.float64:
 def get_data_filepath(filename):
     return os.path.join(data_dir, filename)
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+def setup_logger(log_name):
+    L = logging.getLogger(log_name)
+    L.setLevel(logging.DEBUG)
 
-ch = logging.StreamHandler(sys.stdout)
-ch.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-logger.addHandler(ch)
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    L.addHandler(ch)
+    return L
+
+logger = setup_logger(__name__)

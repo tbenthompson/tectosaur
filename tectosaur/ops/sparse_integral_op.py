@@ -14,6 +14,8 @@ import tectosaur.util.gpu as gpu
 
 from tectosaur import float_type
 
+import tectosaur_fmm.fmm_wrapper as fmm
+
 from cppimport import cppimport
 fast_assembly = cppimport("tectosaur.ops.fast_assembly")
 
@@ -44,29 +46,75 @@ def interp_galerkin_mat(tri_pts, quad_rule):
             quad_pts[:,d] += np.outer(basis[:,b], tri_pts[:,b,d]).T.flatten()
 
     scaled_normals = unscaled_normals / jacobians[:,np.newaxis]
-    quad_ns = np.tile(scaled_normals[:,np.newaxis,:], (1, nq, 1))
+    quad_ns = np.tile(scaled_normals[:,np.newaxis,:], (1, nq, 1)).reshape((-1, 3))
 
     return scipy.sparse.coo_matrix((vals, (rows, cols))), quad_pts, quad_ns
 
+class DirectFarfield:
+    def __init__(self, kernel, params, obs_pts, obs_ns, src_pts, src_ns):
+        self.params = params
+        self.kernel = kernel
+        self.gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)
+        self.gpu_obs_ns = gpu.to_gpu(obs_ns, float_type)
+
+        if src_pts is obs_pts:
+            self.gpu_src_pts = self.gpu_obs_pts
+        else:
+            self.gpu_src_pts = gpu.to_gpu(src_pts, float_type)
+
+        if src_ns is obs_ns:
+            self.gpu_src_ns = self.gpu_obs_ns
+        else:
+            self.gpu_src_ns = gpu.to_gpu(src_ns, float_type)
+
+    def dot(self, v):
+        return farfield_pts_direct(
+            self.kernel, self.gpu_obs_pts, self.gpu_obs_ns,
+            self.gpu_src_pts, self.gpu_src_ns, v, self.params
+        )
+
+class FMMFarfield:
+    def __init__(self, kernel, params, obs_pts, obs_ns, src_pts, src_ns):
+        order = 100
+        mac = 3.0
+        pts_per_cell = 200
+        # TODO: different obs and src pts
+        self.tree = fmm.three.Octree(obs_pts, obs_ns, pts_per_cell)
+        self.fmm_mat = fmm.three.fmmmmmmm(
+            self.tree, self.tree,
+            fmm.three.FMMConfig(1.1, mac, order, kernel, params)
+        )
+        fmm.report_interactions(self.fmm_mat)
+        self.gpu_data = fmm.data_to_gpu(self.fmm_mat)
+        self.orig_idxs = np.array(self.tree.orig_idxs)
+
+    def dot(self, v):
+        input_tree = v.reshape((-1,3))[self.orig_idxs,:].reshape(-1)
+        fmm_out = fmm.eval_ocl(self.fmm_mat, input_tree, self.gpu_data).reshape((-1, 3))
+        to_orig = np.empty_like(fmm_out)
+        to_orig[self.orig_idxs,:] = fmm_out
+        return to_orig.reshape(-1)
+
 class SparseIntegralOp:
-    def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, params, pts, tris,
-            use_tables = False, remove_sing = False):
+    def __init__(self, nq_vert_adjacent, nq_far, nq_near,
+            near_threshold, kernel, params, pts, tris, farfield_op_type = None):
+
         self.nearfield = NearfieldIntegralOp(
-            eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, params, pts, tris,
-            use_tables, remove_sing
+            nq_vert_adjacent, nq_far, nq_near,
+            near_threshold, kernel, params, pts, tris
         )
 
         far_quad2d = gauss2d_tri(nq_far)
         self.interp_galerkin_mat, quad_pts, quad_ns = \
             interp_galerkin_mat(pts[tris], far_quad2d)
-        self.nq = quad_pts.shape[0]
         self.shape = self.nearfield.shape
-        self.params = params
-        self.kernel = kernel
-        self.gpu_quad_pts = gpu.to_gpu(quad_pts, float_type)
-        self.gpu_quad_ns = gpu.to_gpu(quad_ns, float_type)
+
+        if farfield_op_type is None:
+            farfield_op_type = DirectFarfield
+
+        self.farfield_op = farfield_op_type(
+            kernel, params, quad_pts, quad_ns, quad_pts, quad_ns
+        )
 
     def nearfield_dot(self, v):
         return self.nearfield.dot(v)
@@ -75,13 +123,12 @@ class SparseIntegralOp:
         return self.nearfield.mat_no_correction.dot(v)
 
     def dot(self, v):
-        return self.nearfield.dot(v) + self.farfield_dot(v)
+        near_out = self.nearfield.dot(v)
+        far_out = self.farfield_dot(v)
+        return near_out + far_out
 
     def farfield_dot(self, v):
         interp_v = self.interp_galerkin_mat.dot(v).flatten()
-        nbody_result = farfield_pts_direct(
-            self.kernel, self.gpu_quad_pts, self.gpu_quad_ns,
-            self.gpu_quad_pts, self.gpu_quad_ns, interp_v, self.params
-        )
+        nbody_result = self.farfield_op.dot(interp_v)
         out = self.interp_galerkin_mat.T.dot(nbody_result)
         return out

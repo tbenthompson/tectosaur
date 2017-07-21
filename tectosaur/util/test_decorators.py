@@ -5,6 +5,13 @@ from functools import wraps
 from tectosaur.kernels import elastic_kernels
 
 try:
+    if pytest.config.getoption('--tctquiet'):
+        import tectosaur, logging
+        tectosaur.logger.setLevel(logging.INFO)
+except AttributeError as e:
+    pass
+
+try:
     slow = pytest.mark.skipif(
         not pytest.config.getoption("--runslow"),
         reason="need --runslow option to run"

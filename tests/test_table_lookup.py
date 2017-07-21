@@ -134,7 +134,7 @@ def test_sub_basis_rotation():
     B = fast_lookup.sub_basis(A.flatten().tolist(), [[0,0],[1,0],[0,1]], [[0,1],[0,0],[1,0]])
     np.testing.assert_almost_equal(A[:,:,[1,2,0],:], np.array(B).reshape((3,3,3,3)))
 
-def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
+def coincident_lookup_helper(K, correct_digits, n_tests = 10):
     np.random.seed(113)
 
 
@@ -160,22 +160,10 @@ def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
             else:
                 tris = np.array([[0,1,2]])
 
-            eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(pts)))
-            eps = 0.01 * (2.0 ** -np.arange(8))# / eps_scale
-            if K is 'elasticH':
-                eps = [0.08, 0.04, 0.02, 0.01]
             op = DenseIntegralOp(
-                eps, 15, 15, 10, 3, 10, 3.0, K, params,
-                pts, tris, use_tables = True, remove_sing = remove_sing
+                10, 3, 10, 3.0, K, params,
+                pts, tris
             )
-            # op2 = DenseIntegralOp(
-            #     eps, 25, 15, 10, 3, 10, 3.0, K, params,
-            #     pts, tris, remove_sing = remove_sing
-            # )
-            # A = op.mat
-            # B = op2.mat
-            # print(A[0,0],B[0,0])
-            # np.testing.assert_almost_equal(A, B, correct_digits)
             results.append(op.mat)
         except BadTriangleError as e:
             print("Bad tri: " + str(e.code))
@@ -183,14 +171,14 @@ def coincident_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
 
 @golden_master(4)
 def test_coincident_fast_lookup(request, kernel):
-    return coincident_lookup_helper(kernel, False, 5, 1)
+    return coincident_lookup_helper(kernel, 5, 1)
 
 @slow
 @golden_master()
 def test_coincident_lookup(request, kernel):
-    return coincident_lookup_helper(kernel, False, 5)
+    return coincident_lookup_helper(kernel, 5)
 
-def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
+def adjacent_lookup_helper(K, correct_digits, n_tests = 10):
     np.random.seed(973)
 
 
@@ -222,30 +210,17 @@ def adjacent_lookup_helper(K, remove_sing, correct_digits, n_tests = 10):
 
         tris = np.array([[0,1,3],[1,0,2]])
 
-        eps = 0.01 * (2.0 ** -np.arange(10))
-        eps_scale = np.sqrt(np.linalg.norm(geometry.tri_normal(pts[tris[0]])))
-
         op = DenseIntegralOp(
-            eps, 3, 3, 10, 3, 10, 3.0, K, params,
-            pts, tris, use_tables = True
+            10, 3, 10, 3.0, K, params, pts, tris
         )
-
-        # op2 = DenseIntegralOp(
-        #     eps, 1, 20, 1, 1, 1, 3.0, K, params,
-        #     pts, tris, remove_sing = remove_sing
-        # )
-        # A = op.mat[:9,9:]
-        # B = op2.mat[:9,9:]
-        # print("checking ", A[0,0], B[0,0])
-        # np.testing.assert_almost_equal(A, B, correct_digits)
         results.append(op.mat[:9,9:])
     return np.array(results)
 
 @golden_master()
 def test_adjacent_fast_lookup(request, kernel):
-    return adjacent_lookup_helper(kernel, False, 5, 1)
+    return adjacent_lookup_helper(kernel, 5, 1)
 
 @slow
 @golden_master()
 def test_adjacent_lookup(request, kernel):
-    return adjacent_lookup_helper(kernel, False, 5)
+    return adjacent_lookup_helper(kernel, 5)

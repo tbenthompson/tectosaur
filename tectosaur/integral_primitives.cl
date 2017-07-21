@@ -50,16 +50,16 @@ Real ${normal_prefix}${dn(dim)} =
 </%def>
 
 <%def name="basis(prefix)">
-Real ${prefix}b0 = 1 - ${prefix}xhat - ${prefix}yhat;
-Real ${prefix}b1 = ${prefix}xhat;
-Real ${prefix}b2 = ${prefix}yhat;
+Real ${prefix}b[3] = {
+    1 - ${prefix}xhat - ${prefix}yhat, ${prefix}xhat, ${prefix}yhat
+};
 </%def>
 
 <%def name="pts_from_basis(pt_pfx,basis_pfx,tri_name,ndims)">
 % for dim in range(ndims):
 Real ${pt_pfx}${dn(dim)} = 0;
 % for basis in range(3):
-${pt_pfx}${dn(dim)} += ${basis_pfx}b${basis} * ${tri_name(basis,dim)};
+${pt_pfx}${dn(dim)} += ${basis_pfx}b[${basis}] * ${tri_name(basis,dim)};
 % endfor
 % endfor
 </%def>

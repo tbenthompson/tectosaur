@@ -2,12 +2,14 @@ import logging
 import time
 
 class Timer(object):
-    def __init__(self, tabs = 0, silent = False, prefix = ""):
+    def __init__(self, tabs = 0, silent = False, prefix = "", logger = None):
         self.tabs = tabs
         self.silent = silent
         self.start = time.time()
         self.prefix = prefix
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
+        if self.logger is None:
+            self.logger = logging.getLogger(__name__)
 
     def restart(self):
         self.start = time.time()

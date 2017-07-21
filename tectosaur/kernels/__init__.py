@@ -35,15 +35,15 @@ elasticU = Kernel(
     Real invr = rsqrt(r2);
     Real Q1 = CsU0 * invr;
     Real Q2 = CsU1 * invr / r2;
-    Real K00 = Q2*Dx*Dx + Q1;
-    Real K01 = Q2*Dx*Dy;
-    Real K02 = Q2*Dx*Dz;
-    Real K10 = Q2*Dy*Dx;
-    Real K11 = Q2*Dy*Dy + Q1;
-    Real K12 = Q2*Dy*Dz;
-    Real K20 = Q2*Dz*Dx;
-    Real K21 = Q2*Dz*Dy;
-    Real K22 = Q2*Dz*Dz + Q1;
+    K[0] = Q2*Dx*Dx + Q1;
+    K[1] = Q2*Dx*Dy;
+    K[2] = Q2*Dx*Dz;
+    K[3] = Q2*Dy*Dx;
+    K[4] = Q2*Dy*Dy + Q1;
+    K[5] = Q2*Dy*Dz;
+    K[6] = Q2*Dz*Dx;
+    K[7] = Q2*Dz*Dy;
+    K[8] = Q2*Dz*Dz + Q1;
     '''
 )
 
@@ -110,15 +110,15 @@ def TA_tensor_code(k_name):
         Real nzdx = {n_name}z*Dx-{n_name}x*Dz;
         Real nzdy = {n_name}z*Dy-{n_name}y*Dz;
 
-        Real K00 = A * -rn                  + C*Dx*rn*Dx;
-        Real K01 = A * {minus_or_plus}nxdy + C*Dx*rn*Dy;
-        Real K02 = A * {plus_or_minus}nzdx + C*Dx*rn*Dz;
-        Real K10 = A * {plus_or_minus}nxdy + C*Dy*rn*Dx;
-        Real K11 = A * -rn                  + C*Dy*rn*Dy;
-        Real K12 = A * {plus_or_minus}nzdy + C*Dy*rn*Dz;
-        Real K20 = A * {minus_or_plus}nzdx + C*Dz*rn*Dx;
-        Real K21 = A * {minus_or_plus}nzdy + C*Dz*rn*Dy;
-        Real K22 = A * -rn                  + C*Dz*rn*Dz;
+        K[0] = A * -rn                  + C*Dx*rn*Dx;
+        K[1] = A * {minus_or_plus}nxdy + C*Dx*rn*Dy;
+        K[2] = A * {plus_or_minus}nzdx + C*Dx*rn*Dz;
+        K[3] = A * {plus_or_minus}nxdy + C*Dy*rn*Dx;
+        K[4] = A * -rn                  + C*Dy*rn*Dy;
+        K[5] = A * {plus_or_minus}nzdy + C*Dy*rn*Dz;
+        K[6] = A * {minus_or_plus}nzdx + C*Dz*rn*Dx;
+        K[7] = A * {minus_or_plus}nzdy + C*Dz*rn*Dy;
+        K[8] = A * -rn                  + C*Dz*rn*Dz;
     '''.format(**TA_args(k_name))
 
 elasticT = Kernel(
@@ -199,15 +199,15 @@ elasticH = Kernel(
 
     Real ST = A*nu*rm + B*mn;
 
-    Real K00 = nsrcx*NTx + nobsx*MTx + Dorx*DTx + ST;
-    Real K01 = nsrcx*NTy + nobsx*MTy + Dorx*DTy;
-    Real K02 = nsrcx*NTz + nobsx*MTz + Dorx*DTz;
-    Real K10 = nsrcy*NTx + nobsy*MTx + Dory*DTx;
-    Real K11 = nsrcy*NTy + nobsy*MTy + Dory*DTy + ST;
-    Real K12 = nsrcy*NTz + nobsy*MTz + Dory*DTz;
-    Real K20 = nsrcz*NTx + nobsz*MTx + Dorz*DTx;
-    Real K21 = nsrcz*NTy + nobsz*MTy + Dorz*DTy;
-    Real K22 = nsrcz*NTz + nobsz*MTz + Dorz*DTz + ST;
+    K[0] = nsrcx*NTx + nobsx*MTx + Dorx*DTx + ST;
+    K[1] = nsrcx*NTy + nobsx*MTy + Dorx*DTy;
+    K[2] = nsrcx*NTz + nobsx*MTz + Dorx*DTz;
+    K[3] = nsrcy*NTx + nobsy*MTx + Dory*DTx;
+    K[4] = nsrcy*NTy + nobsy*MTy + Dory*DTy + ST;
+    K[5] = nsrcy*NTz + nobsy*MTz + Dory*DTz;
+    K[6] = nsrcz*NTx + nobsz*MTx + Dorz*DTx;
+    K[7] = nsrcz*NTy + nobsz*MTy + Dorz*DTy;
+    K[8] = nsrcz*NTz + nobsz*MTz + Dorz*DTz + ST;
     '''
 )
 

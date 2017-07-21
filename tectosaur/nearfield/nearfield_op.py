@@ -18,24 +18,24 @@ import tectosaur.util.gpu as gpu
 from cppimport import cppimport
 fast_assembly = cppimport("tectosaur.ops.fast_assembly")
 
-def pairs_func_name(singular, k_name, check0):
+def pairs_func_name(singular, check0):
     singular_label = 'N'
     if singular:
         singular_label = 'S'
     check0_label = 'N'
     if check0:
         check0_label = 'Z'
-    return 'single_pairs' + singular_label + check0_label + k_name
+    return 'single_pairs' + singular_label + check0_label
 
-def get_gpu_config():
-    return {'block_size': 128, 'float_type': gpu.np_to_c_type(float_type)}
+def get_gpu_config(kernel):
+    return {'block_size': 128, 'float_type': gpu.np_to_c_type(float_type), 'kernel_name': kernel}
 
-def get_gpu_module():
-    return gpu.load_gpu('nearfield/nearfield.cl', tmpl_args = get_gpu_config())
+def get_gpu_module(kernel):
+    return gpu.load_gpu('nearfield/nearfield.cl', tmpl_args = get_gpu_config(kernel))
 
 def get_pairs_integrator(kernel, singular, check0):
-    module = get_gpu_module()
-    return getattr(module, pairs_func_name(singular, kernel, check0))
+    module = get_gpu_module(kernel)
+    return getattr(module, pairs_func_name(singular, check0))
 
 def pairs_quad(kernel, params, pts, obs_tris, src_tris, q, singular, check0):
     integrator = get_pairs_integrator(kernel, singular, check0)
@@ -113,9 +113,9 @@ def build_nearfield(co_data, ea_data, va_data, near_data, shape):
 
 
 class NearfieldIntegralOp:
-    def __init__(self, eps, nq_coincident, nq_edge_adjacent, nq_vert_adjacent,
-            nq_far, nq_near, near_threshold, kernel, params, pts, tris,
-            use_tables = False, remove_sing = False):
+    def __init__(self, nq_vert_adjacent, nq_far, nq_near,
+            near_threshold, kernel, params, pts, tris):
+
         n = tris.shape[0] * 9
         self.shape = (n, n)
 
@@ -125,10 +125,7 @@ class NearfieldIntegralOp:
         timer.report("Build gauss rules")
 
         co_indices = np.arange(tris.shape[0])
-        if not use_tables:
-            co_mat = coincident(nq_coincident, eps, kernel, params, pts, tris, remove_sing)
-        else:
-            co_mat = coincident_table(kernel, params, pts, tris)
+        co_mat = coincident_table(kernel, params, pts, tris)
         timer.report("Coincident")
         co_mat_correction = pairs_quad(
             kernel, params, pts, tris, tris, far_quad, False, True
@@ -141,15 +138,9 @@ class NearfieldIntegralOp:
         ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
             adjacency.edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
-        if not use_tables:
-            ea_mat_rot = edge_adj(
-                nq_edge_adjacent, eps, kernel, params, pts,
-                ea_obs_tris, ea_src_tris, remove_sing
-            )
-        else:
-            ea_mat_rot = adjacent_table(
-                nq_vert_adjacent, kernel, params, pts, ea_obs_tris, ea_src_tris
-            )
+        ea_mat_rot = adjacent_table(
+            nq_vert_adjacent, kernel, params, pts, ea_obs_tris, ea_src_tris
+        )
         timer.report("Edge adjacent")
         ea_mat_correction = pairs_quad(
             kernel, params, pts,

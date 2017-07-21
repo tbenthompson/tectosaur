@@ -2,8 +2,11 @@
 from tectosaur.nearfield.nearfield_op import pairs_func_name
 from tectosaur.kernels import elastic_kernels, kernels
 
+K = elastic_kernels[kernel_name]
+
 def dn(dim):
     return ['x', 'y', 'z'][dim]
+
 %>
 #pragma OPENCL EXTENSION cl_khr_fp64: enable
 
@@ -65,34 +68,33 @@ def dn(dim):
         }
         % endif
 
+        Real K[9];
         ${K.tensor_code}
-        obsb0 *= quadw;
-        obsb1 *= quadw;
-        obsb2 *= quadw;
+        obsb[0] *= quadw;
+        obsb[1] *= quadw;
+        obsb[2] *= quadw;
 
         Real val, y, t;
-        % for b_obs in range(3):
-            % for d_obs in range(3):
-                % for b_src in range(3):
-                    % for d_src in range(3):
-                        <%
-                            idx = b_obs * 27 + d_obs * 9 + b_src * 3 + d_src;
-                        %> 
-                        val = obsb${b_obs} * srcb${b_src} * K${d_obs}${d_src};
-                        y = val - kahanC[${idx}];
-                        t = result_temp[${idx}] + y;
-                        kahanC[${idx}] = (t - result_temp[${idx}]) - y;
-                        result_temp[${idx}] = t;
-                    % endfor
-                % endfor
-            % endfor
-        % endfor
+        int idx = 0;
+        for (int b_obs = 0; b_obs < 3; b_obs++) {
+        for (int d_obs = 0; d_obs < 3; d_obs++) {
+        for (int b_src = 0; b_src < 3; b_src++) {
+        for (int d_src = 0; d_src < 3; d_src++, idx++) {
+            Real val = val = obsb[b_obs] * srcb[b_src] * K[d_obs * 3 + d_src];
+            Real y = val - kahanC[idx];
+            Real t = result_temp[idx] + y;
+            kahanC[idx] = (t - result_temp[idx]) - y;
+            result_temp[idx] = t;
+        }
+        }
+        }
+        }
     }
 </%def>
 
 <%def name="single_pairs(K, limit, check0)">
 __kernel
-void ${pairs_func_name(limit, K.name, check0)}(__global Real* result, 
+void ${pairs_func_name(limit, check0)}(__global Real* result, 
     int n_quad_pts, __global Real* quad_pts, __global Real* quad_wts,
     __global Real* pts, __global int* obs_tris, __global int* src_tris, 
     __global Real* params)
@@ -111,7 +113,7 @@ void ${pairs_func_name(limit, K.name, check0)}(__global Real* result,
 
 <%def name="farfield_tris(K)">
 __kernel
-void farfield_tris${K.name}(__global Real* result,
+void farfield_tris(__global Real* result,
     int n_quad_pts, __global Real* quad_pts, __global Real* quad_wts,
     __global Real* pts, int n_obs_tris, __global int* obs_tris, 
     int n_src_tris, __global int* src_tris, 
@@ -124,28 +126,26 @@ void farfield_tris${K.name}(__global Real* result,
     ${prim.get_triangle("src_tri", "src_tris", "j")}
     ${integrate_pair(K, limit = False, check0 = False)}
 
-    % for d_obs in range(3):
-    % for d_src in range(3):
-    % for b_obs in range(3):
-    % for b_src in range(3):
-    result[
-        (i * 9 + ${b_obs} * 3 + ${d_obs}) * n_src_tris * 9 +
-        (j * 9 + ${b_src} * 3 + ${d_src})
-        ] = obs_jacobian * src_jacobian * 
-            result_temp[${prim.temp_result_idx(d_obs, d_src, b_obs, b_src)}];
-    % endfor
-    % endfor
-    % endfor
-    % endfor
+    for (int b_obs = 0; b_obs < 3; b_obs++) {
+    for (int d_obs = 0; d_obs < 3; d_obs++) {
+    for (int b_src = 0; b_src < 3; b_src++) {
+    for (int d_src = 0; d_src < 3; d_src++) {
+
+        result[
+            (i * 9 + b_obs * 3 + d_obs) * n_src_tris * 9 +
+            (j * 9 + b_src * 3 + d_src)
+            ] = obs_jacobian * src_jacobian * 
+                result_temp[b_obs * 27 + d_obs * 9 + b_src * 3 + d_src];
+    }
+    }
+    }
+    }
 }
 </%def>
 
 ${prim.geometry_fncs()}
-
-% for k_name,K in elastic_kernels.items():
 ${single_pairs(K, limit = True, check0 = True)}
 ${single_pairs(K, limit = True, check0 = False)}
 ${single_pairs(K, limit = False, check0 = True)}
 ${single_pairs(K, limit = False, check0 = False)}
 ${farfield_tris(K)}
-% endfor
