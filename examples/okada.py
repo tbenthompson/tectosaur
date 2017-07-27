@@ -10,6 +10,8 @@ import tectosaur.mesh.modify as mesh_modify
 import tectosaur.mesh.mesh_gen as mesh_gen
 import tectosaur.mesh.adjacency as adjacency
 import tectosaur.constraints as constraints
+from tectosaur.constraint_builders import continuity_constraints, \
+    constant_bc_constraints, free_edge_constraints
 from tectosaur.util.timer import Timer
 from tectosaur.interior import interior_integral
 from tectosaur.ops.sparse_integral_op import SparseIntegralOp, FMMFarfield
@@ -24,14 +26,14 @@ def build_constraints(surface_tris, fault_tris, pts):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
 
-    cs = constraints.continuity_constraints(surface_tris, fault_tris, pts)
+    cs = continuity_constraints(surface_tris, fault_tris, pts)
 
     # X component = 1
     # Y comp = Z comp = 0
-    cs.extend(constraints.constant_bc_constraints(
+    cs.extend(constant_bc_constraints(
         n_surf_tris, n_surf_tris + n_fault_tris, [1.0, 0.0, 0.0]
     ))
-    cs.extend(constraints.free_edge_constraints(surface_tris))
+    cs.extend(free_edge_constraints(surface_tris))
 
     return cs
 

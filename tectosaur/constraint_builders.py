@@ -7,8 +7,7 @@ def build_composite_constraints(*cs_and_starts):
     for cs, start in cs_and_starts:
         for c in cs:
             all_cs.append(ConstraintEQ(
-                terms = [Term(t.val, t.dof + start) for t in c.terms],
-                rhs = c.rhs
+                [Term(t.val, t.dof + start) for t in c.terms], c.rhs
             ))
     return all_cs
 

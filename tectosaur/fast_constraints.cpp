@@ -4,6 +4,7 @@ setup_pybind11(cfg)
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/operators.h>
+#include "include/pybind11_nparray.hpp"
 
 namespace py = pybind11;
 
@@ -41,11 +42,10 @@ struct ConstraintEQ {
 
 struct IsolatedTermEQ {
     size_t lhs_dof;
-    TermVector terms;
-    double rhs;
+    ConstraintEQ c;
 
     bool operator==(const IsolatedTermEQ& b) const {
-        return lhs_dof == b.lhs_dof && rhs == b.rhs && terms == b.terms;
+        return lhs_dof == b.lhs_dof && c == b.c;
     }
 };
 
@@ -77,11 +77,11 @@ ConstraintEQ substitute(const ConstraintEQ& c_victim, size_t entry_idx,
         out_terms.push_back(c_victim.terms[i]);
     }
 
-    for (size_t i = 0; i < c_in.terms.size(); i++) {
-        out_terms.push_back({c_in.terms[i].val * mult_factor, c_in.terms[i].dof});
+    for (size_t i = 0; i < c_in.c.terms.size(); i++) {
+        out_terms.push_back({c_in.c.terms[i].val * mult_factor, c_in.c.terms[i].dof});
     }
 
-    double out_rhs = c_victim.rhs - mult_factor * c_in.rhs;
+    double out_rhs = c_victim.rhs - mult_factor * c_in.c.rhs;
     return ConstraintEQ{out_terms, out_rhs};
 }
 
@@ -104,6 +104,116 @@ ConstraintEQ combine_terms(const ConstraintEQ& c) {
     return ConstraintEQ{out_terms, c.rhs};
 }
 
+ConstraintEQ filter_zero_terms(const ConstraintEQ& c) {
+    TermVector out_terms;
+    for (size_t i = 0; i < c.terms.size(); i++) {
+        if (std::fabs(c.terms[i].val) < 1e-15) {
+            continue;
+        }
+        out_terms.push_back(c.terms[i]);
+    }
+    return ConstraintEQ{out_terms, c.rhs};
+}
+
+std::pair<size_t,size_t> max_dof(const ConstraintEQ& c) {
+    size_t max_dof = 0;
+    size_t idx = 0;
+    for (size_t i = 0; i < c.terms.size(); i++) {
+        if (c.terms[i].dof > max_dof) {
+            max_dof = c.terms[i].dof;
+            idx = i;
+        }
+    }
+    return std::make_pair(max_dof, idx);
+}
+
+using ConstraintMatrix = std::map<size_t,IsolatedTermEQ>;
+
+ConstraintEQ make_reduced(const ConstraintEQ& c, const ConstraintMatrix& m) {
+    for (size_t i = 0; i < c.terms.size(); i++) {
+        if (m.count(c.terms[i].dof) > 0) {
+            auto c_subs = substitute(c, i, m.at(c.terms[i].dof));
+            auto c_combined = combine_terms(c_subs);
+            auto c_filtered = filter_zero_terms(c_combined);
+            return make_reduced(c_filtered, m);
+        }
+    }
+    return c;
+}
+
+ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
+    size_t n_total_dofs) 
+{
+    std::sort(
+        cs.begin(), cs.end(), 
+        [] (const ConstraintEQ& a, const ConstraintEQ& b) {
+            return max_dof(a).first < max_dof(b).first;
+        }
+    );
+
+    ConstraintMatrix lower_tri_cs;
+    for (size_t i = 0; i < cs.size(); i++) {
+        auto c = cs[i];
+        auto c_combined = combine_terms(c);
+        auto c_filtered = filter_zero_terms(c_combined);
+        auto c_lower_tri = make_reduced(c_filtered, lower_tri_cs);
+        
+        if (c_lower_tri.terms.size() == 0) {
+            continue;
+        }
+        
+        auto ldi = max_dof(c_lower_tri).second;
+        auto separated = isolate_term_on_lhs(c_lower_tri, ldi);
+        lower_tri_cs[separated.lhs_dof] = separated;
+    }
+
+    for (size_t i = 0; i < n_total_dofs; i++) {
+        if (lower_tri_cs.count(i) == 0) {
+            continue;
+        }
+
+        lower_tri_cs[i].c = make_reduced(lower_tri_cs[i].c, lower_tri_cs);
+    }
+    
+    return lower_tri_cs;
+}
+
+py::tuple build_constraint_matrix(const std::vector<ConstraintEQ>& cs, size_t n_total_dofs) {
+
+    auto lower_tri_cs = reduce_constraints(cs, n_total_dofs);
+
+    std::vector<size_t> rows;    
+    std::vector<size_t> cols;    
+    std::vector<double> vals;
+    std::vector<double> rhs(n_total_dofs, 0.0);
+    size_t next_new_dof = 0;
+    std::map<size_t,size_t> new_dofs;
+    for (size_t i = 0; i < n_total_dofs; i++) {
+        if (lower_tri_cs.count(i) > 0) {
+            rhs[i] = lower_tri_cs[i].c.rhs;
+            for (auto& t: lower_tri_cs[i].c.terms) {
+                assert(new_dofs.count(t.dof) > 0);
+                rows.push_back(i);
+                cols.push_back(new_dofs[t.dof]);
+                vals.push_back(t.val);
+            }
+        } else {
+            rows.push_back(i);
+            cols.push_back(next_new_dof);
+            vals.push_back(1);
+            new_dofs[i] = next_new_dof;
+            next_new_dof++;
+        }
+    }
+    return py::make_tuple(
+        array_from_vector(rows),
+        array_from_vector(cols),
+        array_from_vector(vals),
+        array_from_vector(rhs)
+    );
+}
+
+
 PYBIND11_PLUGIN(fast_constraints) {
     py::module m("fast_constraints", "");
 
@@ -125,12 +235,14 @@ PYBIND11_PLUGIN(fast_constraints) {
 
     py::class_<IsolatedTermEQ>(m, "IsolatedTermEQ")
         .def_readonly("lhs_dof", &IsolatedTermEQ::lhs_dof)
-        .def_readonly("terms", &IsolatedTermEQ::terms)
-        .def_readonly("rhs", &IsolatedTermEQ::rhs)
+        .def_readonly("c", &IsolatedTermEQ::c)
         .def(py::self == py::self);
 
     m.def("isolate_term_on_lhs", &isolate_term_on_lhs);
     m.def("substitute", &substitute);
+    m.def("combine_terms", &combine_terms);
+    m.def("filter_zero_terms", &filter_zero_terms);
+    m.def("build_constraint_matrix", &build_constraint_matrix);
 
     return m.ptr();
 }
