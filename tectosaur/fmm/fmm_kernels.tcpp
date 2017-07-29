@@ -1,0 +1,305 @@
+<%
+import tectosaur.kernels.kernel_exprs as kernel_exprs
+kernel_names = ['U', 'T', 'A', 'H']
+kernels = kernel_exprs.get_kernels()
+%>
+#include <cmath>
+#include <iostream>
+#include "fmm_kernels.hpp"
+#include "geometry.hpp"
+
+#define Real double
+
+template <size_t dim, typename F>
+void direct_nbody(const NBodyProblem<dim>& p, KernelReal* out, const F& f) {
+#pragma omp parallel for
+    for (size_t i = 0; i < p.n_obs; i++) {
+        for (size_t j = 0; j < p.n_src; j++) {
+            out[i * p.n_src + j] = f(p.obs_pts[i], p.obs_ns[i], p.src_pts[j], p.src_ns[j]);
+        }
+    }
+}
+
+template <size_t dim, typename F>
+void mf_direct_nbody(const NBodyProblem<dim>& p, KernelReal* out, KernelReal* in, const F& f) {
+#pragma omp parallel for
+    for (size_t i = 0; i < p.n_obs; i++) {
+        for (size_t j = 0; j < p.n_src; j++) {
+            out[i] += f(p.obs_pts[i], p.obs_ns[i], p.src_pts[j], p.src_ns[j]) * in[j];
+        }
+    }
+}
+
+template <size_t dim>
+KernelReal one_K(const std::array<double,dim>&, const std::array<double,dim>&,
+        const std::array<double,dim>&, const std::array<double,dim>&) 
+{
+    return 1.0; 
+}
+
+template <size_t dim>
+void one(const NBodyProblem<dim>& p, KernelReal* out) {
+    direct_nbody<dim>(p, out, one_K<dim>);
+}
+
+template <size_t dim>
+void mf_one(const NBodyProblem<dim>& p, KernelReal* out, KernelReal* in) {
+    mf_direct_nbody<dim>(p, out, in, one_K<dim>);
+}
+
+template <size_t dim>
+KernelReal laplace_S_K(const std::array<double,dim>& obs, const std::array<double,dim>& nobs,
+        const std::array<double,dim>& src, const std::array<double,dim>& nsrc);
+
+template <>
+KernelReal laplace_S_K(const std::array<double,3>& obs, const std::array<double,3>& nobs,
+        const std::array<double,3>& src, const std::array<double,3>& nsrc) 
+{
+    auto delta = sub(src, obs);
+    auto r = hypot(delta);
+    if (r == 0) {
+        return 0.0; 
+    }
+    return 1.0 / (4.0 * M_PI * r);
+}
+
+template <>
+KernelReal laplace_S_K(const std::array<double,2>& obs, const std::array<double,2>& nobs,
+        const std::array<double,2>& src, const std::array<double,2>& nsrc) 
+{
+    auto delta = sub(src, obs);
+    auto r = hypot(delta);
+    if (r == 0) {
+        return 0.0; 
+    }
+    return std::log(r) / (2 * M_PI);
+}
+
+template <size_t dim>
+void laplace_S(const NBodyProblem<dim>& p, KernelReal* out) {
+    direct_nbody(p, out, laplace_S_K<dim>);
+}
+
+template <size_t dim>
+void mf_laplace_S(const NBodyProblem<dim>& p, KernelReal* out, KernelReal* in) {
+    mf_direct_nbody(p, out, in, laplace_S_K<dim>);
+}
+
+template <size_t dim>
+KernelReal laplace_D_K(const std::array<double,dim>& obs, const std::array<double,dim>& nobs,
+        const std::array<double,dim>& src, const std::array<double,dim>& nsrc);
+
+template <>
+KernelReal laplace_D_K(const std::array<double,3>& obs, const std::array<double,3>& nobs,
+        const std::array<double,3>& src, const std::array<double,3>& nsrc) 
+{
+    auto delta = sub(src, obs);
+    auto r = hypot(delta);
+    if (r == 0) {
+        return 0.0; 
+    }
+    return dot(delta, nsrc) / (4 * M_PI * r * r * r);
+}
+
+template <>
+KernelReal laplace_D_K(const std::array<double,2>& obs, const std::array<double,2>& nobs,
+        const std::array<double,2>& src, const std::array<double,2>& nsrc) 
+{
+    auto delta = sub(src, obs);
+    auto r = hypot(delta);
+    if (r == 0) {
+        return 0.0; 
+    }
+    return dot(delta, nsrc) / (2 * M_PI * r * r);
+}
+
+template <size_t dim>
+void laplace_D(const NBodyProblem<dim>& p, KernelReal* out) {
+    direct_nbody(p, out, laplace_D_K<dim>);
+}
+
+template <size_t dim>
+void mf_laplace_D(const NBodyProblem<dim>& p, KernelReal* out, KernelReal* in) {
+    mf_direct_nbody(p, out, in, laplace_D_K<dim>);
+}
+
+template <size_t dim>
+KernelReal laplace_H_K(const std::array<double,dim>& obs, const std::array<double,dim>& nobs,
+        const std::array<double,dim>& src, const std::array<double,dim>& nsrc);
+
+template <>
+KernelReal laplace_H_K(const std::array<double,3>& obs, const std::array<double,3>& nobs,
+        const std::array<double,3>& src, const std::array<double,3>& nsrc) 
+{
+    auto delta = sub(src, obs);
+    auto r = hypot(delta);
+    auto r2 = r * r;
+    if (r == 0) {
+        return 0.0; 
+    }
+    return - ((dot(nobs, nsrc) / (r * r2)) - ((3 * dot(nsrc, delta) * dot(nobs, delta))/(r2 * r2 * r))) / (4 * M_PI);
+}
+
+template <>
+KernelReal laplace_H_K(const std::array<double,2>& obs, const std::array<double,2>& nobs,
+        const std::array<double,2>& src, const std::array<double,2>& nsrc) 
+{
+    auto delta = sub(src, obs);
+    auto r = hypot(delta);
+    auto r2 = r * r;
+    if (r == 0) {
+        return 0.0; 
+    }
+    return ((-dot(nobs, nsrc) / r2) + ((2 * dot(nsrc, delta) * dot(nobs, delta)) / (r2 * r2))) 
+        / (2 * M_PI);
+}
+
+template <size_t dim>
+void laplace_H(const NBodyProblem<dim>& p, KernelReal* out) {
+    direct_nbody(p, out, laplace_H_K<dim>);
+}
+
+template <size_t dim>
+void mf_laplace_H(const NBodyProblem<dim>& p, KernelReal* out, KernelReal* in) {
+    mf_direct_nbody(p, out, in, laplace_H_K<dim>);
+}
+
+
+
+<%def name="kernel_fnc(k_name)">\
+void elastic${k_name}(const NBodyProblem<3>& p, KernelReal* out) {
+    auto G = p.kernel_args[0];
+    auto nu = p.kernel_args[1];
+    (void)G;(void)nu;
+    for (size_t i = 0; i < p.n_obs; i++) {
+        auto xx = p.obs_pts[i][0];
+        auto xy = p.obs_pts[i][1];
+        auto xz = p.obs_pts[i][2];
+        (void)xx;(void)xy;(void)xz;
+
+        auto nx = p.obs_ns[i][0];
+        auto ny = p.obs_ns[i][1];
+        auto nz = p.obs_ns[i][2];
+        (void)nx;(void)ny;(void)nz;
+        for (size_t j = 0; j < p.n_src; j++) {
+
+            auto yx = p.src_pts[j][0];
+            auto yy = p.src_pts[j][1];
+            auto yz = p.src_pts[j][2];
+            (void)yx;(void)yy;(void)yz;
+
+            auto Dx = yx - xx;
+            auto Dy = yy - xy;
+            auto Dz = yz - xz;
+            auto R2 = Dx * Dx + Dy * Dy + Dz * Dz;
+
+            // If the src to obs distance is 0, then the output is just 0.
+            if (R2 == 0.0) {
+                % for d1 in range(3):
+                % for d2 in range(3):
+                out[i * p.n_src * 9 + ${d1} * 3 * p.n_src + j * 3 + ${d2}] = 0.0;
+                % endfor
+                % endfor
+                continue;
+            }
+
+            auto lx = p.src_ns[j][0];
+            auto ly = p.src_ns[j][1];
+            auto lz = p.src_ns[j][2];
+            (void)lx;(void)ly;(void)lz;
+
+            % for d1 in range(3):
+            % for d2 in range(3):
+            out[i * p.n_src * 9 + ${d1} * 3 * p.n_src + j * 3 + ${d2}] = 
+                ${kernels[k_name]['expr'][d1][d2]};
+            % endfor
+            % endfor
+        }
+    }
+}
+</%def>
+
+<%def name="mf_kernel_fnc(k_name)">\
+void mf_elastic${k_name}(const NBodyProblem<3>& p, KernelReal* out, KernelReal* in) {
+    auto G = p.kernel_args[0];
+    auto nu = p.kernel_args[1];
+    (void)G;(void)nu;
+    for (size_t i = 0; i < p.n_obs; i++) {
+        auto xx = p.obs_pts[i][0];
+        auto xy = p.obs_pts[i][1];
+        auto xz = p.obs_pts[i][2];
+        (void)xx;(void)xy;(void)xz;
+
+        auto nx = p.obs_ns[i][0];
+        auto ny = p.obs_ns[i][1];
+        auto nz = p.obs_ns[i][2];
+        (void)nx;(void)ny;(void)nz;
+        for (size_t j = 0; j < p.n_src; j++) {
+
+            auto yx = p.src_pts[j][0];
+            auto yy = p.src_pts[j][1];
+            auto yz = p.src_pts[j][2];
+            (void)yx;(void)yy;(void)yz;
+
+            // If the src to obs distance is 0, then the output is just 0.
+            auto Dx = xx - yx;
+            auto Dy = xy - yy;
+            auto Dz = xz - yz;
+            auto R2 = Dx * Dx + Dy * Dy + Dz * Dz;
+            if (R2 == 0.0) {
+                continue;
+            }
+
+            auto lx = p.src_ns[j][0];
+            auto ly = p.src_ns[j][1];
+            auto lz = p.src_ns[j][2];
+            (void)lx;(void)ly;(void)lz;
+
+            % for d1 in range(3):
+            % for d2 in range(3):
+            out[i * 3 + ${d1}] += (${kernels[k_name]['expr'][d1][d2]}) * in[j * 3 + ${d2}];
+            % endfor
+            % endfor
+        }
+    }
+}
+</%def>
+
+% for k_name in kernel_names:
+${kernel_fnc(k_name)}
+${mf_kernel_fnc(k_name)}
+% endfor
+
+template <>
+Kernel<2> get_by_name(std::string name) {
+    if (name == "one2") {
+        return {one<2>, mf_one<2>, 1, name};
+    } else if (name == "laplaceD2") {
+        return {laplace_D<2>, mf_laplace_D<2>, 1, name};   
+    } else if (name == "laplaceS2") {
+        return {laplace_S<2>, mf_laplace_S<2>, 1, name};   
+    } else if (name == "laplaceH2") {
+        return {laplace_H<2>, mf_laplace_H<2>, 1, name};   
+    }
+    throw std::runtime_error("invalid kernel name");
+}
+
+template <>
+Kernel<3> get_by_name(std::string name) {
+    if (name == "one3") {
+        return {one<3>, mf_one<3>, 1, name};
+    } else if (name == "laplaceS3") {
+        return {laplace_S<3>, mf_laplace_S<3>, 1, name};   
+    } else if (name == "laplaceD3") {
+        return {laplace_D<3>, mf_laplace_D<3>, 1, name};   
+    } else if (name == "laplaceH3") {
+        return {laplace_H<3>, mf_laplace_H<3>, 1, name};   
+    % for k_name in kernel_names:
+    } else if (name == "elastic${k_name}3") {
+        return {elastic${k_name}, mf_elastic${k_name}, 3, name};
+    % endfor
+    } else {
+        throw std::runtime_error("invalid kernel name");
+    }
+}
+

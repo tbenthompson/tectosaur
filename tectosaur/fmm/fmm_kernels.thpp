@@ -1,0 +1,25 @@
+#include <functional>
+
+#define KernelReal double
+
+template <size_t dim>
+struct NBodyProblem {
+    const std::array<double,dim>* obs_pts;
+    const std::array<double,dim>* obs_ns;
+    const std::array<double,dim>* src_pts;
+    const std::array<double,dim>* src_ns;
+    size_t n_obs;
+    size_t n_src;
+    const KernelReal* kernel_args;
+};
+
+template <size_t dim>
+struct Kernel {
+    std::function<void(const NBodyProblem<dim>&,KernelReal*)> f;
+    std::function<void(const NBodyProblem<dim>&,KernelReal*,KernelReal*)> mf_f;
+    int tensor_dim;
+    std::string name;
+};
+
+template <size_t dim>
+Kernel<dim> get_by_name(std::string name);

@@ -15,7 +15,6 @@ from tectosaur.util.timer import Timer
 
 from tectosaur import float_type, setup_logger
 
-import tectosaur_fmm.fmm_wrapper as fmm
 
 logger = setup_logger(__name__)
 
@@ -78,6 +77,8 @@ class DirectFarfield:
 
 class FMMFarfield:
     def __init__(self, kernel, params, obs_pts, obs_ns, src_pts, src_ns):
+        import tectosaur.fmm.fmm_wrapper as fmm
+        self.fmm_module = fmm
         order = 100
         mac = 3.0
         pts_per_cell = 200
@@ -93,7 +94,7 @@ class FMMFarfield:
 
     def dot(self, v):
         input_tree = v.reshape((-1,3))[self.orig_idxs,:].reshape(-1)
-        fmm_out = fmm.eval_ocl(self.fmm_mat, input_tree, self.gpu_data).reshape((-1, 3))
+        fmm_out = self.fmm_module.eval_ocl(self.fmm_mat, input_tree, self.gpu_data).reshape((-1, 3))
         to_orig = np.empty_like(fmm_out)
         to_orig[self.orig_idxs,:] = fmm_out
         return to_orig.reshape(-1)
