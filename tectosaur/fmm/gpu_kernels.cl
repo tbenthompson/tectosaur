@@ -2,7 +2,7 @@
 def dn(dim):
     return ['x', 'y', 'z'][dim]
 
-from tectosaur.fmm.cfg import gpu_float_type
+from tectosaur.util.build_cfg import gpu_float_type
 from tectosaur.kernels import kernels
 %>
 

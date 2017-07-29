@@ -6,7 +6,7 @@ from tectosaur.ops.dense_op import DenseOp
 import tectosaur.util.gpu as gpu
 import tectosaur.viennacl as viennacl
 
-from tectosaur import float_type
+from tectosaur.util.build_cfg import float_type
 
 def farfield_tris(kernel, params, pts, obs_tris, src_tris, n_q):
     integrator = getattr(get_gpu_module(kernel), "farfield_tris")

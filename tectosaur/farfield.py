@@ -1,8 +1,7 @@
 import numpy as np
 
 import tectosaur.util.gpu as gpu
-
-from tectosaur import float_type
+from tectosaur.util.build_cfg import float_type
 
 def get_gpu_config():
     return {'block_size': 128, 'float_type': gpu.np_to_c_type(float_type)}

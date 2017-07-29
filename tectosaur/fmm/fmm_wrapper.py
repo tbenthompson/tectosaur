@@ -1,3 +1,4 @@
+import os
 import numpy as np
 
 import tectosaur.util.gpu as gpu
@@ -5,7 +6,7 @@ from tectosaur.util.timer import Timer
 from tectosaur import setup_logger
 
 import tectosaur.fmm
-from tectosaur.fmm.cfg import float_type
+from tectosaur.util.build_cfg import float_type
 from tectosaur.kernels import kernels
 
 from cppimport import cppimport
@@ -26,7 +27,7 @@ def get_gpu_module(surf, K):
     )
     gpu_module = gpu.load_gpu(
         'gpu_kernels.cl',
-        tmpl_dir = tectosaur.fmm.source_dir,
+        tmpl_dir = os.path.join(tectosaur.source_dir, 'fmm'),
         tmpl_args = args
     )
     return gpu_module

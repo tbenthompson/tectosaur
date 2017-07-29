@@ -3,8 +3,9 @@ import os
 import time
 import numpy as np
 
-import tectosaur
+from tectosaur import get_data_filepath
 from tectosaur.util.timer import Timer
+from tectosaur.util.build_cfg import float_type, gpu_float_type
 import tectosaur.nearfield.limit as limit
 import tectosaur.util.gpu as gpu
 
@@ -18,8 +19,7 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
 
     t = Timer(silent = True)
 
-    float_type = tectosaur.float_type
-    gpu_cfg = {'float_type': gpu.np_to_c_type(float_type)}
+    gpu_cfg = {'float_type': gpu_float_type}
     module = gpu.load_gpu('nearfield/table_lookup.cl', tmpl_args = gpu_cfg)
     dims = interp_pts.shape[1]
     fnc = getattr(module, 'lookup_interpolation' + str(dims))
@@ -61,7 +61,7 @@ def coincident_table(kernel, params, pts, tris):
         filename = 'elasticA_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy'
     elif kernel is 'elasticH3':
         filename = 'elasticH_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
-    filepath = tectosaur.get_data_filepath(filename)
+    filepath = get_data_filepath(filename)
 
     tableparams = filename.split('_')
 
@@ -113,7 +113,7 @@ def adjacent_table(nq_va, kernel, params, pts, obs_tris, src_tris):
     elif kernel is 'elasticH3':
         filename = 'elasticH_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
         flip_symmetry = True
-    filepath = tectosaur.get_data_filepath(filename)
+    filepath = get_data_filepath(filename)
 
     t = Timer(prefix = 'adjacent')
 

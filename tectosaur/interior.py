@@ -1,8 +1,8 @@
 import numpy as np
 from tectosaur.util.quadrature import gauss2d_tri
+from tectosaur.util.build_cfg import float_type
 import tectosaur.util.gpu as gpu
 
-from tectosaur import float_type
 from tectosaur.ops.sparse_integral_op import interp_galerkin_mat
 from tectosaur.farfield import farfield_pts_direct
 

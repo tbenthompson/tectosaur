@@ -147,4 +147,4 @@ def test_irregular():
     check_kernel(K, *run_full(10000, ellipsoid_pts, 2.6, 35, K, []))
 
 if __name__ == '__main__':
-    test_ones(2)
+    test_p2p('laplaceS', 2)

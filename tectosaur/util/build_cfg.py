@@ -4,10 +4,12 @@ import os
 from cppimport import setup_pybind11, turn_off_strict_prototypes
 
 import tectosaur
-import tectosaur.fmm
 from tectosaur.util.gpu import np_to_c_type
 
 float_type = np.float32
+if float_type == np.float64:
+    print('warning: float type is set to double precision')
+
 gpu_float_type = np_to_c_type(float_type)
 
 def template_kernels(cfg):
@@ -17,7 +19,7 @@ def template_kernels(cfg):
     #TODO: GENERALIZE THIS?
     templates = ['fmm_kernels.thpp', 'fmm_kernels.tcpp']
 
-    fmm_dir = tectosaur.fmm.source_dir
+    fmm_dir = os.path.join(tectosaur.source_dir, 'fmm')
     for t in templates:
         cfg['dependencies'].append(os.path.join(fmm_dir, t))
         filepath = os.path.join(fmm_dir, t)
@@ -48,13 +50,21 @@ def numpy_blas_cfg(cfg):
 def to_fmm_dir(filenames):
     return [os.path.join(tectosaur.fmm.source_dir, fname) for fname in filenames]
 
-#TODO: This should be shared between tectosaur modules
-def lib_cfg(cfg):
+compiler_args = [
+    '-std=c++14', '-O3', '-g', '-Wall', '-Werror', '-fopenmp', '-UNDEBUG', '-DDEBUG'
+]
+linker_args = ['-fopenmp']
+
+def setup_module(cfg):
     turn_off_strict_prototypes()
     setup_pybind11(cfg)
-    cfg['compiler_args'] += [
-        '-std=c++14', '-O3', '-g', '-Wall', '-Werror', '-fopenmp', '-UNDEBUG', '-DDEBUG'
-    ]
+    cfg['compiler_args'] += compiler_args
+    cfg['parallel'] = True
+    cfg['linker_args'] += linker_args
+    cfg['include_dirs'] += [tectosaur.source_dir]
+
+def fmm_lib_cfg(cfg):
+    setup_module(cfg)
     cfg['sources'] += to_fmm_dir([
         'fmm_impl.cpp', 'blas_wrapper.cpp', 'fmm_kernels.cpp', 'octree.cpp'
     ])
@@ -63,14 +73,11 @@ def lib_cfg(cfg):
         os.path.join(tectosaur.source_dir, 'include', 'pybind11_nparray.hpp'),
         'cfg.py'
     ])
-    cfg['parallel'] = True
-    cfg['linker_args'] += ['-fopenmp']
-    cfg['include_dirs'] += [tectosaur.source_dir]
     numpy_blas_cfg(cfg)
     template_kernels(cfg)
 
-def test_cfg(cfg):
-    lib_cfg(cfg)
+def fmm_test_cfg(cfg):
+    fmm_lib_cfg(cfg)
     cfg['sources'] += ['test_blas.cpp', 'test_octree.cpp']
     cfg['dependencies'] += ['test_helpers.hpp', 'doctest.h']
     cfg['include_dirs'] += [tectosaur.fmm.source_dir]

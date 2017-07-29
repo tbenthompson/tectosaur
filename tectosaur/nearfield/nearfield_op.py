@@ -1,7 +1,7 @@
 import scipy.sparse
 import numpy as np
 
-from tectosaur import float_type
+from tectosaur.util.build_cfg import float_type, gpu_float_type
 
 from tectosaur.mesh.find_nearfield import find_nearfield
 import tectosaur.mesh.adjacency as adjacency
@@ -27,7 +27,7 @@ def pairs_func_name(singular, check0):
     return 'single_pairs' + singular_label + check0_label
 
 def get_gpu_config(kernel):
-    return {'block_size': 128, 'float_type': gpu.np_to_c_type(float_type), 'kernel_name': kernel}
+    return {'block_size': 128, 'float_type': gpu_float_type, 'kernel_name': kernel}
 
 def get_gpu_module(kernel):
     return gpu.load_gpu('nearfield/nearfield.cl', tmpl_args = get_gpu_config(kernel))

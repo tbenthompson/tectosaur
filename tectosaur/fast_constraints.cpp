@@ -1,5 +1,6 @@
 <%
-setup_pybind11(cfg)
+from tectosaur.util.build_cfg import setup_module
+setup_module(cfg)
 %> 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>

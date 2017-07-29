@@ -13,7 +13,8 @@ import tectosaur.util.geometry as geometry
 import tectosaur.util.gpu as gpu
 from tectosaur.util.timer import Timer
 
-from tectosaur import float_type, setup_logger
+from tectosaur.util.logging import setup_logger
+from tectosaur.util.build_cfg import float_type
 
 
 logger = setup_logger(__name__)

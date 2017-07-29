@@ -1,6 +1,6 @@
 <% 
-from tectosaur_fmm.cfg import lib_cfg
-lib_cfg(cfg)
+from tectosaur.util.build_cfg import fmm_lib_cfg
+fmm_lib_cfg(cfg)
 %>
 
 #include "include/pybind11_nparray.hpp"

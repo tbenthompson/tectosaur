@@ -1,7 +1,7 @@
 <%
-setup_pybind11(cfg)
-cfg['compiler_args'].extend(['-O3', '-g', '-UNDEBUG', '-DDEBUG'])
-cfg['dependencies'].append('../include/pybind11_nparray.hpp')
+from tectosaur.util.build_cfg import setup_module
+setup_module(cfg)
+cfg['dependencies'].extend(['../include/pybind11_nparray.hpp'])
 %>
 
 #include <pybind11/pybind11.h>
