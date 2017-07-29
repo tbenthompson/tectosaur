@@ -24,20 +24,6 @@ from laplace import laplace
 # import tectosaur, logging
 # tectosaur.logger.setLevel(logging.ERROR)
 
-def test_nearfield():
-    corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
-    pts, tris = mesh_gen.make_rect(3,3 ,corners)
-    assert(tris.shape[0] == 8)
-    va, ea = adjacency.find_adjacents(tris)
-    near_pairs = find_nearfield.find_nearfield(pts, tris, va, ea, 2.5)
-    check_for = [
-        (0, 5), (0, 6), (0, 3), (1, 7), (2, 7), (3, 0),
-        (4, 7), (5, 0), (6, 0), (7, 2), (7, 1), (7, 4)
-    ]
-    assert(len(near_pairs) == len(check_for))
-    for pair in check_for:
-        assert(pair in near_pairs)
-
 @golden_master()
 def test_farfield_two_tris(request):
     pts = np.array(
@@ -183,8 +169,30 @@ def test_interior(request):
     return interior_integral(obs_pts, obs_ns, (pts, tris), input, K, 4, 4, params)
 
 
+def test_nearfield():
+    corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
+    pts, tris = mesh_gen.make_rect(3,3 ,corners)
+    assert(tris.shape[0] == 8)
+    va, ea = adjacency.find_adjacents(tris)
+    near_pairs = find_nearfield.find_nearfield(pts, tris, va, ea, 2.5)
+    check_for = [
+        (0, 5), (0, 6), (0, 3), (1, 7), (2, 7), (3, 0),
+        (4, 7), (5, 0), (6, 0), (7, 2), (7, 1), (7, 4)
+    ]
+    assert(len(near_pairs) == len(check_for))
+    for pair in check_for:
+        assert(pair in near_pairs)
+
+def benchmark_find_nearfield():
+    corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
+    nx = ny = 720
+    pts, tris = mesh_gen.make_rect(nx, ny, corners)
+    print('n_tris: ' + str(tris.shape[0]))
+    va, ea = adjacency.find_adjacents(tris)
+    near_pairs = find_nearfield.find_nearfield(pts, tris, va, ea, 2.5)
+
 if __name__ == '__main__':
-    full_integral_op_tester('elasticU3')
+    benchmark_find_nearfield()
 
 # def test_fmm_integral_op():
 #     np.random.seed(13)

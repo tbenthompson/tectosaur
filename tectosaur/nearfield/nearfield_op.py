@@ -11,7 +11,6 @@ from tectosaur.nearfield.table_lookup import coincident_table, adjacent_table
 import tectosaur.nearfield.triangle_rules as triangle_rules
 
 from tectosaur.util.quadrature import gauss4d_tri
-from tectosaur.util.caching import cache
 from tectosaur.util.timer import Timer
 import tectosaur.util.gpu as gpu
 

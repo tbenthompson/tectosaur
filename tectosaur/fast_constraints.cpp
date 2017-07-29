@@ -209,7 +209,8 @@ py::tuple build_constraint_matrix(const std::vector<ConstraintEQ>& cs, size_t n_
         array_from_vector(rows),
         array_from_vector(cols),
         array_from_vector(vals),
-        array_from_vector(rhs)
+        array_from_vector(rhs),
+        lower_tri_cs.size()
     );
 }
 

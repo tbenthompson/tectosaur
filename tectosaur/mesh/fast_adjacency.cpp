@@ -3,6 +3,7 @@ setup_pybind11(cfg)
 cfg['compiler_args'].extend(['-O3', '-g', '-UNDEBUG', '-DDEBUG'])
 cfg['dependencies'].append('../include/pybind11_nparray.hpp')
 %>
+
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include "../include/pybind11_nparray.hpp"
