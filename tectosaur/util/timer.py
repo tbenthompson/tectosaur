@@ -9,7 +9,10 @@ class Timer(object):
         self.prefix = prefix
         self.logger = logger
         if self.logger is None:
-            self.logger = logging.getLogger(__name__)
+            import inspect
+            frm = inspect.stack()[1]
+            mod_name = inspect.getmodule(frm[0]).__name__
+            self.logger = logging.getLogger(mod_name)
 
     def restart(self):
         self.start = time.time()
