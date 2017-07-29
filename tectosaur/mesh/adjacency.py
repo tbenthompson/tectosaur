@@ -1,44 +1,10 @@
 import numpy as np
 
-def find_touching_pts(tris):
-    max_pt_idx = np.max(tris)
-    out = [[] for i in range(max_pt_idx + 1)]
-    for i, t in enumerate(tris):
-        for d in range(3):
-            out[t[d]].append((i, d))
-    return out
+from cppimport import cppimport
+fast_adjacency = cppimport('tectosaur.mesh.fast_adjacency')
 
-def find_adjacents(tris):
-    touching_pt = find_touching_pts(tris)
-    vert_adjacents = []
-    edge_adjs = []
-    for i, t in enumerate(tris):
-        touching_tris = []
-        for d in range(3):
-            for other_t in touching_pt[t[d]]:
-                touching_tris.append((other_t[0], d, other_t[1]))
-
-        already = []
-        for other_t in touching_tris:
-            if other_t[0] in already or other_t[0] == i:
-                continue
-            already.append(other_t[0])
-
-            shared_verts = []
-            for other_t2 in touching_tris:
-                if other_t2[0] != other_t[0]:
-                    continue
-                shared_verts.append((other_t2[1], other_t2[2]))
-
-            n_shared_verts = len(shared_verts)
-            if n_shared_verts == 1:
-                vert_adjacents.append((i, other_t[0], shared_verts))
-            elif n_shared_verts == 2:
-                edge_adjs.append((i, other_t[0], shared_verts))
-            else:
-                raise Exception("Duplicate triangles!")
-
-    return vert_adjacents, edge_adjs
+find_touching_pts = fast_adjacency.find_touching_pts
+find_adjacents = fast_adjacency.find_adjacents
 
 def find_free_edges(tris):
     edges = dict()
@@ -65,12 +31,14 @@ def rotate_tri(clicks):
 
 #TODO: Prep functions should be moved closer to nearfield_op
 def adj_prep(tris, adj, clicks_fnc):
-    tri_indices = np.empty((len(adj), 2), dtype = np.int)
-    obs_clicks = np.empty(len(adj), dtype = np.int)
-    src_clicks = np.empty(len(adj), dtype = np.int)
-    obs_tris = np.zeros((len(adj), 3), dtype = np.int)
-    src_tris = np.zeros((len(adj), 3), dtype = np.int)
-    for i, pair in enumerate(adj):
+    n_pairs = adj.shape[0]
+    tri_indices = np.empty((n_pairs, 2), dtype = np.int)
+    obs_clicks = np.empty(n_pairs, dtype = np.int)
+    src_clicks = np.empty(n_pairs, dtype = np.int)
+    obs_tris = np.zeros((n_pairs, 3), dtype = np.int)
+    src_tris = np.zeros((n_pairs, 3), dtype = np.int)
+    for i in range(n_pairs):
+        pair = (adj[i,0], adj[i,1], adj[i,2:].reshape((-1, 2)).tolist())
         obs_clicks[i], src_clicks[i] = clicks_fnc(pair)
         obs_rot = rotate_tri(obs_clicks[i])
         src_rot = rotate_tri(src_clicks[i])

@@ -25,8 +25,12 @@ NPArray<T> make_array(const std::vector<size_t>& shape, T* buffer_ptr = nullptr)
 }
 
 template <typename T>
-NPArray<T> array_from_vector(const std::vector<T>& in) {
-    auto out = make_array<T>({in.size()});
+NPArray<T> array_from_vector(const std::vector<T>& in, std::vector<size_t> shape = {}) {
+    if (shape.size() == 0) {
+        shape = {in.size()};
+    }
+    auto out = make_array<T>(shape);
+    assert(out.size() == in.size());
     T* ptr = reinterpret_cast<T*>(out.request().ptr);
     for (size_t i = 0; i < in.size(); i++) {
         ptr[i] = in[i];

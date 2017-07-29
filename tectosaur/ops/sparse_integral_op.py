@@ -2,19 +2,22 @@ import os
 import numpy as np
 import scipy.sparse
 
-from tectosaur.util.quadrature import gauss2d_tri
 
 from tectosaur.farfield import farfield_pts_direct
 
 from tectosaur.nearfield.nearfield_op import NearfieldIntegralOp
 from tectosaur.nearfield.table_lookup import coincident_table, adjacent_table
 
+from tectosaur.util.quadrature import gauss2d_tri
 import tectosaur.util.geometry as geometry
 import tectosaur.util.gpu as gpu
+from tectosaur.util.timer import Timer
 
-from tectosaur import float_type
+from tectosaur import float_type, setup_logger
 
 import tectosaur_fmm.fmm_wrapper as fmm
+
+logger = setup_logger(__name__)
 
 from cppimport import cppimport
 fast_assembly = cppimport("tectosaur.ops.fast_assembly")

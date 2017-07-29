@@ -62,7 +62,7 @@ def test_okada():
     fault_L = 1.0
     top_depth = -0.5
     load_soln = False
-    n_surf = 50
+    n_surf = 100
     n_fault = n_surf // 5
 
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth, n_surf, n_fault)

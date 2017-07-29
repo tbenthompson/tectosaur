@@ -1,6 +1,8 @@
 import scipy.spatial
 import numpy as np
 
+import tectosaur.mesh.refine as refine
+
 # Corners are ordered: lower left, lower right, upper right, upper left
 def rect_points(corners, xhat_vals, yhat_vals):
     nx = xhat_vals.shape[0]
@@ -38,6 +40,7 @@ def rect_topology(nx, ny):
             tris.append([bottom_left, bottom_right, top_right])
     return np.array(tris, dtype = np.int)
 
+#TODO: Technically, this is make quadrilateral!
 def make_rect(nx, ny, corners):
     x = np.linspace(0, 1, nx)
     y = np.linspace(0, 1, ny)
@@ -60,7 +63,7 @@ def make_sphere(center, r, refinements):
     pts += center
     m = pts, tris
     for i in range(refinements):
-        m = refine(m)
+        m = refine.refine(m)
         m = (spherify(center, r, m[0]), m[1])
     m = (m[0], m[1])
     return m
