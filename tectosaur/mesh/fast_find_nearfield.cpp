@@ -7,6 +7,8 @@ cfg['dependencies'].extend(['../fmm/octree.hpp', '../include/pybind11_nparray.hp
 %>
 */
 
+#include <atomic>
+
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include "../include/pybind11_nparray.hpp"
@@ -93,7 +95,8 @@ std::vector<size_t> query_ball_points(
 {
 
     std::vector<size_t> out;
-    constexpr int parallelize_depth = 3;
+    constexpr int parallelize_depth = 1;
+    std::atomic<int> n_pairs{0};
 #pragma omp parallel
     {
 
@@ -107,13 +110,22 @@ std::vector<size_t> query_ball_points(
             if (n.depth != parallelize_depth && !n.is_leaf) {
                 continue;
             }
+            std::cout << i << std::endl;
             query_helper(
                 out_private, tree, expanded_node_r,
                 n, tree.root(), radius_ptr, threshold
             );
         }
-#pragma omp critical
-        out.insert(out.end(), out_private.begin(), out_private.end());
+        size_t insertion_start_idx = n_pairs.fetch_add(out_private.size());
+#pragma omp barrier
+#pragma omp single
+        {
+            out.resize(n_pairs);
+        }
+
+        for (size_t i = 0; i < out_private.size(); i++) {
+            out[insertion_start_idx + i] = out_private[i];
+        }
     }
 
     return out;
