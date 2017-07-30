@@ -4,6 +4,7 @@ import os
 from cppimport import setup_pybind11, turn_off_strict_prototypes
 
 import tectosaur
+import tectosaur.fmm
 from tectosaur.util.gpu import np_to_c_type
 
 float_type = np.float32
@@ -19,15 +20,12 @@ def template_kernels(cfg):
     #TODO: GENERALIZE THIS?
     templates = ['fmm_kernels.thpp', 'fmm_kernels.tcpp']
 
-    fmm_dir = os.path.join(tectosaur.source_dir, 'fmm')
+    fmm_dir = tectosaur.fmm.source_dir
     for t in templates:
         cfg['dependencies'].append(os.path.join(fmm_dir, t))
         filepath = os.path.join(fmm_dir, t)
         tmpl = mako.template.Template(filename = filepath)
-        try:
-            code = tmpl.render()
-        except Exception as e:
-            raise e
+        code = tmpl.render()
         dirname = os.path.dirname(t)
         filename, ext = os.path.splitext(t)
         out_filename = os.path.join(fmm_dir, filename + '.' + ext[2:])
@@ -62,6 +60,7 @@ def setup_module(cfg):
     cfg['parallel'] = True
     cfg['linker_args'] += linker_args
     cfg['include_dirs'] += [tectosaur.source_dir]
+    cfg['dependencies'] += [os.path.join(tectosaur.source_dir, 'util', 'build_cfg.py')]
 
 def fmm_lib_cfg(cfg):
     setup_module(cfg)
@@ -71,7 +70,6 @@ def fmm_lib_cfg(cfg):
     cfg['dependencies'] += to_fmm_dir([
         'fmm_impl.hpp', 'octree.hpp', 'blas_wrapper.hpp',
         os.path.join(tectosaur.source_dir, 'include', 'pybind11_nparray.hpp'),
-        'cfg.py'
     ])
     numpy_blas_cfg(cfg)
     template_kernels(cfg)

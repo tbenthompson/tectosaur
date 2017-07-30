@@ -20,27 +20,30 @@ struct OctreeNode {
 };
 
 template <size_t dim>
-struct PtNormal {
+struct PtWithIdx {
     std::array<double,dim> pt;
-    std::array<double,dim> normal;
     size_t orig_idx;
 };
 
 template <size_t dim>
 std::array<int,OctreeNode<dim>::split+1> octree_partition(
-        const Cube<dim>& bounds, PtNormal<dim>* start, PtNormal<dim>* end);
+        const Cube<dim>& bounds, PtWithIdx<dim>* start, PtWithIdx<dim>* end);
 
 template <size_t dim>
-std::vector<PtNormal<dim>> combine_pts_normals(std::array<double,dim>* pts,
-        std::array<double,dim>* normals, size_t n_pts);
+std::vector<PtWithIdx<dim>> combine_pts_idxs(std::array<double,dim>* pts, size_t n_pts) {
+    std::vector<PtWithIdx<dim>> pts_idxs(n_pts);
+    for (size_t i = 0; i < n_pts; i++) {
+        pts_idxs[i] = {pts[i], i};
+    }
+    return pts_idxs;
+}
 
 template <size_t dim>
-Cube<dim> bounding_box(PtNormal<dim>* pts, size_t n_pts);
+Cube<dim> bounding_box(PtWithIdx<dim>* pts, size_t n_pts);
 
 template <size_t dim>
 struct Octree {
     std::vector<std::array<double,dim>> pts;
-    std::vector<std::array<double,dim>> normals;
     std::vector<size_t> orig_idxs;
 
     size_t n_pts;
@@ -49,10 +52,9 @@ struct Octree {
 
     const OctreeNode<dim>& root() const { return nodes.front(); }
 
-    Octree(std::array<double,dim>* in_pts, std::array<double,dim>* in_normals,
-            size_t n_pts, size_t n_per_cell);
+    Octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_cell);
 
     size_t add_node(size_t start, size_t end, 
         size_t n_per_cell, int depth, Cube<dim> bounds,
-        std::vector<PtNormal<dim>>& temp_pts);
+        std::vector<PtWithIdx<dim>>& temp_pts);
 };

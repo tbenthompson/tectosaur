@@ -27,7 +27,7 @@ def get_gpu_module(surf, K):
     )
     gpu_module = gpu.load_gpu(
         'gpu_kernels.cl',
-        tmpl_dir = os.path.join(tectosaur.source_dir, 'fmm'),
+        tmpl_dir = tectosaur.fmm.source_dir,
         tmpl_args = args
     )
     return gpu_module
@@ -103,9 +103,9 @@ def data_to_gpu(fmm_mat):
             gd[name] = getattr(gd['module'], name + '_' + K_name)
 
     gd['obs_pts'] = gpu.to_gpu(fmm_mat.obs_tree.pts, float_type)
-    gd['obs_normals'] = gpu.to_gpu(fmm_mat.obs_tree.normals, float_type)
+    gd['obs_normals'] = gpu.to_gpu(fmm_mat.obs_normals, float_type)
     gd['src_pts'] = gpu.to_gpu(fmm_mat.src_tree.pts, float_type)
-    gd['src_normals'] = gpu.to_gpu(fmm_mat.src_tree.normals, float_type)
+    gd['src_normals'] = gpu.to_gpu(fmm_mat.src_normals, float_type)
 
     gd['tensor_dim'] = fmm_mat.cfg.tensor_dim
     gd['n_surf_pts'] = np.int32(surf.shape[0])

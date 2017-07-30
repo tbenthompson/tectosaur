@@ -40,12 +40,10 @@ void wrap_dim(py::module& m) {
 
     py::class_<Octree<dim>>(m, "Octree")
         .def("__init__",
-        [] (Octree<dim>& kd, NPArrayD np_pts, NPArrayD np_normals, size_t n_per_cell) {
+        [] (Octree<dim>& kd, NPArrayD np_pts, size_t n_per_cell) {
             check_shape<dim>(np_pts);
-            check_shape<dim>(np_normals);
             new (&kd) Octree<dim>(
                 reinterpret_cast<std::array<double,dim>*>(np_pts.request().ptr),
-                reinterpret_cast<std::array<double,dim>*>(np_normals.request().ptr),
                 np_pts.request().shape[0], n_per_cell
             );
         })
@@ -57,12 +55,6 @@ void wrap_dim(py::module& m) {
             return make_array<double>(
                 {tree.pts.size(), dim},
                 reinterpret_cast<double*>(tree.pts.data())
-            );
-        })
-        .def_property_readonly("normals", [] (Octree<dim>& tree) {
-            return make_array<double>(
-                {tree.normals.size(), dim},
-                reinterpret_cast<double*>(tree.normals.data())
             );
         })
         .def_property_readonly("n_nodes", [] (Octree<dim>& o) {
@@ -106,6 +98,18 @@ void wrap_dim(py::module& m) {
     py::class_<FMMMat<dim>>(m, "FMMMat")
         .def_readonly("obs_tree", &FMMMat<dim>::obs_tree)
         .def_readonly("src_tree", &FMMMat<dim>::src_tree)
+        .def_property_readonly("obs_normals", [] (FMMMat<dim>& mat) {
+            return make_array<double>(
+                {mat.obs_normals.size(), dim},
+                reinterpret_cast<double*>(mat.obs_normals.data())
+            );
+        })
+        .def_property_readonly("src_normals", [] (FMMMat<dim>& mat) {
+            return make_array<double>(
+                {mat.src_normals.size(), dim},
+                reinterpret_cast<double*>(mat.src_normals.data())
+            );
+        })
         .def_readonly("surf", &FMMMat<dim>::surf)
         .def_readonly("cfg", &FMMMat<dim>::cfg)
         .def_property_readonly("u2e_ops", [] (FMMMat<dim>& fmm) {
@@ -127,7 +131,17 @@ void wrap_dim(py::module& m) {
 #undef EVALFNC
 #undef EVALFNCLEVEL
 
-    m.def("fmmmmmmm", &fmmmmmmm<dim>);
+    m.def("fmmmmmmm", 
+        [] (const Octree<dim>& obs_tree, NPArrayD obs_normals,
+            const Octree<dim>& src_tree, NPArrayD src_normals,
+            const FMMConfig<dim>& cfg) 
+        {
+            return fmmmmmmm(
+                obs_tree, get_vector<std::array<double,dim>>(obs_normals),
+                src_tree, get_vector<std::array<double,dim>>(src_normals),
+                cfg
+            );
+        });
 
     <%
     direct_eval_data = [

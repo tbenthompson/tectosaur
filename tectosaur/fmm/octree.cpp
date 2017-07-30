@@ -2,9 +2,9 @@
 
 template <size_t dim>
 std::array<int,OctreeNode<dim>::split+1> octree_partition(
-        const Cube<dim>& bounds, PtNormal<dim>* start, PtNormal<dim>* end) 
+        const Cube<dim>& bounds, PtWithIdx<dim>* start, PtWithIdx<dim>* end) 
 {
-    std::array<std::vector<PtNormal<dim>>,OctreeNode<dim>::split> chunks{};
+    std::array<std::vector<PtWithIdx<dim>>,OctreeNode<dim>::split> chunks{};
     for (auto* entry = start; entry < end; entry++) {
         chunks[find_containing_subcell(bounds, entry->pt)].push_back(*entry);
     }
@@ -24,18 +24,7 @@ std::array<int,OctreeNode<dim>::split+1> octree_partition(
 }
 
 template <size_t dim>
-std::vector<PtNormal<dim>> combine_pts_normals(std::array<double,dim>* pts,
-        std::array<double,dim>* normals, size_t n_pts) 
-{
-    std::vector<PtNormal<dim>> pts_normals(n_pts);
-    for (size_t i = 0; i < n_pts; i++) {
-        pts_normals[i] = {pts[i], normals[i], i};
-    }
-    return pts_normals;
-}
-
-template <size_t dim>
-Cube<dim> bounding_box(PtNormal<dim>* pts, size_t n_pts) {
+Cube<dim> bounding_box(PtWithIdx<dim>* pts, size_t n_pts) {
     std::array<double,dim> center_of_mass{};
     for (size_t i = 0; i < n_pts; i++) {
         for (size_t d = 0; d < dim; d++) {
@@ -56,33 +45,32 @@ Cube<dim> bounding_box(PtNormal<dim>* pts, size_t n_pts) {
     return {center_of_mass, max_width};
 }
 
+template <size_t dim>
+std::vector<PtWithIdx<dim>> combine_pts_idxs(std::array<double,dim>* pts, size_t n_pts);
 
 template <size_t dim>
-Octree<dim>::Octree(std::array<double,dim>* in_pts, std::array<double,dim>* in_normals,
-            size_t n_pts, size_t n_per_cell):
+Octree<dim>::Octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_cell):
     pts(n_pts),
-    normals(n_pts),
     orig_idxs(n_pts),
     n_pts(n_pts)
 {
-    auto pts_normals = combine_pts_normals(in_pts, in_normals, n_pts);
+    auto pts_idxs = combine_pts_idxs(in_pts, n_pts);
 
-    auto bounds = bounding_box(pts_normals.data(), n_pts);
-    add_node(0, n_pts, n_per_cell, 0, bounds, pts_normals);
+    auto bounds = bounding_box(pts_idxs.data(), n_pts);
+    add_node(0, n_pts, n_per_cell, 0, bounds, pts_idxs);
 
     max_height = nodes[0].height;
 
     for (size_t i = 0; i < n_pts; i++) {
-        pts[i] = pts_normals[i].pt;
-        normals[i] = pts_normals[i].normal;
-        orig_idxs[i] = pts_normals[i].orig_idx;
+        pts[i] = pts_idxs[i].pt;
+        orig_idxs[i] = pts_idxs[i].orig_idx;
     }
 }
 
 template <size_t dim>
 size_t Octree<dim>::add_node(size_t start, size_t end, 
     size_t n_per_cell, int depth, Cube<dim> bounds,
-    std::vector<PtNormal<dim>>& temp_pts)
+    std::vector<PtWithIdx<dim>>& temp_pts)
 {
     bool is_leaf = end - start <= n_per_cell; 
     auto n_idx = nodes.size();
@@ -109,13 +97,8 @@ size_t Octree<dim>::add_node(size_t start, size_t end,
     return n_idx;
 }
 
-template Cube<2> bounding_box(PtNormal<2>* pts, size_t n_pts);
-template Cube<3> bounding_box(PtNormal<3>* pts, size_t n_pts);
-
-template std::vector<PtNormal<2>> combine_pts_normals(std::array<double,2>* pts,
-        std::array<double,2>* normals, size_t n_pts);
-template std::vector<PtNormal<3>> combine_pts_normals(std::array<double,3>* pts,
-        std::array<double,3>* normals, size_t n_pts);
+template Cube<2> bounding_box(PtWithIdx<2>* pts, size_t n_pts);
+template Cube<3> bounding_box(PtWithIdx<3>* pts, size_t n_pts);
 
 template struct Octree<2>;
 template struct Octree<3>;

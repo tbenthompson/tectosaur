@@ -56,11 +56,13 @@ def run_full(n, make_pts, mac, order, kernel, params, ocl = False, max_pts_per_c
 
     dim = obs_pts.shape[1]
 
-    obs_kd = module[dim].Octree(obs_pts, obs_ns, max_pts_per_cell)
-    src_kd = module[dim].Octree(src_pts, src_ns, max_pts_per_cell)
+    obs_kd = module[dim].Octree(obs_pts, max_pts_per_cell)
+    src_kd = module[dim].Octree(src_pts, max_pts_per_cell)
+    obs_ns_kd = obs_ns[obs_kd.orig_idxs]
+    src_ns_kd = src_ns[src_kd.orig_idxs]
     t.report('build trees')
     fmm_mat = module[dim].fmmmmmmm(
-        obs_kd, src_kd, module[dim].FMMConfig(1.1, mac, order, kernel, params)
+        obs_kd, obs_ns_kd, src_kd, src_ns_kd, module[dim].FMMConfig(1.1, mac, order, kernel, params)
     )
     t.report('setup fmm')
 
@@ -77,8 +79,8 @@ def run_full(n, make_pts, mac, order, kernel, params, ocl = False, max_pts_per_c
     # t.report('eval direct')
 
     return (
-        np.array(obs_kd.pts), np.array(obs_kd.normals),
-        np.array(src_kd.pts), np.array(src_kd.normals), est
+        obs_kd.pts, obs_ns_kd,
+        src_kd.pts, src_ns_kd, est
     )
 
 def check(est, correct, accuracy):

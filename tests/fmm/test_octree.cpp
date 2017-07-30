@@ -48,8 +48,8 @@ TEST_CASE("bounding box contains its pts")
 {
     for (size_t i = 0; i < 10; i++) {
         auto pts = random_pts<2>(10, -1, 1); 
-        auto pts_normals = combine_pts_normals(pts.data(), pts.data(), pts.size());
-        auto b = bounding_box(pts_normals.data(), pts.size());
+        auto pts_idxs = combine_pts_idxs(pts.data(), pts.size());
+        auto b = bounding_box(pts_idxs.data(), pts.size());
         auto b_shrunk = b;
         b_shrunk.width /= 1 + 1e-10;
         bool all_pts_in_shrunk = true;
@@ -64,13 +64,12 @@ TEST_CASE("bounding box contains its pts")
 TEST_CASE("octree partition") {
     size_t n_pts = 100;
     auto pts = random_pts<3>(n_pts, -1, 1);    
-    auto ns = random_pts<3>(n_pts, -1, 1);    
-    auto pts_normals = combine_pts_normals(pts.data(), ns.data(), n_pts);
-    auto bounds = bounding_box(pts_normals.data(), pts.size());
-    auto splits = octree_partition(bounds, pts_normals.data(), pts_normals.data() + n_pts);
+    auto pts_idxs = combine_pts_idxs(pts.data(), n_pts);
+    auto bounds = bounding_box(pts_idxs.data(), pts.size());
+    auto splits = octree_partition(bounds, pts_idxs.data(), pts_idxs.data() + n_pts);
     for (int i = 0; i < 8; i++) {
         for (int j = splits[i]; j < splits[i + 1]; j++) {
-            REQUIRE(find_containing_subcell(bounds, pts_normals[j].pt) == i);
+            REQUIRE(find_containing_subcell(bounds, pts_idxs[j].pt) == i);
         }
     }
 }
@@ -78,7 +77,7 @@ TEST_CASE("octree partition") {
 TEST_CASE("one level octree") 
 {
     auto es = random_pts<3>(3);
-    Octree<3> oct(es.data(), es.data(), es.size(), 4);
+    Octree<3> oct(es.data(), es.size(), 4);
     REQUIRE(oct.max_height == 0);
     REQUIRE(oct.nodes.size() == 1);
     REQUIRE(oct.root().is_leaf);
@@ -90,7 +89,7 @@ TEST_CASE("one level octree")
 TEST_CASE("many level octree") 
 {
     auto pts = random_pts<3>(1000);
-    Octree<3> oct(pts.data(), pts.data(), pts.size(), 999); 
+    Octree<3> oct(pts.data(), pts.size(), 999); 
     REQUIRE(oct.orig_idxs.size() == 1000);
     REQUIRE(oct.nodes[oct.root().children[0]].depth == 1);
 }

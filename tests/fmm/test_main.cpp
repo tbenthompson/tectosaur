@@ -1,6 +1,6 @@
 <%
-from tectosaur.fmm.cfg import test_cfg
-test_cfg(cfg)
+from tectosaur.util.build_cfg import fmm_test_cfg
+fmm_test_cfg(cfg)
 %>
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
