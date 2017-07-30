@@ -2,7 +2,7 @@ import numpy as np
 
 from tectosaur.mesh.adjacency import *
 from tectosaur.mesh.mesh_gen import make_sphere, make_rect
-from tectosaur.util.test_decorators import slow,golden_master
+from tectosaur.util.test_decorators import slow,golden_master,flatten
 
 tris = [[0, 1, 2], [2, 1, 3], [0, 4, 5]]
 def test_find_adjacents():
@@ -37,23 +37,6 @@ def test_find_free_edges():
     assert(len(free_es) == 4)
     for e in [(0,0), (0,2), (1,1), (1,2)]:
         assert(e in free_es)
-
-def flatten_list_helper(a):
-    a = list(a)
-    out = []
-    if type(a) is list:
-        out += a
-    else:
-        out.append(a)
-    return out
-
-def flatten(container):
-    for i in container:
-        if isinstance(i, (list,tuple)):
-            for j in flatten(i):
-                yield j
-        else:
-            yield i
 
 @golden_master()
 def test_find_adjacency(request):

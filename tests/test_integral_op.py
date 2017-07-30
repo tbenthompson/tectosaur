@@ -10,10 +10,7 @@ import tectosaur.ops.sparse_integral_op as sparse_integral_op
 import tectosaur.ops.mass_op as mass_op
 
 import tectosaur.util.quadrature as quad
-
 import tectosaur.mesh.mesh_gen as mesh_gen
-import tectosaur.mesh.find_nearfield as find_nearfield
-import tectosaur.mesh.adjacency as adjacency
 
 from tectosaur.interior import interior_integral
 
@@ -169,42 +166,3 @@ def test_interior(request):
     return interior_integral(obs_pts, obs_ns, (pts, tris), input, K, 4, 4, params)
 
 
-def test_nearfield():
-    corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
-    pts, tris = mesh_gen.make_rect(3,3 ,corners)
-    assert(tris.shape[0] == 8)
-    va, ea = adjacency.find_adjacents(tris)
-    near_pairs = find_nearfield.find_nearfield(pts, tris, va, ea, 2.5)
-    check_for = [
-        (0, 5), (0, 6), (0, 3), (1, 7), (2, 7), (3, 0),
-        (4, 7), (5, 0), (6, 0), (7, 2), (7, 1), (7, 4)
-    ]
-    assert(len(near_pairs) == len(check_for))
-    for pair in check_for:
-        assert(pair in near_pairs)
-
-def benchmark_find_nearfield():
-    corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
-    nx = ny = 720
-    pts, tris = mesh_gen.make_rect(nx, ny, corners)
-    print('n_tris: ' + str(tris.shape[0]))
-    va, ea = adjacency.find_adjacents(tris)
-    near_pairs = find_nearfield.find_nearfield(pts, tris, va, ea, 2.5)
-
-if __name__ == '__main__':
-    benchmark_find_nearfield()
-
-# def test_fmm_integral_op():
-#     np.random.seed(13)
-#     m = mesh_gen.make_sphere([0,0,0], 1, 1)
-#     args = [
-#         [], 1, 1, 5, 3, 4, 3.0,
-#         'U', 1.0, 0.25, m[0], m[1], True
-#     ]
-#     op = fmm_integral_op.FMMIntegralOp(*args)
-#     op2 = sparse_integral_op.SparseIntegralOp(*args)
-#
-#     v = np.random.rand(op.shape[1])
-#     a = op.farfield_dot(v)
-#     b = op2.farfield_dot(v)
-#     np.testing.assert_almost_equal(a, b)

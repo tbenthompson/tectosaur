@@ -21,8 +21,18 @@ inline std::array<double,dim> sub(const std::array<double,dim>& a, const std::ar
 }
 
 template <size_t dim>
+inline double hypot2(const std::array<double,dim>& v) {
+    return dot(v, v);
+}
+
+template <size_t dim>
 inline double hypot(const std::array<double,dim>& v) {
-    return std::sqrt(dot(v, v));
+    return std::sqrt(hypot2(v));
+}
+
+template <size_t dim>
+inline double dist2(const std::array<double,dim>& a, const std::array<double,dim>& b) {
+    return hypot2(sub(a,b));
 }
 
 template <size_t dim>

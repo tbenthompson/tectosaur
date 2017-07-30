@@ -45,8 +45,6 @@ Cube<dim> bounding_box(PtWithIdx<dim>* pts, size_t n_pts) {
     return {center_of_mass, max_width};
 }
 
-template <size_t dim>
-std::vector<PtWithIdx<dim>> combine_pts_idxs(std::array<double,dim>* pts, size_t n_pts);
 
 template <size_t dim>
 Octree<dim>::Octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_cell):

@@ -25,7 +25,6 @@ def find_free_edges(tris):
 
     return free_edges
 
-
 def rotate_tri(clicks):
     return [np.mod(clicks, 3), np.mod((1 + clicks), 3), np.mod((2 + clicks), 3)]
 
