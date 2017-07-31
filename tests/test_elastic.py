@@ -21,14 +21,14 @@ def test_outer():
 @slow
 def test_kernels():
     import sympy
-    from tectosaur.ops.sparse_integral_op import farfield_pts_wrapper
+    from tectosaur.farfield import farfield_pts_direct
     import dill
     from tectosaur.kernels.elastic import U,T,A,H,all_args
     with open('tests/3d_kernels.pkl', 'rb') as f:
         all_kernels = dill.load(f)
 
     kernel_builders = [U, T, A, H]
-    name_from_idx = ['elasticU', 'elasticT', 'elasticA', 'elasticH']
+    name_from_idx = ['elasticU3', 'elasticT3', 'elasticA3', 'elasticH3']
 
 ## 0.999912664648 [ 1.  0.  0.] [[ 0.04484328  0.61542118  0.61866593]] [[ 0.42195645  0.26927334  0.34952787]] 0.578332
 ## 0.999884855908 [ 1.  0.  0.] [[ 0.64798468  0.75984156  0.9303776 ]] [[ 0.9142682  0.6666224  0.2419737]] 0.743974
@@ -42,7 +42,7 @@ def test_kernels():
         obs_pt = np.array([params[7:10]])
         src_n = np.array([params[10:13]])
         obs_n = np.array([params[13:16]])
-        nbody_result = farfield_pts_wrapper(
+        nbody_result = farfield_pts_direct(
             name_from_idx[k_idx], obs_pt, obs_n,
             src_pt, src_n, V, params[0:2]
         ).reshape((1,3))

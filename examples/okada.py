@@ -19,7 +19,7 @@ from tectosaur.ops.sum_op import SumOp
 
 from solve import iterative_solve, direct_solve
 
-logger = tectosaur.setup_logger('okada')
+logger = tectosaur.setup_logger(__name__)
 
 def build_constraints(surface_tris, fault_tris, pts):
     n_surf_tris = surface_tris.shape[0]
@@ -47,9 +47,13 @@ def make_fault(L, top_depth, n_fault):
     ])
 
 def make_meshes(fault_L, top_depth, n_surf, n_fault):
+    t = Timer()
     surface = make_free_surface(10, n_surf)
+    t.report('make free surface')
     fault = make_fault(fault_L, top_depth, n_fault)
+    t.report('make fault')
     all_mesh = mesh_modify.concat(surface, fault)
+    t.report('concat meshes')
     surface_tris = all_mesh[1][:surface[1].shape[0]]
     fault_tris = all_mesh[1][surface[1].shape[0]:]
     return all_mesh, surface_tris, fault_tris
@@ -61,11 +65,13 @@ def test_okada():
     fault_L = 1.0
     top_depth = -0.5
     load_soln = False
-    n_surf = 100
+    n_surf = 150
     n_fault = n_surf // 5
 
+    timer = Timer()
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth, n_surf, n_fault)
-    tectosaur.logger.info('n_elements: ' + str(all_mesh[1].shape[0]))
+    timer.report('make meshes')
+    logger.info('n_elements: ' + str(all_mesh[1].shape[0]))
 
     # to check that the fault-surface alignment is correct
     # plt.triplot(all_mesh[0][:,0], all_mesh[0][:,1], surface_tris, linewidth = 0.3)
@@ -74,8 +80,6 @@ def test_okada():
     # plt.show()
 
     if not load_soln:
-        timer = Timer(logger = logger)
-        timer.report("Mesh")
 
         cs = build_constraints(surface_tris, fault_tris, all_mesh[0])
         timer.report("Constraints")

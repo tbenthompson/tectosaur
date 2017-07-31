@@ -174,7 +174,7 @@ def test_coincident_fast_lookup(request, kernel):
     return coincident_lookup_helper(kernel, 5, 1)
 
 @slow
-@golden_master()
+@golden_master(4)
 def test_coincident_lookup(request, kernel):
     return coincident_lookup_helper(kernel, 5)
 
