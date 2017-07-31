@@ -42,10 +42,10 @@ def test_gpu_vert_adjacent(request):
     out = nearfield_op.vert_adj(3, 'elasticH3', params, pts, obs_tris, src_tris)
     return out
 
-def full_integral_op_tester(k, use_fmm):
+def full_integral_op_tester(k, use_fmm, n = 5):
     pts = np.array([[0,0,0], [1,1,0], [0, 1, 1], [0,0,2]])
     tris = np.array([[0, 1, 2], [2, 1, 3]])
-    rect_mesh = mesh_gen.make_rect(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    rect_mesh = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     out = np.zeros(1)
     params = [1.0, 0.25]
     for m in [(pts, tris), rect_mesh]:
@@ -70,9 +70,9 @@ def test_full_integral_op(request, kernel):
     return full_integral_op_tester(kernel, False)
 
 @slow
-@golden_master(digits = 5)
+@golden_master(digits = 7)
 def test_full_integral_op_fmm(request):
-    return full_integral_op_tester('elasticU3', True)
+    return full_integral_op_tester('elasticU3', True, n = 30)
 
 def check_simple(q, digits):
     est = quad.quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q)
