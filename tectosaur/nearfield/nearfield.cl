@@ -80,7 +80,7 @@ def dn(dim):
         for (int d_obs = 0; d_obs < 3; d_obs++) {
         for (int b_src = 0; b_src < 3; b_src++) {
         for (int d_src = 0; d_src < 3; d_src++, idx++) {
-            Real val = val = obsb[b_obs] * srcb[b_src] * K[d_obs * 3 + d_src];
+            Real val = obsb[b_obs] * srcb[b_src] * K[d_obs * 3 + d_src];
             Real y = val - kahanC[idx];
             Real t = result_temp[idx] + y;
             kahanC[idx] = (t - result_temp[idx]) - y;
