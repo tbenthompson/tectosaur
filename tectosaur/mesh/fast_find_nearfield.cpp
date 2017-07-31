@@ -18,7 +18,7 @@ cfg['dependencies'].extend(['../fmm/octree.hpp', '../include/pybind11_nparray.hp
 namespace py = pybind11;
 
 template <size_t dim>
-void query_helper(std::vector<size_t>& out,
+void query_helper(std::vector<long>& out,
     const Octree<dim>& tree, const std::vector<double>& expanded_node_r,
     const OctreeNode<dim>& node1, const OctreeNode<dim>& node2,
     double* radius_ptr, double threshold) 
@@ -88,19 +88,19 @@ std::vector<double> get_expanded_node_r(const Octree<dim>& tree, double* radius_
 }
 
 template <size_t dim>
-std::vector<size_t> query_ball_points(
+std::vector<long> query_ball_points(
     const Octree<dim>& tree, const std::vector<double>& expanded_node_r,
     std::array<double,dim>* pt_ptr, double* radius_ptr,
     size_t n_entities, double threshold) 
 {
 
-    std::vector<size_t> out;
+    std::vector<long> out;
     constexpr int parallelize_depth = 1;
     std::atomic<int> n_pairs{0};
 #pragma omp parallel
     {
 
-        std::vector<size_t> out_private;
+        std::vector<long> out_private;
 #pragma omp for
         for (size_t i = 0; i < tree.nodes.size(); i++) {
             auto& n = tree.nodes[i];
@@ -110,7 +110,6 @@ std::vector<size_t> query_ball_points(
             if (n.depth != parallelize_depth && !n.is_leaf) {
                 continue;
             }
-            std::cout << i << std::endl;
             query_helper(
                 out_private, tree, expanded_node_r,
                 n, tree.root(), radius_ptr, threshold
@@ -131,7 +130,39 @@ std::vector<size_t> query_ball_points(
     return out;
 }
 
-// std::pair<std::vector<size_t>,std::vector<size_t>> find_remove_adjacents(
+std::array<std::vector<long>,3> split_adjacent_close(long* close_pairs,
+    size_t n_pairs, long* tris)
+{
+    std::array<std::vector<long>,3> out;
+    for (size_t i = 0; i < n_pairs; i++) {
+        auto idx1 = close_pairs[i * 2];
+        auto idx2 = close_pairs[i * 2 + 1];
+        std::pair<long,long> pair1 = {-1,-1};
+        std::pair<long,long> pair2 = {-1,-1};
+        for (int d1 = 0; d1 < 3; d1++) {
+            for (int d2 = 0; d2 < 3; d2++) {
+                if (tris[idx1 * 3 + d1] != tris[idx2 * 3 + d2]) {
+                    continue;
+                }
+                if (pair1.first == -1) {
+                    pair1 = {d1, d2};
+                } else {
+                    pair2 = {d1, d2};
+                }
+            }
+        }
+        if (pair1.first == -1) {
+            out[0].insert(out[0].end(), {idx1, idx2});
+        } else if (pair2.first == -1) {
+            out[1].insert(out[1].end(), {idx1, idx2, pair1.first, pair1.second});
+        } else {
+            out[2].insert(out[2].end(), {
+                idx1, idx2, pair1.first, pair1.second, pair2.first, pair2.second
+            });
+        }
+    }
+    return out;
+}
 
 PYBIND11_PLUGIN(fast_find_nearfield) {
     py::module m("fast_find_nearfield", "");
@@ -161,6 +192,20 @@ PYBIND11_PLUGIN(fast_find_nearfield) {
             //     array_from_vector(out.first, {out.first.size() / 4, 4}),
             //     array_from_vector(out.second, {out.second.size() / 6, 6})
             // );
+        });
+    
+    m.def("split_adjacent_close",
+        [] (NPArray<long> close_pairs, NPArray<long> tris) {
+            auto close_pairs_ptr = as_ptr<long>(close_pairs);
+            auto tris_ptr = as_ptr<long>(tris);
+            auto n_pairs = close_pairs.request().shape[0];
+
+            auto out = split_adjacent_close(close_pairs_ptr, n_pairs, tris_ptr);
+            return py::make_tuple(
+                array_from_vector(out[0], {out[0].size() / 2, 2}),
+                array_from_vector(out[1], {out[1].size() / 4, 4}),
+                array_from_vector(out[2], {out[2].size() / 6, 6})
+            );
         });
 
     return m.ptr();

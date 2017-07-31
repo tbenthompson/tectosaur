@@ -37,26 +37,3 @@ def test_find_free_edges():
     assert(len(free_es) == 4)
     for e in [(0,0), (0,2), (1,1), (1,2)]:
         assert(e in free_es)
-
-@golden_master()
-def test_find_adjacency(request):
-    va, ea = find_adjacents(make_sphere([0,0,0], 1.0, 3)[1])
-    return list(flatten(va.tolist() + ea.tolist()))
-
-@slow
-def test_bench_find_adjacency():
-    from tectosaur.mesh.mesh_gen import make_rect
-    from tectosaur.util.timer import Timer
-    L = 10
-    nx = ny = 2 ** L
-    t = Timer()
-    m = make_rect(nx, ny, [[-1, -1, 0], [-1, 1, 0], [1, 1, 0], [1, -1, 0]])
-    t.report('make')
-    print(m[1].shape[0])
-    va, ea = find_adjacents(m[1])
-    t.report('find adj new')
-    # va, ea = find_adjacents_old(m[1])
-    # t.report('find adj old')
-
-if __name__ == "__main__":
-    test_bench_find_adjacency()
