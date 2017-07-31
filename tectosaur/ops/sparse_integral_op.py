@@ -86,7 +86,8 @@ class FMMFarfield:
         # TODO: different obs and src pts
         self.tree = fmm.three.Octree(obs_pts, pts_per_cell)
         self.fmm_mat = fmm.three.fmmmmmmm(
-            self.tree, obs_ns, self.tree, src_ns,
+            self.tree, obs_ns[self.tree.orig_idxs],
+            self.tree, src_ns[self.tree.orig_idxs],
             fmm.three.FMMConfig(1.1, mac, order, kernel, params)
         )
         fmm.report_interactions(self.fmm_mat)
