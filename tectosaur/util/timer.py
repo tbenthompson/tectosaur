@@ -1,4 +1,4 @@
-import logging
+import tectosaur.util.logging as tct_log
 import time
 
 class Timer(object):
@@ -9,10 +9,7 @@ class Timer(object):
         self.prefix = prefix
         self.logger = logger
         if self.logger is None:
-            import inspect
-            frm = inspect.stack()[1]
-            mod_name = inspect.getmodule(frm[0]).__name__
-            self.logger = logging.getLogger(mod_name)
+            self.logger = tct_log.get_caller_logger()
 
     def restart(self):
         self.start = time.time()

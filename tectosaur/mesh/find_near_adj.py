@@ -1,29 +1,25 @@
 import numpy as np
+import scipy.spatial
+from tectosaur.util.timer import Timer
+
+import tectosaur.util.profile
 
 from cppimport import cppimport
-fast_adjacency = cppimport('tectosaur.mesh.fast_adjacency')
+fast_find_nearfield = cppimport('tectosaur.mesh.fast_find_nearfield')
 
-find_touching_pts = fast_adjacency.find_touching_pts
-find_adjacents = fast_adjacency.find_adjacents
+split_adjacent_close = fast_find_nearfield.split_adjacent_close
 
-def find_free_edges(tris):
-    edges = dict()
-    for i, t in enumerate(tris):
-        for d in range(3):
-            pt1_idx = t[d]
-            pt2_idx = t[(d + 1) % 3]
-            if pt1_idx > pt2_idx:
-                pt2_idx,pt1_idx = pt1_idx,pt2_idx
-            pt_pair = (pt1_idx, pt2_idx)
-            edges[pt_pair] = edges.get(pt_pair, []) + [(i, d)]
+@profile
+def find_close_or_touching(pts, tris, threshold):
+    tri_pts = pts[tris]
+    tri_centroid = np.sum(tri_pts, axis = 1) / 3.0
+    tri_r = np.sqrt(np.max(
+        np.sum((tri_pts - tri_centroid[:,np.newaxis,:]) ** 2, axis = 2),
+        axis = 1
+    ))
 
-    free_edges = []
-    for k,e in edges.items():
-        if len(e) > 1:
-            continue
-        free_edges.append(e[0])
-
-    return free_edges
+    out = fast_find_nearfield.get_nearfield(tri_centroid, tri_r, threshold, 50)
+    return out
 
 def rotate_tri(clicks):
     return [np.mod(clicks, 3), np.mod((1 + clicks), 3), np.mod((2 + clicks), 3)]

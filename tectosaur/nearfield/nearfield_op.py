@@ -3,8 +3,7 @@ import numpy as np
 
 from tectosaur.util.build_cfg import float_type, gpu_float_type
 
-from tectosaur.mesh.find_nearfield import find_nearfield
-import tectosaur.mesh.adjacency as adjacency
+import tectosaur.mesh.find_near_adj as find_near_adj
 
 from tectosaur.nearfield.limit import richardson_quad
 from tectosaur.nearfield.table_lookup import coincident_table, adjacent_table
@@ -131,11 +130,12 @@ class NearfieldIntegralOp:
         )
         timer.report("Coincident correction")
 
-        va, ea = adjacency.find_adjacents(tris)
-        timer.report("Find adjacency")
+        close_or_touch_pairs = find_near_adj.find_close_or_touching(pts, tris, near_threshold)
+        nearfield_pairs, va, ea = find_near_adj.split_adjacent_close(close_or_touch_pairs, tris)
+        timer.report("Find nearfield/adjacency")
 
         ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
-            adjacency.edge_adj_prep(tris, ea)
+            find_near_adj.edge_adj_prep(tris, ea)
         timer.report("Edge adjacency prep")
         ea_mat_rot = adjacent_table(
             nq_vert_adjacent, kernel, params, pts, ea_obs_tris, ea_src_tris
@@ -149,7 +149,7 @@ class NearfieldIntegralOp:
         timer.report("Edge adjacent correction")
 
         va_tri_indices, va_obs_clicks, va_src_clicks, va_obs_tris, va_src_tris =\
-            adjacency.vert_adj_prep(tris, va)
+            find_near_adj.vert_adj_prep(tris, va)
         timer.report("Vert adjacency prep")
 
         va_mat_rot = vert_adj(
@@ -163,11 +163,8 @@ class NearfieldIntegralOp:
         )
         timer.report("Vert adjacent correction")
 
-        nearfield_pairs = np.array(find_nearfield(pts, tris, va, ea, near_threshold))
         if nearfield_pairs.size == 0:
             nearfield_pairs = np.array([], dtype = np.int).reshape(0,2)
-        timer.report("Find nearfield")
-
         nearfield_mat = pairs_quad(
             kernel, params, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
             near_gauss, False, False

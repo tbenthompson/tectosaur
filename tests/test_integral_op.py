@@ -42,7 +42,7 @@ def test_gpu_vert_adjacent(request):
     out = nearfield_op.vert_adj(3, 'elasticH3', params, pts, obs_tris, src_tris)
     return out
 
-def full_integral_op_tester(k):
+def full_integral_op_tester(k, use_fmm):
     pts = np.array([[0,0,0], [1,1,0], [0, 1, 1], [0,0,2]])
     tris = np.array([[0, 1, 2], [2, 1, 3]])
     rect_mesh = mesh_gen.make_rect(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
@@ -50,13 +50,14 @@ def full_integral_op_tester(k):
     params = [1.0, 0.25]
     for m in [(pts, tris), rect_mesh]:
         dense_op = dense_integral_op.DenseIntegralOp(
-            [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, params, m[0], m[1]
+            5, 3, 3, 3.0, k, params, m[0], m[1]
         )
         np.random.seed(100)
         x = np.random.rand(dense_op.shape[1])
         dense_res = dense_op.dot(x)
         sparse_op = sparse_integral_op.SparseIntegralOp(
-            [0.1, 0.01], 5, 5, 5, 3, 3, 3.0, k, params, m[0], m[1]
+            5, 3, 3, 3.0, k, params, m[0], m[1],
+            farfield_op_type = (sparse_integral_op.FMMFarfield if use_fmm else None)
         )
         sparse_res = sparse_op.dot(x)
         assert(np.max(np.abs(sparse_res - dense_res)) < 3e-5)
@@ -66,7 +67,12 @@ def full_integral_op_tester(k):
 @slow
 @golden_master(digits = 5)
 def test_full_integral_op(request, kernel):
-    return full_integral_op_tester(kernel)
+    return full_integral_op_tester(kernel, False)
+
+@slow
+@golden_master(digits = 5)
+def test_full_integral_op_fmm(request):
+    return full_integral_op_tester('elasticU3', True)
 
 def check_simple(q, digits):
     est = quad.quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q)

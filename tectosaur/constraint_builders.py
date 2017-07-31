@@ -1,6 +1,35 @@
-from tectosaur.mesh.adjacency import find_touching_pts, find_free_edges
+import numpy as np
+
 import tectosaur.util.geometry as geom
 from tectosaur.constraints import ConstraintEQ, Term
+
+def find_touching_pts(tris):
+    max_pt_idx = np.max(tris)
+    out = [[] for i in range(max_pt_idx + 1)]
+    for i, t in enumerate(tris):
+        for d in range(3):
+            out[t[d]].append((i, d))
+    return out
+
+
+def find_free_edges(tris):
+    edges = dict()
+    for i, t in enumerate(tris):
+        for d in range(3):
+            pt1_idx = t[d]
+            pt2_idx = t[(d + 1) % 3]
+            if pt1_idx > pt2_idx:
+                pt2_idx,pt1_idx = pt1_idx,pt2_idx
+            pt_pair = (pt1_idx, pt2_idx)
+            edges[pt_pair] = edges.get(pt_pair, []) + [(i, d)]
+
+    free_edges = []
+    for k,e in edges.items():
+        if len(e) > 1:
+            continue
+        free_edges.append(e[0])
+
+    return free_edges
 
 def build_composite_constraints(*cs_and_starts):
     all_cs = []

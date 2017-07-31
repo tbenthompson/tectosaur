@@ -78,6 +78,12 @@ def test_constraint_triple():
     cm, rhs = build_constraint_matrix(cs, 4)
     np.testing.assert_almost_equal(cm.todense(), np.array([[1, 0, 0, -1]]).T)
 
+def test_find_free_edges():
+    tris = np.array([[0,1,2],[2,1,3]])
+    free_es = find_free_edges(tris)
+    assert(len(free_es) == 4)
+    for e in [(0,0), (0,2), (1,1), (1,2)]:
+        assert(e in free_es)
 
 def test_free_edge_constraints():
     cs = free_edge_constraints([[0,1,2],[0,2,3],[0,3,4],[0,4,1]])

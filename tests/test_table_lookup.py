@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 import tectosaur.util.geometry as geometry
-from tectosaur.mesh.adjacency import rotate_tri
+from tectosaur.mesh.find_near_adj import rotate_tri
 import tectosaur.nearfield.nearfield_op as nearfield_op
 from tectosaur.nearfield.standardize import standardize, rotation_matrix, BadTriangleError
 from tectosaur.nearfield.interpolate import to_interval

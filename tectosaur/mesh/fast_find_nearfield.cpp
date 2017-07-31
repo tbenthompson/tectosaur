@@ -95,7 +95,7 @@ std::vector<long> query_ball_points(
 {
 
     std::vector<long> out;
-    constexpr int parallelize_depth = 1;
+    constexpr int parallelize_depth = 2;
     std::atomic<int> n_pairs{0};
 #pragma omp parallel
     {
@@ -173,7 +173,7 @@ PYBIND11_PLUGIN(fast_find_nearfield) {
             auto pt_ptr = as_ptr<std::array<double,dim>>(pt);
             auto radius_ptr = as_ptr<double>(radius);
             auto n_entities = pt.request().shape[0];
-            Timer t{};
+            Timer t(true);
             Octree<dim> tree(pt_ptr, n_entities, leaf_size);
             t.report("build tree");
             auto expanded_r = get_expanded_node_r(tree, radius_ptr);
@@ -185,13 +185,6 @@ PYBIND11_PLUGIN(fast_find_nearfield) {
             auto out_arr = array_from_vector(out_vec, {out_vec.size() / 2, 2});
             t.report("to array");
             return out_arr;
-            // find_remove_adjacents(out);
-            // t.report("find adjacents");
-            // return py::make_tuple(
-            //     out,
-            //     array_from_vector(out.first, {out.first.size() / 4, 4}),
-            //     array_from_vector(out.second, {out.second.size() / 6, 6})
-            // );
         });
     
     m.def("split_adjacent_close",

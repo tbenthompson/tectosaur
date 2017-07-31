@@ -14,8 +14,8 @@ fmm = cppimport("tectosaur.fmm.fmm")
 
 logger = setup_logger(__name__)
 
-for k in dir(fmm):
-    locals()[k] = getattr(fmm, k)
+two = fmm.two
+three = fmm.three
 
 n_workers_per_block = 128
 

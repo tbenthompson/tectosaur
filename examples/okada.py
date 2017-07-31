@@ -8,7 +8,6 @@ import scipy.spatial
 import tectosaur
 import tectosaur.mesh.modify as mesh_modify
 import tectosaur.mesh.mesh_gen as mesh_gen
-import tectosaur.mesh.adjacency as adjacency
 import tectosaur.constraints as constraints
 from tectosaur.constraint_builders import continuity_constraints, \
     constant_bc_constraints, free_edge_constraints

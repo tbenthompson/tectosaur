@@ -18,8 +18,11 @@
 struct Timer {
     typedef std::chrono::high_resolution_clock::time_point Time;
     Time t_start;
+    bool silent;
 
-    Timer() {
+    Timer(bool silent = false):
+        silent(silent)
+    {
         restart(); 
     }
 
@@ -28,6 +31,9 @@ struct Timer {
     }
 
     void report(std::string name) {
+        if (silent) {
+            return;
+        }
         int time_us = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::high_resolution_clock::now() - t_start
         ).count();

@@ -4,7 +4,7 @@ from tectosaur.util.test_decorators import slow
 
 def test_bisects(dim):
     pts = np.random.rand(100,dim)
-    t = module[dim].Octree(pts, pts, 1)
+    t = module[dim].Octree(pts, 1)
     pts = np.array(t.pts)
     for n in t.nodes:
         if n.is_leaf:
@@ -19,7 +19,7 @@ def test_bisects(dim):
 
 def test_contains_pts(dim):
     pts = np.random.rand(100,dim)
-    t = module[dim].Octree(pts, pts, 1)
+    t = module[dim].Octree(pts, 1)
     pts = np.array(t.pts)
     for n in t.nodes:
         for i in range(n.start, n.end):
@@ -27,7 +27,7 @@ def test_contains_pts(dim):
 
 def test_height_depth(dim):
     pts = np.random.rand(100,dim)
-    t = module[dim].Octree(pts, pts, 1)
+    t = module[dim].Octree(pts, 1)
     for n in t.nodes:
         if n.is_leaf:
             continue
@@ -38,7 +38,7 @@ def test_height_depth(dim):
 
 def test_one_level(dim):
     pts = np.random.rand(dim, dim)
-    t = module[dim].Octree(pts, pts, 4)
+    t = module[dim].Octree(pts, 4)
     assert(t.max_height == 0);
     assert(len(t.nodes) == 1);
     assert(t.root().is_leaf);
@@ -48,12 +48,12 @@ def test_one_level(dim):
 
 def test_orig_idxs(dim):
     pts = np.random.rand(1000,dim)
-    t = module[dim].Octree(pts, pts, 50)
+    t = module[dim].Octree(pts, 50)
     np.testing.assert_almost_equal(np.array(t.pts), pts[np.array(t.orig_idxs), :])
 
 def test_idx(dim):
     pts = np.random.rand(100,dim)
-    t = module[dim].Octree(pts, pts, 1)
+    t = module[dim].Octree(pts, 1)
     for i, n in enumerate(t.nodes):
         assert(n.idx == i)
 
@@ -61,7 +61,7 @@ def test_idx(dim):
 def test_law_of_large_numbers():
     n = 100000
     pts = np.random.rand(n, 3)
-    t = module[3].Octree(pts, pts, 100);
+    t = module[3].Octree(pts, 100);
     for i in range(8):
         child = t.nodes[t.root().children[i]]
         n_pts = child.end - child.start

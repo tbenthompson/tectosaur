@@ -4,6 +4,7 @@ import pyopencl.array
 import os
 
 import tectosaur
+import tectosaur.util.logging as tct_log
 
 
 gpu_initialized = False
@@ -83,15 +84,10 @@ def compare(a, b):
             return res
     return a == b
 
-def get_tectosaur_dir():
-    import tectosaur
-    tectosaur_dir = os.path.dirname(tectosaur.__file__)
-    return tectosaur_dir
-
-
 def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
         no_caching = False, tmpl_args = None):
 
+    logger = tct_log.get_caller_logger()
 
     if tmpl_args is None:
         tmpl_args = dict()
@@ -109,14 +105,14 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
                 tmpl_args_match = tmpl_args_match and compare(v, tmpl_args[k])
 
             if tmpl_args_match:
-                tectosaur.logger.debug('returning cached gpu module ' + tmpl_name)
+                logger.debug('returning cached gpu module ' + tmpl_name)
                 return module_info['module']
 
     import mako.exceptions
     import mako.lookup
 
     def get_template(tmpl_name, tmpl_dir):
-        template_dirs = [get_tectosaur_dir()]
+        template_dirs = [tectosaur.source_dir]
         if tmpl_dir is not None:
             template_dirs.append(tmpl_dir)
         lookup = mako.lookup.TemplateLookup(directories = template_dirs)
@@ -125,7 +121,7 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
 
     import time
     start = time.time()
-    tectosaur.logger.debug('start compiling ' + tmpl_name)
+    logger.debug('start compiling ' + tmpl_name)
 
     tmpl = get_template(tmpl_name, tmpl_dir)
     try:

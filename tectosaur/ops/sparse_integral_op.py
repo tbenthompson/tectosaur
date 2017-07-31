@@ -84,9 +84,9 @@ class FMMFarfield:
         mac = 3.0
         pts_per_cell = 200
         # TODO: different obs and src pts
-        self.tree = fmm.three.Octree(obs_pts, obs_ns, pts_per_cell)
+        self.tree = fmm.three.Octree(obs_pts, pts_per_cell)
         self.fmm_mat = fmm.three.fmmmmmmm(
-            self.tree, self.tree,
+            self.tree, obs_ns, self.tree, src_ns,
             fmm.three.FMMConfig(1.1, mac, order, kernel, params)
         )
         fmm.report_interactions(self.fmm_mat)
@@ -95,7 +95,9 @@ class FMMFarfield:
 
     def dot(self, v):
         input_tree = v.reshape((-1,3))[self.orig_idxs,:].reshape(-1)
-        fmm_out = self.fmm_module.eval_ocl(self.fmm_mat, input_tree, self.gpu_data).reshape((-1, 3))
+        fmm_out = self.fmm_module.eval_ocl(
+            self.fmm_mat, input_tree, self.gpu_data
+        ).reshape((-1, 3))
         to_orig = np.empty_like(fmm_out)
         to_orig[self.orig_idxs,:] = fmm_out
         return to_orig.reshape(-1)
