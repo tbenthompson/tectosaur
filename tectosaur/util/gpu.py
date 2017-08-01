@@ -34,7 +34,9 @@ def to_gpu(arr, float_type = np.float32):
     check_initialized()
     if type(arr) is cl.array.Array:
         return arr
-    return cl.array.to_device(gpu_queue, arr.astype(float_type))
+    to_type = arr.astype(float_type)
+    # tct_log.get_caller_logger().debug('sending n_bytes: ' + str(to_type.nbytes))
+    return cl.array.to_device(gpu_queue, to_type)
 
 def zeros_gpu(shape, float_type = np.float32):
     check_initialized()

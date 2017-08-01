@@ -85,6 +85,8 @@ for (int chunk_start = ${src_start_var};
         chunk_start += ${n_workers_per_block}) 
 {
     % if src_type == "pts":
+        // Traversing these arrays in a unstrided fashion does not improve performance.
+        // Probably due to decent caching on newer nvidia gpus
         % for d in range(K.spatial_dim):
             sh_src_pts[worker_idx * ${K.spatial_dim} + ${d}] = 
                 src_pts[(chunk_start + worker_idx) * ${K.spatial_dim} + ${d}];

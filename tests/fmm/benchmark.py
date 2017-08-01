@@ -66,11 +66,13 @@ def fmm_runner(pts, ns, input):
     tree = fmm.three.Octree(pts, pts_per_cell)
     t.report('build tree')
 
-    input_tree = input.reshape((-1,tensor_dim))[np.array(tree.orig_idxs),:].reshape(-1)
+    orig_idxs = np.array(tree.orig_idxs)
+    input_tree = input.reshape((-1,tensor_dim))[orig_idxs,:].reshape(-1)
     t.report('map input to tree space')
 
+    mapped_ns = ns[orig_idxs]
     fmm_mat = fmm.three.fmmmmmmm(
-        tree, ns, tree, ns, fmm.three.FMMConfig(1.1, mac, order, K, params)
+        tree, mapped_ns, tree, mapped_ns, fmm.three.FMMConfig(1.1, mac, order, K, params)
     )
     t.report('setup fmm')
     fmm.report_interactions(fmm_mat)
@@ -86,7 +88,7 @@ def fmm_runner(pts, ns, input):
 
     output = output.reshape((-1, tensor_dim))
     to_orig = np.empty_like(output)
-    to_orig[np.array(tree.orig_idxs),:] = output
+    to_orig[orig_idxs,:] = output
     t.report('map to input space')
     return to_orig
 
