@@ -96,13 +96,18 @@ class FMMFarfield:
         self.orig_idxs = np.array(self.tree.orig_idxs)
 
     def dot(self, v):
+        t = Timer()
         input_tree = v.reshape((-1,3))[self.orig_idxs,:].reshape(-1)
+        t.report('to tree space')
         fmm_out = self.fmm_module.eval_ocl(
             self.fmm_mat, input_tree, self.gpu_data
         ).reshape((-1, 3))
+        t.report('fmm eval')
         to_orig = np.empty_like(fmm_out)
         to_orig[self.orig_idxs,:] = fmm_out
-        return to_orig.reshape(-1)
+        to_orig = to_orig.flatten()
+        t.report('to output space')
+        return to_orig
 
 class SparseIntegralOp:
     def __init__(self, nq_vert_adjacent, nq_far, nq_near,
@@ -132,8 +137,11 @@ class SparseIntegralOp:
         return self.nearfield.nearfield_no_correction_dot(v)
 
     def dot(self, v):
+        t = Timer()
         near_out = self.nearfield.dot(v)
+        t.report('nearfield dot')
         far_out = self.farfield_dot(v)
+        t.report('farfield dot')
         return near_out + far_out
 
     def farfield_dot(self, v):

@@ -42,7 +42,13 @@ def iterative_solve(iop, constraints, rhs = None, tol = 1e-8):
     def mv(v):
         iter[0] += 1
         logger.debug('iteration # ' + str(iter[0]))
-        out = cmT.dot(iop.dot(cm.dot(v)))
+        t = Timer(logger = logger)
+        cm_res = cm.dot(v)
+        t.report('constraint matrix multiply')
+        iop_res = iop.dot(cm_res)
+        t.report('integral operator multiply')
+        out = cmT.dot(iop_res)
+        t.report('constraint matrix transpose multiply')
         return out
 
     # P = sparse.linalg.spilu(cmT.dot(iop.nearfield_no_correction_dot(cm)))

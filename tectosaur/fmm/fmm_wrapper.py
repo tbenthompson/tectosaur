@@ -101,6 +101,7 @@ def data_to_gpu(fmm_mat):
         for b in ['s', 'p']:
             name = a + '2' + b
             gd[name] = getattr(gd['module'], name + '_' + K_name)
+    gd['c2e'] = gd['module'].c2e_kernel
 
     gd['obs_pts'] = gpu.to_gpu(fmm_mat.obs_tree.pts, float_type)
     gd['obs_normals'] = gpu.to_gpu(fmm_mat.obs_normals, float_type)
@@ -252,7 +253,7 @@ def gpu_l2p(fmm_mat, gd, d2e_ev):
     )
 
 def gpu_d2e(fmm_mat, gd, level, evs):
-    c2e = gd['module'].c2e_kernel
+    c2e = gd['c2e']
     n_d2e = gd['d2e_node_n_idx'][level].shape[0]
     n_d2e_rows = gd['n_surf_dofs']
     if n_d2e > 0:
@@ -271,7 +272,7 @@ def gpu_d2e(fmm_mat, gd, level, evs):
         return None
 
 def gpu_u2e(fmm_mat, gd, level, m2m_ev):
-    c2e = gd['module'].c2e_kernel
+    c2e = gd['c2e']
     n_u2e = gd['u2e_node_n_idx'][level].shape[0]
     n_u2e_rows = gd['n_surf_dofs']
     if n_u2e > 0:
@@ -318,14 +319,21 @@ def prep_data_for_eval(gd, input_vals):
     gd['locals'][:] = 0
 
 def eval_ocl(fmm_mat, input_vals, gpu_data = None, should_print_timing = True):
+    t = Timer()
     if gpu_data is None:
         gpu_data = data_to_gpu(fmm_mat)
+    t.report('data to gpu')
+
 
     prep_data_for_eval(gpu_data, input_vals)
+    t.report('prep for eval')
 
-    p2p_ev = gpu_p2p(fmm_mat, gpu_data)
-    p2l_ev = gpu_p2l(fmm_mat, gpu_data)
     p2m_ev = gpu_p2m(fmm_mat, gpu_data)
+    t.report('p2m')
+    p2p_ev = gpu_p2p(fmm_mat, gpu_data)
+    t.report('p2p')
+    p2l_ev = gpu_p2l(fmm_mat, gpu_data)
+    t.report('p2l')
 
     m2m_evs = []
     u2e_evs = []
@@ -334,9 +342,12 @@ def eval_ocl(fmm_mat, input_vals, gpu_data = None, should_print_timing = True):
     for i in range(1, len(fmm_mat.m2m)):
         m2m_evs.append(gpu_m2m(fmm_mat, gpu_data, i, [u2e_evs[-1]]))
         u2e_evs.append(gpu_u2e(fmm_mat, gpu_data, i, m2m_evs[-1]))
+    t.report('m2m')
 
     m2l_ev = gpu_m2l(fmm_mat, gpu_data, [u2e_evs[-1]])
+    t.report('m2l')
     m2p_ev = gpu_m2p(fmm_mat, gpu_data, [u2e_evs[-1]])
+    t.report('m2p')
 
     l2l_evs = []
     d2e_evs = []
@@ -344,21 +355,26 @@ def eval_ocl(fmm_mat, input_vals, gpu_data = None, should_print_timing = True):
     if p2l_ev is not None:
         d2e_wait_for.append(p2l_ev)
     d2e_evs.append(gpu_d2e(fmm_mat, gpu_data, 0, d2e_wait_for))
+    t.report('p2l')
 
     for i in range(1, len(fmm_mat.l2l)):
         l2l_evs.append(gpu_l2l(fmm_mat, gpu_data, i, d2e_evs[-1]))
         d2e_evs.append(gpu_d2e(fmm_mat, gpu_data, i, [l2l_evs[-1]]))
+    t.report('l2l')
 
     l2p_ev = gpu_l2p(fmm_mat, gpu_data, d2e_evs[-1])
 
+    t.report('l2p')
     if l2p_ev is not None:
         l2p_ev.wait()
     if m2p_ev is not None:
         m2p_ev.wait()
     if p2p_ev is not None:
         p2p_ev.wait()
+    t.report('fmm done running')
 
     retval = gpu_data['out'].get()
+    t.report('fmm data returned')
 
     if should_print_timing:
         print_timing(
