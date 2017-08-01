@@ -15,6 +15,7 @@ import tectosaur.mesh.mesh_gen as mesh_gen
 from tectosaur.interior import interior_integral
 
 from tectosaur.util.test_decorators import slow, golden_master, kernel
+from tectosaur.util.timer import Timer
 
 from laplace import laplace
 
@@ -92,27 +93,6 @@ def test_vertex_adjacent_simple():
     q = triangle_rules.vertex_adj_quad(nq, nq, nq)
     check_simple(q, 7)
 
-
-@slow
-def test_coincident_laplace():
-    tri = np.array([
-        [0, 0, 0],
-        [0, 0, 1],
-        [1, 0, 0]
-    ])
-
-    eps = 0.01
-    for i in range(3):
-        for j in range(i):
-            K = lambda pts: laplace(tri, tri, i, j, eps, pts)
-            q_accurate = triangle_rules.coincident_quad(eps, 18, 15, 15, 18)
-            exact = quad.quadrature(K, q_accurate)
-            def tryit(n1,n2,n3,n4):
-                q = triangle_rules.coincident_quad(eps, n1, n2, n3, n4)
-                result = quad.quadrature(K, q)
-                return np.abs((result - exact) / exact)
-            assert(tryit(19,13,17,16) < 0.000005)
-
 def test_mass_op():
     m = mesh_gen.make_rect(2, 2, [[0,0,0],[1,0,0],[1,1,0],[0,1,0]])
     op = mass_op.MassOp(3, m[0], m[1])
@@ -171,4 +151,14 @@ def test_interior(request):
 
     return interior_integral(obs_pts, obs_ns, (pts, tris), input, K, 4, 4, params)
 
+@profile
+def benchmark_nearfield_construction():
+    corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
+    near_threshold = 1.5
+    n = 80
+    pts, tris = mesh_gen.make_rect(n, n, corners)
+    n = nearfield_op.NearfieldIntegralOp(1, 1, 1, 2.0, 'elasticU3', [1.0, 0.25], pts, tris)
+
+if __name__ == "__main__":
+    benchmark_nearfield_construction()
 
