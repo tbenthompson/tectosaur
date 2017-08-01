@@ -244,22 +244,59 @@ void c2e_kernel(__global Real* out, __global Real* in,
     }
 }
 
-// This is essentially sparse matrix-matrix multiply. 
+// This is essentially a weird in-place block sparse matrix-matrix multiply. 
 __kernel
 void d2e_kernel(__global Real* out, __global Real* in,
         int n_blocks, int n_rows, __global int* node_idx, int node_depth,
         __global Real* ops)
 {
-    ${get_block_idx()}
-
-    int n_idx = node_idx[block_idx];
     __global Real* op_start = &ops[node_depth * n_rows * n_rows];
 
-    for (int i = worker_idx; i < n_rows; i += ${n_workers_per_block}) {
-        Real sum = 0.0;
-        for (int j = 0; j < n_rows; j++) {
-            sum += op_start[i * n_rows + j] * in[n_idx * n_rows + j];
+    const int local_row = get_local_id(0);
+    const int local_col = get_local_id(1);
+    const int global_block_idx = get_global_id(0);
+    const int global_col = get_global_id(1);
+
+    __local Real Asub[${n_d2e_block_rows}][${n_d2e_block_rows}];
+    __local Real Bsub[${n_d2e_block_rows}][${n_d2e_block_rows}];
+
+    int global_n_idx = -1;
+    if (global_block_idx < n_blocks) {
+        global_n_idx = node_idx[global_block_idx];
+    }
+
+    Real sum = 0.0;
+    for (int t = 0; t * ${n_d2e_block_rows} < n_rows; t++) {
+
+        // Load one tile of A and B into local memory
+        const int tile_row = ${n_d2e_block_rows} * t + local_row;
+        const int tile_col = ${n_d2e_block_rows} * t + local_col;
+        if (tile_col < n_rows && global_n_idx != -1) {
+            Asub[local_row][local_col] = in[global_n_idx * n_rows + tile_col];
+        } else {
+            Asub[local_row][local_col] = 0.0;
         }
-        out[n_idx * n_rows + i] += sum;
+        if (tile_row < n_rows && global_col < n_rows) {
+            Bsub[local_row][local_col] = op_start[global_col * n_rows + tile_row];
+        } else {
+            Bsub[local_row][local_col] = 0.0;
+        }
+
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        if (global_n_idx != -1 && global_col < n_rows) {
+            for (int k = 0; k < ${n_d2e_block_rows}; k++) {
+                if (${n_d2e_block_rows} * t + k >= n_rows) {
+                    continue;
+                }
+                sum += Asub[local_row][k] * Bsub[k][local_col];
+            }
+        }
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+    if (global_n_idx != -1 && global_col < n_rows) {
+        out[global_n_idx * n_rows + global_col] += sum;
     }
 }

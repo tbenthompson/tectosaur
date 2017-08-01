@@ -4,7 +4,7 @@ from tectosaur.nearfield.nearfield_op import NearfieldIntegralOp, get_gpu_module
 from tectosaur.util.quadrature import gauss4d_tri
 from tectosaur.ops.dense_op import DenseOp
 import tectosaur.util.gpu as gpu
-import tectosaur.viennacl as viennacl
+import tectosaur.viennacl.viennacl as vcl
 
 from tectosaur.util.build_cfg import float_type
 
@@ -61,7 +61,6 @@ class DenseIntegralOp(DenseOp):
         self.gpu_mat = None
 
     def dot(self, v):
-        # if self.gpu_mat is None:
-        #     self.gpu_mat = gpu.to_gpu(self.mat, np.float32)
-        return self.mat.dot(v)
-        # return np.squeeze(viennacl.prod(self.gpu_mat, v, np.float32).get())
+        if self.gpu_mat is None:
+            self.gpu_mat = gpu.to_gpu(self.mat, np.float32)
+        return np.squeeze(vcl.prod(self.gpu_mat, v, np.float32).get())

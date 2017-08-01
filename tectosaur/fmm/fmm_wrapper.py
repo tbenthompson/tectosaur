@@ -18,10 +18,12 @@ two = fmm.two
 three = fmm.three
 
 n_workers_per_block = 128
+n_d2e_block_rows = 16
 
 def get_gpu_module(surf, K):
     args = dict(
         n_workers_per_block = n_workers_per_block,
+        n_d2e_block_rows = n_d2e_block_rows,
         surf = surf,
         K = K
     )
@@ -258,11 +260,6 @@ def gpu_c2e(fmm_mat, gd, level, evs, d_or_u, out_arr, in_arr):
     c2e = gd[d_or_u + '2e'] #TODO: revert to one shared kernel
     n_c2e = gd[d_or_u + '2e_node_n_idx'][level].shape[0]
     n_c2e_rows = gd['n_surf_dofs']
-    depth_arg = gd[d_or_u + '2e_node_depth'].data
-    if d_or_u == 'd':
-        depth_arg = np.int32(level)
-    import ipdb
-    ipdb.set_trace()
     if n_c2e > 0:
         return c2e(
             gpu.gpu_queue,
@@ -271,7 +268,7 @@ def gpu_c2e(fmm_mat, gd, level, evs, d_or_u, out_arr, in_arr):
             out_arr.data, in_arr.data,
             np.int32(n_c2e), np.int32(n_c2e_rows),
             gd[d_or_u + '2e_node_n_idx'][level].data,
-            depth_arg,
+            gd[d_or_u + '2e_node_depth'].data,
             gd[d_or_u + '2e_ops'].data,
             wait_for = evs
         )
@@ -279,7 +276,34 @@ def gpu_c2e(fmm_mat, gd, level, evs, d_or_u, out_arr, in_arr):
         return None
 
 def gpu_d2e(fmm_mat, gd, level, evs):
-    return gpu_c2e(fmm_mat, gd, level, evs, 'd', gd['locals'], gd['l_check'])
+    # import tectosaur.viennacl.viennacl as vcl
+    # n_rows = gd['n_surf_dofs']
+    # mat_size = n_rows * n_rows
+    # op_start = level * mat_size
+    # op_end = op_start + mat_size
+    # op = gd['d2e_ops'][op_start:op_end]
+    d_or_u = 'd'
+    out_arr = gd['locals']
+    in_arr = gd['l_check']
+    c2e = gd[d_or_u + '2e'] #TODO: revert to one shared kernel
+    n_c2e = gd[d_or_u + '2e_node_n_idx'][level].shape[0]
+    n_c2e_rows = gd['n_surf_dofs']
+    if n_c2e > 0:
+        n_rows = int(np.ceil(n_c2e / n_d2e_block_rows) * n_d2e_block_rows)
+        n_cols = int(np.ceil(n_c2e_rows / n_d2e_block_rows) * n_d2e_block_rows)
+        return c2e(
+            gpu.gpu_queue,
+            (n_rows, n_cols),
+            (n_d2e_block_rows, n_d2e_block_rows),
+            out_arr.data, in_arr.data,
+            np.int32(n_c2e), np.int32(n_c2e_rows),
+            gd[d_or_u + '2e_node_n_idx'][level].data,
+            np.int32(level),
+            gd[d_or_u + '2e_ops'].data,
+            wait_for = evs
+        )
+    else:
+        return None
 
 def gpu_u2e(fmm_mat, gd, level, evs):
     return gpu_c2e(fmm_mat, gd, level, evs, 'u', gd['multipoles'], gd['m_check'])

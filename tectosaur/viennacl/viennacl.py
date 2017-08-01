@@ -1,11 +1,7 @@
 import tectosaur.util.gpu as gpu
 
-import os, sys
-here_dir = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
-sys.path.append(here_dir)
-
 from cppimport import cppimport
-vmv = cppimport("vienna_mat_vec")
+vmv = cppimport("tectosaur.viennacl.vienna_mat_vec")
 
 setup = vmv.setup
 check_platform = vmv.check_platform
