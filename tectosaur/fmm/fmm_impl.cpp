@@ -308,34 +308,18 @@ std::vector<double> c2e_solve(std::vector<std::array<double,dim>> surf,
 }
 
 template <size_t dim>
-void build_u2e(FMMMat<dim>& mat) {
+void build_c2e(FMMMat<dim>& mat, std::vector<double>& c2e_ops,
+        const Octree<dim>& tree, double check_r, double equiv_r) 
+{
     int n_rows = mat.cfg.tensor_dim() * mat.surf.size();
-    mat.u2e_ops.resize((mat.src_tree.max_height + 1) * n_rows * n_rows);
+    c2e_ops.resize((tree.max_height + 1) * n_rows * n_rows);
 #pragma omp parallel for
-    for (int i = 0; i < mat.src_tree.max_height + 1; i++) {
-        double width = mat.src_tree.root().bounds.width / std::pow(2.0, static_cast<double>(i));
+    for (int i = 0; i < tree.max_height + 1; i++) {
+        double width = tree.root().bounds.width / std::pow(2.0, static_cast<double>(i));
         std::array<double,dim> center{};
         Cube<dim> bounds(center, width);
-        auto pinv = c2e_solve(mat.surf, bounds, mat.cfg.outer_r, mat.cfg.inner_r, mat.cfg);
-        double* op_start = &mat.u2e_ops[i * n_rows * n_rows];
-        for (int j = 0; j < n_rows * n_rows; j++) {
-            op_start[j] = pinv[j];
-        }
-    }
-}
-
-//TODO: This can be refactored to share lots of code with above.
-template <size_t dim>
-void build_d2e(FMMMat<dim>& mat) {
-    int n_rows = mat.cfg.tensor_dim() * mat.surf.size();
-    mat.d2e_ops.resize((mat.obs_tree.max_height + 1) * n_rows * n_rows);
-#pragma omp parallel for
-    for (int i = 0; i < mat.obs_tree.max_height + 1; i++) {
-        double width = mat.obs_tree.root().bounds.width / std::pow(2.0, static_cast<double>(i));
-        std::array<double,dim> center{};
-        Cube<dim> bounds(center, width);
-        auto pinv = c2e_solve(mat.surf, bounds, mat.cfg.inner_r, mat.cfg.outer_r, mat.cfg);
-        double* op_start = &mat.d2e_ops[i * n_rows * n_rows];
+        auto pinv = c2e_solve(mat.surf, bounds, check_r, equiv_r, mat.cfg);
+        double* op_start = &c2e_ops[i * n_rows * n_rows];
         for (int j = 0; j < n_rows * n_rows; j++) {
             op_start[j] = pinv[j];
         }
@@ -359,8 +343,8 @@ FMMMat<dim> fmmmmmmm(const Octree<dim>& obs_tree,
     mat.u2e.resize(mat.src_tree.max_height + 1);
     mat.d2e.resize(mat.obs_tree.max_height + 1);
 
-    build_u2e(mat);
-    build_d2e(mat);
+    build_c2e(mat, mat.u2e_ops, mat.src_tree, mat.cfg.outer_r, mat.cfg.inner_r);
+    build_c2e(mat, mat.d2e_ops, mat.obs_tree, mat.cfg.inner_r, mat.cfg.outer_r);
     up_collect(mat, mat.src_tree.root());
     down_collect(mat, mat.obs_tree.root());
     traverse(mat, mat.obs_tree.root(), mat.src_tree.root());

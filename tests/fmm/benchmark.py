@@ -16,7 +16,7 @@ order = 100
 K = 'elasticT3'
 tensor_dim = 3
 mac = 3.0
-order = 100
+order = 200
 
 params = [1.0, 0.25]
 
@@ -61,7 +61,7 @@ def direct_runner(pts, ns, input):
 def fmm_runner(pts, ns, input):
     t = Timer()
 
-    pts_per_cell = 300
+    pts_per_cell = 200
 
     tree = fmm.three.Octree(pts, pts_per_cell)
     t.report('build tree')
@@ -83,8 +83,6 @@ def fmm_runner(pts, ns, input):
 
     output = fmm.eval_ocl(fmm_mat, input_tree, gpu_data)
     t.report('eval fmm')
-    output = fmm.eval_ocl(fmm_mat, input_tree, gpu_data)
-    t.report('eval fmm')
 
     output = output.reshape((-1, tensor_dim))
     to_orig = np.empty_like(output)
@@ -104,8 +102,8 @@ if __name__ == '__main__':
     # data = random_data(N)
     # N = 10000000
     # data = ellipsoid_pts(N)
-    N = int(1e6 ** (1.0 / 3.0))
+    N = int(2e5 ** (1.0 / 3.0))
     data = grid_data(N)
     A = fmm_runner(*data).flatten()
-    B = direct_runner(*data)
-    check(A, B)
+    # B = direct_runner(*data)
+    # check(A, B)

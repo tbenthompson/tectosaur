@@ -156,7 +156,7 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
     module_info['module'] = cl.Program(
         gpu_ctx, code
     ).build(options = compile_options)
-    tectosaur.logger.debug('compile took: ' + str(time.time() - start))
+    logger.debug('compile took: ' + str(time.time() - start))
 
     if tmpl_name not in gpu_module:
         gpu_module[tmpl_name] = []

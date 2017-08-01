@@ -65,7 +65,7 @@ def test_okada():
     fault_L = 1.0
     top_depth = -0.5
     load_soln = False
-    n_surf = 200
+    n_surf = 100
     n_fault = n_surf // 5
 
     timer = Timer()
