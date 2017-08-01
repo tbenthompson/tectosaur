@@ -9,7 +9,7 @@ cfg['dependencies'].extend(['../include/pybind11_nparray.hpp'])
 namespace py = pybind11;
 
 int positive_mod(int i, int n) {
-        return (i % n + n) % n;
+    return (i % n + n) % n;
 }
 
 std::array<int,3> rotate_tri(int clicks) {

@@ -51,17 +51,16 @@ def full_integral_op_tester(k, use_fmm, n = 5):
     params = [1.0, 0.25]
     for m in [(pts, tris), rect_mesh]:
         dense_op = dense_integral_op.DenseIntegralOp(
-            5, 3, 3, 3.0, k, params, m[0], m[1]
+            5, 3, 3, 2.0, k, params, m[0], m[1]
         )
-        np.random.seed(100)
-        x = np.random.rand(dense_op.shape[1])
+        x = np.ones(dense_op.shape[1])
         dense_res = dense_op.dot(x)
         sparse_op = sparse_integral_op.SparseIntegralOp(
-            5, 3, 3, 3.0, k, params, m[0], m[1],
+            5, 3, 3, 2.0, k, params, m[0], m[1],
             farfield_op_type = (sparse_integral_op.FMMFarfield if use_fmm else None)
         )
         sparse_res = sparse_op.dot(x)
-        assert(np.max(np.abs(sparse_res - dense_res)) < 3e-5)
+        assert(np.max(np.abs(sparse_res - dense_res)) / np.mean(np.abs(dense_res)) < 3e-4)
         out = np.hstack((out, sparse_res))
     return out
 

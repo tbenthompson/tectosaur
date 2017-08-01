@@ -2,6 +2,7 @@
 #include <array>
 #include <cmath>
 
+//TODO: This and vec_tensor.hpp can be merged some.
 template <size_t dim>
 inline double dot(const std::array<double,dim>& a, const std::array<double,dim>& b) {
     double out = 0;

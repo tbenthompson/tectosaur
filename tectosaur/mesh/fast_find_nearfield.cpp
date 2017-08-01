@@ -156,9 +156,7 @@ std::array<std::vector<long>,3> split_adjacent_close(long* close_pairs,
         } else if (pair2.first == -1) {
             out[1].insert(out[1].end(), {idx1, idx2, pair1.first, pair1.second});
         } else {
-            out[2].insert(out[2].end(), {
-                idx1, idx2, pair1.first, pair1.second, pair2.first, pair2.second
-            });
+            out[2].insert(out[2].end(), {idx1, idx2});
         }
     }
     return out;
@@ -197,7 +195,7 @@ PYBIND11_PLUGIN(fast_find_nearfield) {
             return py::make_tuple(
                 array_from_vector(out[0], {out[0].size() / 2, 2}),
                 array_from_vector(out[1], {out[1].size() / 4, 4}),
-                array_from_vector(out[2], {out[2].size() / 6, 6})
+                array_from_vector(out[2], {out[2].size() / 2, 2})
             );
         });
 

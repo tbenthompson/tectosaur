@@ -18,9 +18,9 @@ tris = np.array([[0, 1, 2], [2, 1, 3], [0, 4, 5]])
 def test_find_adjacents():
     va, ea = find_adjacents(tris)
     assert(va.size == 8)
-    assert(ea.size == 12)
+    assert(ea.size == 4)
     assert(np.all(va.flatten() == (0, 2, 0, 0, 2, 0, 0, 0)))
-    assert(np.all(ea.flatten() == (0, 1, 1, 1, 2, 0, 1, 0, 0, 2, 1, 1)))
+    assert(np.all(ea.flatten() == (0, 1, 1, 0)))
 
 def test_rotate_tri():
     assert(rotate_tri(1) == [1, 2, 0])
@@ -31,15 +31,6 @@ def test_vert_adj_prep():
     va, ea = find_adjacents(tris)
     result = vert_adj_prep(tris, va.reshape((-1, 4)))
     assert(np.all(result[3][:, 0] == result[4][:, 0]))
-
-def test_edge_adj_prep():
-    tris = np.array([[0, 1, 2], [1, 3, 2]])
-    va, ea = find_adjacents(tris)
-    result = edge_adj_prep(tris, ea.reshape((-1, 6)))
-
-    tris = np.array([[0, 1, 2], [2, 1, 3]])
-    va, ea = find_adjacents(tris)
-    result = edge_adj_prep(tris, ea.reshape((-1, 6)))
 
 def test_nearfield():
     corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
@@ -79,9 +70,9 @@ def test_find_adjacency(request):
     # va, ea = adjacency.find_adjacents(m)
     va = np.array(va)
     ea = np.array(ea)
-    all = np.zeros((va.shape[0] + ea.shape[0], 6),)
+    all = np.zeros((va.shape[0] + ea.shape[0], 4),)
     all[:va.shape[0],:4] = va
-    all[va.shape[0]:] = ea
+    all[va.shape[0]:,:2] = ea
     sorted_idxs = np.lexsort([all[:,1], all[:,0]], axis = 0)
     all_sorted = all[sorted_idxs,:]
     return all_sorted

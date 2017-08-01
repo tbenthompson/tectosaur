@@ -9,7 +9,6 @@ fast_find_nearfield = cppimport('tectosaur.mesh.fast_find_nearfield')
 
 split_adjacent_close = fast_find_nearfield.split_adjacent_close
 
-@profile
 def find_close_or_touching(pts, tris, threshold):
     tri_pts = pts[tris]
     tri_centroid = np.sum(tri_pts, axis = 1) / 3.0
@@ -24,7 +23,7 @@ def find_close_or_touching(pts, tris, threshold):
 def rotate_tri(clicks):
     return [np.mod(clicks, 3), np.mod((1 + clicks), 3), np.mod((2 + clicks), 3)]
 
-#TODO: Prep functions should be moved closer to nearfield_op
+#TODO: Remove these prep functions
 def adj_prep(tris, adj, clicks_fnc):
     n_pairs = adj.shape[0]
     tri_indices = np.empty((n_pairs, 2), dtype = np.int)

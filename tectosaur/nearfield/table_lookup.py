@@ -98,8 +98,8 @@ def coincident_table(kernel, params, pts, tris):
 
     return out
 
-def adjacent_table(nq_va, kernel, params, pts, obs_tris, src_tris):
-    if obs_tris.shape[0] == 0:
+def adjacent_table(nq_va, kernel, params, pts, tris, ea_tri_indices):
+    if ea_tri_indices.shape[0] == 0:
         return np.zeros((0,3,3,3,3))
 
     flip_symmetry = False
@@ -129,9 +129,7 @@ def adjacent_table(nq_va, kernel, params, pts, obs_tris, src_tris):
     table_log_coeffs = table_data[:,:,1]
     t.report("load table")
 
-    obs_tris_pts = pts[obs_tris]
-    src_tris_pts = pts[src_tris]
-    va, ea = fast_lookup.adjacent_lookup_pts(obs_tris_pts, src_tris_pts, params[1], flip_symmetry)
+    va, ea = fast_lookup.adjacent_lookup_pts(pts, tris, ea_tri_indices, params[1], flip_symmetry)
     t.report("get pts")
 
     interp_vals, log_coeffs = lookup_interpolation_gpu(
@@ -140,7 +138,7 @@ def adjacent_table(nq_va, kernel, params, pts, obs_tris, src_tris):
     t.report("interpolation")
 
     out = fast_lookup.adjacent_lookup_from_standard(
-        obs_tris_pts, interp_vals, log_coeffs, ea, kernel, params[0]
+        interp_vals, log_coeffs, ea, kernel, params[0]
     ).reshape((-1, 3, 3, 3, 3))
 
     t.report("from standard")
@@ -152,7 +150,7 @@ def adjacent_table(nq_va, kernel, params, pts, obs_tris, src_tris):
         np.array(va.pts), np.array(va.obs_tris), np.array(va.src_tris)
     )
     t.report('vert adj subpairs')
-    fast_lookup.vert_adj_subbasis(out, Iv, va);
+    fast_lookup.vert_adj_subbasis(out, Iv, va, ea);
     t.report('vert adj subbasis')
 
     return out

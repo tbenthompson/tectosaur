@@ -83,6 +83,7 @@ class FMMFarfield:
         order = 100
         mac = 3.0
         pts_per_cell = 200
+
         # TODO: different obs and src pts
         self.tree = fmm.three.Octree(obs_pts, pts_per_cell)
         self.fmm_mat = fmm.three.fmmmmmmm(
@@ -128,7 +129,7 @@ class SparseIntegralOp:
         return self.nearfield.dot(v)
 
     def nearfield_no_correction_dot(self, v):
-        return self.nearfield.mat_no_correction.dot(v)
+        return self.nearfield.nearfield_no_correction_dot(v)
 
     def dot(self, v):
         near_out = self.nearfield.dot(v)

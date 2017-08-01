@@ -2,15 +2,9 @@ import logging
 import sys
 
 def get_caller_logger():
-    import inspect
+    import sys
     module = None
-    start_idx = 2
-    stack = inspect.stack()
-    while module is None and start_idx < len(stack):
-        frm = stack[start_idx]
-        module = inspect.getmodule(frm[0])
-        start_idx += 1
-    mod_name = module.__name__
+    mod_name = sys._getframe(2).f_globals['__name__']
     return logging.getLogger(mod_name)
 
 loggers = {}

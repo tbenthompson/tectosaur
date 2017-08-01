@@ -18,6 +18,11 @@ from tectosaur.kernels import kernels
 #include "../include/vec_tensor.hpp"
 #include "../include/timing.hpp"
 
+//TODO: In general, this is some of the most disgusting code in tectosaur. This
+// whole mess needs to be treated as some legacy crap and cleaned up. That said,
+// it works... So don't break anything. Lots of golden master tests and slow 
+// refactoring. Maybe not anytime soon...
+
 namespace py = pybind11;
 
 Vec3 get_split_pt(const Tensor3& tri) {
@@ -587,8 +592,14 @@ double get_adjacent_phi(const Tensor3& obs_tri, const Tensor3& src_tri) {
     }
 }
 
+//TODO: Duplicated with fast_assembly.cpp
+int positive_mod(int i, int n) {
+        return (i % n + n) % n;
+}
+
+//TODO: Duplicated with fast_assembly.cpp
 std::array<int,3> rotate_tri(int clicks) {
-    return {clicks % 3, (clicks + 1) % 3, (clicks + 2) % 3};
+    return {positive_mod(clicks, 3), positive_mod(clicks + 1, 3), positive_mod(clicks + 2, 3)};
 }
 
 std::array<std::array<int,3>,2> find_va_rotations(const std::array<int,3>& ot,
@@ -617,48 +628,98 @@ std::array<std::array<int,3>,2> find_va_rotations(const std::array<int,3>& ot,
 struct VertexAdjacentSubTris {
     std::vector<Vec3> pts;
     std::vector<int> original_pair_idx;
-    std::vector<std::array<int,3>> obs_tris;
-    std::vector<std::array<int,3>> src_tris;
+    std::vector<std::array<size_t,3>> obs_tris;
+    std::vector<std::array<size_t,3>> src_tris;
     std::vector<std::array<std::array<double,2>,3>> obs_basis;
     std::vector<std::array<std::array<double,2>,3>> src_basis;
 };
 
 struct EdgeAdjacentLookupTris {
     NPArray<double> pts;
+    std::vector<Tensor3> obs_tris;
+    std::vector<int> obs_clicks;
+    std::vector<int> src_clicks;
     std::vector<std::array<std::array<double,2>,3>> obs_basis;
     std::vector<std::array<std::array<double,2>,3>> src_basis;
+
+    EdgeAdjacentLookupTris(size_t n_tris):
+        pts(make_array<double>({n_tris, 2})),
+        obs_tris(n_tris),
+        obs_clicks(n_tris),
+        src_clicks(n_tris),
+        obs_basis(n_tris),
+        src_basis(n_tris)
+    {}
 };
 
-py::tuple adjacent_lookup_pts(NPArray<double> obs_tris, NPArray<double> src_tris,
-    double pr, bool flip_symmetry) 
+int edge_adj_orient(int touching_vert0, int touching_vert1) {
+    auto tv0 = touching_vert0;
+    auto tv1 = touching_vert1;
+    if (touching_vert1 < touching_vert0) {
+        tv0 = touching_vert1;
+        tv1 = touching_vert0;
+    }
+    if (tv0 == 0) {
+        if (tv1 == 2) {
+            return 2;
+        }
+        return 0;
+    }
+    return 1;
+}
+
+py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
+    NPArray<long> ea_tri_indices, double pr, bool flip_symmetry) 
 {
+    auto n_tris = ea_tri_indices.request().shape[0];
+
     VertexAdjacentSubTris va; 
-    EdgeAdjacentLookupTris ea;
+    EdgeAdjacentLookupTris ea(n_tris);
 
+    auto ea_pts_ptr = as_ptr<double>(ea.pts);
 
-    auto obs_tris_buf = obs_tris.request();
-    auto n_tris = obs_tris_buf.shape[0];
-
-    ea.pts = make_array<double>({n_tris, 2});
-    auto ea_pts_ptr = reinterpret_cast<double*>(ea.pts.request().ptr);
-
-    auto* obs_tris_ptr = reinterpret_cast<double*>(obs_tris.request().ptr);
-    auto* src_tris_ptr = reinterpret_cast<double*>(src_tris.request().ptr);
+    auto* pts_ptr = as_ptr<double>(pts);
+    auto* tris_ptr = as_ptr<long>(tris);
+    auto* ea_tri_indices_ptr = as_ptr<long>(ea_tri_indices);
     
-    for (int i = 0; i < static_cast<int>(n_tris); i++) {
+    for (size_t i = 0; i < n_tris; i++) {
+        auto tri_idx1 = ea_tri_indices_ptr[i * 2];
+        auto tri_idx2 = ea_tri_indices_ptr[i * 2 + 1];
+        std::pair<int,int> pair1 = {-1,-1};
+        std::pair<int,int> pair2 = {-1,-1};
+        for (int d1 = 0; d1 < 3; d1++) {
+            for (int d2 = 0; d2 < 3; d2++) {
+                if (tris_ptr[tri_idx1 * 3 + d1] != tris_ptr[tri_idx2 * 3 + d2]) {
+                    continue;
+                }
+                if (pair1.first == -1) {
+                    pair1 = {d1, d2};
+                } else {
+                    pair2 = {d1, d2};
+                }
+            }
+        }
+        ea.obs_clicks[i] = edge_adj_orient(pair1.first, pair2.first);
+        ea.src_clicks[i] = edge_adj_orient(pair1.second, pair2.second);
+        auto obs_rot = rotate_tri(ea.obs_clicks[i]);
+        auto src_rot = rotate_tri(ea.src_clicks[i]);
+
         Tensor3 obs_tri;
         Tensor3 src_tri;
         for (int d1 = 0; d1 < 3; d1++) {
             for (int d2 = 0; d2 < 3; d2++) {
-                obs_tri[d1][d2] = obs_tris_ptr[i * 9 + d1 * 3 + d2];
-                src_tri[d1][d2] = src_tris_ptr[i * 9 + d1 * 3 + d2];
+                auto obs_v_idx = obs_rot[d1];
+                auto src_v_idx = src_rot[d1];
+                obs_tri[d1][d2] = pts_ptr[tris_ptr[tri_idx1 * 3 + obs_v_idx] * 3 + d2];
+                src_tri[d1][d2] = pts_ptr[tris_ptr[tri_idx2 * 3 + src_v_idx] * 3 + d2];
             }
         }
+        ea.obs_tris[i] = obs_tri;
 
         auto sep_res = separate_tris(obs_tri, src_tri);
 
-        ea.obs_basis.push_back(sep_res.obs_basis_tri[0]);
-        ea.src_basis.push_back(sep_res.src_basis_tri[0]);
+        ea.obs_basis[i] = sep_res.obs_basis_tri[0];
+        ea.src_basis[i] = sep_res.src_basis_tri[0];
 
         for (size_t j = 0; j < sep_res.pts.size(); j++) {
             va.pts.push_back(sep_res.pts[j]);
@@ -781,13 +842,29 @@ std::array<double,81> sub_basis(const std::array<double,81>& I,
     return out;
 }
 
+// TODO: Duplicated with derotate_adj_mat in fast_assembly.cpp, refactor, fix.
+void derotate(int obs_clicks, int src_clicks, double* out_start, double* in_start) {
+    auto obs_derot = rotate_tri(-obs_clicks);
+    auto src_derot = rotate_tri(-src_clicks);
+    for (int b1 = 0; b1 < 3; b1++) {
+        for (int b2 = 0; b2 < 3; b2++) {
+            for (int d1 = 0; d1 < 3; d1++) {
+                for (int d2 = 0; d2 < 3; d2++) {
+                    auto out_idx = b1 * 27 + d1 * 9 + b2 * 3 + d2;
+                    auto in_idx = obs_derot[b1] * 27 + d1 * 9 + src_derot[b2] * 3 + d2;
+                    out_start[out_idx] += in_start[in_idx];
+                }
+            }
+        }
+    }
+}
+
 void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
-    const VertexAdjacentSubTris& va) 
+    const VertexAdjacentSubTris& va, const EdgeAdjacentLookupTris& ea) 
 {
     auto n_integrals = Iv.request().shape[0];    
-    auto Iv_ptr = reinterpret_cast<double*>(Iv.request().ptr);
-    auto out_ptr = reinterpret_cast<double*>(out.request().ptr);
-#pragma omp parallel for
+    auto Iv_ptr = as_ptr<double>(Iv);
+    auto out_ptr = as_ptr<double>(out);
     for (size_t i = 0; i < n_integrals; i++) {
         std::array<double,81> this_integral;
         for (int j = 0; j < 81; j++) {
@@ -796,35 +873,33 @@ void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
         auto res = sub_basis(this_integral, va.obs_basis[i], va.src_basis[i]);
 
         int out_idx = va.original_pair_idx[i];
-        for (int j = 0; j < 81; j++) {
-#pragma omp atomic
-            out_ptr[out_idx * 81 + j] += res[j];
-        }
+        derotate(ea.obs_clicks[out_idx], ea.src_clicks[out_idx], &out_ptr[out_idx * 81], res.data());
+        // for (int j = 0; j < 81; j++) {
+        //     out_ptr[out_idx * 81 + j] += res[j];
+        // }
     }
 }
 
 NPArray<double> adjacent_lookup_from_standard(
-    NPArray<double> obs_tris, NPArray<double> interp_vals, NPArray<double> log_coeffs,
+    NPArray<double> interp_vals, NPArray<double> log_coeffs,
     EdgeAdjacentLookupTris ea, std::string kernel, double sm)
 {
-    auto n_tris = obs_tris.request().shape[0];
+    auto n_tris = ea.obs_tris.size();
     auto out = make_array<double>({n_tris, 81});
     auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);
 
     auto* interp_vals_ptr = reinterpret_cast<double*>(interp_vals.request().ptr);
     auto* log_coeffs_ptr = reinterpret_cast<double*>(log_coeffs.request().ptr);
-    auto* obs_tris_ptr = reinterpret_cast<double*>(obs_tris.request().ptr);
 
     auto kernel_props = get_kernel_props(kernel);
 
 #pragma omp parallel for
     for (size_t i = 0; i < n_tris; i++) {
-        Tensor3 tri;
-        for (int d1 = 0; d1 < 3; d1++) {
-            for (int d2 = 0; d2 < 3; d2++) {
-                tri[d1][d2] = obs_tris_ptr[i * 9 + d1 * 3 + d2];
-            }
+        for (size_t j = 0; j < 81; j++) {
+            out_ptr[i * 81 + j] = 0.0;
         }
+
+        Tensor3 tri = ea.obs_tris[i];
         auto standardized_res = standardize(tri, ${table_min_internal_angle}, false);
 
         auto log_standard_scale = log(sqrt(length(tri_normal(standardized_res.tri))));
@@ -843,9 +918,7 @@ NPArray<double> adjacent_lookup_from_standard(
 
         auto chunk = sub_basis(transformed, ea.obs_basis[i], ea.src_basis[i]);
 
-        for (int j = 0; j < 81; j++) {
-            out_ptr[i * 81 + j] = chunk[j];
-        }
+        derotate(ea.obs_clicks[i], ea.src_clicks[i], &out_ptr[i * 81], chunk.data());
     }
     return out;
 }
@@ -895,6 +968,8 @@ PYBIND11_PLUGIN(fast_lookup) {
 
     py::class_<EdgeAdjacentLookupTris>(m, "EdgeAdjacentLookupTris")
         .def_readonly("pts", &EdgeAdjacentLookupTris::pts)
+        .def_readonly("obs_clicks", &EdgeAdjacentLookupTris::obs_clicks)
+        .def_readonly("src_clicks", &EdgeAdjacentLookupTris::src_clicks)
         .def_readonly("obs_basis", &EdgeAdjacentLookupTris::obs_basis)
         .def_readonly("src_basis", &EdgeAdjacentLookupTris::src_basis);
 

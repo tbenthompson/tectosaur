@@ -10,6 +10,10 @@ void lookup_interpolation${dims}(__global Real* result,
     __global Real* pts)
 {
     const int i = get_global_id(0);
+    Real this_pt[${dims}];
+    for (int d = 0; d < ${dims}; d++) {
+        this_pt[d] = pts[i * ${dims} + d];
+    }
 
     for (int out_d = 0; out_d < 81; out_d++) {
         Real denom = 0;
@@ -18,7 +22,7 @@ void lookup_interpolation${dims}(__global Real* result,
         for (int j = 0; j < n_interp_pts; j++) {
             Real kern = 1.0;
             for (int d = 0; d < ${dims}; d++) {
-                Real dist = pts[i * ${dims} + d] - interp_pts[j * ${dims} + d];
+                Real dist = this_pt[d] - interp_pts[j * ${dims} + d];
                 if (dist == 0) {
                     dist = 1e-16;
                 }

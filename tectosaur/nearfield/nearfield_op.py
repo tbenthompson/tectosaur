@@ -80,9 +80,10 @@ def pairs_sparse_mat(obs_idxs, src_idxs, integrals):
 def co_sparse_mat(co_indices, co_mat, correction):
     return pairs_sparse_mat(co_indices, co_indices, co_mat - correction)
 
-def adj_sparse_mat(adj_mat, tri_idxs, obs_clicks, src_clicks, correction_mat):
+def adj_sparse_mat(adj_mat, tri_idxs, obs_clicks, src_clicks, correction_mat, derotate = True):
     adj_mat = adj_mat.astype(np.float32)
-    fast_assembly.derotate_adj_mat(adj_mat, obs_clicks, src_clicks)
+    if derotate:
+        fast_assembly.derotate_adj_mat(adj_mat, obs_clicks, src_clicks)
     return pairs_sparse_mat(tri_idxs[:,0],tri_idxs[:,1], adj_mat - correction_mat)
 
 def near_sparse_mat(near_mat, near_pairs, near_correction):
@@ -91,7 +92,7 @@ def near_sparse_mat(near_mat, near_pairs, near_correction):
 def build_nearfield(co_data, ea_data, va_data, near_data, shape):
     t = Timer(tabs = 2)
     co_vals,co_rows,co_cols = co_sparse_mat(*co_data)
-    ea_vals,ea_rows,ea_cols = adj_sparse_mat(*ea_data)
+    ea_vals,ea_rows,ea_cols = adj_sparse_mat(*ea_data, False)
     va_vals,va_rows,va_cols = adj_sparse_mat(*va_data)
     near_vals,near_rows,near_cols = near_sparse_mat(*near_data)
     t.report("build pairs")
@@ -111,6 +112,7 @@ def build_nearfield(co_data, ea_data, va_data, near_data, shape):
 
 
 class NearfieldIntegralOp:
+    @profile
     def __init__(self, nq_vert_adjacent, nq_far, nq_near,
             near_threshold, kernel, params, pts, tris):
 
@@ -134,17 +136,10 @@ class NearfieldIntegralOp:
         nearfield_pairs, va, ea = find_near_adj.split_adjacent_close(close_or_touch_pairs, tris)
         timer.report("Find nearfield/adjacency")
 
-        ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_obs_tris, ea_src_tris =\
-            find_near_adj.edge_adj_prep(tris, ea)
-        timer.report("Edge adjacency prep")
-        ea_mat_rot = adjacent_table(
-            nq_vert_adjacent, kernel, params, pts, ea_obs_tris, ea_src_tris
-        )
+        ea_mat_rot = adjacent_table(nq_vert_adjacent, kernel, params, pts, tris, ea)
         timer.report("Edge adjacent")
         ea_mat_correction = pairs_quad(
-            kernel, params, pts,
-            tris[ea_tri_indices[:,0]], tris[ea_tri_indices[:,1]],
-            far_quad, False, False
+            kernel, params, pts, tris[ea[:,0]], tris[ea[:,1]], far_quad, False, False
         )
         timer.report("Edge adjacent correction")
 
@@ -178,7 +173,7 @@ class NearfieldIntegralOp:
 
         self.mat = build_nearfield(
             (co_indices, co_mat, co_mat_correction),
-            (ea_mat_rot, ea_tri_indices, ea_obs_clicks, ea_src_clicks, ea_mat_correction),
+            (ea_mat_rot, ea[:,:2], 0, 0, ea_mat_correction),
             (va_mat_rot, va_tri_indices, va_obs_clicks, va_src_clicks, va_mat_correction),
             (nearfield_mat, nearfield_pairs, nearfield_correction),
             self.shape
@@ -186,8 +181,7 @@ class NearfieldIntegralOp:
         timer.report("Assemble matrix")
         self.mat_no_correction = build_nearfield(
             (co_indices, co_mat, 0 * co_mat_correction),
-            (ea_mat_rot, ea_tri_indices, ea_obs_clicks,
-                ea_src_clicks, 0 * ea_mat_correction),
+            (ea_mat_rot, ea[:,:2], 0, 0, 0 * ea_mat_correction),
             (va_mat_rot, va_tri_indices, va_obs_clicks,
                 va_src_clicks, 0 * va_mat_correction),
             (nearfield_mat, nearfield_pairs, 0 * nearfield_correction),
@@ -197,3 +191,6 @@ class NearfieldIntegralOp:
 
     def dot(self, v):
         return self.mat.dot(v)
+
+    def nearfield_no_correction_dot(self, v):
+        return self.mat_no_correction.dot(v)
