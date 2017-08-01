@@ -61,6 +61,7 @@ class DenseIntegralOp(DenseOp):
         self.gpu_mat = None
 
     def dot(self, v):
-        if self.gpu_mat is None:
-            self.gpu_mat = gpu.to_gpu(self.mat, np.float32)
-        return np.squeeze(viennacl.prod(self.gpu_mat, v, np.float32))
+        # if self.gpu_mat is None:
+        #     self.gpu_mat = gpu.to_gpu(self.mat, np.float32)
+        return self.mat.dot(v)
+        # return np.squeeze(viennacl.prod(self.gpu_mat, v, np.float32).get())

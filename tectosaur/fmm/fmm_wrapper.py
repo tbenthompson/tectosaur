@@ -101,7 +101,9 @@ def data_to_gpu(fmm_mat):
         for b in ['s', 'p']:
             name = a + '2' + b
             gd[name] = getattr(gd['module'], name + '_' + K_name)
-    gd['c2e'] = gd['module'].c2e_kernel
+    #TODO: Revert to one shared kernel.
+    gd['d2e'] = gd['module'].d2e_kernel
+    gd['u2e'] = gd['module'].c2e_kernel
 
     gd['obs_pts'] = gpu.to_gpu(fmm_mat.obs_tree.pts, float_type)
     gd['obs_normals'] = gpu.to_gpu(fmm_mat.obs_normals, float_type)
@@ -252,43 +254,35 @@ def gpu_l2p(fmm_mat, gd, d2e_ev):
         ('pts', 'obs'), ('surf', 'obs', fmm_mat.cfg.outer_r), gd, []
     )
 
-def gpu_d2e(fmm_mat, gd, level, evs):
-    c2e = gd['c2e']
-    n_d2e = gd['d2e_node_n_idx'][level].shape[0]
-    n_d2e_rows = gd['n_surf_dofs']
-    if n_d2e > 0:
+def gpu_c2e(fmm_mat, gd, level, evs, d_or_u, out_arr, in_arr):
+    c2e = gd[d_or_u + '2e'] #TODO: revert to one shared kernel
+    n_c2e = gd[d_or_u + '2e_node_n_idx'][level].shape[0]
+    n_c2e_rows = gd['n_surf_dofs']
+    depth_arg = gd[d_or_u + '2e_node_depth'].data
+    if d_or_u == 'd':
+        depth_arg = np.int32(level)
+    import ipdb
+    ipdb.set_trace()
+    if n_c2e > 0:
         return c2e(
             gpu.gpu_queue,
-            (n_d2e * n_workers_per_block,),
+            (n_c2e * n_workers_per_block,),
             (n_workers_per_block,),
-            gd['locals'].data, gd['l_check'].data,
-            np.int32(n_d2e), np.int32(n_d2e_rows),
-            gd['d2e_node_n_idx'][level].data,
-            gd['d2e_node_depth'].data,
-            gd['d2e_ops'].data,
+            out_arr.data, in_arr.data,
+            np.int32(n_c2e), np.int32(n_c2e_rows),
+            gd[d_or_u + '2e_node_n_idx'][level].data,
+            depth_arg,
+            gd[d_or_u + '2e_ops'].data,
             wait_for = evs
         )
     else:
         return None
 
-def gpu_u2e(fmm_mat, gd, level, m2m_ev):
-    c2e = gd['c2e']
-    n_u2e = gd['u2e_node_n_idx'][level].shape[0]
-    n_u2e_rows = gd['n_surf_dofs']
-    if n_u2e > 0:
-        return c2e(
-            gpu.gpu_queue,
-            (n_u2e * n_workers_per_block,),
-            (n_workers_per_block,),
-            gd['multipoles'].data, gd['m_check'].data,
-            np.int32(n_u2e), np.int32(n_u2e_rows),
-            gd['u2e_node_n_idx'][level].data,
-            gd['u2e_node_depth'].data,
-            gd['u2e_ops'].data,
-            wait_for = [m2m_ev]
-        )
-    else:
-        return None
+def gpu_d2e(fmm_mat, gd, level, evs):
+    return gpu_c2e(fmm_mat, gd, level, evs, 'd', gd['locals'], gd['l_check'])
+
+def gpu_u2e(fmm_mat, gd, level, evs):
+    return gpu_c2e(fmm_mat, gd, level, evs, 'u', gd['multipoles'], gd['m_check'])
 
 def print_timing(p2m_ev, m2m_evs, u2e_evs,
         p2l_ev, m2l_ev, l2l_evs, d2e_evs,
@@ -337,11 +331,11 @@ def eval_ocl(fmm_mat, input_vals, gpu_data = None, should_print_timing = True):
 
     m2m_evs = []
     u2e_evs = []
-    u2e_evs.append(gpu_u2e(fmm_mat, gpu_data, 0, p2m_ev))
+    u2e_evs.append(gpu_u2e(fmm_mat, gpu_data, 0, [p2m_ev]))
 
     for i in range(1, len(fmm_mat.m2m)):
         m2m_evs.append(gpu_m2m(fmm_mat, gpu_data, i, [u2e_evs[-1]]))
-        u2e_evs.append(gpu_u2e(fmm_mat, gpu_data, i, m2m_evs[-1]))
+        u2e_evs.append(gpu_u2e(fmm_mat, gpu_data, i, [m2m_evs[-1]]))
     t.report('m2m')
 
     m2l_ev = gpu_m2l(fmm_mat, gpu_data, [u2e_evs[-1]])

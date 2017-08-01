@@ -243,3 +243,23 @@ void c2e_kernel(__global Real* out, __global Real* in,
         out[n_idx * n_rows + i] += sum;
     }
 }
+
+// This is essentially sparse matrix-matrix multiply. 
+__kernel
+void d2e_kernel(__global Real* out, __global Real* in,
+        int n_blocks, int n_rows, __global int* node_idx, int node_depth,
+        __global Real* ops)
+{
+    ${get_block_idx()}
+
+    int n_idx = node_idx[block_idx];
+    __global Real* op_start = &ops[node_depth * n_rows * n_rows];
+
+    for (int i = worker_idx; i < n_rows; i += ${n_workers_per_block}) {
+        Real sum = 0.0;
+        for (int j = 0; j < n_rows; j++) {
+            sum += op_start[i * n_rows + j] * in[n_idx * n_rows + j];
+        }
+        out[n_idx * n_rows + i] += sum;
+    }
+}
