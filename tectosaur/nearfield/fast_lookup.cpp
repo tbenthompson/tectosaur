@@ -791,54 +791,46 @@ py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
     return py::make_tuple(va, ea);
 }
 
-<%def name="basis_fnc(idx)">
-% if idx == 0:
-    1 - x - y
-% elif idx == 1:
-    x
-% elif idx == 2:
-    y
-% endif
-</%def>
+double basis_fnc(double x, double y, int idx) {
+    if (idx == 0) {
+        return 1 - x - y;
+    } else if (idx == 1) {
+        return x;
+    } else {
+        return y;
+    }
+}
 
 std::array<double,81> sub_basis(const std::array<double,81>& I,
         const std::array<std::array<double,2>,3>& obs_basis_tri,
         const std::array<std::array<double,2>,3>& src_basis_tri)
 {
     std::array<double,81> out{};
-    % for ob1 in range(3):
-    % for sb1 in range(3):
-    % for ob2 in range(3):
-    % for sb2 in range(3):
+    for (int ob1 = 0; ob1 < 3; ob1++) {
+    for (int sb1 = 0; sb1 < 3; sb1++) {
+    for (int ob2 = 0; ob2 < 3; ob2++) {
+    for (int sb2 = 0; sb2 < 3; sb2++) {
+        auto x = obs_basis_tri[ob2][0];
+        auto y = obs_basis_tri[ob2][1];
+        auto obv = basis_fnc(x, y, ob1);
 
-    {
-        auto x = obs_basis_tri[${ob2}][0];
-        auto y = obs_basis_tri[${ob2}][1];
-        auto obv = ${basis_fnc(ob1)};
-
-        x = src_basis_tri[${sb2}][0];
-        y = src_basis_tri[${sb2}][1];
-        auto sbv = ${basis_fnc(sb1)};
+        x = src_basis_tri[sb2][0];
+        y = src_basis_tri[sb2][1];
+        auto sbv = basis_fnc(x, y, sb1);
 
         (void)x;(void)y;
 
-        % for d1 in range(3):
-        % for d2 in range(3):
-
-            <%
-            out_idx = ob1 * 27 + d1 * 9 + sb1 * 3 + d2
-            in_idx = ob2 * 27 + d1 * 9 + sb2 * 3 + d2
-            %>
-            out[${out_idx}] += I[${in_idx}] * obv * sbv;
-
-        % endfor
-        % endfor
+        for (int d1 = 0; d1 < 3; d1++) {
+        for (int d2 = 0; d2 < 3; d2++) {
+            auto out_idx = ob1 * 27 + d1 * 9 + sb1 * 3 + d2;
+            auto in_idx = ob2 * 27 + d1 * 9 + sb2 * 3 + d2;
+            out[out_idx] += I[in_idx] * obv * sbv;
+        }
+        }
     }
-
-    % endfor
-    % endfor
-    % endfor
-    % endfor
+    }
+    }
+    }
     return out;
 }
 
