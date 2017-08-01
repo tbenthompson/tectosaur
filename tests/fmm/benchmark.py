@@ -8,10 +8,10 @@ from tectosaur.farfield import farfield_pts_direct
 
 setup_logger(__name__)
 
-# K = 'laplaceS3'
-# tensor_dim = 1
-# mac = 2.0
-# order = 100
+K = 'laplaceS3'
+tensor_dim = 1
+mac = 2.0
+order = 100
 
 K = 'elasticT3'
 tensor_dim = 3
@@ -63,14 +63,14 @@ def fmm_runner(pts, ns, input):
 
     pts_per_cell = 300
 
-    tree = fmm.three.Octree(pts, ns, pts_per_cell)
+    tree = fmm.three.Octree(pts, pts_per_cell)
     t.report('build tree')
 
     input_tree = input.reshape((-1,tensor_dim))[np.array(tree.orig_idxs),:].reshape(-1)
     t.report('map input to tree space')
 
     fmm_mat = fmm.three.fmmmmmmm(
-        tree, tree, fmm.three.FMMConfig(1.1, mac, order, K, params)
+        tree, ns, tree, ns, fmm.three.FMMConfig(1.1, mac, order, K, params)
     )
     t.report('setup fmm')
     fmm.report_interactions(fmm_mat)
@@ -79,6 +79,8 @@ def fmm_runner(pts, ns, input):
     gpu_data = fmm.data_to_gpu(fmm_mat)
     t.report('data to gpu')
 
+    output = fmm.eval_ocl(fmm_mat, input_tree, gpu_data)
+    t.report('eval fmm')
     output = fmm.eval_ocl(fmm_mat, input_tree, gpu_data)
     t.report('eval fmm')
 
@@ -100,7 +102,7 @@ if __name__ == '__main__':
     # data = random_data(N)
     # N = 10000000
     # data = ellipsoid_pts(N)
-    N = int(3e4 ** (1.0 / 3.0))
+    N = int(1e6 ** (1.0 / 3.0))
     data = grid_data(N)
     A = fmm_runner(*data).flatten()
     B = direct_runner(*data)
