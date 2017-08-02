@@ -231,7 +231,8 @@ void c2e_kernel(__global Real* out, __global Real* in,
         int n_blocks, int n_rows, __global int* node_idx,
         int node_depth, __global Real* ops)
 {
-    __global Real* op_start = &ops[node_depth * n_rows * n_rows];
+    __global Real* op_start = &ops[0];
+    Real scaling = pow(2.0, node_depth * ${-K.scale_type - 4});
 
     const int local_row = get_local_id(0);
     const int local_col = get_local_id(1);
@@ -276,6 +277,6 @@ void c2e_kernel(__global Real* out, __global Real* in,
     }
 
     if (global_n_idx != -1 && global_col < n_rows) {
-        out[global_n_idx * n_rows + global_col] += sum;
+        out[global_n_idx * n_rows + global_col] += scaling * sum;
     }
 }

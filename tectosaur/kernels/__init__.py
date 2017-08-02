@@ -220,7 +220,7 @@ laplace2S = Kernel(
 )
 
 laplace2D = Kernel(
-    'laplaceD2', 2, 1, False, True, 0, 0, False, '',
+    'laplaceD2', 2, 1, False, True, -3, 0, False, '',
     None,
     '''
     Real r = sqrt(r2);
@@ -230,7 +230,7 @@ laplace2D = Kernel(
 )
 
 laplace2H = Kernel(
-    'laplaceH2', 2, 1, True, True, 0, 0, False, '',
+    'laplaceH2', 2, 1, True, True, -2, 0, False, '',
     None,
     '''
     Real rn = nsrcx * Dx + nsrcy * Dy;
@@ -241,7 +241,7 @@ laplace2H = Kernel(
 )
 
 laplace3S = Kernel(
-    'laplaceS3', 3, 1, False, False, 0, 0, False,
+    'laplaceS3', 3, 1, False, False, -3, 0, False,
     '''
     Real C = 1.0 / (4.0 * M_PI);
     ''',
@@ -252,7 +252,7 @@ laplace3S = Kernel(
 )
 
 laplace3D = Kernel(
-    'laplaceD3', 3, 1, False, True, 0, 0, False, '',
+    'laplaceD3', 3, 1, False, True, -2, 0, False, '',
     None,
     '''
     Real r = sqrt(r2);
@@ -262,7 +262,7 @@ laplace3D = Kernel(
 )
 
 laplace3H = Kernel(
-    'laplaceH3', 3, 1, True, True, 0, 0, False, '',
+    'laplaceH3', 3, 1, True, True, -1, 0, False, '',
     None,
     '''
     Real r = sqrt(r2);
@@ -273,8 +273,8 @@ laplace3H = Kernel(
     '''
 )
 
-one2 = Kernel('one2', 2, 1, False, False, 0, 0, False, '', None, 'Real K00 = 1.0;')
-one3 = Kernel('one3', 3, 1, False, False, 0, 0, False, '', None, 'Real K00 = 1.0;')
+one2 = Kernel('one2', 2, 1, False, False, -4, 0, False, '', None, 'Real K00 = 1.0;')
+one3 = Kernel('one3', 3, 1, False, False, -4, 0, False, '', None, 'Real K00 = 1.0;')
 
 def make_kernel_dict(ks):
     return {K.name: K for K in ks}
