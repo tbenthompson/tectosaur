@@ -65,7 +65,7 @@ def test_okada():
     fault_L = 1.0
     top_depth = -0.5
     load_soln = False
-    n_surf = 100
+    n_surf = 200
     n_fault = n_surf // 5
 
     timer = Timer()
@@ -89,7 +89,7 @@ def test_okada():
 
 
         T_op = SparseIntegralOp(
-            6, 2, 6, 2.0,
+            6, 2, 5, 2.0,
             'elasticT3', k_params, all_mesh[0], all_mesh[1],
             farfield_op_type = FMMFarfield
         )

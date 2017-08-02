@@ -56,14 +56,15 @@ void traverse(FMMMat<dim>& mat, const OctreeNode<dim>& obs_n, const OctreeNode<d
 
 template <size_t dim>
 void up_collect(FMMMat<dim>& mat, const OctreeNode<dim>& src_n) {
-    mat.u2e[src_n.height].insert(src_n, src_n);
+    auto level = mat.src_tree.max_height - src_n.depth;
+    mat.u2e[level].insert(src_n, src_n);
     if (src_n.is_leaf) {
         mat.p2m.insert(src_n, src_n);
     } else {
         for (size_t i = 0; i < OctreeNode<dim>::split; i++) {
             auto child_n = mat.src_tree.nodes[src_n.children[i]];
             up_collect(mat, child_n);
-            mat.m2m[src_n.height].insert(src_n, child_n);
+            mat.m2m[level].insert(src_n, child_n);
         }
     }
 }

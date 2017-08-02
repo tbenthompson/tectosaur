@@ -82,7 +82,7 @@ class FMMFarfield:
         self.fmm_module = fmm
         order = 100
         mac = 3.0
-        pts_per_cell = 200
+        pts_per_cell = 300
 
         # TODO: different obs and src pts
         self.tree = fmm.three.Octree(obs_pts, pts_per_cell)

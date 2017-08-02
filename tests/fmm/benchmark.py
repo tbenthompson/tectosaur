@@ -16,7 +16,7 @@ order = 100
 K = 'elasticT3'
 tensor_dim = 3
 mac = 3.0
-order = 300
+order = 100
 
 params = [1.0, 0.25]
 
@@ -102,8 +102,8 @@ if __name__ == '__main__':
     # data = random_data(N)
     # N = 10000000
     # data = ellipsoid_pts(N)
-    N = int(1e5 ** (1.0 / 3.0))
+    N = int(1e6 ** (1.0 / 3.0))
     data = grid_data(N)
     A = fmm_runner(*data).flatten()
-    B = direct_runner(*data)
-    check(A, B)
+    # B = direct_runner(*data)
+    # check(A, B)
