@@ -2,7 +2,7 @@
 
 template <size_t dim>
 std::array<int,OctreeNode<dim>::split+1> octree_partition(
-        const Cube<dim>& bounds, PtWithIdx<dim>* start, PtWithIdx<dim>* end) 
+        const Ball<dim>& bounds, PtWithIdx<dim>* start, PtWithIdx<dim>* end) 
 {
     std::array<std::vector<PtWithIdx<dim>>,OctreeNode<dim>::split> chunks{};
     for (auto* entry = start; entry < end; entry++) {
@@ -24,7 +24,7 @@ std::array<int,OctreeNode<dim>::split+1> octree_partition(
 }
 
 template <size_t dim>
-Cube<dim> bounding_box(PtWithIdx<dim>* pts, size_t n_pts) {
+Ball<dim> bounding_ball(PtWithIdx<dim>* pts, size_t n_pts) {
     std::array<double,dim> center_of_mass{};
     for (size_t i = 0; i < n_pts; i++) {
         for (size_t d = 0; d < dim; d++) {
@@ -35,14 +35,14 @@ Cube<dim> bounding_box(PtWithIdx<dim>* pts, size_t n_pts) {
         center_of_mass[d] /= n_pts;
     }
 
-    double max_width = 0.0;
+    double max_r = 0.0;
     for (size_t i = 0; i < n_pts; i++) {
-        for (size_t d = 0; d < dim; d++) {
-            max_width = std::max(max_width, fabs(pts[i].pt[d] - center_of_mass[d]));
+        for (size_t d = 0; d < 3; d++) {
+            max_r = std::max(max_r, hypot(sub(pts[i].pt, center_of_mass)));
         }
     }
 
-    return {center_of_mass, max_width};
+    return {center_of_mass, max_r};
 }
 
 
@@ -54,7 +54,9 @@ Octree<dim>::Octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_c
 {
     auto pts_idxs = combine_pts_idxs(in_pts, n_pts);
 
-    auto bounds = bounding_box(pts_idxs.data(), n_pts);
+    auto bounds = bounding_ball(pts_idxs.data(), n_pts);
+    bounds.R *= std::sqrt(static_cast<double>(dim));
+
     add_node(0, n_pts, n_per_cell, 0, bounds, pts_idxs);
 
     max_height = nodes[0].height;
@@ -67,7 +69,7 @@ Octree<dim>::Octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_c
 
 template <size_t dim>
 size_t Octree<dim>::add_node(size_t start, size_t end, 
-    size_t n_per_cell, int depth, Cube<dim> bounds,
+    size_t n_per_cell, int depth, Ball<dim> bounds,
     std::vector<PtWithIdx<dim>>& temp_pts)
 {
     bool is_leaf = end - start <= n_per_cell; 
@@ -77,7 +79,7 @@ size_t Octree<dim>::add_node(size_t start, size_t end,
         auto splits = octree_partition(bounds, temp_pts.data() + start, temp_pts.data() + end);
         int max_child_height = 0;
         for (size_t octant = 0; octant < OctreeNode<dim>::split; octant++) {
-            auto child_bounds = get_subcell(bounds, make_child_idx<dim>(octant));
+            auto child_bounds = get_subbox(bounds, make_child_idx<dim>(octant));
             auto child_start = start + splits[octant];
             auto child_end = start + splits[octant + 1];
             // TODO: Should we use adaptive bounds?
@@ -95,8 +97,8 @@ size_t Octree<dim>::add_node(size_t start, size_t end,
     return n_idx;
 }
 
-template Cube<2> bounding_box(PtWithIdx<2>* pts, size_t n_pts);
-template Cube<3> bounding_box(PtWithIdx<3>* pts, size_t n_pts);
+template Ball<2> bounding_ball(PtWithIdx<2>* pts, size_t n_pts);
+template Ball<3> bounding_ball(PtWithIdx<3>* pts, size_t n_pts);
 
 template struct Octree<2>;
 template struct Octree<3>;

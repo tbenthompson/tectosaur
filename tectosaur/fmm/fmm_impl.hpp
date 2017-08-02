@@ -26,7 +26,7 @@ struct FMMConfig {
 
 template <size_t dim>
 std::vector<double> c2e_solve(std::vector<std::array<double,dim>> surf,
-    const Cube<dim>& bounds, double check_r, double equiv_r, const FMMConfig<dim>& cfg);
+    const Ball<dim>& bounds, double check_r, double equiv_r, const FMMConfig<dim>& cfg);
 
 struct MatrixFreeOp {
     std::vector<int> obs_n_start;
@@ -36,8 +36,8 @@ struct MatrixFreeOp {
     std::vector<int> src_n_end;
     std::vector<int> src_n_idx;
 
-    template <size_t dim>
-    void insert(const OctreeNode<dim>& obs_n, const OctreeNode<dim>& src_n) {
+    template <typename TreeT>
+    void insert(const TreeT& obs_n, const TreeT& src_n) {
         obs_n_start.push_back(obs_n.start);
         obs_n_end.push_back(obs_n.end);
         obs_n_idx.push_back(obs_n.idx);
@@ -47,15 +47,15 @@ struct MatrixFreeOp {
     }
 };
 
-template <size_t dim>
+template <typename TreeT>
 struct FMMMat {
-    Octree<dim> obs_tree;
-    std::vector<std::array<double,dim>> obs_normals;
-    Octree<dim> src_tree;
-    std::vector<std::array<double,dim>> src_normals;
+    TreeT obs_tree;
+    std::vector<std::array<double,TreeT::dim>> obs_normals;
+    TreeT src_tree;
+    std::vector<std::array<double,TreeT::dim>> src_normals;
 
-    FMMConfig<dim> cfg;
-    std::vector<std::array<double,dim>> surf;
+    FMMConfig<TreeT::dim> cfg;
+    std::vector<std::array<double,TreeT::dim>> surf;
 
     MatrixFreeOp p2m;
     std::vector<MatrixFreeOp> m2m;
@@ -72,9 +72,9 @@ struct FMMMat {
     std::vector<double> d2e_ops;
     std::vector<MatrixFreeOp> d2e;
 
-    FMMMat(Octree<dim> obs_tree, std::vector<std::array<double,dim>> obs_normals,
-           Octree<dim> src_tree, std::vector<std::array<double,dim>> src_normals,
-           FMMConfig<dim> cfg, std::vector<std::array<double,dim>> surf);
+    FMMMat(TreeT obs_tree, std::vector<std::array<double,TreeT::dim>> obs_normals,
+           TreeT src_tree, std::vector<std::array<double,TreeT::dim>> src_normals,
+           FMMConfig<TreeT::dim> cfg, std::vector<std::array<double,TreeT::dim>> surf);
 
     int tensor_dim() const { return cfg.tensor_dim(); }
 
@@ -93,9 +93,9 @@ struct FMMMat {
     std::vector<double> m2p_eval(double* multipoles);
 };
 
-template <size_t dim>
-FMMMat<dim> fmmmmmmm(const Octree<dim>& obs_tree,
-    const std::vector<std::array<double,dim>>& obs_normals,
-    const Octree<dim>& src_tree,
-    const std::vector<std::array<double,dim>>& src_normals,
-    const FMMConfig<dim>& cfg);
+template <typename TreeT>
+FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree,
+    const std::vector<std::array<double,TreeT::dim>>& obs_normals,
+    const TreeT& src_tree,
+    const std::vector<std::array<double,TreeT::dim>>& src_normals,
+    const FMMConfig<TreeT::dim>& cfg);

@@ -129,8 +129,8 @@ def data_to_gpu(fmm_mat):
         gd[name + '_n_center'] = gpu.to_gpu(
             np.array([n.bounds.center for n in tree]).flatten(), float_type
         )
-        gd[name + '_n_width'] = gpu.to_gpu(
-            np.array([n.bounds.width for n in tree]), float_type
+        gd[name + '_n_R'] = gpu.to_gpu(
+            np.array([n.bounds.R for n in tree]), float_type
         )
 
     n_src_levels = len(fmm_mat.m2m)
@@ -176,7 +176,7 @@ def get_data(op_name, name, type, gd):
     else:
         return [
             get_block_data(op_name, name + '_n_idx', gd),
-            gd[type[1] + '_n_center'], gd[type[1] + '_n_width'],
+            gd[type[1] + '_n_center'], gd[type[1] + '_n_R'],
             float_type(type[2]),
         ]
 

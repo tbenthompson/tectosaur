@@ -14,18 +14,87 @@ fmm_lib_cfg(cfg)
 
 namespace py = pybind11;
 
+template <typename TreeT>
+void wrap_fmm(py::module& m) {
+    constexpr static size_t dim = TreeT::dim;
+
+#define EVALFNC(FNCNAME)\
+        def(#FNCNAME"_eval", [] (FMMMat<TreeT>& m, NPArrayD out, NPArrayD in) {\
+            auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);\
+            auto* in_ptr = reinterpret_cast<double*>(in.request().ptr);\
+            m.FNCNAME##_matvec(out_ptr, in_ptr);\
+        })
+#define EVALFNCLEVEL(FNCNAME)\
+        def(#FNCNAME"_eval", [] (FMMMat<TreeT>& m, NPArrayD out, NPArrayD in, int level) {\
+            auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);\
+            auto* in_ptr = reinterpret_cast<double*>(in.request().ptr);\
+            m.FNCNAME##_matvec(out_ptr, in_ptr, level);\
+        })
+#define OP(NAME)\
+        def_readonly(#NAME, &FMMMat<TreeT>::NAME)
+
+    py::class_<FMMMat<TreeT>>(m, "FMMMat")
+        .def_readonly("obs_tree", &FMMMat<TreeT>::obs_tree)
+        .def_readonly("src_tree", &FMMMat<TreeT>::src_tree)
+        .def_property_readonly("obs_normals", [] (FMMMat<TreeT>& mat) {
+            return make_array<double>(
+                {mat.obs_normals.size(), dim},
+                reinterpret_cast<double*>(mat.obs_normals.data())
+            );
+        })
+        .def_property_readonly("src_normals", [] (FMMMat<TreeT>& mat) {
+            return make_array<double>(
+                {mat.src_normals.size(), dim},
+                reinterpret_cast<double*>(mat.src_normals.data())
+            );
+        })
+        .def_readonly("surf", &FMMMat<TreeT>::surf)
+        .def_readonly("cfg", &FMMMat<TreeT>::cfg)
+        .def_property_readonly("u2e_ops", [] (FMMMat<TreeT>& fmm) {
+            return make_array<double>(
+                {fmm.u2e_ops.size()}, reinterpret_cast<double*>(fmm.u2e_ops.data())
+            );
+        })
+        .def_property_readonly("d2e_ops", [] (FMMMat<TreeT>& fmm) {
+            return make_array<double>(
+                {fmm.d2e_ops.size()}, reinterpret_cast<double*>(fmm.d2e_ops.data())
+            );
+        })
+        .def_property_readonly("tensor_dim", &FMMMat<TreeT>::tensor_dim)
+        .OP(p2m).OP(m2m).OP(p2l).OP(m2l).OP(l2l).OP(p2p).OP(m2p).OP(l2p).OP(u2e).OP(d2e)
+        .EVALFNC(p2p).EVALFNC(p2m).EVALFNC(p2l).EVALFNC(m2l).EVALFNC(m2p).EVALFNC(l2p)
+        .EVALFNCLEVEL(m2m).EVALFNCLEVEL(u2e).EVALFNCLEVEL(l2l).EVALFNCLEVEL(d2e);
+
+#undef EXPOSEOP
+#undef EVALFNC
+#undef EVALFNCLEVEL
+
+    m.def("fmmmmmmm", 
+        [] (const Octree<dim>& obs_tree, NPArrayD obs_normals,
+            const Octree<dim>& src_tree, NPArrayD src_normals,
+            const FMMConfig<dim>& cfg) 
+        {
+            return fmmmmmmm(
+                obs_tree, get_vector<std::array<double,dim>>(obs_normals),
+                src_tree, get_vector<std::array<double,dim>>(src_normals),
+                cfg
+            );
+        });
+}
+
+
 template <size_t dim>
 void wrap_dim(py::module& m) {
     m.def("surrounding_surface", surrounding_surface<dim>);
     m.def("inscribe_surf", &inscribe_surf<dim>);
     m.def("c2e_solve", &c2e_solve<dim>);
 
-    m.def("in_box", &in_box<dim>);
+    m.def("in_ball", &in_ball<dim>);
 
-    py::class_<Cube<dim>>(m, "Cube")
+    py::class_<Ball<dim>>(m, "Ball")
         .def(py::init<std::array<double,dim>, double>())
-        .def_readonly("center", &Cube<dim>::center)
-        .def_readonly("width", &Cube<dim>::width);
+        .def_readonly("center", &Ball<dim>::center)
+        .def_readonly("R", &Ball<dim>::R);
 
 
     py::class_<OctreeNode<dim>>(m, "OctreeNode")
@@ -80,69 +149,6 @@ void wrap_dim(py::module& m) {
         .def_property_readonly("kernel_name", &FMMConfig<dim>::kernel_name)
         .def_property_readonly("tensor_dim", &FMMConfig<dim>::tensor_dim);
 
-#define EVALFNC(FNCNAME)\
-        def(#FNCNAME"_eval", [] (FMMMat<dim>& m, NPArrayD out, NPArrayD in) {\
-            auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);\
-            auto* in_ptr = reinterpret_cast<double*>(in.request().ptr);\
-            m.FNCNAME##_matvec(out_ptr, in_ptr);\
-        })
-#define EVALFNCLEVEL(FNCNAME)\
-        def(#FNCNAME"_eval", [] (FMMMat<dim>& m, NPArrayD out, NPArrayD in, int level) {\
-            auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);\
-            auto* in_ptr = reinterpret_cast<double*>(in.request().ptr);\
-            m.FNCNAME##_matvec(out_ptr, in_ptr, level);\
-        })
-#define OP(NAME)\
-        def_readonly(#NAME, &FMMMat<dim>::NAME)
-
-    py::class_<FMMMat<dim>>(m, "FMMMat")
-        .def_readonly("obs_tree", &FMMMat<dim>::obs_tree)
-        .def_readonly("src_tree", &FMMMat<dim>::src_tree)
-        .def_property_readonly("obs_normals", [] (FMMMat<dim>& mat) {
-            return make_array<double>(
-                {mat.obs_normals.size(), dim},
-                reinterpret_cast<double*>(mat.obs_normals.data())
-            );
-        })
-        .def_property_readonly("src_normals", [] (FMMMat<dim>& mat) {
-            return make_array<double>(
-                {mat.src_normals.size(), dim},
-                reinterpret_cast<double*>(mat.src_normals.data())
-            );
-        })
-        .def_readonly("surf", &FMMMat<dim>::surf)
-        .def_readonly("cfg", &FMMMat<dim>::cfg)
-        .def_property_readonly("u2e_ops", [] (FMMMat<dim>& fmm) {
-            return make_array<double>(
-                {fmm.u2e_ops.size()}, reinterpret_cast<double*>(fmm.u2e_ops.data())
-            );
-        })
-        .def_property_readonly("d2e_ops", [] (FMMMat<dim>& fmm) {
-            return make_array<double>(
-                {fmm.d2e_ops.size()}, reinterpret_cast<double*>(fmm.d2e_ops.data())
-            );
-        })
-        .def_property_readonly("tensor_dim", &FMMMat<dim>::tensor_dim)
-        .OP(p2m).OP(m2m).OP(p2l).OP(m2l).OP(l2l).OP(p2p).OP(m2p).OP(l2p).OP(u2e).OP(d2e)
-        .EVALFNC(p2p).EVALFNC(p2m).EVALFNC(p2l).EVALFNC(m2l).EVALFNC(m2p).EVALFNC(l2p)
-        .EVALFNCLEVEL(m2m).EVALFNCLEVEL(u2e).EVALFNCLEVEL(l2l).EVALFNCLEVEL(d2e);
-
-#undef EXPOSEOP
-#undef EVALFNC
-#undef EVALFNCLEVEL
-
-    m.def("fmmmmmmm", 
-        [] (const Octree<dim>& obs_tree, NPArrayD obs_normals,
-            const Octree<dim>& src_tree, NPArrayD src_normals,
-            const FMMConfig<dim>& cfg) 
-        {
-            return fmmmmmmm(
-                obs_tree, get_vector<std::array<double,dim>>(obs_normals),
-                src_tree, get_vector<std::array<double,dim>>(src_normals),
-                cfg
-            );
-        });
-
     <%
     direct_eval_data = [
         ("",["","n_obs_dofs * n_src_dofs",""]),
@@ -169,6 +175,8 @@ void wrap_dim(py::module& m) {
             return array_from_vector(out);
         });
     % endfor
+
+    wrap_fmm<Octree<dim>>(m);
 }
 
 PYBIND11_PLUGIN(fmm) {

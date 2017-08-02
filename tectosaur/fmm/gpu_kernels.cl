@@ -43,7 +43,7 @@ float atomic_fadd(volatile __global float *addr, float val)
     __global Real* ${name}_pts, __global Real* ${name}_ns
 % else:
     __global int* ${name}_n_idx, __global Real* ${name}_n_center,
-    __global Real* ${name}_n_width, Real ${name}_surf_r
+    __global Real* ${name}_n_R, Real ${name}_surf_r
 % endif
 </%def>
 
@@ -60,8 +60,7 @@ float atomic_fadd(volatile __global float *addr, float val)
     % endif
 % else:
     int ${name}_idx = ${name}_n_idx[block_idx];
-    Real ${name}_width_mult = ${name}_surf_r * sqrt((Real)${K.spatial_dim});
-    Real ${name}_surf_radius = ${name}_n_width[${name}_idx] * ${name}_width_mult;
+    Real ${name}_surf_radius = ${name}_n_R[${name}_idx] * ${name}_surf_r;
     % for d in range(K.spatial_dim):
         Real ${name}_center${dn(d)} = ${name}_n_center[${name}_idx * ${K.spatial_dim} + ${d}];
     % endfor
