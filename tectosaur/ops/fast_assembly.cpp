@@ -99,7 +99,6 @@ py::tuple make_bsr_matrix(size_t n_rows, size_t n_cols, size_t blockrows, size_t
     return py::make_tuple(data, indices, indptr);
 }
 
-
 PYBIND11_PLUGIN(fast_assembly) {
     pybind11::module m("fast_assembly", "");
     m.def("make_bsr_matrix", &make_bsr_matrix);

@@ -52,7 +52,7 @@ def make_meshes(fault_L, top_depth, n_surf, n_fault):
     t.report('make free surface')
     fault = make_fault(fault_L, top_depth, n_fault)
     t.report('make fault')
-    all_mesh = mesh_modify.concat(surface, fault)
+    all_mesh = mesh_modify.concat_two_no_remove_duplicates(surface, fault)
     t.report('concat meshes')
     surface_tris = all_mesh[1][:surface[1].shape[0]]
     fault_tris = all_mesh[1][surface[1].shape[0]:]

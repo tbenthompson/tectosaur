@@ -844,6 +844,7 @@ void derotate(int obs_clicks, int src_clicks, double* out_start, double* in_star
                 for (int d2 = 0; d2 < 3; d2++) {
                     auto out_idx = b1 * 27 + d1 * 9 + b2 * 3 + d2;
                     auto in_idx = obs_derot[b1] * 27 + d1 * 9 + src_derot[b2] * 3 + d2;
+#pragma omp atomic
                     out_start[out_idx] += in_start[in_idx];
                 }
             }
@@ -857,6 +858,7 @@ void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
     auto n_integrals = Iv.request().shape[0];    
     auto Iv_ptr = as_ptr<double>(Iv);
     auto out_ptr = as_ptr<double>(out);
+#pragma omp parallel for
     for (size_t i = 0; i < n_integrals; i++) {
         std::array<double,81> this_integral;
         for (int j = 0; j < 81; j++) {
@@ -865,10 +867,10 @@ void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
         auto res = sub_basis(this_integral, va.obs_basis[i], va.src_basis[i]);
 
         int out_idx = va.original_pair_idx[i];
-        derotate(ea.obs_clicks[out_idx], ea.src_clicks[out_idx], &out_ptr[out_idx * 81], res.data());
-        // for (int j = 0; j < 81; j++) {
-        //     out_ptr[out_idx * 81 + j] += res[j];
-        // }
+        derotate(
+            ea.obs_clicks[out_idx], ea.src_clicks[out_idx],
+            &out_ptr[out_idx * 81], res.data()
+        );
     }
 }
 

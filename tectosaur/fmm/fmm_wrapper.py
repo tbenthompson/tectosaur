@@ -137,14 +137,12 @@ def data_to_gpu(fmm_mat):
     gd['u2e_node_n_idx'] = [
         gpu.to_gpu(fmm_mat.u2e[level].src_n_idx, np.int32) for level in range(n_src_levels)
     ]
-    gd['u2e_node_depth'] = gpu.to_gpu(np.array([n.depth for n in src_tree_nodes]), np.int32)
     gd['u2e_ops'] = gpu.to_gpu(fmm_mat.u2e_ops, float_type)
 
     n_obs_levels = len(fmm_mat.l2l)
     gd['d2e_node_n_idx'] = [
         gpu.to_gpu(fmm_mat.d2e[level].src_n_idx, np.int32) for level in range(n_obs_levels)
     ]
-    gd['d2e_node_depth'] = gpu.to_gpu(np.array([n.depth for n in obs_tree_nodes]), np.int32)
     gd['d2e_ops'] = gpu.to_gpu(fmm_mat.d2e_ops, float_type)
 
     return gd
