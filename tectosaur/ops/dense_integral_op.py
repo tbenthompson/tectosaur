@@ -12,7 +12,8 @@ def farfield_tris(kernel, params, pts, obs_tris, src_tris, n_q):
     integrator = getattr(get_gpu_module(kernel), "farfield_tris")
     q = gauss4d_tri(n_q, n_q)
 
-    gpu_qx, gpu_qw = gpu.quad_to_gpu(q, float_type)
+    gpu_qx = gpu.to_gpu(q[0], float_type)
+    gpu_qw = gpu.to_gpu(q[1], float_type)
     gpu_pts = gpu.to_gpu(pts, float_type)
     gpu_src_tris = gpu.to_gpu(src_tris, np.int32)
     gpu_params = gpu.to_gpu(np.array(params), float_type)

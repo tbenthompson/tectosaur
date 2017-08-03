@@ -6,31 +6,40 @@ import os
 import tectosaur
 import tectosaur.util.logging as tct_log
 
+logger = tct_log.setup_logger(__name__)
 
 gpu_initialized = False
 gpu_ctx = None
 gpu_queue = None
 gpu_module = dict()
 
-platforms = pyopencl.get_platforms()
+class ContextBuilder:
+    get_platforms = lambda self: pyopencl.get_platforms()
 
-# def make_ctx(platform):
-#     devices = platform.get_devices()
-#     assert(len(devices) > 0)
-#     return pyopencl.Context(devices = devices)
-#
-# if os.environ.get('PYOPENCL_CTX', '') != '':
-#     ctx = pyopencl.create_some_context()
-# else:
-#     gpu_platforms = [p for p in platforms if 'CUDA' in p.name]
-#     other_platforms = [p for p in platforms if 'CUDA' not in p.name]
-#     print(gpu_platforms, other_platforms)
-#     if len(gpu_platforms) > 0:
-#         assert(len(gpu_platforms) == 1)
-#         ctx = make_ctx(gpu_platforms[0])
-#     elif len(other_platforms) > 0:
-#         ctx = make_ctx(cpu_platforms[0])
-#         print(ctx)
+    def from_platform(self, platform):
+        devices = platform.get_devices()
+        assert(len(devices) > 0)
+        return pyopencl.Context(devices = [devices[0]])
+
+def make_default_ctx(ctx_builder = ContextBuilder()):
+    if os.environ.get('PYOPENCL_CTX', '') != '':
+        return pyopencl.create_some_context()
+
+    platforms = ctx_builder.get_platforms()
+    gpu_platforms = [p for p in platforms if 'CUDA' in p.name]
+    if len(gpu_platforms) > 0:
+        assert(len(gpu_platforms) == 1)
+        return ctx_builder.from_platform(gpu_platforms[0])
+
+    other_platforms = [p for p in platforms if 'CUDA' not in p.name]
+    if len(other_platforms) > 0:
+        return ctx_builder.from_platform(other_platforms[0])
+
+    raise Exception("No OpenCL platforms available")
+
+def report_devices(ctx):
+    device_names = [d.name for d in ctx.devices]
+    logger.info('initializing opencl context with devices = ' + str(device_names))
 
 def initialize_with_ctx(ctx):
     global gpu_initialized, gpu_ctx, gpu_queue
@@ -45,13 +54,15 @@ def initialize_with_ctx(ctx):
     import tectosaur.viennacl.viennacl as vcl
     vcl.setup(gpu_ctx.int_ptr, gpu_ctx.devices[0].int_ptr, gpu_queue.int_ptr)
 
-def check_initialized():
+    report_devices(ctx)
+
+def ensure_initialized():
     global gpu_initialized
     if not gpu_initialized:
-        initialize_with_ctx(cl.create_some_context())
+        initialize_with_ctx(make_default_ctx())
 
 def to_gpu(arr, float_type = np.float32):
-    check_initialized()
+    ensure_initialized()
     if type(arr) is cl.array.Array:
         return arr
     to_type = arr.astype(float_type)
@@ -59,17 +70,12 @@ def to_gpu(arr, float_type = np.float32):
     return cl.array.to_device(gpu_queue, to_type)
 
 def zeros_gpu(shape, float_type = np.float32):
-    check_initialized()
+    ensure_initialized()
     return cl.array.zeros(gpu_queue, shape, float_type)
 
 def empty_gpu(shape, float_type = np.float32):
-    check_initialized()
+    ensure_initialized()
     return cl.array.empty(gpu_queue, shape, float_type)
-
-def quad_to_gpu(quad_rule, float_type = np.float32):
-    gpu_qx = to_gpu(quad_rule[0].flatten(), float_type)
-    gpu_qw = to_gpu(quad_rule[1], float_type)
-    return gpu_qx, gpu_qw
 
 def np_to_c_type(t):
     if t == np.float32:
@@ -114,7 +120,7 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
     if tmpl_args is None:
         tmpl_args = dict()
 
-    check_initialized()
+    ensure_initialized()
 
     if tmpl_name in gpu_module \
             and not no_caching \
