@@ -11,7 +11,7 @@ struct OctreeNode {
 
     size_t start;
     size_t end;
-    Cube<dim> bounds;
+    Ball<dim> bounds;
     bool is_leaf;
     int height;
     int depth;
@@ -27,7 +27,7 @@ struct PtWithIdx {
 
 template <size_t dim>
 std::array<int,OctreeNode<dim>::split+1> octree_partition(
-        const Cube<dim>& bounds, PtWithIdx<dim>* start, PtWithIdx<dim>* end);
+        const Ball<dim>& bounds, PtWithIdx<dim>* start, PtWithIdx<dim>* end);
 
 template <size_t dim>
 std::vector<PtWithIdx<dim>> combine_pts_idxs(std::array<double,dim>* pts, size_t n_pts) {
@@ -39,10 +39,14 @@ std::vector<PtWithIdx<dim>> combine_pts_idxs(std::array<double,dim>* pts, size_t
 }
 
 template <size_t dim>
-Cube<dim> bounding_box(PtWithIdx<dim>* pts, size_t n_pts);
+Ball<dim> bounding_ball(PtWithIdx<dim>* pts, size_t n_pts);
 
-template <size_t dim>
+template <size_t _dim>
 struct Octree {
+    constexpr static size_t dim = _dim;
+    constexpr static size_t split = 2 << (dim - 1);
+    using Node = OctreeNode<dim>;
+
     std::vector<std::array<double,dim>> pts;
     std::vector<size_t> orig_idxs;
 
@@ -55,6 +59,6 @@ struct Octree {
     Octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_cell);
 
     size_t add_node(size_t start, size_t end, 
-        size_t n_per_cell, int depth, Cube<dim> bounds,
+        size_t n_per_cell, int depth, Ball<dim> bounds,
         std::vector<PtWithIdx<dim>>& temp_pts);
 };

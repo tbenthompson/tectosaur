@@ -42,8 +42,8 @@ def initialize_with_ctx(ctx):
     gpu_initialized = True
 
     # Lazy import to avoid a circular dependency
-    import tectosaur.viennacl as viennacl
-    viennacl.setup(gpu_ctx.int_ptr, gpu_ctx.devices[0].int_ptr, gpu_queue.int_ptr)
+    import tectosaur.viennacl.viennacl as vcl
+    vcl.setup(gpu_ctx.int_ptr, gpu_ctx.devices[0].int_ptr, gpu_queue.int_ptr)
 
 def check_initialized():
     global gpu_initialized
@@ -176,7 +176,7 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
     module_info['module'] = cl.Program(
         gpu_ctx, code
     ).build(options = compile_options)
-    tectosaur.logger.debug('compile took: ' + str(time.time() - start))
+    logger.debug('compile took: ' + str(time.time() - start))
 
     if tmpl_name not in gpu_module:
         gpu_module[tmpl_name] = []

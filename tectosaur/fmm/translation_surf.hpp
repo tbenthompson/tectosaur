@@ -45,12 +45,12 @@ inline std::vector<std::array<double,3>> surrounding_surface(size_t order)
 }
 
 template <size_t dim>
-std::vector<std::array<double,dim>> inscribe_surf(const Cube<dim>& b, double scaling,
+std::vector<std::array<double,dim>> inscribe_surf(const Ball<dim>& b, double scaling,
                                 const std::vector<std::array<double,dim>>& fmm_surf) {
     std::vector<std::array<double,dim>> out(fmm_surf.size());
     for (size_t i = 0; i < fmm_surf.size(); i++) {
         for (size_t d = 0; d < dim; d++) {
-            out[i][d] = fmm_surf[i][d] * b.R() * scaling + b.center[d];
+            out[i][d] = fmm_surf[i][d] * b.R * scaling + b.center[d];
         }
     }
     return out;

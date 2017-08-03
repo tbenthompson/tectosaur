@@ -4,15 +4,15 @@
 
 #include <iostream>
 
-TEST_CASE("containing subcell box 2d") {
-    Cube<2> b{{0, 0}, 1.0};
+TEST_CASE("containing subcell ball 2d") {
+    Ball<2> b{{0, 0}, 1.0};
     REQUIRE(find_containing_subcell(b, {0.1, 0.1}) == 3);
     REQUIRE(find_containing_subcell(b, {0.1, -0.1}) == 2);
     REQUIRE(find_containing_subcell(b, {-0.1, -0.1}) == 0);
 }
 
-TEST_CASE("containing subcell box 3d") {
-    Cube<3> b{{0, 0, 0}, 1.0};
+TEST_CASE("containing subcell ball 3d") {
+    Ball<3> b{{0, 0, 0}, 1.0};
     REQUIRE(find_containing_subcell(b, {0.1, 0.1, 0.1}) == 7);
     REQUIRE(find_containing_subcell(b, {0.1, -0.1, -0.1}) == 4);
     REQUIRE(find_containing_subcell(b, {-0.1, -0.1, -0.1}) == 0);
@@ -31,33 +31,26 @@ TEST_CASE("make child idx 2d") {
 
 TEST_CASE("get subcell") 
 {
-    Cube<3> b{{0, 1, 0}, 2};
-    auto child = get_subcell(b, {1,0,1});
+    Ball<3> b{{0, 1, 0}, 2 * std::sqrt(3.0)};
+    auto child = get_subbox(b, {1,0,1});
     REQUIRE_ARRAY_CLOSE(child.center, (std::array<double,3>{1,0,1}), 3, 1e-14);
-    REQUIRE_CLOSE(child.width, 1.0, 1e-14);
+    REQUIRE_CLOSE(child.R, std::sqrt(3.0), 1e-14);
 }
 
-TEST_CASE("box R") {
-    Cube<2> b2{{0,0}, 1.0};
-    REQUIRE(b2.R() == std::sqrt(2.0));
-    Cube<3> b3{{0,0,0}, 1.0};
-    REQUIRE(b3.R() == std::sqrt(3.0));
-}
-
-TEST_CASE("bounding box contains its pts")
+TEST_CASE("bounding ball contains its pts")
 {
     for (size_t i = 0; i < 10; i++) {
         auto pts = random_pts<2>(10, -1, 1); 
         auto pts_idxs = combine_pts_idxs(pts.data(), pts.size());
-        auto b = bounding_box(pts_idxs.data(), pts.size());
+        auto b = bounding_ball(pts_idxs.data(), pts.size());
         auto b_shrunk = b;
-        b_shrunk.width /= 1 + 1e-10;
+        b_shrunk.R /= 1 + 1e-10;
         bool all_pts_in_shrunk = true;
         for (auto p: pts) {
-            REQUIRE(in_box(b, p)); // Check that the bounding box is sufficient.
-            all_pts_in_shrunk = all_pts_in_shrunk && in_box(b_shrunk, p);
+            REQUIRE(in_ball(b, p)); // Check that the bounding ball is sufficient.
+            all_pts_in_shrunk = all_pts_in_shrunk && in_ball(b_shrunk, p);
         }
-        REQUIRE(!all_pts_in_shrunk); // Check that the bounding box is minimal.
+        REQUIRE(!all_pts_in_shrunk); // Check that the bounding ball is minimal.
     }
 }
 
@@ -65,7 +58,7 @@ TEST_CASE("octree partition") {
     size_t n_pts = 100;
     auto pts = random_pts<3>(n_pts, -1, 1);    
     auto pts_idxs = combine_pts_idxs(pts.data(), n_pts);
-    auto bounds = bounding_box(pts_idxs.data(), pts.size());
+    auto bounds = bounding_ball(pts_idxs.data(), pts.size());
     auto splits = octree_partition(bounds, pts_idxs.data(), pts_idxs.data() + n_pts);
     for (int i = 0; i < 8; i++) {
         for (int j = splits[i]; j < splits[i + 1]; j++) {

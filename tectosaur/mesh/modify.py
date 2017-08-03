@@ -27,8 +27,10 @@ def remove_duplicate_pts(m):
     return out_pts, out_tris
 
 def concat_two(m1, m2):
-    newm = np.vstack((m1[0], m2[0])), np.vstack((m1[1], m2[1] + m1[0].shape[0]))
-    return remove_duplicate_pts(newm)
+    return remove_duplicate_pts(concat_two_no_remove_duplicates(m1, m2))
+
+def concat_two_no_remove_duplicates(m1, m2):
+    return np.vstack((m1[0], m2[0])), np.vstack((m1[1], m2[1] + m1[0].shape[0]))
 
 def concat(*ms):
     m_full = ms[0]

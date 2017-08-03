@@ -42,16 +42,23 @@ inline double dist(const std::array<double,dim>& a, const std::array<double,dim>
 }
 
 template <size_t dim>
-struct Cube {
+struct Ball {
     std::array<double,dim> center;
-    double width;
+    double R;
 
-    Cube(std::array<double,dim> center, double width): center(center), width(width) {}
+    Ball(std::array<double,dim> center, double R): center(center), R(R) {}
 
-    double R() const {
-        return width * std::sqrt(static_cast<double>(dim));
-    }
 };
+
+template <size_t dim>
+double R_to_box_width(double R) {
+    return R / std::sqrt(static_cast<double>(dim));
+}
+
+template <size_t dim>
+double box_width_to_R(double width) {
+    return width * std::sqrt(static_cast<double>(dim));
+}
 
 template <size_t dim>
 std::array<size_t,dim> make_child_idx(size_t i) 
@@ -66,18 +73,19 @@ std::array<size_t,dim> make_child_idx(size_t i)
 }
 
 template <size_t dim>
-Cube<dim> get_subcell(const Cube<dim>& b, const std::array<size_t,dim>& idx)
+Ball<dim> get_subbox(const Ball<dim>& b, const std::array<size_t,dim>& idx)
 {
-    auto new_width = b.width / 2.0;
+    auto width = R_to_box_width<dim>(b.R);
+    auto new_width = width / 2.0;
     auto new_center = b.center;
     for (size_t d = 0; d < dim; d++) {
         new_center[d] += ((static_cast<double>(idx[d]) * 2) - 1) * new_width;
     }
-    return {new_center, new_width};
+    return {new_center, box_width_to_R<dim>(new_width)};
 }
 
 template <size_t dim>
-int find_containing_subcell(const Cube<dim>& b, const std::array<double,dim>& pt) {
+int find_containing_subcell(const Ball<dim>& b, const std::array<double,dim>& pt) {
     int child_idx = 0;
     for (size_t d = 0; d < dim; d++) {
         if (pt[d] > b.center[d]) {
@@ -91,11 +99,6 @@ int find_containing_subcell(const Cube<dim>& b, const std::array<double,dim>& pt
 }
 
 template <size_t dim>
-bool in_box(const Cube<dim>& b, const std::array<double,dim>& pt) {
-    for (size_t d = 0; d < dim; d++) {
-        if (fabs(pt[d] - b.center[d]) >= (1.0 + 1e-14) * b.width) {
-            return false;
-        }
-    }
-    return true;
+bool in_ball(const Ball<dim>& b, const std::array<double,dim>& pt) {
+    return dist(pt, b.center) <= b.R;
 }

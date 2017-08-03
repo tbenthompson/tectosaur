@@ -43,7 +43,7 @@ float atomic_fadd(volatile __global float *addr, float val)
     __global Real* ${name}_pts, __global Real* ${name}_ns
 % else:
     __global int* ${name}_n_idx, __global Real* ${name}_n_center,
-    __global Real* ${name}_n_width, Real ${name}_surf_r
+    __global Real* ${name}_n_R, Real ${name}_surf_r
 % endif
 </%def>
 
@@ -60,8 +60,7 @@ float atomic_fadd(volatile __global float *addr, float val)
     % endif
 % else:
     int ${name}_idx = ${name}_n_idx[block_idx];
-    Real ${name}_width_mult = ${name}_surf_r * sqrt((Real)${K.spatial_dim});
-    Real ${name}_surf_radius = ${name}_n_width[${name}_idx] * ${name}_width_mult;
+    Real ${name}_surf_radius = ${name}_n_R[${name}_idx] * ${name}_surf_r;
     % for d in range(K.spatial_dim):
         Real ${name}_center${dn(d)} = ${name}_n_center[${name}_idx * ${K.spatial_dim} + ${d}];
     % endfor
@@ -225,21 +224,58 @@ ${fmm_op("s2s", "surf", "surf", False)}
 ${fmm_op("p2p", "pts", "pts", True)}
 ${fmm_op("s2p", "pts", "surf", False)}
 
+// This is essentially a weird in-place block sparse matrix-matrix multiply. 
 __kernel
 void c2e_kernel(__global Real* out, __global Real* in,
-        int n_blocks, int n_rows, __global int* node_idx, __global int* node_depth,
-        __global Real* ops)
+        int n_blocks, int n_rows, __global int* node_idx,
+        int node_depth, __global Real* ops)
 {
-    ${get_block_idx()}
+    __global Real* op_start = &ops[0];
+    Real scaling = pow(2.0, node_depth * ${-K.scale_type - 4});
 
-    int n_idx = node_idx[block_idx];
-    __global Real* op_start = &ops[node_depth[n_idx] * n_rows * n_rows];
+    const int local_row = get_local_id(0);
+    const int local_col = get_local_id(1);
+    const int global_block_idx = get_global_id(0);
+    const int global_col = get_global_id(1);
 
-    for (int i = worker_idx; i < n_rows; i += ${n_workers_per_block}) {
-        Real sum = 0.0;
-        for (int j = 0; j < n_rows; j++) {
-            sum += op_start[i * n_rows + j] * in[n_idx * n_rows + j];
+    __local Real Asub[${n_c2e_block_rows}][${n_c2e_block_rows}];
+    __local Real Bsub[${n_c2e_block_rows}][${n_c2e_block_rows}];
+
+    int global_n_idx = -1;
+    if (global_block_idx < n_blocks) {
+        global_n_idx = node_idx[global_block_idx];
+    }
+
+    Real sum = 0.0;
+    int t = 0;
+    for (;t * ${n_c2e_block_rows} < n_rows; t++) {
+        const int tile_row = ${n_c2e_block_rows} * t + local_row;
+        const int tile_col = ${n_c2e_block_rows} * t + local_col;
+        if (tile_col < n_rows && global_n_idx != -1) {
+            Asub[local_row][local_col] = in[global_n_idx * n_rows + tile_col];
+        } else {
+            Asub[local_row][local_col] = 0.0;
         }
-        out[n_idx * n_rows + i] += sum;
+        if (tile_row < n_rows && global_col < n_rows) {
+            Bsub[local_row][local_col] = op_start[global_col * n_rows + tile_row];
+        } else {
+            Bsub[local_row][local_col] = 0.0;
+        }
+
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        if (global_n_idx != -1 && global_col < n_rows) {
+            int max_k = min(${n_c2e_block_rows}, n_rows - ${n_c2e_block_rows} * t);
+            for (int k = 0; k < max_k; k++) {
+                sum += Asub[local_row][k] * Bsub[k][local_col];
+            }
+        }
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    if (global_n_idx != -1 && global_col < n_rows) {
+        out[global_n_idx * n_rows + global_col] += scaling * sum;
     }
 }

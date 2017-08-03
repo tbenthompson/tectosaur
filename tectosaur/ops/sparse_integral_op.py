@@ -82,7 +82,7 @@ class FMMFarfield:
         self.fmm_module = fmm
         order = 100
         mac = 3.0
-        pts_per_cell = 200
+        pts_per_cell = 300
 
         # TODO: different obs and src pts
         self.tree = fmm.three.Octree(obs_pts, pts_per_cell)
@@ -121,6 +121,7 @@ class SparseIntegralOp:
         far_quad2d = gauss2d_tri(nq_far)
         self.interp_galerkin_mat, quad_pts, quad_ns = \
             interp_galerkin_mat(pts[tris], far_quad2d)
+        self.interp_galerkin_mat = self.interp_galerkin_mat.tocsr()
         self.shape = self.nearfield.shape
 
         if farfield_op_type is None:
@@ -145,7 +146,11 @@ class SparseIntegralOp:
         return near_out + far_out
 
     def farfield_dot(self, v):
+        t = Timer()
         interp_v = self.interp_galerkin_mat.dot(v).flatten()
+        t.report('interp_galerkin_mat.dot')
         nbody_result = self.farfield_op.dot(interp_v)
+        t.report('farfield_op.dot')
         out = self.interp_galerkin_mat.T.dot(nbody_result)
+        t.report('interp_galerkin_mat.T.dot')
         return out

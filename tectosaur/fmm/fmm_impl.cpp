@@ -6,10 +6,13 @@
 #include "include/timing.hpp"
 #include "fmm_impl.hpp"
 
-template <size_t dim>
-void traverse(FMMMat<dim>& mat, const OctreeNode<dim>& obs_n, const OctreeNode<dim>& src_n) {
-    auto r_src = src_n.bounds.R();
-    auto r_obs = obs_n.bounds.R();
+template <typename TreeT>
+void traverse(FMMMat<TreeT>& mat,
+        const typename TreeT::Node& obs_n,
+        const typename TreeT::Node& src_n) 
+{
+    auto r_src = src_n.bounds.R;
+    auto r_obs = obs_n.bounds.R;
     auto sep = hypot(sub(obs_n.bounds.center, src_n.bounds.center));
 
     // If outer_r * r_src + inner_r * r_obs is less than the separation, then
@@ -44,37 +47,38 @@ void traverse(FMMMat<dim>& mat, const OctreeNode<dim>& obs_n, const OctreeNode<d
 
     bool split_src = ((r_obs < r_src) && !src_n.is_leaf) || obs_n.is_leaf;
     if (split_src) {
-        for (size_t i = 0; i < OctreeNode<dim>::split; i++) {
+        for (size_t i = 0; i < TreeT::split; i++) {
             traverse(mat, obs_n, mat.src_tree.nodes[src_n.children[i]]);
         }
     } else {
-        for (size_t i = 0; i < OctreeNode<dim>::split; i++) {
+        for (size_t i = 0; i < TreeT::split; i++) {
             traverse(mat, mat.obs_tree.nodes[obs_n.children[i]], src_n);
         }
     }
 }
 
-template <size_t dim>
-void up_collect(FMMMat<dim>& mat, const OctreeNode<dim>& src_n) {
-    mat.u2e[src_n.height].insert(src_n, src_n);
+template <typename TreeT>
+void up_collect(FMMMat<TreeT>& mat, const typename TreeT::Node& src_n) {
+    auto level = mat.src_tree.max_height - src_n.depth;
+    mat.u2e[level].insert(src_n, src_n);
     if (src_n.is_leaf) {
         mat.p2m.insert(src_n, src_n);
     } else {
-        for (size_t i = 0; i < OctreeNode<dim>::split; i++) {
+        for (size_t i = 0; i < TreeT::split; i++) {
             auto child_n = mat.src_tree.nodes[src_n.children[i]];
             up_collect(mat, child_n);
-            mat.m2m[src_n.height].insert(src_n, child_n);
+            mat.m2m[level].insert(src_n, child_n);
         }
     }
 }
 
-template <size_t dim>
-void down_collect(FMMMat<dim>& mat, const OctreeNode<dim>& obs_n) {
+template <typename TreeT>
+void down_collect(FMMMat<TreeT>& mat, const typename TreeT::Node& obs_n) {
     mat.d2e[obs_n.depth].insert(obs_n, obs_n);
     if (obs_n.is_leaf) {
         mat.l2p.insert(obs_n, obs_n);
     } else {
-        for (size_t i = 0; i < OctreeNode<dim>::split; i++) {
+        for (size_t i = 0; i < TreeT::split; i++) {
             auto child_n = mat.obs_tree.nodes[obs_n.children[i]];
             down_collect(mat, child_n);
             mat.l2l[child_n.depth].insert(child_n, obs_n);
@@ -82,10 +86,10 @@ void down_collect(FMMMat<dim>& mat, const OctreeNode<dim>& obs_n) {
     }
 }
 
-template <size_t dim>
-FMMMat<dim>::FMMMat(Octree<dim> obs_tree, std::vector<std::array<double,dim>> obs_normals,
-           Octree<dim> src_tree, std::vector<std::array<double,dim>> src_normals,
-           FMMConfig<dim> cfg, std::vector<std::array<double,dim>> surf):
+template <typename TreeT>
+FMMMat<TreeT>::FMMMat(TreeT obs_tree, std::vector<std::array<double,TreeT::dim>> obs_normals,
+           TreeT src_tree, std::vector<std::array<double,TreeT::dim>> src_normals,
+           FMMConfig<TreeT::dim> cfg, std::vector<std::array<double,TreeT::dim>> surf):
     obs_tree(obs_tree),
     obs_normals(obs_normals),
     src_tree(src_tree),
@@ -114,8 +118,8 @@ void interact_pts(const FMMConfig<dim>& cfg, double* out, double* in,
 }
 
 
-template <size_t dim>
-void FMMMat<dim>::p2m_matvec(double* out, double *in) {
+template <typename TreeT>
+void FMMMat<TreeT>::p2m_matvec(double* out, double *in) {
     for (size_t i = 0; i < p2m.obs_n_idx.size(); i++) {
         auto src_n = src_tree.nodes[p2m.src_n_idx[i]];
         auto check = inscribe_surf(src_n.bounds, cfg.outer_r, surf);
@@ -129,8 +133,8 @@ void FMMMat<dim>::p2m_matvec(double* out, double *in) {
     }
 }
 
-template <size_t dim>
-void FMMMat<dim>::m2m_matvec(double* out, double *in, int level) {
+template <typename TreeT>
+void FMMMat<TreeT>::m2m_matvec(double* out, double *in, int level) {
     for (size_t i = 0; i < m2m[level].obs_n_idx.size(); i++) {
         auto parent_n = src_tree.nodes[m2m[level].obs_n_idx[i]];
         auto child_n = src_tree.nodes[m2m[level].src_n_idx[i]];
@@ -146,8 +150,8 @@ void FMMMat<dim>::m2m_matvec(double* out, double *in, int level) {
     }
 }
 
-template <size_t dim>
-void FMMMat<dim>::p2l_matvec(double* out, double* in) {
+template <typename TreeT>
+void FMMMat<TreeT>::p2l_matvec(double* out, double* in) {
     for (size_t i = 0; i < p2l.obs_n_idx.size(); i++) {
         auto obs_n = obs_tree.nodes[p2l.obs_n_idx[i]];
         auto src_n = src_tree.nodes[p2l.src_n_idx[i]];
@@ -163,8 +167,8 @@ void FMMMat<dim>::p2l_matvec(double* out, double* in) {
     }
 }
 
-template <size_t dim>
-void FMMMat<dim>::m2l_matvec(double* out, double* in) {
+template <typename TreeT>
+void FMMMat<TreeT>::m2l_matvec(double* out, double* in) {
     for (size_t i = 0; i < m2l.obs_n_idx.size(); i++) {
         auto obs_n = obs_tree.nodes[m2l.obs_n_idx[i]];
         auto src_n = src_tree.nodes[m2l.src_n_idx[i]];
@@ -182,8 +186,8 @@ void FMMMat<dim>::m2l_matvec(double* out, double* in) {
 }
 
 
-template <size_t dim>
-void FMMMat<dim>::l2l_matvec(double* out, double* in, int level) {
+template <typename TreeT>
+void FMMMat<TreeT>::l2l_matvec(double* out, double* in, int level) {
     for (size_t i = 0; i < l2l[level].obs_n_idx.size(); i++) {
         auto child_n = obs_tree.nodes[l2l[level].obs_n_idx[i]];
         auto parent_n = obs_tree.nodes[l2l[level].src_n_idx[i]];
@@ -200,8 +204,8 @@ void FMMMat<dim>::l2l_matvec(double* out, double* in, int level) {
     }
 }
 
-template <size_t dim>
-void FMMMat<dim>::p2p_matvec(double* out, double* in) {
+template <typename TreeT>
+void FMMMat<TreeT>::p2p_matvec(double* out, double* in) {
     for (size_t i = 0; i < p2p.obs_n_idx.size(); i++) {
         auto obs_n = obs_tree.nodes[p2p.obs_n_idx[i]];
         auto src_n = src_tree.nodes[p2p.src_n_idx[i]];
@@ -216,8 +220,8 @@ void FMMMat<dim>::p2p_matvec(double* out, double* in) {
 }
 
 
-template <size_t dim>
-void FMMMat<dim>::m2p_matvec(double* out, double* in) {
+template <typename TreeT>
+void FMMMat<TreeT>::m2p_matvec(double* out, double* in) {
     for (size_t i = 0; i < m2p.obs_n_idx.size(); i++) {
         auto obs_n = obs_tree.nodes[m2p.obs_n_idx[i]];
         auto src_n = src_tree.nodes[m2p.src_n_idx[i]];
@@ -234,8 +238,8 @@ void FMMMat<dim>::m2p_matvec(double* out, double* in) {
 }
 
 
-template <size_t dim>
-void FMMMat<dim>::l2p_matvec(double* out, double* in) {
+template <typename TreeT>
+void FMMMat<TreeT>::l2p_matvec(double* out, double* in) {
     for (size_t i = 0; i < l2p.obs_n_idx.size(); i++) {
         auto obs_n = obs_tree.nodes[l2p.obs_n_idx[i]];
 
@@ -250,8 +254,8 @@ void FMMMat<dim>::l2p_matvec(double* out, double* in) {
     }
 }
 
-template <size_t dim>
-void FMMMat<dim>::d2e_matvec(double* out, double* in, int level) {
+template <typename TreeT>
+void FMMMat<TreeT>::d2e_matvec(double* out, double* in, int level) {
     int n_rows = cfg.tensor_dim() * surf.size();
     for (size_t i = 0; i < d2e[level].obs_n_idx.size(); i++) {
         auto node_idx = d2e[level].obs_n_idx[i];
@@ -265,8 +269,8 @@ void FMMMat<dim>::d2e_matvec(double* out, double* in, int level) {
     }
 }
 
-template <size_t dim>
-void FMMMat<dim>::u2e_matvec(double* out, double* in, int level) {
+template <typename TreeT>
+void FMMMat<TreeT>::u2e_matvec(double* out, double* in, int level) {
     int n_rows = cfg.tensor_dim() * surf.size();
     for (size_t i = 0; i < u2e[level].src_n_idx.size(); i++) {
         auto node_idx = u2e[level].src_n_idx[i];
@@ -282,7 +286,7 @@ void FMMMat<dim>::u2e_matvec(double* out, double* in, int level) {
 
 template <size_t dim>
 std::vector<double> c2e_solve(std::vector<std::array<double,dim>> surf,
-    const Cube<dim>& bounds, double check_r, double equiv_r, const FMMConfig<dim>& cfg) 
+    const Ball<dim>& bounds, double check_r, double equiv_r, const FMMConfig<dim>& cfg) 
 {
     auto equiv_surf = inscribe_surf(bounds, equiv_r, surf);
     auto check_surf = inscribe_surf(bounds, check_r, surf);
@@ -307,60 +311,44 @@ std::vector<double> c2e_solve(std::vector<std::array<double,dim>> surf,
     return pinv;
 }
 
-template <size_t dim>
-void build_u2e(FMMMat<dim>& mat) {
+template <typename TreeT>
+void build_c2e(FMMMat<TreeT>& mat, std::vector<double>& c2e_ops,
+        const TreeT& tree, double check_r, double equiv_r) 
+{
     int n_rows = mat.cfg.tensor_dim() * mat.surf.size();
-    mat.u2e_ops.resize((mat.src_tree.max_height + 1) * n_rows * n_rows);
+    c2e_ops.resize((tree.max_height + 1) * n_rows * n_rows);
 #pragma omp parallel for
-    for (int i = 0; i < mat.src_tree.max_height + 1; i++) {
-        double width = mat.src_tree.root().bounds.width / std::pow(2.0, static_cast<double>(i));
-        std::array<double,dim> center{};
-        Cube<dim> bounds(center, width);
-        auto pinv = c2e_solve(mat.surf, bounds, mat.cfg.outer_r, mat.cfg.inner_r, mat.cfg);
-        double* op_start = &mat.u2e_ops[i * n_rows * n_rows];
+    for (int i = 0; i < tree.max_height + 1; i++) {
+        double R = tree.root().bounds.R / std::pow(2.0, static_cast<double>(i));
+        std::array<double,TreeT::dim> center{};
+        Ball<TreeT::dim> bounds(center, R);
+        auto pinv = c2e_solve(mat.surf, bounds, check_r, equiv_r, mat.cfg);
+        double* op_start = &c2e_ops[i * n_rows * n_rows];
         for (int j = 0; j < n_rows * n_rows; j++) {
             op_start[j] = pinv[j];
         }
     }
 }
 
-//TODO: This can be refactored to share lots of code with above.
-template <size_t dim>
-void build_d2e(FMMMat<dim>& mat) {
-    int n_rows = mat.cfg.tensor_dim() * mat.surf.size();
-    mat.d2e_ops.resize((mat.obs_tree.max_height + 1) * n_rows * n_rows);
-#pragma omp parallel for
-    for (int i = 0; i < mat.obs_tree.max_height + 1; i++) {
-        double width = mat.obs_tree.root().bounds.width / std::pow(2.0, static_cast<double>(i));
-        std::array<double,dim> center{};
-        Cube<dim> bounds(center, width);
-        auto pinv = c2e_solve(mat.surf, bounds, mat.cfg.inner_r, mat.cfg.outer_r, mat.cfg);
-        double* op_start = &mat.d2e_ops[i * n_rows * n_rows];
-        for (int j = 0; j < n_rows * n_rows; j++) {
-            op_start[j] = pinv[j];
-        }
-    }
-}
-
-template <size_t dim>
-FMMMat<dim> fmmmmmmm(const Octree<dim>& obs_tree,
-    const std::vector<std::array<double,dim>>& obs_normals,
-    const Octree<dim>& src_tree,
-    const std::vector<std::array<double,dim>>& src_normals,
-    const FMMConfig<dim>& cfg)
+template <typename TreeT>
+FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree,
+    const std::vector<std::array<double,TreeT::dim>>& obs_normals,
+    const TreeT& src_tree,
+    const std::vector<std::array<double,TreeT::dim>>& src_normals,
+    const FMMConfig<TreeT::dim>& cfg)
 {
 
-    auto translation_surf = surrounding_surface<dim>(cfg.order);
+    auto translation_surf = surrounding_surface<TreeT::dim>(cfg.order);
 
-    FMMMat<dim> mat(obs_tree, obs_normals, src_tree, src_normals, cfg, translation_surf);
+    FMMMat<TreeT> mat(obs_tree, obs_normals, src_tree, src_normals, cfg, translation_surf);
 
     mat.m2m.resize(mat.src_tree.max_height + 1);
     mat.l2l.resize(mat.obs_tree.max_height + 1);
     mat.u2e.resize(mat.src_tree.max_height + 1);
     mat.d2e.resize(mat.obs_tree.max_height + 1);
 
-    build_u2e(mat);
-    build_d2e(mat);
+    build_c2e(mat, mat.u2e_ops, mat.src_tree, mat.cfg.outer_r, mat.cfg.inner_r);
+    build_c2e(mat, mat.d2e_ops, mat.obs_tree, mat.cfg.inner_r, mat.cfg.outer_r);
     up_collect(mat, mat.src_tree.root());
     down_collect(mat, mat.obs_tree.root());
     traverse(mat, mat.obs_tree.root(), mat.src_tree.root());
@@ -369,16 +357,16 @@ FMMMat<dim> fmmmmmmm(const Octree<dim>& obs_tree,
 }
 
 template 
-FMMMat<2> fmmmmmmm(const Octree<2>& obs_tree,
+FMMMat<Octree<2>> fmmmmmmm(const Octree<2>& obs_tree,
     const std::vector<std::array<double,2>>& obs_normals,
     const Octree<2>& src_tree,
     const std::vector<std::array<double,2>>& src_normals,
     const FMMConfig<2>& cfg);
 template 
-FMMMat<3> fmmmmmmm(const Octree<3>& obs_tree,
+FMMMat<Octree<3>> fmmmmmmm(const Octree<3>& obs_tree,
     const std::vector<std::array<double,3>>& obs_normals,
     const Octree<3>& src_tree,
     const std::vector<std::array<double,3>>& src_normals,
     const FMMConfig<3>& cfg);
-template struct FMMMat<2>;
-template struct FMMMat<3>;
+template struct FMMMat<Octree<2>>;
+template struct FMMMat<Octree<3>>;

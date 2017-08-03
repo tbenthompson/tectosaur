@@ -23,7 +23,8 @@ def test_contains_pts(dim):
     pts = np.array(t.pts)
     for n in t.nodes:
         for i in range(n.start, n.end):
-            assert(module[dim].in_box(n.bounds, pts[i,:].tolist()))
+            dist = np.sqrt(np.sum((n.bounds.center - pts[i,:]) ** 2))
+            assert(dist < n.bounds.R)
 
 def test_height_depth(dim):
     pts = np.random.rand(100,dim)

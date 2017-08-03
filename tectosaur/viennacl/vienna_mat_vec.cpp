@@ -73,19 +73,31 @@ PYBIND11_PLUGIN(vienna_mat_vec) {
     py::module m("vienna_mat_vec");
     m.def("check_platform", check_platform);
     m.def("setup", setup);
-    m.def("mat_vec", 
-        [] (long A_ip, long x_ip, int m, int n) {
+    m.def("mat_vec_prod", 
+        [] (long A_ip, long x_ip, long y_ip, int m, int n) {
             cl_mem A_mem = reinterpret_cast<cl_mem>(A_ip);
             cl_mem x_mem = reinterpret_cast<cl_mem>(x_ip);
+            cl_mem y_mem = reinterpret_cast<cl_mem>(y_ip);
 
             viennacl::matrix<float> A(A_mem, m, n);
             viennacl::vector<float> x(x_mem, n);
-            viennacl::vector<float> y = viennacl::linalg::prod(A, x);
+            viennacl::vector<float> y(y_mem, m);
+            viennacl::linalg::prod_impl(A, x, y);
+        }
+    );
 
-            auto out = make_array<float>({m});
-            viennacl::fast_copy(y.begin(), y.end(), out.mutable_data());
+    m.def("mat_mat_prod", 
+        [] (long A_ip, long B_ip, long C_ip, int m, int n, int r) {
+            cl_mem A_mem = reinterpret_cast<cl_mem>(A_ip);
+            cl_mem B_mem = reinterpret_cast<cl_mem>(B_ip);
+            cl_mem C_mem = reinterpret_cast<cl_mem>(C_ip);
 
-            return out;
+            viennacl::matrix<float> A(A_mem, m, n);
+            viennacl::matrix<float> B(B_mem, n, r);
+            viennacl::matrix<float> C(C_mem, m, r);
+            float alpha = 1.0;
+            float beta = 0.0;
+            viennacl::linalg::prod_impl(A, B, C, alpha, beta);
         }
     );
         
