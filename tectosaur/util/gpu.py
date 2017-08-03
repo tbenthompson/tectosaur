@@ -12,6 +12,26 @@ gpu_ctx = None
 gpu_queue = None
 gpu_module = dict()
 
+platforms = pyopencl.get_platforms()
+
+# def make_ctx(platform):
+#     devices = platform.get_devices()
+#     assert(len(devices) > 0)
+#     return pyopencl.Context(devices = devices)
+#
+# if os.environ.get('PYOPENCL_CTX', '') != '':
+#     ctx = pyopencl.create_some_context()
+# else:
+#     gpu_platforms = [p for p in platforms if 'CUDA' in p.name]
+#     other_platforms = [p for p in platforms if 'CUDA' not in p.name]
+#     print(gpu_platforms, other_platforms)
+#     if len(gpu_platforms) > 0:
+#         assert(len(gpu_platforms) == 1)
+#         ctx = make_ctx(gpu_platforms[0])
+#     elif len(other_platforms) > 0:
+#         ctx = make_ctx(cpu_platforms[0])
+#         print(ctx)
+
 def initialize_with_ctx(ctx):
     global gpu_initialized, gpu_ctx, gpu_queue
     gpu_ctx = ctx
