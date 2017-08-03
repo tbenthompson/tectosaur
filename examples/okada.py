@@ -1,3 +1,4 @@
+import sys
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
@@ -58,15 +59,14 @@ def make_meshes(fault_L, top_depth, n_surf, n_fault):
     fault_tris = all_mesh[1][surface[1].shape[0]:]
     return all_mesh, surface_tris, fault_tris
 
-def test_okada():
+def test_okada(n_surf):
     sm = 1.0
     pr = 0.25
     k_params = [sm, pr]
     fault_L = 1.0
     top_depth = -0.5
     load_soln = False
-    n_surf = 200
-    n_fault = n_surf // 5
+    n_fault = max(2, n_surf // 5)
 
     timer = Timer()
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth, n_surf, n_fault)
@@ -218,7 +218,10 @@ def print_error(pts, correct, est):
     return linferr
 
 if __name__ == '__main__':
-    test_okada()
+    t = Timer()
+    for i in range(2):
+        test_okada(int(sys.argv[1]))
+        t.report('okada')
 
     # import logging
     # tectosaur.logger.setLevel(logging.DEBUG)

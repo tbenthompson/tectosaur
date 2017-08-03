@@ -74,7 +74,7 @@ std::vector<double> get_expanded_node_r(const Octree<dim>& tree, double* radius_
 #pragma omp parallel for
     for (size_t i = 0; i < tree.nodes.size(); i++) {
         auto& n = tree.nodes[i];
-        double max_radius = n.bounds.R();
+        double max_radius = n.bounds.R;
         for (size_t j = n.start; j < n.end; j++) {
             auto orig_idx = tree.orig_idxs[j];
             auto modified_dist = dist(tree.pts[j], n.bounds.center) + radius_ptr[orig_idx];

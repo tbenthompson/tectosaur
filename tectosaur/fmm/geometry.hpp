@@ -75,6 +75,8 @@ std::array<size_t,dim> make_child_idx(size_t i)
 template <size_t dim>
 Ball<dim> get_subbox(const Ball<dim>& b, const std::array<size_t,dim>& idx)
 {
+    // We get the sub-cell from an octree perspective. But, because we store balls
+    // instead of boxes, we first need to convert into box widths to offset the center.
     auto width = R_to_box_width<dim>(b.R);
     auto new_width = width / 2.0;
     auto new_center = b.center;
