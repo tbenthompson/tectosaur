@@ -38,7 +38,8 @@ def get_pairs_integrator(kernel, singular, check0):
 def pairs_quad(kernel, params, pts, obs_tris, src_tris, q, singular, check0):
     integrator = get_pairs_integrator(kernel, singular, check0)
 
-    gpu_qx, gpu_qw = gpu.quad_to_gpu(q, float_type)
+    gpu_qx = gpu.to_gpu(q[0], float_type)
+    gpu_qw = gpu.to_gpu(q[1], float_type)
 
     n = obs_tris.shape[0]
     out = np.empty((n, 3, 3, 3, 3), dtype = float_type)
