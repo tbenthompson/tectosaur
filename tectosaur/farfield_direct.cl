@@ -26,7 +26,7 @@ void farfield_pts${K.name}(
     % endfor
     if (i < n_obs) {
         % for d in range(K.spatial_dim):
-        obsp${dn(d)} = obs_pts[i * 3 + ${d}];
+        obsp${dn(d)} = obs_pts[i * ${K.spatial_dim} + ${d}];
         % endfor
     }
 
@@ -36,7 +36,7 @@ void farfield_pts${K.name}(
     % endfor
     if (i < n_obs) {
         % for d in range(K.spatial_dim):
-        nobs${dn(d)} = obs_ns[i * 3 + ${d}];
+        nobs${dn(d)} = obs_ns[i * ${K.spatial_dim} + ${d}];
         % endfor
     }
     % endif

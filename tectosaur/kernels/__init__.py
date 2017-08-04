@@ -212,7 +212,7 @@ elasticH = Kernel(
 )
 
 laplace2S = Kernel(
-    'laplaceS2', 2, 1, False, False, 0, 0, False, '',
+    'laplaceS2', 2, 1, False, False, 'log', 0, False, '',
     None,
     '''
     Real K00 = log(sqrt(r2)) / (2.0 * M_PI);

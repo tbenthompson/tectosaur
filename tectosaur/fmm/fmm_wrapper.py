@@ -16,6 +16,9 @@ logger = setup_logger(__name__)
 
 two = fmm.two
 three = fmm.three
+module = dict()
+module[2] = two
+module[3] = three
 
 n_workers_per_block = 128
 n_c2e_block_rows = 16
@@ -256,13 +259,6 @@ def gpu_c2e(fmm_mat, gd, level, depth, evs, d_or_u, out_arr, in_arr):
     c2e = gd['c2e']
     n_c2e = gd[d_or_u + '2e_node_n_idx'][level].shape[0]
     n_c2e_rows = gd['n_surf_dofs']
-    ops = gd[d_or_u + '2e_ops']
-    n_entries = n_c2e_rows ** 2
-    op0 = ops[:n_entries].get()
-    opD = ops[(depth * n_entries):((depth + 1) * n_entries)].get()
-    ratio = op0 / opD
-    # assert(np.all(ratio[0] == ratio))
-    print(ratio, depth)
     if n_c2e > 0:
         n_rows = int(np.ceil(n_c2e / n_c2e_block_rows) * n_c2e_block_rows)
         n_cols = int(np.ceil(n_c2e_rows / n_c2e_block_rows) * n_c2e_block_rows)
@@ -316,7 +312,7 @@ def prep_data_for_eval(gd, input_vals):
     gd['locals'][:] = 0
 
 def eval_ocl(fmm_mat, input_vals, gpu_data = None, should_print_timing = True):
-    t = Timer()
+    t = Timer(silent = True)
     if gpu_data is None:
         gpu_data = data_to_gpu(fmm_mat)
     t.report('data to gpu')
