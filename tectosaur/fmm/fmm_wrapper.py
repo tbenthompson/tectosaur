@@ -189,6 +189,9 @@ def get_n_blocks(op_name, obs_type, gd):
     else:
         return gd[op_name + '_obs_n_idx'].shape[0]
 
+def to_ev_list(maybe_evs):
+    return [ev for ev in maybe_evs if ev is not None]
+
 def gpu_fmm_op(op_name, out_name, in_name, obs_type, src_type, gd, wait_for):
     op = get_op(op_name, gd)
 
@@ -203,7 +206,7 @@ def gpu_fmm_op(op_name, out_name, in_name, obs_type, src_type, gd, wait_for):
             gd[out_name].data, gd[in_name].data,
             np.int32(n_blocks), gd['params'].data,
             *[d.data for d in obs_data], *[d.data for d in src_data],
-            wait_for = wait_for
+            wait_for = to_ev_list(wait_for)
         )
     else:
         return None
@@ -271,7 +274,7 @@ def gpu_c2e(fmm_mat, gd, level, depth, evs, d_or_u, out_arr, in_arr):
             gd[d_or_u + '2e_node_n_idx'][level].data,
             np.int32(depth),
             gd[d_or_u + '2e_ops'].data,
-            wait_for = evs
+            wait_for = to_ev_list(evs)
         )
     else:
         return None
