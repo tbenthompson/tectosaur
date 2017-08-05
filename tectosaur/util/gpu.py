@@ -16,12 +16,12 @@ gpu_module = dict()
 class ContextBuilder:
     get_platforms = lambda self: pyopencl.get_platforms()
 
-    def from_platform(self, platform):
+    def from_platform(self, platform, device_idx):
         devices = platform.get_devices()
         assert(len(devices) > 0)
-        return pyopencl.Context(devices = [devices[0]])
+        return pyopencl.Context(devices = [devices[device_idx]])
 
-def make_default_ctx(ctx_builder = ContextBuilder()):
+def make_default_ctx(ctx_builder = ContextBuilder(), device_idx = 0):
     if os.environ.get('PYOPENCL_CTX', '') != '':
         return pyopencl.create_some_context()
 
@@ -29,11 +29,11 @@ def make_default_ctx(ctx_builder = ContextBuilder()):
     gpu_platforms = [p for p in platforms if 'CUDA' in p.name]
     if len(gpu_platforms) > 0:
         assert(len(gpu_platforms) == 1)
-        return ctx_builder.from_platform(gpu_platforms[0])
+        return ctx_builder.from_platform(gpu_platforms[0], device_idx)
 
     other_platforms = [p for p in platforms if 'CUDA' not in p.name]
     if len(other_platforms) > 0:
-        return ctx_builder.from_platform(other_platforms[0])
+        return ctx_builder.from_platform(other_platforms[0], device_idx)
 
     raise Exception("No OpenCL platforms available")
 

@@ -14,21 +14,21 @@ class FakeContextBuilder:
     def get_platforms(self):
         return self.platforms
 
-    def from_platform(self, platform):
-        return platform.name
+    def from_platform(self, platform, device_idx):
+        return platform.name + str(device_idx)
 
 def test_no_platforms():
     with pytest.raises(Exception):
         gpu.make_default_ctx(FakeContextBuilder([]))
 
 def test_cuda_platform():
-    assert(gpu.make_default_ctx(FakeContextBuilder(['CUDA'])) == 'CUDA')
+    assert(gpu.make_default_ctx(FakeContextBuilder(['CUDA'])) == 'CUDA0')
 
 def test_cuda_platform2():
-    assert(gpu.make_default_ctx(FakeContextBuilder(['CPU', 'CUDA'])) == 'CUDA')
+    assert(gpu.make_default_ctx(FakeContextBuilder(['CPU', 'CUDA'])) == 'CUDA0')
 
 def test_no_cuda():
-    assert(gpu.make_default_ctx(FakeContextBuilder(['CPU'])) == 'CPU')
+    assert(gpu.make_default_ctx(FakeContextBuilder(['CPU'])) == 'CPU0')
 
 def test_gpu_compare_simple():
     assert(gpu.compare(1, 1))
