@@ -21,9 +21,15 @@ class ContextBuilder:
         assert(len(devices) > 0)
         return pyopencl.Context(devices = [devices[device_idx]])
 
-def make_default_ctx(ctx_builder = ContextBuilder(), device_idx = 0):
-    if os.environ.get('PYOPENCL_CTX', '') != '':
+    def check_for_env_variable(self):
+        return os.environ.get('PYOPENCL_CTX', '') != ''
+
+    def make_any_context(self):
         return pyopencl.create_some_context()
+
+def make_default_ctx(ctx_builder = ContextBuilder(), device_idx = 0):
+    if ctx_builder.check_for_env_variable():
+        return ctx_builder.make_any_context()
 
     platforms = ctx_builder.get_platforms()
     gpu_platforms = [p for p in platforms if 'CUDA' in p.name]

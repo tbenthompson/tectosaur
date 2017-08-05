@@ -9,6 +9,7 @@ class FakePlatform:
 
 class FakeContextBuilder:
     def __init__(self, platforms):
+        self.env_var = False
         self.platforms = [FakePlatform(name) for name in platforms]
 
     def get_platforms(self):
@@ -17,9 +18,20 @@ class FakeContextBuilder:
     def from_platform(self, platform, device_idx):
         return platform.name + str(device_idx)
 
+    def check_for_env_variable(self):
+        return self.env_var
+
+    def make_any_context(self):
+        return 'ANY'
+
 def test_no_platforms():
     with pytest.raises(Exception):
         gpu.make_default_ctx(FakeContextBuilder([]))
+
+def test_env_var():
+    ctxb = FakeContextBuilder([]);
+    ctxb.env_var = True
+    assert(gpu.make_default_ctx(ctxb) == 'ANY')
 
 def test_cuda_platform():
     assert(gpu.make_default_ctx(FakeContextBuilder(['CUDA'])) == 'CUDA0')
