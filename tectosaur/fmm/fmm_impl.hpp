@@ -5,7 +5,6 @@
 #include <memory>
 #include "fmm_kernels.hpp"
 #include "octree.hpp"
-#include "blas_wrapper.hpp"
 #include "translation_surf.hpp"
 
 template <size_t dim>

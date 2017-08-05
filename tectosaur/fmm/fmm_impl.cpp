@@ -5,6 +5,7 @@
 
 #include "include/timing.hpp"
 #include "fmm_impl.hpp"
+#include "blas_wrapper.hpp"
 
 template <typename TreeT>
 void traverse(FMMMat<TreeT>& mat,

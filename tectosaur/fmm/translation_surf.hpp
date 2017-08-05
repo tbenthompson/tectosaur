@@ -1,5 +1,4 @@
 #pragma once
-#include "blas_wrapper.hpp"
 #include "geometry.hpp"
 
 template <size_t dim>

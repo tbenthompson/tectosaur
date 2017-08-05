@@ -262,6 +262,8 @@ def gpu_c2e(fmm_mat, gd, level, depth, evs, d_or_u, out_arr, in_arr):
     c2e = gd['c2e']
     n_c2e = gd[d_or_u + '2e_node_n_idx'][level].shape[0]
     n_c2e_rows = gd['n_surf_dofs']
+    import ipdb
+    ipdb.set_trace()
     if n_c2e > 0:
         n_rows = int(np.ceil(n_c2e / n_c2e_block_rows) * n_c2e_block_rows)
         n_cols = int(np.ceil(n_c2e_rows / n_c2e_block_rows) * n_c2e_block_rows)

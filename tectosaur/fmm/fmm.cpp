@@ -187,14 +187,6 @@ PYBIND11_PLUGIN(fmm) {
     wrap_dim<2>(two);
     wrap_dim<3>(three);
 
-    py::class_<BlockSparseMat>(m, "BlockSparseMat")
-        .def("get_nnz", &BlockSparseMat::get_nnz)
-        .def("matvec", [] (BlockSparseMat& s, NPArrayD v, size_t n_rows) {
-            auto out = s.matvec(reinterpret_cast<double*>(v.request().ptr), n_rows);
-            return array_from_vector(out);
-        });
-
-
 #define NPARRAYPROP(name)\
     def_property_readonly(#name, [] (MatrixFreeOp& op) {\
         return make_array({op.name.size()}, op.name.data());\
