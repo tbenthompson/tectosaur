@@ -61,4 +61,15 @@ struct Octree {
     size_t add_node(size_t start, size_t end, 
         size_t n_per_cell, int depth, Ball<dim> bounds,
         std::vector<PtWithIdx<dim>>& temp_pts);
+
+    template <typename F>
+    void for_all_leaves_of(const OctreeNode<dim>& n, const F& f) {
+        if (n.is_leaf) {
+            f(n);
+            return;
+        }
+        for (size_t i = 0; i < n.children.size(); i++) {
+            for_all_leaves_of(nodes[n.children[i]], f);
+        }
+    }
 };

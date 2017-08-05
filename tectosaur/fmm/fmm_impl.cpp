@@ -29,9 +29,17 @@ void traverse(FMMMat<TreeT>& mat,
         bool small_obs = obs_n.end - obs_n.start < mat.surf.size();
 
         if (small_src && small_obs) {
-            mat.p2p.insert(obs_n, src_n);
+            mat.obs_tree.for_all_leaves_of(obs_n,
+                [&] (const typename TreeT::Node& leaf_obs_n) {
+                    mat.p2p.insert(leaf_obs_n, src_n);
+                }
+            );
         } else if (small_obs) {
-            mat.m2p.insert(obs_n, src_n);
+            mat.obs_tree.for_all_leaves_of(obs_n,
+                [&] (const typename TreeT::Node& leaf_obs_n) {
+                    mat.m2p.insert(leaf_obs_n, src_n);
+                }
+            );
         } else if (small_src) {
             mat.p2l.insert(obs_n, src_n);
         } else {

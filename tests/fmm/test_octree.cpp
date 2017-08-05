@@ -44,13 +44,13 @@ TEST_CASE("bounding ball contains its pts")
         auto pts_idxs = combine_pts_idxs(pts.data(), pts.size());
         auto b = bounding_ball(pts_idxs.data(), pts.size());
         auto b_shrunk = b;
-        b_shrunk.R /= 1 + 1e-10;
+        b_shrunk.R /= std::sqrt(2.0) * 1.0000001;
         bool all_pts_in_shrunk = true;
         for (auto p: pts) {
             REQUIRE(in_ball(b, p)); // Check that the bounding ball is sufficient.
             all_pts_in_shrunk = all_pts_in_shrunk && in_ball(b_shrunk, p);
         }
-        REQUIRE(!all_pts_in_shrunk); // Check that the bounding ball is minimal.
+        REQUIRE(!all_pts_in_shrunk); // Check that the bounding ball is within sqrt(dim) of minimal.
     }
 }
 

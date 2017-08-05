@@ -76,7 +76,7 @@ def fmm_lib_cfg(cfg):
 
 def fmm_test_cfg(cfg):
     fmm_lib_cfg(cfg)
-    cfg['sources'] += ['test_blas.cpp', 'test_octree.cpp']
+    cfg['sources'] += ['test_octree.cpp']
     cfg['dependencies'] += ['test_helpers.hpp', 'doctest.h']
     cfg['include_dirs'] += [tectosaur.fmm.source_dir]
     template_kernels(cfg)

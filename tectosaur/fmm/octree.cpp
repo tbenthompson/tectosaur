@@ -25,24 +25,26 @@ std::array<int,OctreeNode<dim>::split+1> octree_partition(
 
 template <size_t dim>
 Ball<dim> bounding_ball(PtWithIdx<dim>* pts, size_t n_pts) {
-    std::array<double,dim> center_of_mass{};
+    std::array<double,dim> mins{};
+    std::array<double,dim> maxs{};
+
     for (size_t i = 0; i < n_pts; i++) {
         for (size_t d = 0; d < dim; d++) {
-            center_of_mass[d] += pts[i].pt[d];
+            mins[d] = std::min(mins[d], pts[i].pt[d]);
+            maxs[d] = std::max(maxs[d], pts[i].pt[d]);
         }
     }
+
+    std::array<double,dim> center;
+    double max_width = 0.0;
     for (size_t d = 0; d < dim; d++) {
-        center_of_mass[d] /= n_pts;
+        center[d] = (maxs[d] + mins[d]) / 2.0;
+        auto width = (maxs[d] - mins[d]) / 2.0;
+        max_width = std::max(max_width, width);
     }
+    double r = max_width * std::sqrt(static_cast<double>(dim));
 
-    double max_r = 0.0;
-    for (size_t i = 0; i < n_pts; i++) {
-        for (size_t d = 0; d < 3; d++) {
-            max_r = std::max(max_r, hypot(sub(pts[i].pt, center_of_mass)));
-        }
-    }
-
-    return {center_of_mass, max_r};
+    return {center, r};
 }
 
 
