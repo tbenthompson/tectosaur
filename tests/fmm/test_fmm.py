@@ -70,10 +70,7 @@ def run_full(n, make_pts, mac, order, kernel, params, ocl = False, max_pts_per_c
     input_vals = np.ones(src_pts.shape[0] * tdim)
     n_outputs = obs_pts.shape[0] * tdim
 
-    if ocl:
-        est = fmm.eval_ocl(fmm_mat, input_vals)
-    else:
-        est = fmm.eval_cpu(fmm_mat, input_vals)
+    est = fmm.eval_ocl(fmm_mat, input_vals)
     t.report('eval fmm')
     # est2 = fmm.mf_direct_eval(kernel, obs_pts, obs_ns, src_pts, src_ns, params, input_vals)
     # t.report('eval direct')

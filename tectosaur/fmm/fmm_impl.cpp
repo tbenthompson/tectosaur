@@ -317,8 +317,10 @@ void build_c2e(FMMMat<TreeT>& mat, std::vector<double>& c2e_ops,
 {
     int n_rows = mat.cfg.tensor_dim() * mat.surf.size();
     c2e_ops.resize((tree.max_height + 1) * n_rows * n_rows);
+    int levels_to_compute = tree.max_height + 1;
+    // levels_to_compute = 1;
 #pragma omp parallel for
-    for (int i = 0; i < tree.max_height + 1; i++) {
+    for (int i = 0; i < levels_to_compute; i++) {
         double R = tree.root().bounds.R / std::pow(2.0, static_cast<double>(i));
         std::array<double,TreeT::dim> center{};
         Ball<TreeT::dim> bounds(center, R);
@@ -349,9 +351,9 @@ FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree,
 
     build_c2e(mat, mat.u2e_ops, mat.src_tree, mat.cfg.outer_r, mat.cfg.inner_r);
     build_c2e(mat, mat.d2e_ops, mat.obs_tree, mat.cfg.inner_r, mat.cfg.outer_r);
+    traverse(mat, mat.obs_tree.root(), mat.src_tree.root());
     up_collect(mat, mat.src_tree.root());
     down_collect(mat, mat.obs_tree.root());
-    traverse(mat, mat.obs_tree.root(), mat.src_tree.root());
 
     return mat;
 }

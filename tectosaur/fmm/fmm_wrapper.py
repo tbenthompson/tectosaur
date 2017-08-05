@@ -16,6 +16,9 @@ logger = setup_logger(__name__)
 
 two = fmm.two
 three = fmm.three
+module = dict()
+module[2] = two
+module[3] = three
 
 n_workers_per_block = 128
 n_c2e_block_rows = 16
@@ -186,6 +189,9 @@ def get_n_blocks(op_name, obs_type, gd):
     else:
         return gd[op_name + '_obs_n_idx'].shape[0]
 
+def to_ev_list(maybe_evs):
+    return [ev for ev in maybe_evs if ev is not None]
+
 def gpu_fmm_op(op_name, out_name, in_name, obs_type, src_type, gd, wait_for):
     op = get_op(op_name, gd)
 
@@ -200,7 +206,7 @@ def gpu_fmm_op(op_name, out_name, in_name, obs_type, src_type, gd, wait_for):
             gd[out_name].data, gd[in_name].data,
             np.int32(n_blocks), gd['params'].data,
             *[d.data for d in obs_data], *[d.data for d in src_data],
-            wait_for = wait_for
+            wait_for = to_ev_list(wait_for)
         )
     else:
         return None
@@ -256,13 +262,6 @@ def gpu_c2e(fmm_mat, gd, level, depth, evs, d_or_u, out_arr, in_arr):
     c2e = gd['c2e']
     n_c2e = gd[d_or_u + '2e_node_n_idx'][level].shape[0]
     n_c2e_rows = gd['n_surf_dofs']
-    ops = gd[d_or_u + '2e_ops']
-    n_entries = n_c2e_rows ** 2
-    op0 = ops[:n_entries].get()
-    opD = ops[(depth * n_entries):((depth + 1) * n_entries)].get()
-    ratio = op0 / opD
-    # assert(np.all(ratio[0] == ratio))
-    print(ratio, depth)
     if n_c2e > 0:
         n_rows = int(np.ceil(n_c2e / n_c2e_block_rows) * n_c2e_block_rows)
         n_cols = int(np.ceil(n_c2e_rows / n_c2e_block_rows) * n_c2e_block_rows)
@@ -275,7 +274,7 @@ def gpu_c2e(fmm_mat, gd, level, depth, evs, d_or_u, out_arr, in_arr):
             gd[d_or_u + '2e_node_n_idx'][level].data,
             np.int32(depth),
             gd[d_or_u + '2e_ops'].data,
-            wait_for = evs
+            wait_for = to_ev_list(evs)
         )
     else:
         return None
@@ -316,7 +315,7 @@ def prep_data_for_eval(gd, input_vals):
     gd['locals'][:] = 0
 
 def eval_ocl(fmm_mat, input_vals, gpu_data = None, should_print_timing = True):
-    t = Timer()
+    t = Timer(silent = True)
     if gpu_data is None:
         gpu_data = data_to_gpu(fmm_mat)
     t.report('data to gpu')

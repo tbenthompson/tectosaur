@@ -8,26 +8,33 @@ from tectosaur.farfield import farfield_pts_direct
 
 setup_logger(__name__)
 
-# K = 'laplaceS3'
+# K = 'laplaceS2'
 # tensor_dim = 1
-# mac = 2.0
-# order = 100
+# mac = 3.0
+# order = 10
 
-K = 'elasticA3'
-tensor_dim = 3
-mac = 3.0
+K = 'laplaceS3'
+tensor_dim = 1
+mac = 2.0
 order = 100
 
+# K = 'elasticA3'
+# tensor_dim = 3
+# mac = 3.0
+# order = 100
+
+dim = int(K[-1])
 params = [1.0, 0.25]
 
 def random_data(N):
-    pts = np.random.rand(N, 3)
-    ns = np.random.rand(N, 3)
+    pts = np.random.rand(N, dim)
+    ns = np.random.rand(N, dim)
     ns /= np.linalg.norm(ns, axis = 1)[:,np.newaxis]
     input = np.random.rand(N, tensor_dim)
     return pts, ns, input
 
 def ellipsoid_pts(N):
+    assert(dim == 3)
     a = 4.0
     b = 1.0
     c = 1.0
@@ -44,12 +51,16 @@ def ellipsoid_pts(N):
 
 def grid_data(N):
     xs = np.linspace(-1.0, 1.0, N)
-    X,Y,Z = np.meshgrid(xs,xs,xs)
-    pts = np.array([X.flatten(), Y.flatten(), Z.flatten()]).T
-    ns = np.random.rand(N * N * N, 3)
+    if dim == 3:
+        X,Y,Z = np.meshgrid(xs,xs,xs)
+        pts = np.array([X.flatten(), Y.flatten(), Z.flatten()]).T
+    elif dim == 2:
+        X,Y = np.meshgrid(xs,xs)
+        pts = np.array([X.flatten(), Y.flatten()]).T
+
+    ns = np.random.rand(N ** dim, dim)
     ns /= np.linalg.norm(ns, axis = 1)[:,np.newaxis]
-    input = np.random.rand(N * N * N, tensor_dim)
-    np.set_printoptions(precision=18)
+    input = np.random.rand(N ** dim, tensor_dim)
     return pts.copy(), ns.copy(), input.copy()
 
 def direct_runner(pts, ns, input):
@@ -61,9 +72,9 @@ def direct_runner(pts, ns, input):
 def fmm_runner(pts, ns, input):
     t = Timer()
 
-    pts_per_cell = 300
+    pts_per_cell = order * 3
 
-    tree = fmm.three.Octree(pts, pts_per_cell)
+    tree = fmm.module[dim].Octree(pts, pts_per_cell)
     t.report('build tree')
 
     orig_idxs = np.array(tree.orig_idxs)
@@ -71,8 +82,8 @@ def fmm_runner(pts, ns, input):
     t.report('map input to tree space')
 
     mapped_ns = ns[orig_idxs]
-    fmm_mat = fmm.three.fmmmmmmm(
-        tree, mapped_ns, tree, mapped_ns, fmm.three.FMMConfig(1.1, mac, order, K, params)
+    fmm_mat = fmm.module[dim].fmmmmmmm(
+        tree, mapped_ns, tree, mapped_ns, fmm.module[dim].FMMConfig(1.1, mac, order, K, params)
     )
     t.report('setup fmm')
     fmm.report_interactions(fmm_mat)
@@ -102,7 +113,7 @@ if __name__ == '__main__':
     # data = random_data(N)
     # N = 10000000
     # data = ellipsoid_pts(N)
-    N = int(1e5 ** (1.0 / 3.0))
+    N = int(2e4 ** (1.0 / float(dim)))
     data = grid_data(N)
     A = fmm_runner(*data).flatten()
     B = direct_runner(*data)

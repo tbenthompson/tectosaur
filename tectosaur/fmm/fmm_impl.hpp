@@ -38,6 +38,9 @@ struct MatrixFreeOp {
 
     template <typename TreeT>
     void insert(const TreeT& obs_n, const TreeT& src_n) {
+        if (obs_n.end - obs_n.start == 0 || src_n.end - src_n.start == 0) {
+            return;
+        }
         obs_n_start.push_back(obs_n.start);
         obs_n_end.push_back(obs_n.end);
         obs_n_idx.push_back(obs_n.idx);
