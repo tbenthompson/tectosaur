@@ -42,7 +42,7 @@ def m2l_test_pts(dim):
         return out
     return f
 
-def run_full(n, make_pts, mac, order, kernel, params, ocl = False, max_pts_per_cell = None):
+def run_full(n, make_pts, mac, order, kernel, params, max_pts_per_cell = None):
     if max_pts_per_cell is None:
         max_pts_per_cell = order
     t = Timer()
@@ -72,8 +72,6 @@ def run_full(n, make_pts, mac, order, kernel, params, ocl = False, max_pts_per_c
 
     est = fmm.eval_ocl(fmm_mat, input_vals)
     t.report('eval fmm')
-    # est2 = fmm.mf_direct_eval(kernel, obs_pts, obs_ns, src_pts, src_ns, params, input_vals)
-    # t.report('eval direct')
 
     return (
         obs_kd.pts, obs_ns_kd,
@@ -103,7 +101,7 @@ def check_kernel(K, obs_pts, obs_ns, src_pts, src_ns, est, accuracy = 3):
 
 def test_ones(dim):
     K = 'one' + str(dim)
-    obs_pts, _, src_pts, _, est = run_full(5000, rand_pts(dim), 0.5, 1, K, [], ocl = True, max_pts_per_cell = 1000000000000)
+    obs_pts, _, src_pts, _, est = run_full(5000, rand_pts(dim), 0.5, 1, K, [])
     assert(np.all(np.abs(est - src_pts.shape[0]) < 1e-3))
 
 import pytest
@@ -122,7 +120,7 @@ def test_laplace_all(laplace_kernel, dim):
     np.random.seed(10)
     order = 16 if dim == 2 else 64
     check_kernel(K, *run_full(
-        10000, rand_pts(dim), 2.6, order, K, [], ocl = True
+        10000, rand_pts(dim), 2.6, order, K, []
     ), accuracy = 1)
 
 def test_elastic():
@@ -131,7 +129,7 @@ def test_elastic():
     K = 'elasticU' + str(dim)
     order = 16 if dim == 2 else 64
     check_kernel(K, *run_full(
-        4000, rand_pts(dim), 2.6, order, K, [1.0, 0.25], ocl = False
+        4000, rand_pts(dim), 2.6, order, K, [1.0, 0.25]
     ), accuracy = 1)
 
 def test_m2l(laplace_kernel, dim):

@@ -164,7 +164,7 @@ if (obs_pt_idx < obs_pt_max) {
             r2 += D${dn(d)} * D${dn(d)};
         % endfor
 
-        % if check_r_zero:
+        % if check_r2_zero:
         if (r2 == 0) {
             continue;
         }
