@@ -103,7 +103,7 @@ def check_kernel(K, obs_pts, obs_ns, src_pts, src_ns, est, accuracy = 3):
 
 def test_ones(dim):
     K = 'one' + str(dim)
-    obs_pts, _, src_pts, _, est = run_full(5000, rand_pts(dim), 0.5, 1, K, [], ocl = True)
+    obs_pts, _, src_pts, _, est = run_full(5000, rand_pts(dim), 0.5, 1, K, [], ocl = True, max_pts_per_cell = 1000000000000)
     assert(np.all(np.abs(est - src_pts.shape[0]) < 1e-3))
 
 import pytest
@@ -146,4 +146,4 @@ def test_irregular():
     check_kernel(K, *run_full(10000, ellipsoid_pts, 2.6, 35, K, []))
 
 if __name__ == '__main__':
-    test_p2p('laplaceS', 2)
+    test_ones(3)
