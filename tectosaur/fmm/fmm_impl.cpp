@@ -7,8 +7,16 @@
 #include "fmm_impl.hpp"
 #include "blas_wrapper.hpp"
 
+struct InteractionLists {
+    std::vector<std::vector<int>> p2p; 
+    std::vector<std::vector<int>> m2p; 
+    std::vector<std::vector<int>> p2l; 
+    std::vector<std::vector<int>> m2l; 
+};
+
 template <typename TreeT>
 void traverse(FMMMat<TreeT>& mat,
+        InteractionLists& interaction_lists,
         const typename TreeT::Node& obs_n,
         const typename TreeT::Node& src_n) 
 {
@@ -32,18 +40,22 @@ void traverse(FMMMat<TreeT>& mat,
             mat.obs_tree.for_all_leaves_of(obs_n,
                 [&] (const typename TreeT::Node& leaf_obs_n) {
                     mat.p2p.insert(leaf_obs_n, src_n);
+                    interaction_lists.p2p[leaf_obs_n.idx].push_back(src_n.idx);
                 }
             );
         } else if (small_obs) {
             mat.obs_tree.for_all_leaves_of(obs_n,
                 [&] (const typename TreeT::Node& leaf_obs_n) {
                     mat.m2p.insert(leaf_obs_n, src_n);
+                    interaction_lists.m2p[leaf_obs_n.idx].push_back(src_n.idx);
                 }
             );
         } else if (small_src) {
             mat.p2l.insert(obs_n, src_n);
+            interaction_lists.p2l[obs_n.idx].push_back(src_n.idx);
         } else {
             mat.m2l.insert(obs_n, src_n);
+            interaction_lists.m2l[obs_n.idx].push_back(src_n.idx);
         }
 
         return;
@@ -57,11 +69,11 @@ void traverse(FMMMat<TreeT>& mat,
     bool split_src = ((r_obs < r_src) && !src_n.is_leaf) || obs_n.is_leaf;
     if (split_src) {
         for (size_t i = 0; i < TreeT::split; i++) {
-            traverse(mat, obs_n, mat.src_tree.nodes[src_n.children[i]]);
+            traverse(mat, interaction_lists, obs_n, mat.src_tree.nodes[src_n.children[i]]);
         }
     } else {
         for (size_t i = 0; i < TreeT::split; i++) {
-            traverse(mat, mat.obs_tree.nodes[obs_n.children[i]], src_n);
+            traverse(mat, interaction_lists, mat.obs_tree.nodes[obs_n.children[i]], src_n);
         }
     }
 }
@@ -341,6 +353,44 @@ void build_c2e(FMMMat<TreeT>& mat, std::vector<double>& c2e_ops,
     }
 }
 
+CompressedInteractionList compress(const std::vector<std::vector<int>>& list) {
+    CompressedInteractionList out;
+    out.obs_starts.resize(list.size() + 1);
+    out.obs_starts[0] = 0;
+    for (size_t i = 0; i < list.size(); i++) {
+        out.obs_starts[i + 1] = out.obs_starts[i] + list[i].size();
+    }
+
+    out.src_n_idxs.resize(out.obs_starts[list.size()]);
+    size_t next = 0;
+    for (size_t i = 0; i < list.size(); i++) {
+        for (size_t j = 0; j < list[i].size(); j++) {
+            out.src_n_idxs[next] = list[i][j];
+            next++;
+        }
+    }
+
+    return out;
+}
+
+template <typename TreeT>
+InteractionLists init_interaction_lists(const FMMMat<TreeT>& mat) {
+    InteractionLists lists;
+    lists.p2p.resize(mat.obs_tree.nodes.size());
+    lists.m2p.resize(mat.obs_tree.nodes.size());
+    lists.p2l.resize(mat.obs_tree.nodes.size());
+    lists.m2l.resize(mat.obs_tree.nodes.size());
+    return lists;
+}
+
+template <typename TreeT>
+void compress_interaction_lists(FMMMat<TreeT>& mat, const InteractionLists& lists) {
+    mat.p2p_new = compress(lists.p2p);
+    mat.m2p_new = compress(lists.m2p);
+    mat.p2l_new = compress(lists.p2l);
+    mat.m2l_new = compress(lists.m2l);
+}
+
 template <typename TreeT>
 FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree,
     const std::vector<std::array<double,TreeT::dim>>& obs_normals,
@@ -359,10 +409,15 @@ FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree,
     mat.d2e.resize(mat.obs_tree.max_height + 1);
 
     build_c2e(mat, mat.u2e_ops, mat.src_tree, mat.cfg.outer_r, mat.cfg.inner_r);
-    build_c2e(mat, mat.d2e_ops, mat.obs_tree, mat.cfg.inner_r, mat.cfg.outer_r);
-    traverse(mat, mat.obs_tree.root(), mat.src_tree.root());
     up_collect(mat, mat.src_tree.root());
+
+    build_c2e(mat, mat.d2e_ops, mat.obs_tree, mat.cfg.inner_r, mat.cfg.outer_r);
     down_collect(mat, mat.obs_tree.root());
+
+    auto interaction_lists = init_interaction_lists(mat);
+    traverse(mat, interaction_lists, mat.obs_tree.root(), mat.src_tree.root());
+    compress_interaction_lists(mat, interaction_lists);
+
 
     return mat;
 }

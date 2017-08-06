@@ -49,6 +49,13 @@ struct MatrixFreeOp {
     }
 };
 
+struct CompressedInteractionList {
+    std::vector<int> obs_starts;
+    std::vector<int> src_n_idxs;
+};
+
+CompressedInteractionList compress(const std::vector<std::vector<int>>& list);
+
 template <typename TreeT>
 struct FMMMat {
     TreeT obs_tree;
@@ -61,18 +68,23 @@ struct FMMMat {
 
     MatrixFreeOp p2m;
     std::vector<MatrixFreeOp> m2m;
-    MatrixFreeOp p2l;
-    MatrixFreeOp m2l;
-    std::vector<MatrixFreeOp> l2l;
-    MatrixFreeOp p2p;
-    MatrixFreeOp m2p;
-    MatrixFreeOp l2p;
-
     std::vector<double> u2e_ops;
     std::vector<MatrixFreeOp> u2e;
 
+    std::vector<MatrixFreeOp> l2l;
+    MatrixFreeOp l2p;
     std::vector<double> d2e_ops;
     std::vector<MatrixFreeOp> d2e;
+
+    MatrixFreeOp p2p;
+    MatrixFreeOp m2p;
+    MatrixFreeOp p2l;
+    MatrixFreeOp m2l;
+
+    CompressedInteractionList p2p_new;
+    CompressedInteractionList p2l_new;
+    CompressedInteractionList m2p_new;
+    CompressedInteractionList m2l_new;
 
     FMMMat(TreeT obs_tree, std::vector<std::array<double,TreeT::dim>> obs_normals,
            TreeT src_tree, std::vector<std::array<double,TreeT::dim>> src_normals,
