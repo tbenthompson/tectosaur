@@ -61,10 +61,8 @@ void wrap_fmm(py::module& m) {
             );
         })
         .def_property_readonly("tensor_dim", &FMMMat<TreeT>::tensor_dim)
-        .OP(p2m).OP(m2m).OP(p2l).OP(m2l).OP(l2l).OP(p2p).OP(m2p).OP(l2p).OP(u2e).OP(d2e)
-        .OP(p2m_new).OP(m2m_new).OP(p2l_new).OP(m2l_new).OP(l2l_new).OP(p2p_new).OP(m2p_new).OP(l2p_new).OP(u2e_new).OP(d2e_new)
-        .EVALFNC(p2p).EVALFNC(p2m).EVALFNC(p2l).EVALFNC(m2l).EVALFNC(m2p).EVALFNC(l2p)
-        .EVALFNCLEVEL(m2m).EVALFNCLEVEL(u2e).EVALFNCLEVEL(l2l).EVALFNCLEVEL(d2e);
+        .OP(u2e).OP(d2e)
+        .OP(p2m_new).OP(m2m_new).OP(p2l_new).OP(m2l_new).OP(l2l_new).OP(p2p_new).OP(m2p_new).OP(l2p_new).OP(u2e_new).OP(d2e_new);
 
 #undef EXPOSEOP
 #undef EVALFNC
@@ -81,6 +79,8 @@ void wrap_fmm(py::module& m) {
                 cfg
             );
         });
+
+    m.def("count_interactions", &count_interactions<Octree<dim>>);
 }
 
 

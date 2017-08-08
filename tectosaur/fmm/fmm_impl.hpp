@@ -42,10 +42,36 @@ struct MatrixFreeOp {
 };
 
 struct CompressedInteractionList {
-    std::vector<int> obs_n_idxs;
+    std::vector<int> obs_n_idxs;//TODO: Make these 64-bit.
     std::vector<int> obs_src_starts;
     std::vector<int> src_n_idxs;
 };
+
+template <typename TreeT>
+size_t count_interactions(const CompressedInteractionList& list,
+    const TreeT& obs_tree, const TreeT& src_tree,
+    bool obs_surf, bool src_surf, int n_surf) 
+{
+    size_t n = 0;
+    for (size_t i = 0; i < list.obs_n_idxs.size(); i++) {
+        int obs_n_idx = list.obs_n_idxs[i];
+        int n_obs = n_surf;
+        if (!obs_surf) {
+            auto& n = obs_tree.nodes[obs_n_idx];
+            n_obs = n.end - n.start;
+        }
+        for (int j = list.obs_src_starts[i]; j < list.obs_src_starts[i + 1]; j++) {
+            int src_n_idx = list.src_n_idxs[j];
+            int n_src = n_surf;
+            if (!src_surf) {
+                auto& n = src_tree.nodes[src_n_idx];
+                n_src = n.end - n.start;
+            }
+            n += n_obs * n_src;
+        }
+    }
+    return n;
+}
 
 CompressedInteractionList compress(const std::vector<std::vector<int>>& list);
 
@@ -92,20 +118,6 @@ struct FMMMat {
            FMMConfig<TreeT::dim> cfg, std::vector<std::array<double,TreeT::dim>> surf);
 
     int tensor_dim() const { return cfg.tensor_dim(); }
-
-    void p2m_matvec(double* out, double* in);
-    void m2m_matvec(double* out, double* in, int level);
-    void p2l_matvec(double* out, double* in);
-    void m2l_matvec(double* out, double* in);
-    void l2l_matvec(double* out, double* in, int level);
-    void p2p_matvec(double* out, double* in);
-    void m2p_matvec(double* out, double* in);
-    void l2p_matvec(double* out, double* in);
-    void d2e_matvec(double* out, double* in, int level);
-    void u2e_matvec(double* out, double* in, int level);
-
-    std::vector<double> m2m_eval(double* m_check);
-    std::vector<double> m2p_eval(double* multipoles);
 };
 
 template <typename TreeT>

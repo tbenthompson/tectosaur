@@ -14,6 +14,7 @@ fmm = cppimport("tectosaur.fmm.fmm")
 logger = setup_logger(__name__)
 
 #TODO: This file should be split up!
+# I think the gpu_data thing should become a FMM class.
 
 two = fmm.two
 three = fmm.three
@@ -40,58 +41,36 @@ def get_gpu_module(surf, K, float_type):
     return gpu_module
 
 def report_interactions(fmm_mat):
-    surf_n = len(fmm_mat.surf)
-    obs_start = np.array([n.start for n in fmm_mat.obs_tree.nodes])
-    obs_end = np.array([n.end for n in fmm_mat.obs_tree.nodes])
-    src_start = np.array([n.start for n in fmm_mat.src_tree.nodes])
-    src_end = np.array([n.end for n in fmm_mat.src_tree.nodes])
+    n_obs_pts = fmm_mat.obs_tree.pts.shape[0]
+    n_src_pts = fmm_mat.src_tree.pts.shape[0]
+    dim = fmm_mat.obs_tree.pts.shape[1]
 
-    idxs = np.array(fmm_mat.p2m.src_n_idx)
-    p2m_i = np.sum((src_end[idxs] - src_start[idxs]) * surf_n)
+    level_ops = ['m2m', 'l2l']
+    ops = [
+        ('p2m', True, False),
+        ('p2l', True, False),
+        ('m2l', True, True),
+        ('p2p', False, False),
+        ('m2p', False, True),
+        ('l2p', False, True)
+    ]
+    interactions = dict()
+    for op_name, obs_surf, src_surf in ops:
+        interactions[op_name] = module[dim].count_interactions(
+            getattr(fmm_mat, op_name + '_new'),
+            fmm_mat.obs_tree, fmm_mat.src_tree,
+            obs_surf, src_surf, len(fmm_mat.surf)
+        )
 
-    m2m_i = (
-        sum([len(fmm_mat.m2m[level].obs_n_idx) for level in range(len(fmm_mat.m2m))])
-        * surf_n * surf_n
-    )
+    direct_i = n_obs_pts * n_src_pts
+    fmm_i = sum([v for k,v in interactions.items()])
 
-    idxs = np.array(fmm_mat.p2l.src_n_idx)
-    p2l_i = np.sum((src_end[idxs] - src_start[idxs]) * surf_n)
-
-    m2l_i = len(fmm_mat.m2l.obs_n_idx) * surf_n * surf_n
-
-    l2l_i = (
-        sum([len(fmm_mat.l2l[level].obs_n_idx) for level in range(len(fmm_mat.l2l))])
-        * surf_n * surf_n
-    )
-
-    idxs = np.array(fmm_mat.m2p.obs_n_idx)
-    m2p_i = np.sum((obs_end[idxs] - obs_start[idxs]) * surf_n)
-
-    idxs = np.array(fmm_mat.l2p.obs_n_idx)
-    l2p_i = np.sum((obs_end[idxs] - obs_start[idxs]) * surf_n)
-
-    obs_idxs = np.array(fmm_mat.p2p.obs_n_idx)
-    src_idxs = np.array(fmm_mat.p2p.src_n_idx)
-    p2p_i = np.sum(
-        (obs_end[obs_idxs] - obs_start[obs_idxs]) *
-        (src_end[src_idxs] - src_start[src_idxs])
-    )
-
-    tree_i = p2p_i + m2p_i + p2m_i + m2m_i + m2l_i + l2l_i + l2p_i + p2l_i
-    direct_i = len(fmm_mat.obs_tree.pts) * len(fmm_mat.src_tree.pts)
-
-    logger.debug('compression factor: ' + str(tree_i / direct_i))
-    logger.debug('# obs pts: ' + str(fmm_mat.obs_tree.pts.shape[0]))
-    logger.debug('# src pts: ' + str(fmm_mat.src_tree.pts.shape[0]))
-    logger.debug('total tree interactions: %e' % tree_i)
-    logger.debug('total p2m interactions: %e' % p2m_i)
-    logger.debug('total m2m interactions: %e' % m2m_i)
-    logger.debug('total p2l interactions: %e' % p2l_i)
-    logger.debug('total m2l interactions: %e' % m2l_i)
-    logger.debug('total l2l interactions: %e' % l2l_i)
-    logger.debug('total p2p interactions: %e' % p2p_i)
-    logger.debug('total m2p interactions: %e' % m2p_i)
-    logger.debug('total l2p interactions: %e' % l2p_i)
+    logger.debug('compression factor: ' + str(fmm_i / direct_i))
+    logger.debug('# obs pts: ' + str(n_obs_pts))
+    logger.debug('# src pts: ' + str(n_src_pts))
+    logger.debug('total tree interactions: %e' % fmm_i)
+    for k, v in interactions.items():
+        logger.debug('total %s interactions: %e' % (k, v))
 
 def data_to_gpu(fmm_mat, float_type):
     src_tree_nodes = fmm_mat.src_tree.nodes
@@ -146,13 +125,13 @@ def data_to_gpu(fmm_mat, float_type):
             np.array([n.end for n in tree]), np.int32
         )
 
-    n_src_levels = len(fmm_mat.m2m)
+    n_src_levels = len(fmm_mat.m2m_new)
     gd['u2e_node_n_idx'] = [
         gpu.to_gpu(fmm_mat.u2e[level].src_n_idx, np.int32) for level in range(n_src_levels)
     ]
     gd['u2e_ops'] = gpu.to_gpu(fmm_mat.u2e_ops, float_type)
 
-    n_obs_levels = len(fmm_mat.l2l)
+    n_obs_levels = len(fmm_mat.l2l_new)
     gd['d2e_node_n_idx'] = [
         gpu.to_gpu(fmm_mat.d2e[level].src_n_idx, np.int32) for level in range(n_obs_levels)
     ]
@@ -338,7 +317,7 @@ def eval_ocl(fmm_mat, input_vals, gpu_data, should_print_timing = True):
     u2e_evs = []
     u2e_evs.append(gpu_u2e(fmm_mat, gpu_data, 0, [p2m_ev]))
 
-    for i in range(1, len(fmm_mat.m2m)):
+    for i in range(1, len(fmm_mat.m2m_new)):
         m2m_evs.append(gpu_m2m(fmm_mat, gpu_data, i, [u2e_evs[-1]]))
         u2e_evs.append(gpu_u2e(fmm_mat, gpu_data, i, [m2m_evs[-1]]))
     t.report('m2m')
@@ -356,7 +335,7 @@ def eval_ocl(fmm_mat, input_vals, gpu_data, should_print_timing = True):
     d2e_evs.append(gpu_d2e(fmm_mat, gpu_data, 0, d2e_wait_for))
     t.report('p2l')
 
-    for i in range(1, len(fmm_mat.l2l)):
+    for i in range(1, len(fmm_mat.l2l_new)):
         l2l_evs.append(gpu_l2l(fmm_mat, gpu_data, i, d2e_evs[-1]))
         d2e_evs.append(gpu_d2e(fmm_mat, gpu_data, i, [l2l_evs[-1]]))
     t.report('l2l')
@@ -383,37 +362,3 @@ def eval_ocl(fmm_mat, input_vals, gpu_data, should_print_timing = True):
         )
 
     return retval
-
-def eval_cpu(fmm_mat, input_vals):
-    tensor_dim = fmm_mat.cfg.tensor_dim
-    n_out = fmm_mat.obs_tree.pts.shape[0] * tensor_dim
-    n_multipoles = fmm_mat.src_tree.n_nodes * len(fmm_mat.surf) * tensor_dim
-    n_locals = fmm_mat.obs_tree.n_nodes * len(fmm_mat.surf) * tensor_dim
-
-    out = np.zeros(n_out)
-    m_check = np.zeros(n_multipoles)
-    multipoles = np.zeros(n_multipoles)
-    l_check = np.zeros(n_locals)
-    locals = np.zeros(n_locals)
-
-    fmm_mat.p2m_eval(m_check, input_vals)
-    fmm_mat.u2e_eval(multipoles, m_check, 0)
-
-    for i in range(1, len(fmm_mat.m2m)):
-        fmm_mat.m2m_eval(m_check, multipoles, i)
-        fmm_mat.u2e_eval(multipoles, m_check, i)
-
-    fmm_mat.p2l_eval(l_check, input_vals)
-    fmm_mat.m2l_eval(l_check, multipoles)
-    fmm_mat.d2e_eval(locals, l_check, 0)
-
-    for i in range(1, len(fmm_mat.l2l)):
-        fmm_mat.l2l_eval(l_check, locals, i)
-        fmm_mat.d2e_eval(locals, l_check, i)
-
-    fmm_mat.l2p_eval(out, locals)
-
-    fmm_mat.p2p_eval(out, input_vals)
-    fmm_mat.m2p_eval(out, multipoles)
-
-    return out
