@@ -1,8 +1,6 @@
 <%!
 def dn(dim):
     return ['x', 'y', 'z'][dim]
-
-from tectosaur.util.build_cfg import gpu_float_type
 from tectosaur.kernels import kernels
 %>
 
@@ -11,51 +9,50 @@ from tectosaur.kernels import kernels
 
 __constant Real surf[${surf.size}] = {${str(surf.flatten().tolist())[1:-1]}};
 
-// Atomic floating point addition for opencl
-// from: https://streamcomputing.eu/blog/2016-02-09/atomic-operations-for-floats-in-opencl-improved/
-float atomic_fadd(volatile __global float *addr, float val)
-{
-    union{
-        unsigned int u32;
-        float        f32;
-    } next, expected, current;
-    current.f32 = *addr;
-    do{
-        expected.f32 = current.f32;
-        next.f32 = expected.f32 + val;
-        current.u32 = atomic_cmpxchg(
-            (volatile __global unsigned int *)addr, 
-            expected.u32, next.u32
-        );
-    } while( current.u32 != expected.u32 );
-    return current.f32;
-}
+<%def name="func_def(op_name, obs_type, src_type)">
+__kernel
+void ${op_name}_${K.name}(
+        __global Real* out, __global Real* in,
+        int n_blocks, __global Real* params,
+        __global int* obs_n_idxs, __global int* obs_src_starts, __global int* src_n_idxs,
+        ${params("obs", obs_type)}, ${params("src", src_type)})
+</%def>
 
 <%def name="get_block_idx()">
     const int global_idx = get_global_id(0); 
     const int worker_idx = get_local_id(0);
     const int block_idx = (global_idx - worker_idx) / ${n_workers_per_block};
+    const int this_obs_n_idx = obs_n_idxs[block_idx];
+    const int this_obs_src_start = obs_src_starts[block_idx];
+    const int this_obs_src_end = obs_src_starts[block_idx + 1];
+</%def>
+
+<%def name="start_block_loop()">
+    for (int src_block_idx = this_obs_src_start;
+         src_block_idx < this_obs_src_end;
+         src_block_idx++) 
+    {
+        const int this_src_n_idx = src_n_idxs[src_block_idx];
 </%def>
 
 <%def name="params(name, type)">
 % if type == "pts":
-    __global int* ${name}_n_start, __global int* ${name}_n_end,
+    __global int* ${name}_n_starts, __global int* ${name}_n_ends,
     __global Real* ${name}_pts, __global Real* ${name}_ns
 % else:
-    __global int* ${name}_n_idx, __global Real* ${name}_n_center,
+    __global Real* ${name}_n_center,
     __global Real* ${name}_n_R, Real ${name}_surf_r
 % endif
 </%def>
 
 <%def name="setup_block(name, type)">
 % if type == "pts":
-    int ${name}_start = ${name}_n_start[block_idx];
-    int ${name}_end = ${name}_n_end[block_idx];
+    int ${name}_start = ${name}_n_starts[this_${name}_n_idx];
+    int ${name}_end = ${name}_n_ends[this_${name}_n_idx];
 % else:
-    int ${name}_idx = ${name}_n_idx[block_idx];
-    Real ${name}_surf_radius = ${name}_n_R[${name}_idx] * ${name}_surf_r;
+    Real ${name}_surf_radius = ${name}_n_R[this_${name}_n_idx] * ${name}_surf_r;
     % for d in range(K.spatial_dim):
-        Real ${name}_center${dn(d)} = ${name}_n_center[${name}_idx * ${K.spatial_dim} + ${d}];
+        Real ${name}_center${dn(d)} = ${name}_n_center[this_${name}_n_idx * ${K.spatial_dim} + ${d}];
     % endfor
 % endif
 </%def>
@@ -107,7 +104,7 @@ for (int obs_pt_start = obs_pt_min; obs_pt_start < obs_pt_max; obs_pt_start += $
 <%def name="start_outer_src_loop(src_type)">
 int src_start_idx = ${"src_start" if src_type == "pts" else "0"};
 int src_end_idx = ${"src_end" if src_type == "pts" else str(surf.shape[0])};
-int input_offset = ${"0" if src_type == "pts" else "src_idx * " + str(surf.shape[0])};
+int input_offset = ${"0" if src_type == "pts" else "this_src_n_idx * " + str(surf.shape[0])};
 for (int chunk_start = src_start_idx;
         chunk_start < src_end_idx;
         chunk_start += ${n_workers_per_block}) 
@@ -185,14 +182,12 @@ if (obs_pt_idx < obs_pt_max) {
 </%def>
 
 <%def name="sum_to_global(obs_type)">
-    if (obs_pt_idx < obs_pt_max) {
-        int out_offset = ${0 if obs_type == "pts" else ("obs_idx * " + str(surf.shape[0]))};
-        % for d in range(K.tensor_dim):
-        atomic_fadd(
-            &out[(out_offset + obs_pt_idx) * ${K.tensor_dim} + ${d}],
-            sum${dn(d)}
-        );
-        % endfor
+        if (obs_pt_idx < obs_pt_max) {
+            int out_offset = ${0 if obs_type == "pts" else ("this_obs_n_idx * " + str(surf.shape[0]))};
+            % for d in range(K.tensor_dim):
+            out[(out_offset + obs_pt_idx) * ${K.tensor_dim} + ${d}] += sum${dn(d)};
+            % endfor
+        }
     }
 }
 </%def>
@@ -203,22 +198,21 @@ if (obs_pt_idx < obs_pt_max) {
 </%def>
 
 <%def name="fmm_op(op_name, obs_type, src_type, check_r2_zero)">
-__kernel
-void ${op_name}_${K.name}(
-        __global Real* out, __global Real* in, int n_blocks, __global Real* params,
-        ${params("obs", obs_type)}, ${params("src", src_type)})
+${func_def(op_name, obs_type, src_type)}
 {
     ${get_block_idx()}
     ${K.constants_code}
     ${setup_block("obs", obs_type)}
-    ${setup_block("src", src_type)}
     ${setup_src_local_memory(src_type)}
 
-    ${obs_loop(obs_type)}
-    ${start_outer_src_loop(src_type)}
-    ${src_inner_loop(src_type, check_r2_zero)}
-    ${finish_outer_src_loop()}
-    ${sum_to_global(obs_type)}
+    ${start_block_loop()}
+        ${setup_block("src", src_type)}
+
+        ${obs_loop(obs_type)}
+            ${start_outer_src_loop(src_type)}
+                ${src_inner_loop(src_type, check_r2_zero)}
+            ${finish_outer_src_loop()}
+        ${sum_to_global(obs_type)}
 }
 </%def>
 

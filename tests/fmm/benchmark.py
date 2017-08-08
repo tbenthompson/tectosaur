@@ -23,6 +23,7 @@ order = 100
 # mac = 3.0
 # order = 100
 
+float_type = np.float64
 dim = int(K[-1])
 params = [1.0, 0.25]
 
@@ -89,7 +90,7 @@ def fmm_runner(pts, ns, input):
     fmm.report_interactions(fmm_mat)
     t.report('report')
 
-    gpu_data = fmm.data_to_gpu(fmm_mat)
+    gpu_data = fmm.data_to_gpu(fmm_mat, float_type)
     t.report('data to gpu')
 
     output = fmm.eval_ocl(fmm_mat, input_tree, gpu_data)

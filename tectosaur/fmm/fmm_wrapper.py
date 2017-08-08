@@ -6,7 +6,6 @@ from tectosaur.util.timer import Timer
 from tectosaur import setup_logger
 
 import tectosaur.fmm
-from tectosaur.util.build_cfg import float_type
 from tectosaur.kernels import kernels
 
 from cppimport import cppimport
@@ -25,10 +24,11 @@ module[3] = three
 n_workers_per_block = 128
 n_c2e_block_rows = 16
 
-def get_gpu_module(surf, K):
+def get_gpu_module(surf, K, float_type):
     args = dict(
         n_workers_per_block = n_workers_per_block,
         n_c2e_block_rows = n_c2e_block_rows,
+        gpu_float_type = gpu.np_to_c_type(float_type),
         surf = surf,
         K = K
     )
@@ -41,19 +41,21 @@ def get_gpu_module(surf, K):
 
 def report_interactions(fmm_mat):
     surf_n = len(fmm_mat.surf)
+    obs_start = np.array([n.start for n in fmm_mat.obs_tree.nodes])
+    obs_end = np.array([n.end for n in fmm_mat.obs_tree.nodes])
+    src_start = np.array([n.start for n in fmm_mat.src_tree.nodes])
+    src_end = np.array([n.end for n in fmm_mat.src_tree.nodes])
 
-    starts = fmm_mat.p2m.src_n_start
-    ends = fmm_mat.p2m.src_n_end
-    p2m_i = np.sum((ends - starts) * surf_n)
+    idxs = np.array(fmm_mat.p2m.src_n_idx)
+    p2m_i = np.sum((src_end[idxs] - src_start[idxs]) * surf_n)
 
     m2m_i = (
         sum([len(fmm_mat.m2m[level].obs_n_idx) for level in range(len(fmm_mat.m2m))])
         * surf_n * surf_n
     )
 
-    starts = fmm_mat.p2l.src_n_start
-    ends = fmm_mat.p2l.src_n_end
-    p2l_i = np.sum((ends - starts) * surf_n)
+    idxs = np.array(fmm_mat.p2l.src_n_idx)
+    p2l_i = np.sum((src_end[idxs] - src_start[idxs]) * surf_n)
 
     m2l_i = len(fmm_mat.m2l.obs_n_idx) * surf_n * surf_n
 
@@ -62,19 +64,18 @@ def report_interactions(fmm_mat):
         * surf_n * surf_n
     )
 
-    starts = np.array(fmm_mat.m2p.obs_n_start)
-    ends = np.array(fmm_mat.m2p.obs_n_end)
-    m2p_i = np.sum((ends - starts) * surf_n)
+    idxs = np.array(fmm_mat.m2p.obs_n_idx)
+    m2p_i = np.sum((obs_end[idxs] - obs_start[idxs]) * surf_n)
 
-    starts = fmm_mat.l2p.obs_n_start
-    ends = fmm_mat.l2p.obs_n_end
-    l2p_i = np.sum((ends - starts) * surf_n)
+    idxs = np.array(fmm_mat.l2p.obs_n_idx)
+    l2p_i = np.sum((obs_end[idxs] - obs_start[idxs]) * surf_n)
 
-    obs_ends = np.array(fmm_mat.p2p.obs_n_end)
-    obs_starts = np.array(fmm_mat.p2p.obs_n_start)
-    src_ends = np.array(fmm_mat.p2p.src_n_end)
-    src_starts = np.array(fmm_mat.p2p.src_n_start)
-    p2p_i = np.sum((obs_ends - obs_starts) * (src_ends - src_starts))
+    obs_idxs = np.array(fmm_mat.p2p.obs_n_idx)
+    src_idxs = np.array(fmm_mat.p2p.src_n_idx)
+    p2p_i = np.sum(
+        (obs_end[obs_idxs] - obs_start[obs_idxs]) *
+        (src_end[src_idxs] - src_start[src_idxs])
+    )
 
     tree_i = p2p_i + m2p_i + p2m_i + m2m_i + m2l_i + l2l_i + l2p_i + p2l_i
     direct_i = len(fmm_mat.obs_tree.pts) * len(fmm_mat.src_tree.pts)
@@ -92,7 +93,7 @@ def report_interactions(fmm_mat):
     logger.debug('total m2p interactions: %e' % m2p_i)
     logger.debug('total l2p interactions: %e' % l2p_i)
 
-def data_to_gpu(fmm_mat):
+def data_to_gpu(fmm_mat, float_type):
     src_tree_nodes = fmm_mat.src_tree.nodes
     obs_tree_nodes = fmm_mat.obs_tree.nodes
 
@@ -102,8 +103,9 @@ def data_to_gpu(fmm_mat):
     K_name = fmm_mat.cfg.kernel_name
     K = kernels[K_name]
 
+    gd['float_type'] = float_type
     gd['fmm_mat'] = fmm_mat
-    gd['module'] = get_gpu_module(surf, K)
+    gd['module'] = get_gpu_module(surf, K, float_type)
     for a in ['s', 'p']:
         for b in ['s', 'p']:
             name = a + '2' + b
@@ -137,6 +139,12 @@ def data_to_gpu(fmm_mat):
         gd[name + '_n_R'] = gpu.to_gpu(
             np.array([n.bounds.R for n in tree]), float_type
         )
+        gd[name + '_n_start'] = gpu.to_gpu(
+            np.array([n.start for n in tree]), np.int32
+        )
+        gd[name + '_n_end'] = gpu.to_gpu(
+            np.array([n.end for n in tree]), np.int32
+        )
 
     n_src_levels = len(fmm_mat.m2m)
     gd['u2e_node_n_idx'] = [
@@ -155,41 +163,24 @@ def data_to_gpu(fmm_mat):
 def get_op(op_name, gd):
     return gd[op_name[:3].replace('m', 's').replace('l', 's')]
 
-def get_block_data(op_name, data_name, gd):
+def get_block_data(op_name, data_name, gd, suffix = ''):
     saved_name = op_name + '_' + data_name
     if saved_name not in gd:
         if len(op_name) > 3:
             level = int(op_name[3:])
             gd[saved_name] = gpu.to_gpu(
-                getattr(getattr(gd['fmm_mat'], op_name[:3])[level], data_name),
+                getattr(getattr(gd['fmm_mat'], op_name[:3] + suffix)[level], data_name),
                 np.int32
             )
         else:
             gd[saved_name] = gpu.to_gpu(
-                getattr(getattr(gd['fmm_mat'], op_name), data_name),
+                getattr(getattr(gd['fmm_mat'], op_name + suffix), data_name),
                 np.int32
             )
     return gd[saved_name]
 
-def get_data(op_name, name, type, gd):
-    if type[0] == 'pts':
-        return [
-            get_block_data(op_name, name + '_n_start', gd),
-            get_block_data(op_name, name + '_n_end', gd),
-            gd[type[1] + '_pts'], gd[type[1] + '_normals']
-        ]
-    else:
-        return [
-            get_block_data(op_name, name + '_n_idx', gd),
-            gd[type[1] + '_n_center'], gd[type[1] + '_n_R'],
-            float_type(type[2]),
-        ]
-
 def get_n_blocks(op_name, obs_type, gd):
-    if obs_type[0] == 'pts':
-        return gd[op_name + '_obs_n_start'].shape[0]
-    else:
-        return gd[op_name + '_obs_n_idx'].shape[0]
+    return gd[op_name + '_obs_n_idx'].shape[0]
 
 def to_ev_list(maybe_evs):
     return [ev for ev in maybe_evs if ev is not None]
@@ -197,17 +188,31 @@ def to_ev_list(maybe_evs):
 def gpu_fmm_op(op_name, out_name, in_name, obs_type, src_type, gd, wait_for):
     op = get_op(op_name, gd)
 
-    obs_data = get_data(op_name, 'obs', obs_type, gd)
-    src_data = get_data(op_name, 'src', src_type, gd)
+    call_data = [
+        get_block_data(op_name, 'obs_n_idxs', gd, suffix = '_new'),
+        get_block_data(op_name, 'obs_src_starts', gd, suffix = '_new'),
+        get_block_data(op_name, 'src_n_idxs', gd, suffix = '_new'),
+    ]
+    for name, type in [('obs', obs_type), ('src', src_type)]:
+        if type[0] == 'pts':
+            call_data.extend([
+                gd[type[1] + '_n_start'], gd[type[1] + '_n_end'],
+                gd[type[1] + '_pts'], gd[type[1] + '_normals']
+            ])
+        else:
+            call_data.extend([
+                gd[type[1] + '_n_center'], gd[type[1] + '_n_R'],
+                gd['float_type'](type[2]),
+            ])
 
-    n_blocks = get_n_blocks(op_name, obs_type, gd)
-    if n_blocks > 0:
+    n_obs_n = call_data[0].shape[0]
+    if n_obs_n > 0:
         return op(
             gpu.gpu_queue,
-            (n_blocks * n_workers_per_block,), (n_workers_per_block,),
+            (n_obs_n * n_workers_per_block,), (n_workers_per_block,),
             gd[out_name].data, gd[in_name].data,
-            np.int32(n_blocks), gd['params'].data,
-            *[d.data for d in obs_data], *[d.data for d in src_data],
+            np.int32(n_obs_n), gd['params'].data,
+            *[d.data for d in call_data],
             wait_for = to_ev_list(wait_for)
         )
     else:
@@ -309,19 +314,15 @@ def print_timing(p2m_ev, m2m_evs, u2e_evs,
     logger.debug('l2p took ' + str(get_time(l2p_ev)))
 
 def prep_data_for_eval(gd, input_vals):
-    gd['in'][:] = input_vals.astype(float_type).flatten()
+    gd['in'][:] = input_vals.astype(gd['float_type']).flatten()
     gd['out'][:] = 0
     gd['m_check'][:] = 0
     gd['multipoles'][:] = 0
     gd['l_check'][:] = 0
     gd['locals'][:] = 0
 
-def eval_ocl(fmm_mat, input_vals, gpu_data = None, should_print_timing = True):
+def eval_ocl(fmm_mat, input_vals, gpu_data, should_print_timing = True):
     t = Timer(silent = True)
-    if gpu_data is None:
-        gpu_data = data_to_gpu(fmm_mat)
-    t.report('data to gpu')
-
 
     prep_data_for_eval(gpu_data, input_vals)
     t.report('prep for eval')

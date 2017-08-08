@@ -70,7 +70,10 @@ def run_full(n, make_pts, mac, order, kernel, params, max_pts_per_cell = None):
     input_vals = np.ones(src_pts.shape[0] * tdim)
     n_outputs = obs_pts.shape[0] * tdim
 
-    est = fmm.eval_ocl(fmm_mat, input_vals)
+    float_type = np.float64
+    gpu_data = fmm.data_to_gpu(fmm_mat, float_type)
+
+    est = fmm.eval_ocl(fmm_mat, input_vals, gpu_data)
     t.report('eval fmm')
 
     return (

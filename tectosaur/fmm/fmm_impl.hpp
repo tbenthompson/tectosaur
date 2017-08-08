@@ -28,11 +28,7 @@ std::vector<double> c2e_solve(std::vector<std::array<double,dim>> surf,
     const Ball<dim>& bounds, double check_r, double equiv_r, const FMMConfig<dim>& cfg);
 
 struct MatrixFreeOp {
-    std::vector<int> obs_n_start;
-    std::vector<int> obs_n_end;
     std::vector<int> obs_n_idx;
-    std::vector<int> src_n_start;
-    std::vector<int> src_n_end;
     std::vector<int> src_n_idx;
 
     template <typename TreeT>
@@ -40,17 +36,14 @@ struct MatrixFreeOp {
         if (obs_n.end - obs_n.start == 0 || src_n.end - src_n.start == 0) {
             return;
         }
-        obs_n_start.push_back(obs_n.start);
-        obs_n_end.push_back(obs_n.end);
         obs_n_idx.push_back(obs_n.idx);
-        src_n_start.push_back(src_n.start);
-        src_n_end.push_back(src_n.end);
         src_n_idx.push_back(src_n.idx);
     }
 };
 
 struct CompressedInteractionList {
-    std::vector<int> obs_starts;
+    std::vector<int> obs_n_idxs;
+    std::vector<int> obs_src_starts;
     std::vector<int> src_n_idxs;
 };
 
@@ -80,6 +73,14 @@ struct FMMMat {
     MatrixFreeOp m2p;
     MatrixFreeOp p2l;
     MatrixFreeOp m2l;
+
+    CompressedInteractionList p2m_new;
+    std::vector<CompressedInteractionList> m2m_new;
+    std::vector<CompressedInteractionList> u2e_new;
+
+    CompressedInteractionList l2p_new;
+    std::vector<CompressedInteractionList> l2l_new;
+    std::vector<CompressedInteractionList> d2e_new;
 
     CompressedInteractionList p2p_new;
     CompressedInteractionList p2l_new;
