@@ -15,6 +15,7 @@ logger = setup_logger(__name__)
 
 #TODO: This file should be split up!
 # I think the gpu_data thing should become a FMM class.
+# such a class can also hide the 2D vs 3D thing...
 
 two = fmm.two
 three = fmm.three
@@ -40,27 +41,48 @@ def get_gpu_module(surf, K, float_type):
     )
     return gpu_module
 
+class FMM:
+    def __init__(self, fmm_mat, float_type):
+        self.fmm_mat = fmm_mat
+        self.tensor_dim = self.fmm_mat.cfg.tensor_dim
+        self.gpu_data = data_to_gpu(fmm_mat, float_type)
+
+    def eval(self, input_tree):
+        return eval_ocl(self.fmm_mat, input_tree, self.gpu_data)
+
+    def to_orig(self, output_tree):
+        orig_idxs = np.array(self.fmm_mat.obs_tree.orig_idxs)
+        output_tree = output_tree.reshape((-1, self.tensor_dim))
+        output_orig = np.empty_like(output_tree)
+        output_orig[orig_idxs,:] = output_tree
+        return output_orig
+
 def report_interactions(fmm_mat):
+    def count_interactions(op_name, op):
+        obs_surf = False if op_name[2] == 'p' else True
+        src_surf = False if op_name[0] == 'p' else True
+        return module[dim].count_interactions(
+            op, fmm_mat.obs_tree, fmm_mat.src_tree,
+            obs_surf, src_surf, len(fmm_mat.surf)
+        )
+
     n_obs_pts = fmm_mat.obs_tree.pts.shape[0]
     n_src_pts = fmm_mat.src_tree.pts.shape[0]
     dim = fmm_mat.obs_tree.pts.shape[1]
-
     level_ops = ['m2m', 'l2l']
-    ops = [
-        ('p2m', True, False),
-        ('p2l', True, False),
-        ('m2l', True, True),
-        ('p2p', False, False),
-        ('m2p', False, True),
-        ('l2p', False, True)
-    ]
+    ops = ['p2m', 'p2l', 'm2l', 'p2p', 'm2p', 'l2p']
+
     interactions = dict()
-    for op_name, obs_surf, src_surf in ops:
-        interactions[op_name] = module[dim].count_interactions(
-            getattr(fmm_mat, op_name + '_new'),
-            fmm_mat.obs_tree, fmm_mat.src_tree,
-            obs_surf, src_surf, len(fmm_mat.surf)
-        )
+    for op_name in ops:
+        op = getattr(fmm_mat, op_name)
+        interactions[op_name] = count_interactions(op_name, op)
+
+    for op_name in level_ops:
+        ops = getattr(fmm_mat, op_name)
+        for op in ops:
+            if op_name not in interactions:
+                interactions[op_name] = 0
+            interactions[op_name] += count_interactions(op_name, op)
 
     direct_i = n_obs_pts * n_src_pts
     fmm_i = sum([v for k,v in interactions.items()])
@@ -125,13 +147,13 @@ def data_to_gpu(fmm_mat, float_type):
             np.array([n.end for n in tree]), np.int32
         )
 
-    n_src_levels = len(fmm_mat.m2m_new)
+    n_src_levels = len(fmm_mat.m2m)
     gd['u2e_node_n_idx'] = [
         gpu.to_gpu(fmm_mat.u2e[level].src_n_idx, np.int32) for level in range(n_src_levels)
     ]
     gd['u2e_ops'] = gpu.to_gpu(fmm_mat.u2e_ops, float_type)
 
-    n_obs_levels = len(fmm_mat.l2l_new)
+    n_obs_levels = len(fmm_mat.l2l)
     gd['d2e_node_n_idx'] = [
         gpu.to_gpu(fmm_mat.d2e[level].src_n_idx, np.int32) for level in range(n_obs_levels)
     ]
@@ -142,24 +164,21 @@ def data_to_gpu(fmm_mat, float_type):
 def get_op(op_name, gd):
     return gd[op_name[:3].replace('m', 's').replace('l', 's')]
 
-def get_block_data(op_name, data_name, gd, suffix = ''):
+def get_block_data(op_name, data_name, gd):
     saved_name = op_name + '_' + data_name
     if saved_name not in gd:
         if len(op_name) > 3:
             level = int(op_name[3:])
             gd[saved_name] = gpu.to_gpu(
-                getattr(getattr(gd['fmm_mat'], op_name[:3] + suffix)[level], data_name),
+                getattr(getattr(gd['fmm_mat'], op_name[:3])[level], data_name),
                 np.int32
             )
         else:
             gd[saved_name] = gpu.to_gpu(
-                getattr(getattr(gd['fmm_mat'], op_name + suffix), data_name),
+                getattr(getattr(gd['fmm_mat'], op_name), data_name),
                 np.int32
             )
     return gd[saved_name]
-
-def get_n_blocks(op_name, obs_type, gd):
-    return gd[op_name + '_obs_n_idx'].shape[0]
 
 def to_ev_list(maybe_evs):
     return [ev for ev in maybe_evs if ev is not None]
@@ -168,9 +187,9 @@ def gpu_fmm_op(op_name, out_name, in_name, obs_type, src_type, gd, wait_for):
     op = get_op(op_name, gd)
 
     call_data = [
-        get_block_data(op_name, 'obs_n_idxs', gd, suffix = '_new'),
-        get_block_data(op_name, 'obs_src_starts', gd, suffix = '_new'),
-        get_block_data(op_name, 'src_n_idxs', gd, suffix = '_new'),
+        get_block_data(op_name, 'obs_n_idxs', gd),
+        get_block_data(op_name, 'obs_src_starts', gd),
+        get_block_data(op_name, 'src_n_idxs', gd),
     ]
     for name, type in [('obs', obs_type), ('src', src_type)]:
         if type[0] == 'pts':
@@ -317,7 +336,7 @@ def eval_ocl(fmm_mat, input_vals, gpu_data, should_print_timing = True):
     u2e_evs = []
     u2e_evs.append(gpu_u2e(fmm_mat, gpu_data, 0, [p2m_ev]))
 
-    for i in range(1, len(fmm_mat.m2m_new)):
+    for i in range(1, len(fmm_mat.m2m)):
         m2m_evs.append(gpu_m2m(fmm_mat, gpu_data, i, [u2e_evs[-1]]))
         u2e_evs.append(gpu_u2e(fmm_mat, gpu_data, i, [m2m_evs[-1]]))
     t.report('m2m')
@@ -335,7 +354,7 @@ def eval_ocl(fmm_mat, input_vals, gpu_data, should_print_timing = True):
     d2e_evs.append(gpu_d2e(fmm_mat, gpu_data, 0, d2e_wait_for))
     t.report('p2l')
 
-    for i in range(1, len(fmm_mat.l2l_new)):
+    for i in range(1, len(fmm_mat.l2l)):
         l2l_evs.append(gpu_l2l(fmm_mat, gpu_data, i, d2e_evs[-1]))
         d2e_evs.append(gpu_d2e(fmm_mat, gpu_data, i, [l2l_evs[-1]]))
     t.report('l2l')

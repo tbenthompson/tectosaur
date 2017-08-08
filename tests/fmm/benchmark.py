@@ -90,15 +90,13 @@ def fmm_runner(pts, ns, input):
     fmm.report_interactions(fmm_mat)
     t.report('report')
 
-    gpu_data = fmm.data_to_gpu(fmm_mat, float_type)
+    fmm_obj = fmm.FMM(fmm_mat, float_type)
     t.report('data to gpu')
 
-    output = fmm.eval_ocl(fmm_mat, input_tree, gpu_data)
+    output = fmm_obj.eval(input_tree)
     t.report('eval fmm')
 
-    output = output.reshape((-1, tensor_dim))
-    to_orig = np.empty_like(output)
-    to_orig[orig_idxs,:] = output
+    to_orig = fmm_obj.to_orig(output)
     t.report('map to input space')
     return to_orig
 

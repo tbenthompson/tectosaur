@@ -12,7 +12,10 @@ struct FMMConfig {
     // The MAC needs to < (1.0 / (check_r - 1)) so that farfield
     // approximations aren't used when the check surface intersects the
     // target box. How about we just use that as our MAC, since errors
-    // further from the check surface should flatten out!
+    // further from the check surface should flatten out! 
+    // TODO: Above comment is confusing. Clarify check_r, equiv_r, MAC, etc. Define them.
+    // TODO: Several of these configuration parameters will no longer be needed when
+    // the C++ layer only does traversal and builds interaction lists.
     double inner_r;
     double outer_r;
     size_t order;
@@ -85,33 +88,24 @@ struct FMMMat {
     FMMConfig<TreeT::dim> cfg;
     std::vector<std::array<double,TreeT::dim>> surf;
 
-    MatrixFreeOp p2m;
-    std::vector<MatrixFreeOp> m2m;
     std::vector<double> u2e_ops;
     std::vector<MatrixFreeOp> u2e;
 
-    std::vector<MatrixFreeOp> l2l;
-    MatrixFreeOp l2p;
     std::vector<double> d2e_ops;
     std::vector<MatrixFreeOp> d2e;
 
-    MatrixFreeOp p2p;
-    MatrixFreeOp m2p;
-    MatrixFreeOp p2l;
-    MatrixFreeOp m2l;
-
-    CompressedInteractionList p2m_new;
-    std::vector<CompressedInteractionList> m2m_new;
+    CompressedInteractionList p2m;
+    std::vector<CompressedInteractionList> m2m;
     std::vector<CompressedInteractionList> u2e_new;
 
-    CompressedInteractionList l2p_new;
-    std::vector<CompressedInteractionList> l2l_new;
+    CompressedInteractionList l2p;
+    std::vector<CompressedInteractionList> l2l;
     std::vector<CompressedInteractionList> d2e_new;
 
-    CompressedInteractionList p2p_new;
-    CompressedInteractionList p2l_new;
-    CompressedInteractionList m2p_new;
-    CompressedInteractionList m2l_new;
+    CompressedInteractionList p2p;
+    CompressedInteractionList p2l;
+    CompressedInteractionList m2p;
+    CompressedInteractionList m2l;
 
     FMMMat(TreeT obs_tree, std::vector<std::array<double,TreeT::dim>> obs_normals,
            TreeT src_tree, std::vector<std::array<double,TreeT::dim>> src_normals,

@@ -87,26 +87,26 @@ InteractionLists init_interaction_lists(const FMMMat<TreeT>& mat) {
 
 template <typename TreeT>
 void compress_interaction_lists(FMMMat<TreeT>& mat, const InteractionLists& lists) {
-    mat.m2m_new.resize(lists.m2m.size());
+    mat.m2m.resize(lists.m2m.size());
     mat.u2e_new.resize(lists.m2m.size());
     for (size_t i = 0; i < lists.m2m.size(); i++) {
-        mat.m2m_new[i] = compress(lists.m2m[i]);
+        mat.m2m[i] = compress(lists.m2m[i]);
         mat.u2e_new[i] = compress(lists.u2e[i]);
     }
-    mat.p2m_new = compress(lists.p2m);
+    mat.p2m = compress(lists.p2m);
 
-    mat.l2l_new.resize(lists.l2l.size());
+    mat.l2l.resize(lists.l2l.size());
     mat.d2e_new.resize(lists.l2l.size());
     for (size_t i = 0; i < lists.l2l.size(); i++) {
-        mat.l2l_new[i] = compress(lists.l2l[i]);
+        mat.l2l[i] = compress(lists.l2l[i]);
         mat.d2e_new[i] = compress(lists.d2e[i]);
     }
-    mat.l2p_new = compress(lists.l2p);
+    mat.l2p = compress(lists.l2p);
 
-    mat.p2p_new = compress(lists.p2p);
-    mat.m2p_new = compress(lists.m2p);
-    mat.p2l_new = compress(lists.p2l);
-    mat.m2l_new = compress(lists.m2l);
+    mat.p2p = compress(lists.p2p);
+    mat.m2p = compress(lists.m2p);
+    mat.p2l = compress(lists.p2l);
+    mat.m2l = compress(lists.m2l);
 }
 
 template <typename TreeT>
@@ -128,28 +128,25 @@ void traverse(FMMMat<TreeT>& mat,
     if (mat.cfg.outer_r * r_src + mat.cfg.inner_r * r_obs < safety_factor * sep) {
         // If there aren't enough src or obs to justify using the approximation,
         // then just do a p2p direct calculation between the nodes.
+        // TODO: There could be a minor gain in doing better distance checks when small_src or small_obs are true. The check surfaces are no longer relevant, just the bounds of the tree node.
         bool small_src = src_n.end - src_n.start < mat.surf.size();
         bool small_obs = obs_n.end - obs_n.start < mat.surf.size();
 
         if (small_src && small_obs) {
             mat.obs_tree.for_all_leaves_of(obs_n,
                 [&] (const typename TreeT::Node& leaf_obs_n) {
-                    mat.p2p.insert(leaf_obs_n, src_n);
                     interaction_lists.p2p[leaf_obs_n.idx].push_back(src_n.idx);
                 }
             );
         } else if (small_obs) {
             mat.obs_tree.for_all_leaves_of(obs_n,
                 [&] (const typename TreeT::Node& leaf_obs_n) {
-                    mat.m2p.insert(leaf_obs_n, src_n);
                     interaction_lists.m2p[leaf_obs_n.idx].push_back(src_n.idx);
                 }
             );
         } else if (small_src) {
-            mat.p2l.insert(obs_n, src_n);
             interaction_lists.p2l[obs_n.idx].push_back(src_n.idx);
         } else {
-            mat.m2l.insert(obs_n, src_n);
             interaction_lists.m2l[obs_n.idx].push_back(src_n.idx);
         }
 
@@ -157,7 +154,6 @@ void traverse(FMMMat<TreeT>& mat,
     }
 
     if (src_n.is_leaf && obs_n.is_leaf) {
-        mat.p2p.insert(obs_n, src_n);
         interaction_lists.p2p[obs_n.idx].push_back(src_n.idx);
         return;
     }
@@ -182,13 +178,11 @@ void up_collect(FMMMat<TreeT>& mat, InteractionLists& interaction_lists,
     mat.u2e[level].insert(src_n, src_n);
     interaction_lists.u2e[level][src_n.idx].push_back(src_n.idx);
     if (src_n.is_leaf) {
-        mat.p2m.insert(src_n, src_n);
         interaction_lists.p2m[src_n.idx].push_back(src_n.idx);
     } else {
         for (size_t i = 0; i < TreeT::split; i++) {
             auto child_n = mat.src_tree.nodes[src_n.children[i]];
             up_collect(mat, interaction_lists, child_n);
-            mat.m2m[level].insert(src_n, child_n);
             interaction_lists.m2m[level][src_n.idx].push_back(child_n.idx);
         }
     }
@@ -201,13 +195,11 @@ void down_collect(FMMMat<TreeT>& mat, InteractionLists& interaction_lists,
     mat.d2e[obs_n.depth].insert(obs_n, obs_n);
     interaction_lists.d2e[obs_n.depth][obs_n.idx].push_back(obs_n.idx);
     if (obs_n.is_leaf) {
-        mat.l2p.insert(obs_n, obs_n);
         interaction_lists.l2p[obs_n.idx].push_back(obs_n.idx);
     } else {
         for (size_t i = 0; i < TreeT::split; i++) {
             auto child_n = mat.obs_tree.nodes[obs_n.children[i]];
             down_collect(mat, interaction_lists, child_n);
-            mat.l2l[child_n.depth].insert(child_n, obs_n);
             interaction_lists.l2l[child_n.depth][child_n.idx].push_back(obs_n.idx);
         }
     }
@@ -224,25 +216,6 @@ FMMMat<TreeT>::FMMMat(TreeT obs_tree, std::vector<std::array<double,TreeT::dim>>
     cfg(cfg),
     surf(surf)
 {}
-
-template <size_t dim>
-void interact_pts(const FMMConfig<dim>& cfg, double* out, double* in,
-    const std::array<double,dim>* obs_pts, const std::array<double,dim>* obs_ns,
-    size_t n_obs, size_t obs_pt_start,
-    const std::array<double,dim>* src_pts, const std::array<double,dim>* src_ns,
-    size_t n_src, size_t src_pt_start) 
-{
-    if (n_obs == 0 || n_src == 0) {
-        return;
-    }
-
-    double* out_val_start = &out[cfg.tensor_dim() * obs_pt_start];
-    double* in_val_start = &in[cfg.tensor_dim() * src_pt_start];
-    cfg.kernel.mf_f(
-        NBodyProblem<dim>{obs_pts, obs_ns, src_pts, src_ns, n_obs, n_src, cfg.params.data()},
-        out_val_start, in_val_start
-    );
-}
 
 template <size_t dim>
 std::vector<double> c2e_solve(std::vector<std::array<double,dim>> surf,
@@ -265,6 +238,8 @@ std::vector<double> c2e_solve(std::vector<std::array<double,dim>> surf,
         equiv_to_check.data());
 
     // TODO: This should be much higher (1e-14 or so) if double precision is being used
+    // when I move this to using viennacl, doing that will be easier with a simple configuration
+    // option
     double eps = 1e-5; 
     auto pinv = qr_pseudoinverse(equiv_to_check.data(), n_rows, eps);
 
@@ -301,12 +276,12 @@ FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree,
     const FMMConfig<TreeT::dim>& cfg)
 {
 
+    //TODO: Creating the translation surface takes a trivial amount of time
+    //and can be moved to python.
     auto translation_surf = surrounding_surface<TreeT::dim>(cfg.order);
 
     FMMMat<TreeT> mat(obs_tree, obs_normals, src_tree, src_normals, cfg, translation_surf);
 
-    mat.m2m.resize(mat.src_tree.max_height + 1);
-    mat.l2l.resize(mat.obs_tree.max_height + 1);
     mat.u2e.resize(mat.src_tree.max_height + 1);
     mat.d2e.resize(mat.obs_tree.max_height + 1);
 
