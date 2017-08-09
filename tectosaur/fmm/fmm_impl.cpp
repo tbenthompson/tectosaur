@@ -138,31 +138,36 @@ void traverse(FMMMat<TreeT>& mat,
     // That means it should be safe to perform approximate interactions. I add
     // a small safety factor just in case!
     double safety_factor = 0.98;
+
+    bool small_src = src_n.end - src_n.start < mat.cfg.order;
+    bool small_obs = obs_n.end - obs_n.start < mat.cfg.order;
+
+    if (small_src && small_obs) {
+        for_all_leaves_of(mat.obs_tree, obs_n,
+            [&] (const typename TreeT::Node& leaf_obs_n) {
+                interaction_lists.p2p[leaf_obs_n.idx].push_back(src_n.idx);
+            }
+        );
+        return;
+    }
+
+    // TODO: I'm not super confident in these distance checks...
+    if (small_obs && (mat.cfg.outer_r * r_src + r_obs < safety_factor * sep)) {
+        for_all_leaves_of(mat.obs_tree, obs_n,
+            [&] (const typename TreeT::Node& leaf_obs_n) {
+                interaction_lists.m2p[leaf_obs_n.idx].push_back(src_n.idx);
+            }
+        );
+        return;
+    }
+
+    if (small_src && (r_src + mat.cfg.inner_r * r_obs < safety_factor * sep)) {
+        interaction_lists.p2l[obs_n.idx].push_back(src_n.idx);
+        return;
+    }
+
     if (mat.cfg.outer_r * r_src + mat.cfg.inner_r * r_obs < safety_factor * sep) {
-        // If there aren't enough src or obs to justify using the approximation,
-        // then just do a p2p direct calculation between the nodes.
-        // TODO: There could be a minor gain in doing better distance checks when small_src or small_obs are true. The check surfaces are no longer relevant, just the bounds of the tree node.
-        bool small_src = src_n.end - src_n.start < mat.cfg.order;
-        bool small_obs = obs_n.end - obs_n.start < mat.cfg.order;
-
-        if (small_src && small_obs) {
-            for_all_leaves_of(mat.obs_tree, obs_n,
-                [&] (const typename TreeT::Node& leaf_obs_n) {
-                    interaction_lists.p2p[leaf_obs_n.idx].push_back(src_n.idx);
-                }
-            );
-        } else if (small_obs) {
-            for_all_leaves_of(mat.obs_tree, obs_n,
-                [&] (const typename TreeT::Node& leaf_obs_n) {
-                    interaction_lists.m2p[leaf_obs_n.idx].push_back(src_n.idx);
-                }
-            );
-        } else if (small_src) {
-            interaction_lists.p2l[obs_n.idx].push_back(src_n.idx);
-        } else {
-            interaction_lists.m2l[obs_n.idx].push_back(src_n.idx);
-        }
-
+        interaction_lists.m2l[obs_n.idx].push_back(src_n.idx);
         return;
     }
 

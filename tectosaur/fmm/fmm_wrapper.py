@@ -392,7 +392,7 @@ def prep_data_for_eval(gd, input_vals):
         gd[arr][:] = 0
 
 def eval_ocl(fmm_mat, input_vals, gpu_data, should_print_timing = True):
-    t = Timer(silent = True)
+    t = Timer()
 
     prep_data_for_eval(gpu_data, input_vals)
     t.report('prep for eval')
@@ -451,5 +451,6 @@ def eval_ocl(fmm_mat, input_vals, gpu_data, should_print_timing = True):
             p2l_ev, m2l_ev, l2l_evs, d2e_evs,
             p2p_ev, m2p_ev, l2p_ev
         )
+        t.report('print timing')
 
     return retval
