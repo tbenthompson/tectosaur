@@ -19,7 +19,7 @@ tensor_dim = 1
 mac = 2.0
 order = 100
 
-# K = 'elasticA3'
+# K = 'elasticH3'
 # tensor_dim = 3
 # mac = 3.0
 # order = 100
@@ -74,7 +74,7 @@ def direct_runner(pts, ns, input):
 def fmm_runner(pts, ns, input_vals):
     t = Timer()
 
-    pts_per_cell = order * 3
+    pts_per_cell = order
 
     tree = fmm.module[dim].KDTree(pts, pts_per_cell)
     t.report('build tree')
@@ -97,8 +97,9 @@ def fmm_runner(pts, ns, input_vals):
     output = fmm_obj.eval(input_tree)
     t.report('eval fmm')
 
-    output = fmm_obj.eval(input_tree)
-    t.report('eval fmm')
+    for i in range(2):
+        output = fmm_obj.eval(input_tree)
+        t.report('eval fmm')
 
     to_orig = fmm_obj.to_orig(output)
     t.report('map to input space')
