@@ -35,15 +35,15 @@ elasticU = Kernel(
     Real invr = rsqrt(r2);
     Real Q1 = CsU0 * invr;
     Real Q2 = CsU1 * invr / r2;
-    K[0] = Q2*Dx*Dx + Q1;
-    K[1] = Q2*Dx*Dy;
-    K[2] = Q2*Dx*Dz;
-    K[3] = Q2*Dy*Dx;
-    K[4] = Q2*Dy*Dy + Q1;
-    K[5] = Q2*Dy*Dz;
-    K[6] = Q2*Dz*Dx;
-    K[7] = Q2*Dz*Dy;
-    K[8] = Q2*Dz*Dz + Q1;
+    Karr[0] = Q2*Dx*Dx + Q1;
+    Karr[1] = Q2*Dx*Dy;
+    Karr[2] = Q2*Dx*Dz;
+    Karr[3] = Q2*Dy*Dx;
+    Karr[4] = Q2*Dy*Dy + Q1;
+    Karr[5] = Q2*Dy*Dz;
+    Karr[6] = Q2*Dz*Dx;
+    Karr[7] = Q2*Dz*Dy;
+    Karr[8] = Q2*Dz*Dz + Q1;
     '''
 )
 
@@ -110,15 +110,15 @@ def TA_tensor_code(k_name):
         Real nzdx = {n_name}z*Dx-{n_name}x*Dz;
         Real nzdy = {n_name}z*Dy-{n_name}y*Dz;
 
-        K[0] = A * -rn                  + C*Dx*rn*Dx;
-        K[1] = A * {minus_or_plus}nxdy + C*Dx*rn*Dy;
-        K[2] = A * {plus_or_minus}nzdx + C*Dx*rn*Dz;
-        K[3] = A * {plus_or_minus}nxdy + C*Dy*rn*Dx;
-        K[4] = A * -rn                  + C*Dy*rn*Dy;
-        K[5] = A * {plus_or_minus}nzdy + C*Dy*rn*Dz;
-        K[6] = A * {minus_or_plus}nzdx + C*Dz*rn*Dx;
-        K[7] = A * {minus_or_plus}nzdy + C*Dz*rn*Dy;
-        K[8] = A * -rn                  + C*Dz*rn*Dz;
+        Karr[0] = A * -rn                  + C*Dx*rn*Dx;
+        Karr[1] = A * {minus_or_plus}nxdy + C*Dx*rn*Dy;
+        Karr[2] = A * {plus_or_minus}nzdx + C*Dx*rn*Dz;
+        Karr[3] = A * {plus_or_minus}nxdy + C*Dy*rn*Dx;
+        Karr[4] = A * -rn                  + C*Dy*rn*Dy;
+        Karr[5] = A * {plus_or_minus}nzdy + C*Dy*rn*Dz;
+        Karr[6] = A * {minus_or_plus}nzdx + C*Dz*rn*Dx;
+        Karr[7] = A * {minus_or_plus}nzdy + C*Dz*rn*Dy;
+        Karr[8] = A * -rn                  + C*Dz*rn*Dz;
     '''.format(**TA_args(k_name))
 
 elasticT = Kernel(
@@ -199,15 +199,15 @@ elasticH = Kernel(
 
     Real ST = A*nu*rm + B*mn;
 
-    K[0] = nsrcx*NTx + nobsx*MTx + Dorx*DTx + ST;
-    K[1] = nsrcx*NTy + nobsx*MTy + Dorx*DTy;
-    K[2] = nsrcx*NTz + nobsx*MTz + Dorx*DTz;
-    K[3] = nsrcy*NTx + nobsy*MTx + Dory*DTx;
-    K[4] = nsrcy*NTy + nobsy*MTy + Dory*DTy + ST;
-    K[5] = nsrcy*NTz + nobsy*MTz + Dory*DTz;
-    K[6] = nsrcz*NTx + nobsz*MTx + Dorz*DTx;
-    K[7] = nsrcz*NTy + nobsz*MTy + Dorz*DTy;
-    K[8] = nsrcz*NTz + nobsz*MTz + Dorz*DTz + ST;
+    Karr[0] = nsrcx*NTx + nobsx*MTx + Dorx*DTx + ST;
+    Karr[1] = nsrcx*NTy + nobsx*MTy + Dorx*DTy;
+    Karr[2] = nsrcx*NTz + nobsx*MTz + Dorx*DTz;
+    Karr[3] = nsrcy*NTx + nobsy*MTx + Dory*DTx;
+    Karr[4] = nsrcy*NTy + nobsy*MTy + Dory*DTy + ST;
+    Karr[5] = nsrcy*NTz + nobsy*MTz + Dory*DTz;
+    Karr[6] = nsrcz*NTx + nobsz*MTx + Dorz*DTx;
+    Karr[7] = nsrcz*NTy + nobsz*MTy + Dorz*DTy;
+    Karr[8] = nsrcz*NTz + nobsz*MTz + Dorz*DTz + ST;
     '''
 )
 
@@ -215,7 +215,7 @@ laplace2S = Kernel(
     'laplaceS2', 2, 1, False, False, 'log', 0, False, '',
     None,
     '''
-    Real K00 = log(sqrt(r2)) / (2.0 * M_PI);
+    Karr[0] = log(sqrt(r2)) / (2.0 * M_PI);
     '''
 )
 
@@ -225,7 +225,7 @@ laplace2D = Kernel(
     '''
     Real r = sqrt(r2);
     Real rn = nsrcx * Dx + nsrcy * Dy;
-    Real K00 = rn / (2 * M_PI * r2);
+    Karr[0] = rn / (2 * M_PI * r2);
     '''
 )
 
@@ -236,7 +236,7 @@ laplace2H = Kernel(
     Real rn = nsrcx * Dx + nsrcy * Dy;
     Real rm = nobsx * Dx + nobsy * Dy;
     Real nm = nobsx * nsrcx + nobsy * nsrcy;
-    Real K00 = (-nm + ((2 * rn * rm) / r2)) / (2 * M_PI * r2);
+    Karr[0] = (-nm + ((2 * rn * rm) / r2)) / (2 * M_PI * r2);
     '''
 )
 
@@ -247,7 +247,7 @@ laplace3S = Kernel(
     ''',
     None,
     '''
-    Real K00 = rsqrt(r2) * C;
+    Karr[0] = rsqrt(r2) * C;
     '''
 )
 
@@ -257,7 +257,7 @@ laplace3D = Kernel(
     '''
     Real r = sqrt(r2);
     Real rn = nsrcx * Dx + nsrcy * Dy + nsrcz * Dz;
-    Real K00 = rn / (4 * M_PI * r2 * r);
+    Karr[0] = rn / (4 * M_PI * r2 * r);
     '''
 )
 
@@ -269,12 +269,12 @@ laplace3H = Kernel(
     Real rn = nsrcx * Dx + nsrcy * Dy + nsrcz * Dz;
     Real rm = nobsx * Dx + nobsy * Dy + nobsz * Dz;
     Real nm = nobsx * nsrcx + nobsy * nsrcy + nobsz * nsrcz;
-    Real K00 = - ((nm / (r * r2)) - ((3 * rn * rm)/(r2 * r2 * r))) / (4 * M_PI);
+    Karr[0] = - ((nm / (r * r2)) - ((3 * rn * rm)/(r2 * r2 * r))) / (4 * M_PI);
     '''
 )
 
-one2 = Kernel('one2', 2, 1, False, False, -4, 0, False, '', None, 'Real K00 = 1.0;')
-one3 = Kernel('one3', 3, 1, False, False, -4, 0, False, '', None, 'Real K00 = 1.0;')
+one2 = Kernel('one2', 2, 1, False, False, -4, 0, False, '', None, 'Karr[0] = 1.0;')
+one3 = Kernel('one3', 3, 1, False, False, -4, 0, False, '', None, 'Karr[0] = 1.0;')
 
 def make_kernel_dict(ks):
     return {K.name: K for K in ks}

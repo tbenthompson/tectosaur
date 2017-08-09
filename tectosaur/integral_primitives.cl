@@ -70,10 +70,11 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 
 <%def name="call_vector_code(K)">
 % if K.vector_code is None:
+    Real Karr[${K.tensor_dim} * ${K.tensor_dim}];
     ${K.tensor_code}
     % for d1 in range(K.tensor_dim):
         % for d2 in range(K.tensor_dim):
-            sum${dn(d1)} += K${d1}${d2} * in${dn(d2)};
+            sum${dn(d1)} += Karr[${d1} * ${K.tensor_dim} + ${d2}] * in${dn(d2)};
         % endfor
     % endfor
 % else:

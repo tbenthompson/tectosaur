@@ -5,7 +5,10 @@ from tectosaur.kernels import kernels
 %>
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
+
 #define Real ${gpu_float_type}
+
+<%namespace name="prim" file="../integral_primitives.cl"/>
 
 __constant Real surf[${surf.size}] = {${str(surf.flatten().tolist())[1:-1]}};
 
@@ -167,16 +170,7 @@ if (obs_pt_idx < obs_pt_max) {
         }
         % endif
 
-        % if K.vector_code is None:
-            ${K.tensor_code}
-            % for d1 in range(K.tensor_dim):
-                % for d2 in range(K.tensor_dim):
-                    sum${dn(d1)} += K${d1}${d2} * in${dn(d2)};
-                % endfor
-            % endfor
-        % else:
-            ${K.vector_code}
-        % endif
+        ${prim.call_vector_code(K)}
     }
 }
 </%def>
@@ -220,6 +214,41 @@ ${fmm_op("p2s", "surf", "pts", False)}
 ${fmm_op("s2s", "surf", "surf", False)}
 ${fmm_op("p2p", "pts", "pts", True)}
 ${fmm_op("s2p", "pts", "surf", False)}
+
+__kernel
+void direct_matrix(__global Real* out, 
+    __global Real* obs_pts, __global Real* obs_ns,
+    __global Real* src_pts, __global Real* src_ns,
+    int n_obs, int n_src, __global Real* params)
+{
+    const int i = get_global_id(0);
+    const int j = get_global_id(1);
+    ${K.constants_code}
+
+    % for d in range(K.spatial_dim):
+        Real obs${dn(d)} = obs_pts[i * ${K.spatial_dim} + ${d}];
+        Real src${dn(d)} = src_pts[j * ${K.spatial_dim} + ${d}];
+        Real nobs${dn(d)} = obs_ns[i * ${K.spatial_dim} + ${d}];
+        Real nsrc${dn(d)} = src_ns[j * ${K.spatial_dim} + ${d}];
+        Real D${dn(d)} = src${dn(d)} - obs${dn(d)};
+    % endfor
+    Real r2 = Dx * Dx;
+    % for d in range(1, K.spatial_dim):
+        r2 += D${dn(d)} * D${dn(d)};
+    % endfor
+
+    Real Karr[${K.tensor_dim} * ${K.tensor_dim}];
+    ${K.tensor_code}
+
+    for (int d1 = 0; d1 < ${K.tensor_dim}; d1++) {
+        int row = i * ${K.tensor_dim} + d1;
+        int start_idx = row * n_src * ${K.tensor_dim};
+        for (int d2 = 0; d2 < ${K.tensor_dim}; d2++) {
+            int col = j * ${K.tensor_dim} + d2;
+            out[start_idx + col] = Karr[d1 * ${K.tensor_dim} + d2];
+        }
+    }
+}
 
 // This is essentially a weird in-place block sparse matrix-matrix multiply. 
 __kernel
@@ -281,3 +310,4 @@ void c2e_kernel(__global Real* out, __global Real* in,
         out[global_n_idx * n_rows + global_col] += scaling * sum;
     }
 }
+

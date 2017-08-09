@@ -35,16 +35,50 @@ def get_gpu_module(surf, K, float_type):
         K = K
     )
     gpu_module = gpu.load_gpu(
-        'gpu_kernels.cl',
-        tmpl_dir = tectosaur.fmm.source_dir,
+        'fmm/gpu_kernels.cl',
         tmpl_args = args
     )
     return gpu_module
 
+def build_c2e(gpu_module, K, params, surf, tree, check_r, equiv_r, float_type):
+    from tectosaur.fmm.c2e import c2e_solve
+    n_rows = K.tensor_dim * surf.shape[0]
+    levels_to_compute = (tree.max_height + 1)
+    c2e_ops = np.empty(levels_to_compute * n_rows * n_rows)
+
+    for i in range(levels_to_compute):
+        R = tree.root().bounds.R / (2.0 ** i)
+        b = module[K.spatial_dim].Ball([0] * K.spatial_dim, R)
+        pinv = c2e_solve(gpu_module, surf, b, check_r, equiv_r, K, params, float_type)
+        start_idx = i * n_rows * n_rows
+        end_idx = (i + 1) * n_rows * n_rows
+        c2e_ops[start_idx:end_idx] = pinv
+
+    return c2e_ops
+
+def direct_matrix(module, K, obs_pts, obs_ns, src_pts, src_ns, params, float_type):
+    gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)
+    gpu_obs_ns = gpu.to_gpu(obs_ns, float_type)
+    gpu_src_pts = gpu.to_gpu(src_pts, float_type)
+    gpu_src_ns = gpu.to_gpu(src_ns, float_type)
+    gpu_params = gpu.to_gpu(params, float_type)
+
+    n_obs = obs_pts.shape[0]
+    n_src = src_pts.shape[0]
+    out_shape = (n_obs, n_src)
+    gpu_out = gpu.empty_gpu((n_obs * K.tensor_dim, n_src * K.tensor_dim), float_type)
+    module.direct_matrix(
+        gpu.gpu_queue, out_shape, None,
+        gpu_out.data, gpu_obs_pts.data, gpu_obs_ns.data,
+        gpu_src_pts.data, gpu_src_ns.data,
+        np.int32(n_obs), np.int32(n_src), gpu_params.data
+    )
+    return gpu_out.get()
+
 class FMM:
     def __init__(self, fmm_mat, float_type):
+        self.float_type = float_type
         self.fmm_mat = fmm_mat
-        self.tensor_dim = self.fmm_mat.cfg.tensor_dim
         self.gpu_data = data_to_gpu(fmm_mat, float_type)
 
     def eval(self, input_tree):
@@ -157,7 +191,8 @@ def data_to_gpu(fmm_mat, float_type):
     gd['d2e_obs_n_idxs'] = [
         gpu.to_gpu(fmm_mat.d2e[level].obs_n_idxs, np.int32) for level in range(n_obs_levels)
     ]
-    gd['d2e_ops'] = gpu.to_gpu(fmm_mat.d2e_ops, float_type)
+    gd['d2e_ops'] = gpu.to_gpu(build_c2e(gd['module'], K, gd['params'], surf, fmm_mat.obs_tree, fmm_mat.cfg.inner_r, fmm_mat.cfg.outer_r, float_type), float_type)
+    # gd['d2e_ops'] = gpu.to_gpu(fmm_mat.d2e_ops, float_type)
 
     return gd
 

@@ -40,16 +40,21 @@ def m2l_test_pts(dim):
         return out
     return f
 
-def run_full(n, make_pts, mac, order, kernel, params, max_pts_per_cell = None):
+def get_pts(pts_builder, n):
+    obs_pts = pts_builder(n, False)
+    obs_ns = pts_builder(n, False)
+    obs_ns /= np.linalg.norm(obs_ns, axis = 1)[:,np.newaxis]
+    src_pts = pts_builder(n + 1, True)
+    src_ns = pts_builder(n + 1, True)
+    src_ns /= np.linalg.norm(src_ns, axis = 1)[:,np.newaxis]
+    return obs_pts, obs_ns, src_pts, src_ns
+
+def run_full(n, pts_builder, mac, order, kernel, params, max_pts_per_cell = None):
     if max_pts_per_cell is None:
         max_pts_per_cell = order
     t = Timer()
-    obs_pts = make_pts(n, False)
-    obs_ns = make_pts(n, False)
-    obs_ns /= np.linalg.norm(obs_ns, axis = 1)[:,np.newaxis]
-    src_pts = make_pts(n + 1, True)
-    src_ns = make_pts(n + 1, True)
-    src_ns /= np.linalg.norm(src_ns, axis = 1)[:,np.newaxis]
+
+    obs_pts, obs_ns, src_pts, src_ns = get_pts(pts_builder, n)
     t.report('gen random data')
 
     dim = obs_pts.shape[1]
@@ -59,18 +64,19 @@ def run_full(n, make_pts, mac, order, kernel, params, max_pts_per_cell = None):
     obs_ns_kd = obs_ns[obs_kd.orig_idxs]
     src_ns_kd = src_ns[src_kd.orig_idxs]
     t.report('build trees')
+
     fmm_mat = module[dim].fmmmmmmm(
         obs_kd, obs_ns_kd, src_kd, src_ns_kd, module[dim].FMMConfig(1.1, mac, order, kernel, params)
     )
-    t.report('setup fmm')
 
     tdim = fmm_mat.tensor_dim
     input_vals = np.ones(src_pts.shape[0] * tdim)
     n_outputs = obs_pts.shape[0] * tdim
 
-    gpu_data = fmm.data_to_gpu(fmm_mat, float_type)
+    fmm_obj = fmm.FMM(fmm_mat, float_type)
+    t.report('setup fmm')
 
-    est = fmm.eval_ocl(fmm_mat, input_vals, gpu_data)
+    est = fmm_obj.eval(input_vals)
     t.report('eval fmm')
 
     return (
@@ -142,6 +148,19 @@ def test_m2l(laplace_kernel, dim):
 def test_irregular():
     K = "laplaceS3"
     check_kernel(K, *run_full(10000, ellipsoid_pts, 2.6, 35, K, []))
+
+def test_direct_matrix():
+    np.random.seed(10)
+    K_name = "elasticU3"
+    obs_pts, obs_ns, src_pts, src_ns = get_pts(rand_pts(3), 100)
+    params = np.array([1.0, 0.25])
+    K = fmm.kernels[K_name]
+    module = fmm.get_gpu_module(np.array([[0,0,0]]), K, float_type)
+    matrix = fmm.direct_matrix(module, K, obs_pts, obs_ns, src_pts, src_ns, params, float_type)
+    est = matrix.dot(np.ones(matrix.shape[1]))
+    check_kernel(K_name, obs_pts, obs_ns, src_pts, src_ns, est)
+
+
 
 if __name__ == '__main__':
     test_ones(3)
