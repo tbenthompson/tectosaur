@@ -48,18 +48,7 @@ void wrap_fmm(py::module& m) {
                 reinterpret_cast<double*>(mat.src_normals.data())
             );
         })
-        .def_readonly("surf", &FMMMat<TreeT>::surf)
         .def_readonly("cfg", &FMMMat<TreeT>::cfg)
-        .def_property_readonly("u2e_ops", [] (FMMMat<TreeT>& fmm) {
-            return make_array<double>(
-                {fmm.u2e_ops.size()}, reinterpret_cast<double*>(fmm.u2e_ops.data())
-            );
-        })
-        .def_property_readonly("d2e_ops", [] (FMMMat<TreeT>& fmm) {
-            return make_array<double>(
-                {fmm.d2e_ops.size()}, reinterpret_cast<double*>(fmm.d2e_ops.data())
-            );
-        })
         .def_property_readonly("tensor_dim", &FMMMat<TreeT>::tensor_dim)
         .OP(u2e).OP(d2e).OP(p2m).OP(m2m).OP(p2l).OP(m2l).OP(l2l).OP(p2p).OP(m2p).OP(l2p);
 
@@ -85,10 +74,6 @@ void wrap_fmm(py::module& m) {
 
 template <size_t dim>
 void wrap_dim(py::module& m) {
-    m.def("surrounding_surface", surrounding_surface<dim>);
-    m.def("inscribe_surf", &inscribe_surf<dim>);
-    m.def("c2e_solve", &c2e_solve<dim>);
-
     m.def("in_ball", &in_ball<dim>);
 
     py::class_<Ball<dim>>(m, "Ball")

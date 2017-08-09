@@ -8,15 +8,15 @@ from tectosaur.farfield import farfield_pts_direct
 
 setup_logger(__name__)
 
-K = 'laplaceS2'
-tensor_dim = 1
-mac = 3.0
-order = 10
-
-# K = 'laplaceS3'
+# K = 'laplaceS2'
 # tensor_dim = 1
-# mac = 2.0
-# order = 100
+# mac = 3.0
+# order = 10
+
+K = 'laplaceS3'
+tensor_dim = 1
+mac = 2.0
+order = 100
 
 # K = 'elasticA3'
 # tensor_dim = 3
@@ -87,7 +87,7 @@ def fmm_runner(pts, ns, input):
         tree, mapped_ns, tree, mapped_ns, fmm.module[dim].FMMConfig(1.1, mac, order, K, params)
     )
     t.report('setup fmm')
-    fmm.report_interactions(fmm_mat)
+    fmm.report_interactions(fmm_mat, order)
     t.report('report')
 
     fmm_obj = fmm.FMM(fmm_mat, float_type)
@@ -112,7 +112,7 @@ if __name__ == '__main__':
     # data = random_data(N)
     # N = 10000000
     # data = ellipsoid_pts(N)
-    N = int(1e5 ** (1.0 / float(dim)))
+    N = int(1e4 ** (1.0 / float(dim)))
     data = grid_data(N)
     A = fmm_runner(*data).flatten()
     B = direct_runner(*data)

@@ -1,5 +1,4 @@
 import numpy as np
-import tectosaur.fmm.fmm_wrapper as fmm
 
 def surrounding_surface_circle(order):
     pts = np.empty((order, 2))
@@ -38,6 +37,7 @@ def inscribe_surf(ball, scaling, surf):
     return surf * ball.R * scaling + ball.center
 
 def c2e_solve(gpu_module, surf, bounds, check_r, equiv_r, K, params, float_type):
+    import tectosaur.fmm.fmm_wrapper as fmm
     equiv_surf = inscribe_surf(bounds, equiv_r, surf)
     check_surf = inscribe_surf(bounds, check_r, surf)
 
@@ -45,6 +45,6 @@ def c2e_solve(gpu_module, surf, bounds, check_r, equiv_r, K, params, float_type)
         gpu_module, K, check_surf, surf, equiv_surf, surf, params, float_type
     )
 
-    out = np.linalg.pinv(equiv_to_check, rcond = 1e-5).flatten()
+    out = np.linalg.pinv(equiv_to_check, rcond = 1e-15).flatten()
     return out
 

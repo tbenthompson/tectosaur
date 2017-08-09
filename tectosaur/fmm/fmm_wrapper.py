@@ -1,12 +1,15 @@
 import os
+import attr
 import numpy as np
 
 import tectosaur.util.gpu as gpu
 from tectosaur.util.timer import Timer
 from tectosaur import setup_logger
 
-import tectosaur.fmm
 from tectosaur.kernels import kernels
+
+import tectosaur.fmm
+from tectosaur.fmm.c2e import c2e_solve, surrounding_surface
 
 from cppimport import cppimport
 fmm = cppimport("tectosaur.fmm.fmm")
@@ -40,16 +43,29 @@ def get_gpu_module(surf, K, float_type):
     )
     return gpu_module
 
-def build_c2e(gpu_module, K, params, surf, tree, check_r, equiv_r, float_type):
-    from tectosaur.fmm.c2e import c2e_solve
-    n_rows = K.tensor_dim * surf.shape[0]
+@attr.s
+class FMMConfig:
+    K = attr.ib()
+    params = attr.ib()
+    surf = attr.ib()
+    outer_r = attr.ib()
+    inner_r = attr.ib()
+    order = attr.ib()
+    float_type = attr.ib()
+    module = attr.ib()
+
+def build_c2e(tree, check_r, equiv_r, cfg):
+    n_rows = cfg.K.tensor_dim * cfg.surf.shape[0]
     levels_to_compute = (tree.max_height + 1)
     c2e_ops = np.empty(levels_to_compute * n_rows * n_rows)
 
     for i in range(levels_to_compute):
         R = tree.root().bounds.R / (2.0 ** i)
-        b = module[K.spatial_dim].Ball([0] * K.spatial_dim, R)
-        pinv = c2e_solve(gpu_module, surf, b, check_r, equiv_r, K, params, float_type)
+        b = module[cfg.K.spatial_dim].Ball([0] * cfg.K.spatial_dim, R)
+        pinv = c2e_solve(
+            cfg.module, cfg.surf, b, check_r, equiv_r,
+            cfg.K, cfg.params, cfg.float_type
+        )
         start_idx = i * n_rows * n_rows
         end_idx = (i + 1) * n_rows * n_rows
         c2e_ops[start_idx:end_idx] = pinv
@@ -77,9 +93,32 @@ def direct_matrix(module, K, obs_pts, obs_ns, src_pts, src_ns, params, float_typ
 
 class FMM:
     def __init__(self, fmm_mat, float_type):
-        self.float_type = float_type
+        K_name = fmm_mat.cfg.kernel_name
+        K = kernels[K_name]
+        surf = surrounding_surface(fmm_mat.cfg.order, K.spatial_dim)
+        self.cfg = FMMConfig(
+            K = K,
+            params = np.array(fmm_mat.cfg.params),
+            surf = surf,
+            outer_r = fmm_mat.cfg.outer_r,
+            inner_r = fmm_mat.cfg.inner_r,
+            order = fmm_mat.cfg.order,
+            float_type = float_type,
+            module = get_gpu_module(surf, K, float_type)
+        )
+        self.K = kernels[K_name]
         self.fmm_mat = fmm_mat
-        self.gpu_data = data_to_gpu(fmm_mat, float_type)
+        self.tensor_dim = self.fmm_mat.cfg.tensor_dim
+        self.gpu_data = data_to_gpu(fmm_mat, self.cfg.float_type, self.cfg.surf)
+        self.setup_d2e_u2e_ops()
+
+    def setup_d2e_u2e_ops(self):
+        self.gpu_data['u2e_ops'] = gpu.to_gpu(
+            build_c2e(self.fmm_mat.src_tree, self.cfg.outer_r, self.cfg.inner_r, self.cfg),
+        self.cfg.float_type)
+        self.gpu_data['d2e_ops'] = gpu.to_gpu(
+            build_c2e(self.fmm_mat.obs_tree, self.cfg.inner_r, self.cfg.outer_r, self.cfg),
+        self.cfg.float_type)
 
     def eval(self, input_tree):
         return eval_ocl(self.fmm_mat, input_tree, self.gpu_data)
@@ -91,13 +130,13 @@ class FMM:
         output_orig[orig_idxs,:] = output_tree
         return output_orig
 
-def report_interactions(fmm_mat):
+def report_interactions(fmm_mat, order):
     def count_interactions(op_name, op):
         obs_surf = False if op_name[2] == 'p' else True
         src_surf = False if op_name[0] == 'p' else True
         return module[dim].count_interactions(
             op, fmm_mat.obs_tree, fmm_mat.src_tree,
-            obs_surf, src_surf, len(fmm_mat.surf)
+            obs_surf, src_surf, order
         )
 
     n_obs_pts = fmm_mat.obs_tree.pts.shape[0]
@@ -128,13 +167,12 @@ def report_interactions(fmm_mat):
     for k, v in interactions.items():
         logger.debug('total %s interactions: %e' % (k, v))
 
-def data_to_gpu(fmm_mat, float_type):
+def data_to_gpu(fmm_mat, float_type, surf):
     src_tree_nodes = fmm_mat.src_tree.nodes
     obs_tree_nodes = fmm_mat.obs_tree.nodes
 
     gd = dict()
 
-    surf = np.array(fmm_mat.surf)
     K_name = fmm_mat.cfg.kernel_name
     K = kernels[K_name]
 
@@ -185,14 +223,11 @@ def data_to_gpu(fmm_mat, float_type):
     gd['u2e_obs_n_idxs'] = [
         gpu.to_gpu(fmm_mat.u2e[level].obs_n_idxs, np.int32) for level in range(n_src_levels)
     ]
-    gd['u2e_ops'] = gpu.to_gpu(fmm_mat.u2e_ops, float_type)
 
     n_obs_levels = len(fmm_mat.l2l)
     gd['d2e_obs_n_idxs'] = [
         gpu.to_gpu(fmm_mat.d2e[level].obs_n_idxs, np.int32) for level in range(n_obs_levels)
     ]
-    gd['d2e_ops'] = gpu.to_gpu(build_c2e(gd['module'], K, gd['params'], surf, fmm_mat.obs_tree, fmm_mat.cfg.inner_r, fmm_mat.cfg.outer_r, float_type), float_type)
-    # gd['d2e_ops'] = gpu.to_gpu(fmm_mat.d2e_ops, float_type)
 
     return gd
 

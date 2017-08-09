@@ -39,12 +39,6 @@ def template_kernels(cfg):
             filename,ext = os.path.splitext(t)
             f.write(filename + '.' + ext[2:] + '\n')
 
-def numpy_blas_cfg(cfg):
-    import numpy as np
-    blas = np.__config__.blas_opt_info
-    cfg['library_dirs'] += blas['library_dirs']
-    cfg['libraries'] += blas['libraries']
-
 def to_fmm_dir(filenames):
     return [os.path.join(tectosaur.fmm.source_dir, fname) for fname in filenames]
 
@@ -65,13 +59,12 @@ def setup_module(cfg):
 def fmm_lib_cfg(cfg):
     setup_module(cfg)
     cfg['sources'] += to_fmm_dir([
-        'fmm_impl.cpp', 'blas_wrapper.cpp', 'fmm_kernels.cpp', 'octree.cpp'
+        'fmm_impl.cpp', 'fmm_kernels.cpp', 'octree.cpp'
     ])
     cfg['dependencies'] += to_fmm_dir([
-        'fmm_impl.hpp', 'octree.hpp', 'blas_wrapper.hpp',
+        'fmm_impl.hpp', 'octree.hpp',
         os.path.join(tectosaur.source_dir, 'include', 'pybind11_nparray.hpp'),
     ])
-    numpy_blas_cfg(cfg)
     template_kernels(cfg)
 
 def fmm_test_cfg(cfg):

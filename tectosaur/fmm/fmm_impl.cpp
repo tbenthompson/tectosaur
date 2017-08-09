@@ -5,7 +5,6 @@
 
 #include "include/timing.hpp"
 #include "fmm_impl.hpp"
-#include "blas_wrapper.hpp"
 
 struct InteractionLists {
     std::vector<std::vector<int>> p2m;
@@ -129,8 +128,8 @@ void traverse(FMMMat<TreeT>& mat,
         // If there aren't enough src or obs to justify using the approximation,
         // then just do a p2p direct calculation between the nodes.
         // TODO: There could be a minor gain in doing better distance checks when small_src or small_obs are true. The check surfaces are no longer relevant, just the bounds of the tree node.
-        bool small_src = src_n.end - src_n.start < mat.surf.size();
-        bool small_obs = obs_n.end - obs_n.start < mat.surf.size();
+        bool small_src = src_n.end - src_n.start < mat.cfg.order;
+        bool small_obs = obs_n.end - obs_n.start < mat.cfg.order;
 
         if (small_src && small_obs) {
             mat.obs_tree.for_all_leaves_of(obs_n,
@@ -206,13 +205,12 @@ void down_collect(FMMMat<TreeT>& mat, InteractionLists& interaction_lists,
 template <typename TreeT>
 FMMMat<TreeT>::FMMMat(TreeT obs_tree, std::vector<std::array<double,TreeT::dim>> obs_normals,
            TreeT src_tree, std::vector<std::array<double,TreeT::dim>> src_normals,
-           FMMConfig<TreeT::dim> cfg, std::vector<std::array<double,TreeT::dim>> surf):
+           FMMConfig<TreeT::dim> cfg):
     obs_tree(obs_tree),
     obs_normals(obs_normals),
     src_tree(src_tree),
     src_normals(src_normals),
-    cfg(cfg),
-    surf(surf)
+    cfg(cfg)
 {}
 
 template <size_t dim>
@@ -245,28 +243,6 @@ std::vector<double> c2e_solve(std::vector<std::array<double,dim>> surf,
 }
 
 template <typename TreeT>
-void build_c2e(FMMMat<TreeT>& mat, std::vector<double>& c2e_ops,
-        const TreeT& tree, double check_r, double equiv_r) 
-{
-    int n_rows = mat.cfg.tensor_dim() * mat.surf.size();
-    c2e_ops.resize((tree.max_height + 1) * n_rows * n_rows);
-    int levels_to_compute = tree.max_height + 1;
-    // levels_to_compute = 1;
-#pragma omp parallel for
-    for (int i = 0; i < levels_to_compute; i++) {
-        double R = tree.root().bounds.R / std::pow(2.0, static_cast<double>(i));
-        std::array<double,TreeT::dim> center{};
-        Ball<TreeT::dim> bounds(center, R);
-        auto pinv = c2e_solve(mat.surf, bounds, check_r, equiv_r, mat.cfg);
-        double* op_start = &c2e_ops[i * n_rows * n_rows];
-        for (int j = 0; j < n_rows * n_rows; j++) {
-            op_start[j] = pinv[j];
-        }
-    }
-}
-
-
-template <typename TreeT>
 FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree,
     const std::vector<std::array<double,TreeT::dim>>& obs_normals,
     const TreeT& src_tree,
@@ -276,21 +252,15 @@ FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree,
 
     //TODO: Creating the translation surface takes a trivial amount of time
     //and can be moved to python.
-    auto translation_surf = surrounding_surface<TreeT::dim>(cfg.order);
-
-    FMMMat<TreeT> mat(obs_tree, obs_normals, src_tree, src_normals, cfg, translation_surf);
+    FMMMat<TreeT> mat(obs_tree, obs_normals, src_tree, src_normals, cfg);
 
     mat.u2e.resize(mat.src_tree.max_height + 1);
     mat.d2e.resize(mat.obs_tree.max_height + 1);
 
     auto interaction_lists = init_interaction_lists(mat);
 
-    build_c2e(mat, mat.u2e_ops, mat.src_tree, mat.cfg.outer_r, mat.cfg.inner_r);
     up_collect(mat, interaction_lists, mat.src_tree.root());
-
-    build_c2e(mat, mat.d2e_ops, mat.obs_tree, mat.cfg.inner_r, mat.cfg.outer_r);
     down_collect(mat, interaction_lists, mat.obs_tree.root());
-
     traverse(mat, interaction_lists, mat.obs_tree.root(), mat.src_tree.root());
     compress_interaction_lists(mat, interaction_lists);
 
