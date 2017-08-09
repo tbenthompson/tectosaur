@@ -1,16 +1,19 @@
 import numpy as np
 
 import tectosaur.util.gpu as gpu
-from tectosaur.util.build_cfg import float_type
 
-def get_gpu_config():
-    return {'block_size': 128, 'float_type': gpu.np_to_c_type(float_type)}
+block_size = 128
+def get_gpu_config(float_type):
+    return dict(
+        block_size = block_size,
+        float_type = gpu.np_to_c_type(float_type)
+    )
 
-def get_gpu_module():
-    return gpu.load_gpu('farfield_direct.cl', tmpl_args = get_gpu_config())
+def get_gpu_module(float_type):
+    return gpu.load_gpu('farfield_direct.cl', tmpl_args = get_gpu_config(float_type))
 
-def farfield_pts_direct(K, obs_pts, obs_ns, src_pts, src_ns, vec, params):
-    gpu_farfield_fnc = getattr(get_gpu_module(), "farfield_pts" + K)
+def farfield_pts_direct(K, obs_pts, obs_ns, src_pts, src_ns, vec, params, float_type):
+    gpu_farfield_fnc = getattr(get_gpu_module(float_type), "farfield_pts" + K)
 
     n_obs, dim = obs_pts.shape
     n_src = src_pts.shape[0]
@@ -25,11 +28,10 @@ def farfield_pts_direct(K, obs_pts, obs_ns, src_pts, src_ns, vec, params):
     gpu_vec = gpu.to_gpu(vec, float_type)
     gpu_params = gpu.to_gpu(np.array(params), float_type)
 
-    local_size = get_gpu_config()['block_size']
-    n_blocks = int(np.ceil(n_obs / local_size))
-    global_size = local_size * n_blocks
+    n_blocks = int(np.ceil(n_obs / block_size))
+    global_size = block_size * n_blocks
     gpu_farfield_fnc(
-        gpu.gpu_queue, (global_size,), (local_size,),
+        gpu.gpu_queue, (global_size,), (block_size,),
         gpu_result.data,
         gpu_obs_pts.data, gpu_obs_ns.data,
         gpu_src_pts.data, gpu_src_ns.data,

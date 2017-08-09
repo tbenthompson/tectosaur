@@ -61,8 +61,7 @@ void wrap_fmm(py::module& m) {
             );
         })
         .def_property_readonly("tensor_dim", &FMMMat<TreeT>::tensor_dim)
-        .OP(u2e).OP(d2e)
-        .OP(p2m).OP(m2m).OP(p2l).OP(m2l).OP(l2l).OP(p2p).OP(m2p).OP(l2p).OP(u2e_new).OP(d2e_new);
+        .OP(u2e).OP(d2e).OP(p2m).OP(m2m).OP(p2l).OP(m2l).OP(l2l).OP(p2p).OP(m2p).OP(l2p);
 
 #undef EXPOSEOP
 #undef EVALFNC
@@ -150,33 +149,6 @@ void wrap_dim(py::module& m) {
         .def_property_readonly("kernel_name", &FMMConfig<dim>::kernel_name)
         .def_property_readonly("tensor_dim", &FMMConfig<dim>::tensor_dim);
 
-    <%
-    direct_eval_data = [
-        ("",["","n_obs_dofs * n_src_dofs",""]),
-        ("mf_",[",NPArrayD input","n_obs_dofs",", as_ptr<double>(input)"])
-    ]
-    %>
-    % for name, extra in direct_eval_data:
-        m.def("${name}direct_eval", [](std::string k_name, NPArrayD obs_pts, NPArrayD obs_ns,
-                                NPArrayD src_pts, NPArrayD src_ns, NPArrayD params${extra[0]}) {
-            check_shape<dim>(obs_pts);
-            check_shape<dim>(obs_ns);
-            check_shape<dim>(src_pts);
-            check_shape<dim>(src_ns);
-            auto K = get_by_name<dim>(k_name);
-            int n_obs_dofs = K.tensor_dim * obs_pts.request().shape[0];
-            int n_src_dofs = K.tensor_dim * src_pts.request().shape[0];
-            (void)n_src_dofs;
-            std::vector<double> out(${extra[1]});
-            K.${name}f({as_ptr<std::array<double,dim>>(obs_pts), as_ptr<std::array<double,dim>>(obs_ns),
-               as_ptr<std::array<double,dim>>(src_pts), as_ptr<std::array<double,dim>>(src_ns),
-               obs_pts.request().shape[0], src_pts.request().shape[0],
-               as_ptr<double>(params)},
-              out.data()${extra[2]});
-            return array_from_vector(out);
-        });
-    % endfor
-
     wrap_fmm<Octree<dim>>(m);
 }
 
@@ -192,10 +164,6 @@ PYBIND11_PLUGIN(fmm) {
     def_property_readonly(#name, [] (type& op) {\
         return make_array({op.name.size()}, op.name.data());\
     })
-
-    py::class_<MatrixFreeOp>(m, "MatrixFreeOp")
-        .NPARRAYPROP(MatrixFreeOp, obs_n_idx)
-        .NPARRAYPROP(MatrixFreeOp, src_n_idx);
     py::class_<CompressedInteractionList>(m, "CompressedInteractionList")
         .NPARRAYPROP(CompressedInteractionList, obs_n_idxs)
         .NPARRAYPROP(CompressedInteractionList, obs_src_starts)

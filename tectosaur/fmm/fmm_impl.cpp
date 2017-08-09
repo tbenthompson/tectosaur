@@ -88,18 +88,18 @@ InteractionLists init_interaction_lists(const FMMMat<TreeT>& mat) {
 template <typename TreeT>
 void compress_interaction_lists(FMMMat<TreeT>& mat, const InteractionLists& lists) {
     mat.m2m.resize(lists.m2m.size());
-    mat.u2e_new.resize(lists.m2m.size());
+    mat.u2e.resize(lists.m2m.size());
     for (size_t i = 0; i < lists.m2m.size(); i++) {
         mat.m2m[i] = compress(lists.m2m[i]);
-        mat.u2e_new[i] = compress(lists.u2e[i]);
+        mat.u2e[i] = compress(lists.u2e[i]);
     }
     mat.p2m = compress(lists.p2m);
 
     mat.l2l.resize(lists.l2l.size());
-    mat.d2e_new.resize(lists.l2l.size());
+    mat.d2e.resize(lists.l2l.size());
     for (size_t i = 0; i < lists.l2l.size(); i++) {
         mat.l2l[i] = compress(lists.l2l[i]);
-        mat.d2e_new[i] = compress(lists.d2e[i]);
+        mat.d2e[i] = compress(lists.d2e[i]);
     }
     mat.l2p = compress(lists.l2p);
 
@@ -175,7 +175,6 @@ void up_collect(FMMMat<TreeT>& mat, InteractionLists& interaction_lists,
         const typename TreeT::Node& src_n) 
 {
     auto level = mat.src_tree.max_height - src_n.depth;
-    mat.u2e[level].insert(src_n, src_n);
     interaction_lists.u2e[level][src_n.idx].push_back(src_n.idx);
     if (src_n.is_leaf) {
         interaction_lists.p2m[src_n.idx].push_back(src_n.idx);
@@ -192,7 +191,6 @@ template <typename TreeT>
 void down_collect(FMMMat<TreeT>& mat, InteractionLists& interaction_lists, 
         const typename TreeT::Node& obs_n) 
 {
-    mat.d2e[obs_n.depth].insert(obs_n, obs_n);
     interaction_lists.d2e[obs_n.depth][obs_n.idx].push_back(obs_n.idx);
     if (obs_n.is_leaf) {
         interaction_lists.l2p[obs_n.idx].push_back(obs_n.idx);

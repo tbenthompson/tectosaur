@@ -5,6 +5,7 @@ import scipy.sparse.linalg
 import numpy as np
 
 from tectosaur import setup_logger
+from tectosaur.farfield import farfield_pts_direct
 from tectosaur.util.timer import Timer
 import tectosaur.fmm.fmm_wrapper as fmm
 
@@ -12,10 +13,7 @@ from dimension import dim, module
 
 logger = setup_logger(__name__)
 
-quiet_tests = False
-def test_print(*args, **kwargs):
-    if not quiet_tests:
-        print(*args, **kwargs)
+float_type = np.float64
 
 def rand_pts(dim):
     def f(n, source):
@@ -70,7 +68,6 @@ def run_full(n, make_pts, mac, order, kernel, params, max_pts_per_cell = None):
     input_vals = np.ones(src_pts.shape[0] * tdim)
     n_outputs = obs_pts.shape[0] * tdim
 
-    float_type = np.float64
     gpu_data = fmm.data_to_gpu(fmm_mat, float_type)
 
     est = fmm.eval_ocl(fmm_mat, input_vals, gpu_data)
@@ -84,11 +81,11 @@ def run_full(n, make_pts, mac, order, kernel, params, max_pts_per_cell = None):
 def check(est, correct, accuracy):
     rmse = np.sqrt(np.mean((est - correct) ** 2))
     rms_c = np.sqrt(np.mean(correct ** 2))
-    test_print("L2ERR: " + str(rmse / rms_c))
-    test_print("MEANERR: " + str(np.mean(np.abs(est - correct)) / rms_c))
-    test_print("MAXERR: " + str(np.max(np.abs(est - correct)) / rms_c))
-    test_print("MEANRELERR: " + str(np.mean(np.abs((est - correct) / correct))))
-    test_print("MAXRELERR: " + str(np.max(np.abs((est - correct) / correct))))
+    logger.debug("L2ERR: " + str(rmse / rms_c))
+    logger.debug("MEANERR: " + str(np.mean(np.abs(est - correct)) / rms_c))
+    logger.debug("MAXERR: " + str(np.max(np.abs(est - correct)) / rms_c))
+    logger.debug("MEANRELERR: " + str(np.mean(np.abs((est - correct) / correct))))
+    logger.debug("MAXRELERR: " + str(np.max(np.abs((est - correct) / correct))))
     lhs = est / rms_c
     rhs = correct / rms_c
     np.testing.assert_almost_equal(lhs, rhs, accuracy)
@@ -96,10 +93,10 @@ def check(est, correct, accuracy):
 def check_kernel(K, obs_pts, obs_ns, src_pts, src_ns, est, accuracy = 3):
     dim = obs_pts.shape[1]
     tensor_dim = int(est.size / obs_pts.shape[0])
-    correct_mat = module[dim].direct_eval(
-        K, obs_pts, obs_ns, src_pts, src_ns, [1.0, 0.25]
-    ).reshape((obs_pts.shape[0] * tensor_dim, src_pts.shape[0] * tensor_dim))
-    correct = correct_mat.dot(np.ones(src_pts.shape[0] * tensor_dim))
+    vec = np.ones(src_pts.shape[0] * tensor_dim)
+    correct = farfield_pts_direct(
+        K, obs_pts, obs_ns, src_pts, src_ns, vec, [1.0, 0.25], float_type
+    )
     check(est, correct, accuracy)
 
 def test_ones(dim):

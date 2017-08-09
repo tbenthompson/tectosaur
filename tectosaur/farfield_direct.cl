@@ -84,9 +84,11 @@ void farfield_pts${K.name}(
             % for d in range(1, K.spatial_dim):
                 r2 += D${dn(d)} * D${dn(d)};
             % endfor
+
             if (r2 == 0.0) {
                 continue;
             }
+
             % if K.needs_srcn:
             % for d in range(K.spatial_dim):
             Real nsrc${dn(d)} = sh_src_ns[k * ${K.spatial_dim} + ${d}];

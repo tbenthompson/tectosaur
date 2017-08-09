@@ -148,14 +148,14 @@ def data_to_gpu(fmm_mat, float_type):
         )
 
     n_src_levels = len(fmm_mat.m2m)
-    gd['u2e_node_n_idx'] = [
-        gpu.to_gpu(fmm_mat.u2e[level].src_n_idx, np.int32) for level in range(n_src_levels)
+    gd['u2e_obs_n_idxs'] = [
+        gpu.to_gpu(fmm_mat.u2e[level].obs_n_idxs, np.int32) for level in range(n_src_levels)
     ]
     gd['u2e_ops'] = gpu.to_gpu(fmm_mat.u2e_ops, float_type)
 
     n_obs_levels = len(fmm_mat.l2l)
-    gd['d2e_node_n_idx'] = [
-        gpu.to_gpu(fmm_mat.d2e[level].src_n_idx, np.int32) for level in range(n_obs_levels)
+    gd['d2e_obs_n_idxs'] = [
+        gpu.to_gpu(fmm_mat.d2e[level].obs_n_idxs, np.int32) for level in range(n_obs_levels)
     ]
     gd['d2e_ops'] = gpu.to_gpu(fmm_mat.d2e_ops, float_type)
 
@@ -265,7 +265,7 @@ def gpu_l2p(fmm_mat, gd, d2e_ev):
 
 def gpu_c2e(fmm_mat, gd, level, depth, evs, d_or_u, out_arr, in_arr):
     c2e = gd['c2e']
-    n_c2e = gd[d_or_u + '2e_node_n_idx'][level].shape[0]
+    n_c2e = gd[d_or_u + '2e_obs_n_idxs'][level].shape[0]
     n_c2e_rows = gd['n_surf_dofs']
     if n_c2e > 0:
         n_rows = int(np.ceil(n_c2e / n_c2e_block_rows) * n_c2e_block_rows)
@@ -276,7 +276,7 @@ def gpu_c2e(fmm_mat, gd, level, depth, evs, d_or_u, out_arr, in_arr):
             (n_c2e_block_rows, n_c2e_block_rows),
             out_arr.data, in_arr.data,
             np.int32(n_c2e), np.int32(n_c2e_rows),
-            gd[d_or_u + '2e_node_n_idx'][level].data,
+            gd[d_or_u + '2e_obs_n_idxs'][level].data,
             np.int32(depth),
             gd[d_or_u + '2e_ops'].data,
             wait_for = to_ev_list(evs)
@@ -313,11 +313,8 @@ def print_timing(p2m_ev, m2m_evs, u2e_evs,
 
 def prep_data_for_eval(gd, input_vals):
     gd['in'][:] = input_vals.astype(gd['float_type']).flatten()
-    gd['out'][:] = 0
-    gd['m_check'][:] = 0
-    gd['multipoles'][:] = 0
-    gd['l_check'][:] = 0
-    gd['locals'][:] = 0
+    for arr in ['out', 'm_check', 'multipoles', 'l_check', 'locals']:
+        gd[arr][:] = 0
 
 def eval_ocl(fmm_mat, input_vals, gpu_data, should_print_timing = True):
     t = Timer(silent = True)

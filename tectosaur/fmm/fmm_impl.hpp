@@ -30,20 +30,6 @@ template <size_t dim>
 std::vector<double> c2e_solve(std::vector<std::array<double,dim>> surf,
     const Ball<dim>& bounds, double check_r, double equiv_r, const FMMConfig<dim>& cfg);
 
-struct MatrixFreeOp {
-    std::vector<int> obs_n_idx;
-    std::vector<int> src_n_idx;
-
-    template <typename TreeT>
-    void insert(const TreeT& obs_n, const TreeT& src_n) {
-        if (obs_n.end - obs_n.start == 0 || src_n.end - src_n.start == 0) {
-            return;
-        }
-        obs_n_idx.push_back(obs_n.idx);
-        src_n_idx.push_back(src_n.idx);
-    }
-};
-
 struct CompressedInteractionList {
     std::vector<int> obs_n_idxs;//TODO: Make these 64-bit.
     std::vector<int> obs_src_starts;
@@ -89,18 +75,15 @@ struct FMMMat {
     std::vector<std::array<double,TreeT::dim>> surf;
 
     std::vector<double> u2e_ops;
-    std::vector<MatrixFreeOp> u2e;
-
     std::vector<double> d2e_ops;
-    std::vector<MatrixFreeOp> d2e;
 
     CompressedInteractionList p2m;
     std::vector<CompressedInteractionList> m2m;
-    std::vector<CompressedInteractionList> u2e_new;
+    std::vector<CompressedInteractionList> u2e;
 
     CompressedInteractionList l2p;
     std::vector<CompressedInteractionList> l2l;
-    std::vector<CompressedInteractionList> d2e_new;
+    std::vector<CompressedInteractionList> d2e;
 
     CompressedInteractionList p2p;
     CompressedInteractionList p2l;
