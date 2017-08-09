@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 from tectosaur.util.logging import setup_logger
 import tectosaur.fmm.fmm_wrapper as fmm
@@ -23,7 +24,7 @@ order = 100
 # mac = 3.0
 # order = 100
 
-float_type = np.float64
+float_type = np.float32
 dim = int(K[-1])
 params = [1.0, 0.25]
 
@@ -96,6 +97,9 @@ def fmm_runner(pts, ns, input_vals):
     output = fmm_obj.eval(input_tree)
     t.report('eval fmm')
 
+    output = fmm_obj.eval(input_tree)
+    t.report('eval fmm')
+
     to_orig = fmm_obj.to_orig(output)
     t.report('map to input space')
     return to_orig
@@ -107,13 +111,15 @@ def check(A, B):
     print(L2B, L2Diff, relL2)
 
 if __name__ == '__main__':
+    N = int(sys.argv[1])
+    test = sys.argv[2] == 'test'
     np.random.seed(10)
     # N = 1000000
     # data = random_data(N)
     # N = 10000000
     # data = ellipsoid_pts(N)
-    N = int(1e4 ** (1.0 / float(dim)))
-    data = grid_data(N)
+    data = grid_data(int(N ** (1.0 / float(dim))))
     A = fmm_runner(*data).flatten()
-    B = direct_runner(*data)
-    check(A, B)
+    if test:
+        B = direct_runner(*data)
+        check(A, B)

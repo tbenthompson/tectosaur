@@ -258,7 +258,7 @@ void c2e_kernel(__global Real* out, __global Real* in,
 {
     % if type(K.scale_type) is int:
         __global Real* op_start = &ops[0];
-        Real scaling = pow(2.0, (Real)(node_depth * ${-K.scale_type - 4}));
+        Real scaling = pow((Real)2.0, (Real)(node_depth * ${-K.scale_type - 4}));
     % else:
         __global Real* op_start = &ops[node_depth * n_rows * n_rows];
         Real scaling = 1.0;
