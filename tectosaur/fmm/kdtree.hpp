@@ -2,7 +2,7 @@
 
 #include <array>
 #include <vector>
-#include "geometry.hpp"
+#include "tree_helpers.hpp"
 
 template <size_t dim>
 struct KDNode {

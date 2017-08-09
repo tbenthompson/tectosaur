@@ -35,7 +35,7 @@ def fmm_lib_cfg(cfg):
     setup_module(cfg)
     cfg['sources'] += to_fmm_dir(['fmm_impl.cpp', 'octree.cpp', 'kdtree.cpp'])
     cfg['dependencies'] += to_fmm_dir([
-        'fmm_impl.hpp', 'octree.hpp', 'kdtree.hpp',
+        'fmm_impl.hpp', 'octree.hpp', 'kdtree.hpp', 'tree_helpers.hpp',
         os.path.join(tectosaur.source_dir, 'include', 'pybind11_nparray.hpp'),
     ])
 

@@ -59,8 +59,8 @@ def run_full(n, pts_builder, mac, order, kernel, params, max_pts_per_cell = None
 
     dim = obs_pts.shape[1]
 
-    obs_kd = module[dim].Octree(obs_pts, max_pts_per_cell)
-    src_kd = module[dim].Octree(src_pts, max_pts_per_cell)
+    obs_kd = module[dim].KDTree(obs_pts, max_pts_per_cell)
+    src_kd = module[dim].KDTree(src_pts, max_pts_per_cell)
     obs_ns_kd = obs_ns[obs_kd.orig_idxs]
     src_ns_kd = src_ns[src_kd.orig_idxs]
     t.report('build trees')
