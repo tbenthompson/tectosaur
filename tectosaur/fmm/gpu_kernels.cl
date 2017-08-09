@@ -63,13 +63,11 @@ void ${op_name}_${K.name}(
 <%def name="setup_src_local_memory(type)">
 % if type == "pts":
     % if K.needs_srcn:
-    __local Real sh_src_ns[${K.spatial_dim} * ${n_workers_per_block}];
+    __local Real sh_src_ns[${n_workers_per_block}][${K.spatial_dim}];
     % endif
-    __local Real sh_src_pts[${K.spatial_dim} * ${n_workers_per_block}];
-    __local Real sh_input[${K.tensor_dim} * ${n_workers_per_block}];
-% else:
-    __local Real sh_input[${K.tensor_dim} * ${n_workers_per_block}];
+    __local Real sh_src_pts[${n_workers_per_block}][${K.spatial_dim}];
 % endif
+__local Real sh_input[${n_workers_per_block}][${K.tensor_dim}];
 </%def>
 
 <%def name="obs_loop(obs_type)">
@@ -118,18 +116,15 @@ for (int chunk_start = src_start_idx;
             // Traversing these arrays in a unstrided fashion does not improve performance.
             // Probably due to decent caching on newer nvidia gpus
             % for d in range(K.spatial_dim):
-                sh_src_pts[worker_idx * ${K.spatial_dim} + ${d}] = 
-                    src_pts[load_idx * ${K.spatial_dim} + ${d}];
+                sh_src_pts[worker_idx][${d}] = src_pts[load_idx * ${K.spatial_dim} + ${d}];
                 % if K.needs_srcn:
-                    sh_src_ns[worker_idx * ${K.spatial_dim} + ${d}] = 
-                        src_ns[load_idx * ${K.spatial_dim} + ${d}];
+                    sh_src_ns[worker_idx][${d}] = src_ns[load_idx * ${K.spatial_dim} + ${d}];
                 % endif
             % endfor
         % endif
 
         % for d in range(K.tensor_dim):
-            sh_input[worker_idx * ${K.tensor_dim} + ${d}] =
-                in[(input_offset + load_idx) * ${K.tensor_dim} + ${d}];
+            sh_input[worker_idx][${d}] = in[(input_offset + load_idx) * ${K.tensor_dim} + ${d}];
         % endfor
     }
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -141,9 +136,9 @@ if (obs_pt_idx < obs_pt_max) {
     for (int chunk_j = 0; chunk_j < chunk_j_max; chunk_j++) {
         % if src_type == "pts":
             % for d in range(K.spatial_dim):
-                Real src${dn(d)} = sh_src_pts[chunk_j * ${K.spatial_dim} + ${d}];
+                Real src${dn(d)} = sh_src_pts[chunk_j][${d}];
                 % if K.needs_srcn:
-                    Real nsrc${dn(d)} = sh_src_ns[chunk_j * ${K.spatial_dim} + ${d}];
+                    Real nsrc${dn(d)} = sh_src_ns[chunk_j][${d}];
                 % endif
             % endfor
         % else:
@@ -153,7 +148,7 @@ if (obs_pt_idx < obs_pt_max) {
             % endfor
         % endif
         % for d in range(K.tensor_dim):
-            Real in${dn(d)} = sh_input[chunk_j * ${K.tensor_dim} + ${d}];
+            Real in${dn(d)} = sh_input[chunk_j][${d}];
         % endfor
 
         % for d in range(K.spatial_dim):
@@ -254,16 +249,8 @@ void direct_matrix(__global Real* out,
 __kernel
 void c2e_kernel(__global Real* out, __global Real* in,
         int n_blocks, int n_rows, __global int* node_idx,
-        int node_depth, __global Real* ops)
+        __global Real* node_R, int node_depth, __global Real* ops)
 {
-    % if type(K.scale_type) is int:
-        __global Real* op_start = &ops[0];
-        Real scaling = pow((Real)2.0, (Real)(node_depth * ${-K.scale_type - 4}));
-    % else:
-        __global Real* op_start = &ops[node_depth * n_rows * n_rows];
-        Real scaling = 1.0;
-    % endif
-
     const int local_row = get_local_id(0);
     const int local_col = get_local_id(1);
     const int global_block_idx = get_global_id(0);
@@ -276,6 +263,14 @@ void c2e_kernel(__global Real* out, __global Real* in,
     if (global_block_idx < n_blocks) {
         global_n_idx = node_idx[global_block_idx];
     }
+
+    % if type(K.scale_type) is int:
+        __global Real* op_start = &ops[0];
+        Real scaling = pow(node_R[global_n_idx], (Real)(${K.scale_type + 4}));
+    % else:
+        __global Real* op_start = &ops[node_depth * n_rows * n_rows];
+        Real scaling = 1.0;
+    % endif
 
     Real sum = 0.0;
     int t = 0;

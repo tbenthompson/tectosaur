@@ -4,6 +4,8 @@
 #include <limits>
 
 #include "include/timing.hpp"
+#include "octree.hpp"
+#include "kdtree.hpp"
 #include "fmm_impl.hpp"
 
 struct InteractionLists {
@@ -108,6 +110,18 @@ void compress_interaction_lists(FMMMat<TreeT>& mat, const InteractionLists& list
     mat.m2l = compress(lists.m2l);
 }
 
+
+template <typename TreeT, typename F>
+void for_all_leaves_of(const TreeT& t, const typename TreeT::Node& n, const F& f) {
+    if (n.is_leaf) {
+        f(n);
+        return;
+    }
+    for (size_t i = 0; i < n.children.size(); i++) {
+        for_all_leaves_of(t, t.nodes[n.children[i]], f);
+    }
+}
+
 template <typename TreeT>
 void traverse(FMMMat<TreeT>& mat,
         InteractionLists& interaction_lists,
@@ -132,13 +146,13 @@ void traverse(FMMMat<TreeT>& mat,
         bool small_obs = obs_n.end - obs_n.start < mat.cfg.order;
 
         if (small_src && small_obs) {
-            mat.obs_tree.for_all_leaves_of(obs_n,
+            for_all_leaves_of(mat.obs_tree, obs_n,
                 [&] (const typename TreeT::Node& leaf_obs_n) {
                     interaction_lists.p2p[leaf_obs_n.idx].push_back(src_n.idx);
                 }
             );
         } else if (small_obs) {
-            mat.obs_tree.for_all_leaves_of(obs_n,
+            for_all_leaves_of(mat.obs_tree, obs_n,
                 [&] (const typename TreeT::Node& leaf_obs_n) {
                     interaction_lists.m2p[leaf_obs_n.idx].push_back(src_n.idx);
                 }
@@ -242,3 +256,14 @@ FMMMat<Octree<3>> fmmmmmmm(const Octree<3>& obs_tree,
     const FMMConfig<3>& cfg);
 template struct FMMMat<Octree<2>>;
 template struct FMMMat<Octree<3>>;
+
+template 
+FMMMat<KDTree<2>> fmmmmmmm(const KDTree<2>& obs_tree,
+    const KDTree<2>& src_tree,
+    const FMMConfig<2>& cfg);
+template 
+FMMMat<KDTree<3>> fmmmmmmm(const KDTree<3>& obs_tree,
+    const KDTree<3>& src_tree,
+    const FMMConfig<3>& cfg);
+template struct FMMMat<KDTree<2>>;
+template struct FMMMat<KDTree<3>>;

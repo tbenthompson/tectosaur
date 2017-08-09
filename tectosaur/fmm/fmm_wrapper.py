@@ -53,22 +53,24 @@ class FMMConfig:
     module = attr.ib()
 
 def build_c2e(tree, check_r, equiv_r, cfg):
+    def make(R):
+        return c2e_solve(
+            cfg.module, cfg.surf,
+            module[cfg.K.spatial_dim].Ball([0] * cfg.K.spatial_dim, R),
+            check_r, equiv_r,
+            cfg.K, cfg.params, cfg.float_type
+        )
+
     n_rows = cfg.K.tensor_dim * cfg.surf.shape[0]
     levels_to_compute = tree.max_height + 1
     if type(cfg.K.scale_type) is int:
-        levels_to_compute = 1
-    c2e_ops = np.empty(levels_to_compute * n_rows * n_rows)
+        return make(1.0)
 
+    c2e_ops = np.empty(levels_to_compute * n_rows * n_rows)
     for i in range(levels_to_compute):
-        R = tree.root().bounds.R / (2.0 ** i)
-        b = module[cfg.K.spatial_dim].Ball([0] * cfg.K.spatial_dim, R)
-        pinv = c2e_solve(
-            cfg.module, cfg.surf, b, check_r, equiv_r,
-            cfg.K, cfg.params, cfg.float_type
-        )
         start_idx = i * n_rows * n_rows
         end_idx = (i + 1) * n_rows * n_rows
-        c2e_ops[start_idx:end_idx] = pinv
+        c2e_ops[start_idx:end_idx] = make(tree.root().bounds.R / (2.0 ** i))
 
     return c2e_ops
 
@@ -335,6 +337,10 @@ def gpu_c2e(fmm_mat, gd, level, depth, evs, d_or_u, out_arr, in_arr):
     c2e = gd['c2e']
     n_c2e = gd[d_or_u + '2e_obs_n_idxs'][level].shape[0]
     n_c2e_rows = gd['n_surf_dofs']
+    if d_or_u == 'd':
+        R_data = gd['obs_n_R']
+    else:
+        R_data = gd['src_n_R']
     if n_c2e > 0:
         n_rows = int(np.ceil(n_c2e / n_c2e_block_rows) * n_c2e_block_rows)
         n_cols = int(np.ceil(n_c2e_rows / n_c2e_block_rows) * n_c2e_block_rows)
@@ -345,6 +351,7 @@ def gpu_c2e(fmm_mat, gd, level, depth, evs, d_or_u, out_arr, in_arr):
             out_arr.data, in_arr.data,
             np.int32(n_c2e), np.int32(n_c2e_rows),
             gd[d_or_u + '2e_obs_n_idxs'][level].data,
+            R_data.data,
             np.int32(depth),
             gd[d_or_u + '2e_ops'].data,
             wait_for = to_ev_list(evs)

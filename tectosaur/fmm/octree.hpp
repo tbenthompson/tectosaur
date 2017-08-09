@@ -2,7 +2,6 @@
 
 #include <array>
 #include <vector>
-#include <memory>
 #include "geometry.hpp"
 
 template <size_t dim>
@@ -20,23 +19,8 @@ struct OctreeNode {
 };
 
 template <size_t dim>
-struct PtWithIdx {
-    std::array<double,dim> pt;
-    size_t orig_idx;
-};
-
-template <size_t dim>
 std::array<int,OctreeNode<dim>::split+1> octree_partition(
         const Ball<dim>& bounds, PtWithIdx<dim>* start, PtWithIdx<dim>* end);
-
-template <size_t dim>
-std::vector<PtWithIdx<dim>> combine_pts_idxs(std::array<double,dim>* pts, size_t n_pts) {
-    std::vector<PtWithIdx<dim>> pts_idxs(n_pts);
-    for (size_t i = 0; i < n_pts; i++) {
-        pts_idxs[i] = {pts[i], i};
-    }
-    return pts_idxs;
-}
 
 template <size_t dim>
 Ball<dim> bounding_ball(PtWithIdx<dim>* pts, size_t n_pts);
@@ -50,7 +34,6 @@ struct Octree {
     std::vector<std::array<double,dim>> pts;
     std::vector<size_t> orig_idxs;
 
-    size_t n_pts;
     int max_height;
     std::vector<OctreeNode<dim>> nodes;
 
@@ -61,15 +44,4 @@ struct Octree {
     size_t add_node(size_t start, size_t end, 
         size_t n_per_cell, int depth, Ball<dim> bounds,
         std::vector<PtWithIdx<dim>>& temp_pts);
-
-    template <typename F>
-    void for_all_leaves_of(const OctreeNode<dim>& n, const F& f) {
-        if (n.is_leaf) {
-            f(n);
-            return;
-        }
-        for (size_t i = 0; i < n.children.size(); i++) {
-            for_all_leaves_of(nodes[n.children[i]], f);
-        }
-    }
 };

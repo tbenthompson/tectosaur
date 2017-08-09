@@ -11,6 +11,7 @@ fmm_lib_cfg(cfg)
 
 #include "fmm_impl.hpp"
 #include "octree.hpp"
+#include "kdtree.hpp"
 
 namespace py = pybind11;
 
@@ -27,15 +28,52 @@ void wrap_fmm(py::module& m) {
         .OP(u2e).OP(d2e).OP(p2m).OP(m2m).OP(p2l).OP(m2l).OP(l2l).OP(p2p).OP(m2p).OP(l2p);
 
     m.def("fmmmmmmm", 
-        [] (const Octree<dim>& obs_tree, const Octree<dim>& src_tree, 
-            const FMMConfig<dim>& cfg) 
-        {
+        [] (const TreeT& obs_tree, const TreeT& src_tree, const FMMConfig<dim>& cfg) {
             return fmmmmmmm(obs_tree, src_tree, cfg);
         });
 
-    m.def("count_interactions", &count_interactions<Octree<dim>>);
+    m.def("count_interactions", &count_interactions<TreeT>);
 }
 
+template <typename TreeT>
+void wrap_tree(py::module& m, std::string name) {
+    using Node = typename TreeT::Node;
+    py::class_<Node>(m, (name + "Node").c_str())
+        .def_readonly("start", &Node::start)
+        .def_readonly("end", &Node::end)
+        .def_readonly("bounds", &Node::bounds)
+        .def_readonly("is_leaf", &Node::is_leaf)
+        .def_readonly("idx", &Node::idx)
+        .def_readonly("height", &Node::height)
+        .def_readonly("depth", &Node::depth)
+        .def_readonly("children", &Node::children);
+
+    py::class_<TreeT>(m, name.c_str())
+        .def("__init__",
+        [] (TreeT& t, NPArrayD np_pts, size_t n_per_cell) {
+            check_shape<TreeT::dim>(np_pts);
+            new (&t) TreeT(
+                as_ptr<std::array<double,TreeT::dim>>(np_pts),
+                np_pts.request().shape[0], n_per_cell
+            );
+        })
+        .def("root", &TreeT::root)
+        .def("n_split", [] (TreeT& t) {
+            return TreeT::split;
+        })
+        .def_readonly("nodes", &TreeT::nodes)
+        .def_readonly("orig_idxs", &TreeT::orig_idxs)
+        .def_readonly("max_height", &TreeT::max_height)
+        .def_property_readonly("pts", [] (TreeT& tree) {
+            return make_array<double>(
+                {tree.pts.size(), TreeT::dim},
+                reinterpret_cast<double*>(tree.pts.data())
+            );
+        })
+        .def_property_readonly("n_nodes", [] (TreeT& o) {
+            return o.nodes.size();
+        });
+}
 
 template <size_t dim>
 void wrap_dim(py::module& m) {
@@ -45,40 +83,6 @@ void wrap_dim(py::module& m) {
         .def(py::init<std::array<double,dim>, double>())
         .def_readonly("center", &Ball<dim>::center)
         .def_readonly("R", &Ball<dim>::R);
-
-
-    py::class_<OctreeNode<dim>>(m, "OctreeNode")
-        .def_readonly("start", &OctreeNode<dim>::start)
-        .def_readonly("end", &OctreeNode<dim>::end)
-        .def_readonly("bounds", &OctreeNode<dim>::bounds)
-        .def_readonly("is_leaf", &OctreeNode<dim>::is_leaf)
-        .def_readonly("idx", &OctreeNode<dim>::idx)
-        .def_readonly("height", &OctreeNode<dim>::height)
-        .def_readonly("depth", &OctreeNode<dim>::depth)
-        .def_readonly("children", &OctreeNode<dim>::children);
-
-    py::class_<Octree<dim>>(m, "Octree")
-        .def("__init__",
-        [] (Octree<dim>& kd, NPArrayD np_pts, size_t n_per_cell) {
-            check_shape<dim>(np_pts);
-            new (&kd) Octree<dim>(
-                reinterpret_cast<std::array<double,dim>*>(np_pts.request().ptr),
-                np_pts.request().shape[0], n_per_cell
-            );
-        })
-        .def("root", &Octree<dim>::root)
-        .def_readonly("nodes", &Octree<dim>::nodes)
-        .def_readonly("orig_idxs", &Octree<dim>::orig_idxs)
-        .def_readonly("max_height", &Octree<dim>::max_height)
-        .def_property_readonly("pts", [] (Octree<dim>& tree) {
-            return make_array<double>(
-                {tree.pts.size(), dim},
-                reinterpret_cast<double*>(tree.pts.data())
-            );
-        })
-        .def_property_readonly("n_nodes", [] (Octree<dim>& o) {
-            return o.nodes.size();
-        });
 
     py::class_<FMMConfig<dim>>(m, "FMMConfig")
         .def("__init__", 
@@ -91,7 +95,9 @@ void wrap_dim(py::module& m) {
         .def_readonly("outer_r", &FMMConfig<dim>::outer_r)
         .def_readonly("order", &FMMConfig<dim>::order);
 
-    wrap_fmm<Octree<dim>>(m);
+    wrap_tree<Octree<dim>>(m, "Octree");
+    wrap_tree<KDTree<dim>>(m, "KDTree");
+    wrap_fmm<KDTree<dim>>(m);
 }
 
 PYBIND11_PLUGIN(fmm) {

@@ -3,7 +3,6 @@
 #include <cmath>
 #include <functional>
 #include <memory>
-#include "octree.hpp"
 
 template <size_t dim>
 struct FMMConfig {

@@ -42,15 +42,15 @@ TEST_CASE("bounding ball contains its pts")
     for (size_t i = 0; i < 10; i++) {
         auto pts = random_pts<2>(10, -1, 1); 
         auto pts_idxs = combine_pts_idxs(pts.data(), pts.size());
-        auto b = bounding_ball(pts_idxs.data(), pts.size());
+        auto b = tree_bounds(pts_idxs.data(), pts.size());
         auto b_shrunk = b;
-        b_shrunk.R /= std::sqrt(2.0) * 1.0000001;
+        b_shrunk.R /= 1.01;
         bool all_pts_in_shrunk = true;
         for (auto p: pts) {
             REQUIRE(in_ball(b, p)); // Check that the bounding ball is sufficient.
             all_pts_in_shrunk = all_pts_in_shrunk && in_ball(b_shrunk, p);
         }
-        REQUIRE(!all_pts_in_shrunk); // Check that the bounding ball is within sqrt(dim) of minimal.
+        REQUIRE(!all_pts_in_shrunk); // Check that the bounding ball is minimal.
     }
 }
 
@@ -58,7 +58,7 @@ TEST_CASE("octree partition") {
     size_t n_pts = 100;
     auto pts = random_pts<3>(n_pts, -1, 1);    
     auto pts_idxs = combine_pts_idxs(pts.data(), n_pts);
-    auto bounds = bounding_ball(pts_idxs.data(), pts.size());
+    auto bounds = tree_bounds(pts_idxs.data(), pts.size());
     auto splits = octree_partition(bounds, pts_idxs.data(), pts_idxs.data() + n_pts);
     for (int i = 0; i < 8; i++) {
         for (int j = splits[i]; j < splits[i + 1]; j++) {

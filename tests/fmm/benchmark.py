@@ -76,7 +76,7 @@ def fmm_runner(pts, ns, input_vals):
 
     pts_per_cell = order * 3
 
-    tree = fmm.module[dim].Octree(pts, pts_per_cell)
+    tree = fmm.module[dim].KDTree(pts, pts_per_cell)
     t.report('build tree')
 
     orig_idxs = np.array(tree.orig_idxs)

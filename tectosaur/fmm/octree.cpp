@@ -24,40 +24,14 @@ std::array<int,OctreeNode<dim>::split+1> octree_partition(
 }
 
 template <size_t dim>
-Ball<dim> bounding_ball(PtWithIdx<dim>* pts, size_t n_pts) {
-    std::array<double,dim> mins{};
-    std::array<double,dim> maxs{};
-
-    for (size_t i = 0; i < n_pts; i++) {
-        for (size_t d = 0; d < dim; d++) {
-            mins[d] = std::min(mins[d], pts[i].pt[d]);
-            maxs[d] = std::max(maxs[d], pts[i].pt[d]);
-        }
-    }
-
-    std::array<double,dim> center;
-    double max_width = 0.0;
-    for (size_t d = 0; d < dim; d++) {
-        center[d] = (maxs[d] + mins[d]) / 2.0;
-        auto width = (maxs[d] - mins[d]) / 2.0;
-        max_width = std::max(max_width, width);
-    }
-    double r = max_width * std::sqrt(static_cast<double>(dim));
-
-    return {center, r};
-}
-
-
-template <size_t dim>
 Octree<dim>::Octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_cell):
     pts(n_pts),
-    orig_idxs(n_pts),
-    n_pts(n_pts)
+    orig_idxs(n_pts)
 {
     auto pts_idxs = combine_pts_idxs(in_pts, n_pts);
 
-    auto bounds = bounding_ball(pts_idxs.data(), n_pts);
-    bounds.R *= std::sqrt(static_cast<double>(dim));
+    auto bounds = tree_bounds(pts_idxs.data(), n_pts);
+    bounds.R *= std::sqrt(dim);
 
     add_node(0, n_pts, n_per_cell, 0, bounds, pts_idxs);
 
@@ -84,9 +58,6 @@ size_t Octree<dim>::add_node(size_t start, size_t end,
             auto child_bounds = get_subbox(bounds, make_child_idx<dim>(octant));
             auto child_start = start + splits[octant];
             auto child_end = start + splits[octant + 1];
-            // TODO: Should we use adaptive bounds?
-            // auto child_n_pts = child_end - child_start;
-            // auto child_bounds = bounding_box(&temp_pts[child_start], child_n_pts);
             auto child_node_idx = add_node(
                 child_start, child_end,
                 n_per_cell, depth + 1, child_bounds, temp_pts
@@ -98,9 +69,6 @@ size_t Octree<dim>::add_node(size_t start, size_t end,
     }
     return n_idx;
 }
-
-template Ball<2> bounding_ball(PtWithIdx<2>* pts, size_t n_pts);
-template Ball<3> bounding_ball(PtWithIdx<3>* pts, size_t n_pts);
 
 template struct Octree<2>;
 template struct Octree<3>;
