@@ -16,26 +16,6 @@ fmm_lib_cfg(cfg)
 namespace py = pybind11;
 
 template <typename TreeT>
-void wrap_fmm(py::module& m) {
-    constexpr static size_t dim = TreeT::dim;
-
-#define OP(NAME)\
-        def_readonly(#NAME, &FMMMat<TreeT>::NAME)
-    py::class_<FMMMat<TreeT>>(m, "FMMMat")
-        .def_readonly("obs_tree", &FMMMat<TreeT>::obs_tree)
-        .def_readonly("src_tree", &FMMMat<TreeT>::src_tree)
-        .def_readonly("cfg", &FMMMat<TreeT>::cfg)
-        .OP(u2e).OP(d2e).OP(p2m).OP(m2m).OP(p2l).OP(m2l).OP(l2l).OP(p2p).OP(m2p).OP(l2p);
-
-    m.def("fmmmmmmm", 
-        [] (const TreeT& obs_tree, const TreeT& src_tree, const FMMConfig<dim>& cfg) {
-            return fmmmmmmm(obs_tree, src_tree, cfg);
-        });
-
-    m.def("count_interactions", &count_interactions<TreeT>);
-}
-
-template <typename TreeT>
 void wrap_tree(py::module& m, std::string name) {
     using Node = typename TreeT::Node;
     py::class_<Node>(m, (name + "Node").c_str())
@@ -75,6 +55,28 @@ void wrap_tree(py::module& m, std::string name) {
         });
 }
 
+template <typename TreeT>
+void wrap_fmm(py::module& m) {
+    wrap_tree<TreeT>(m, "Tree");
+
+    constexpr static size_t dim = TreeT::dim;
+
+#define OP(NAME)\
+        def_readonly(#NAME, &FMMMat<TreeT>::NAME)
+    py::class_<FMMMat<TreeT>>(m, "FMMMat")
+        .def_readonly("obs_tree", &FMMMat<TreeT>::obs_tree)
+        .def_readonly("src_tree", &FMMMat<TreeT>::src_tree)
+        .def_readonly("cfg", &FMMMat<TreeT>::cfg)
+        .OP(u2e).OP(d2e).OP(p2m).OP(m2m).OP(p2l).OP(m2l).OP(l2l).OP(p2p).OP(m2p).OP(l2p);
+
+    m.def("fmmmmmmm", 
+        [] (const TreeT& obs_tree, const TreeT& src_tree, const FMMConfig<dim>& cfg) {
+            return fmmmmmmm(obs_tree, src_tree, cfg);
+        });
+
+    m.def("count_interactions", &count_interactions<TreeT>);
+}
+
 template <size_t dim>
 void wrap_dim(py::module& m) {
     m.def("in_ball", &in_ball<dim>);
@@ -95,10 +97,13 @@ void wrap_dim(py::module& m) {
         .def_readonly("outer_r", &FMMConfig<dim>::outer_r)
         .def_readonly("order", &FMMConfig<dim>::order);
 
-    wrap_tree<Octree<dim>>(m, "Octree");
-    wrap_tree<KDTree<dim>>(m, "KDTree");
-    wrap_fmm<KDTree<dim>>(m);
+    auto octree = m.def_submodule("octree");
+    auto kdtree = m.def_submodule("kdtree");
+
+    wrap_fmm<Octree<dim>>(octree);
+    wrap_fmm<KDTree<dim>>(kdtree);
 }
+
 
 PYBIND11_PLUGIN(fmm) {
     py::module m("fmm");

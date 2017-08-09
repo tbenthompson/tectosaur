@@ -17,7 +17,6 @@ fmm = cppimport("tectosaur.fmm.fmm")
 logger = setup_logger(__name__)
 
 # TODO: There's a ton of refactoring still to be done in here.
-
 two = fmm.two
 three = fmm.three
 module = dict()
@@ -26,6 +25,13 @@ module[3] = three
 
 n_workers_per_block = 128
 n_c2e_block_rows = 16
+
+def get_tree_module(K_name):
+    K = kernels[K_name]
+    if type(K.scale_type) is int:
+        return module[K.spatial_dim].kdtree
+    else:
+        return module[K.spatial_dim].octree
 
 def get_gpu_module(surf, K, float_type):
     args = dict(

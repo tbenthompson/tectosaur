@@ -1,5 +1,6 @@
 import numpy as np
-from dimension import dim, module
+from dimension import dim
+from tectosaur.fmm.fmm_wrapper import module
 from tectosaur.util.test_decorators import slow
 import pytest
 
@@ -10,9 +11,9 @@ def tree_type(request):
 def make_tree(tree_type, pts, n_per_cell):
     dim = pts.shape[1]
     if tree_type == 'kd':
-        return module[dim].KDTree(pts, n_per_cell)
+        return module[dim].kdtree.Tree(pts, n_per_cell)
     elif tree_type == 'oct':
-        return module[dim].Octree(pts, n_per_cell)
+        return module[dim].octree.Tree(pts, n_per_cell)
 
 def test_bisects(tree_type, dim):
     pts = np.random.rand(100,dim)
@@ -70,11 +71,10 @@ def test_idx(tree_type, dim):
     for i, n in enumerate(t.nodes):
         assert(n.idx == i)
 
-@slow
 def test_law_of_large_numbers():
-    n = 100000
+    n = 10000
     pts = np.random.rand(n, 3)
-    t = module[3].Octree(pts, 100);
+    t = module[3].octree.Tree(pts, 100);
     for i in range(8):
         child = t.nodes[t.root().children[i]]
         n_pts = child.end - child.start

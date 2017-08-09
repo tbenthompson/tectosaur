@@ -9,7 +9,7 @@ from tectosaur.farfield import farfield_pts_direct
 from tectosaur.util.timer import Timer
 import tectosaur.fmm.fmm_wrapper as fmm
 
-from dimension import dim, module
+from dimension import dim
 
 logger = setup_logger(__name__)
 
@@ -59,14 +59,15 @@ def run_full(n, pts_builder, mac, order, kernel, params, max_pts_per_cell = None
 
     dim = obs_pts.shape[1]
 
-    obs_kd = module[dim].KDTree(obs_pts, max_pts_per_cell)
-    src_kd = module[dim].KDTree(src_pts, max_pts_per_cell)
+    tree_module = fmm.get_tree_module(kernel)
+    obs_kd = tree_module.Tree(obs_pts, max_pts_per_cell)
+    src_kd = tree_module.Tree(src_pts, max_pts_per_cell)
     obs_ns_kd = obs_ns[obs_kd.orig_idxs]
     src_ns_kd = src_ns[src_kd.orig_idxs]
     t.report('build trees')
 
-    fmm_mat = module[dim].fmmmmmmm(
-        obs_kd, src_kd, module[dim].FMMConfig(1.1, mac, order)
+    fmm_mat = tree_module.fmmmmmmm(
+        obs_kd, src_kd, fmm.module[dim].FMMConfig(1.1, mac, order)
     )
 
 
