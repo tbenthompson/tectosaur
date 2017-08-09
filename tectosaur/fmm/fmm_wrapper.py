@@ -92,13 +92,12 @@ def direct_matrix(module, K, obs_pts, obs_ns, src_pts, src_ns, params, float_typ
     return gpu_out.get()
 
 class FMM:
-    def __init__(self, fmm_mat, float_type):
-        K_name = fmm_mat.cfg.kernel_name
+    def __init__(self, K_name, params, obs_normals, src_normals, fmm_mat, float_type):
         K = kernels[K_name]
         surf = surrounding_surface(fmm_mat.cfg.order, K.spatial_dim)
         self.cfg = FMMConfig(
             K = K,
-            params = np.array(fmm_mat.cfg.params),
+            params = np.array(params),
             surf = surf,
             outer_r = fmm_mat.cfg.outer_r,
             inner_r = fmm_mat.cfg.inner_r,
@@ -106,10 +105,11 @@ class FMM:
             float_type = float_type,
             module = get_gpu_module(surf, K, float_type)
         )
+        self.obs_normals = obs_normals
+        self.src_normals = src_normals
         self.K = kernels[K_name]
         self.fmm_mat = fmm_mat
-        self.tensor_dim = self.fmm_mat.cfg.tensor_dim
-        self.gpu_data = data_to_gpu(fmm_mat, self.cfg.float_type, self.cfg.surf)
+        self.gpu_data = self.data_to_gpu()
         self.setup_d2e_u2e_ops()
 
     def setup_d2e_u2e_ops(self):
@@ -125,10 +125,71 @@ class FMM:
 
     def to_orig(self, output_tree):
         orig_idxs = np.array(self.fmm_mat.obs_tree.orig_idxs)
-        output_tree = output_tree.reshape((-1, self.tensor_dim))
+        output_tree = output_tree.reshape((-1, self.cfg.K.tensor_dim))
         output_orig = np.empty_like(output_tree)
         output_orig[orig_idxs,:] = output_tree
         return output_orig
+
+    def data_to_gpu(self):
+        src_tree_nodes = self.fmm_mat.src_tree.nodes
+        obs_tree_nodes = self.fmm_mat.obs_tree.nodes
+
+        gd = dict()
+        K_name = self.cfg.K.name
+
+        gd['float_type'] = self.cfg.float_type
+        gd['fmm_mat'] = self.fmm_mat
+        gd['module'] = self.cfg.module
+        for a in ['s', 'p']:
+            for b in ['s', 'p']:
+                name = a + '2' + b
+                gd[name] = getattr(gd['module'], name + '_' + K_name)
+        gd['c2e'] = gd['module'].c2e_kernel
+
+        gd['obs_pts'] = gpu.to_gpu(self.fmm_mat.obs_tree.pts, self.cfg.float_type)
+        gd['obs_normals'] = gpu.to_gpu(self.obs_normals, self.cfg.float_type)
+        gd['src_pts'] = gpu.to_gpu(self.fmm_mat.src_tree.pts, self.cfg.float_type)
+        gd['src_normals'] = gpu.to_gpu(self.src_normals, self.cfg.float_type)
+
+        gd['n_surf_pts'] = np.int32(self.cfg.surf.shape[0])
+        gd['n_surf_dofs'] = gd['n_surf_pts'] * self.cfg.K.tensor_dim
+        gd['params'] = gpu.to_gpu(np.array(self.cfg.params), self.cfg.float_type)
+
+        gd['n_multipoles'] = gd['n_surf_dofs'] * len(src_tree_nodes)
+        gd['n_locals'] = gd['n_surf_dofs'] * len(obs_tree_nodes)
+
+        gd['in'] = gpu.empty_gpu(self.cfg.K.tensor_dim * gd['src_pts'].shape[0], self.cfg.float_type)
+        gd['out'] = gpu.empty_gpu(self.cfg.K.tensor_dim * gd['obs_pts'].shape[0], self.cfg.float_type)
+        gd['m_check'] = gpu.empty_gpu(gd['n_multipoles'], self.cfg.float_type)
+        gd['multipoles'] = gpu.empty_gpu(gd['n_multipoles'], self.cfg.float_type)
+        gd['l_check'] = gpu.empty_gpu(gd['n_locals'], self.cfg.float_type)
+        gd['locals'] = gpu.empty_gpu(gd['n_locals'], self.cfg.float_type)
+
+        for name, tree in [('src', src_tree_nodes), ('obs', obs_tree_nodes)]:
+            gd[name + '_n_center'] = gpu.to_gpu(
+                np.array([n.bounds.center for n in tree]).flatten(), self.cfg.float_type
+            )
+            gd[name + '_n_R'] = gpu.to_gpu(
+                np.array([n.bounds.R for n in tree]), self.cfg.float_type
+            )
+            gd[name + '_n_start'] = gpu.to_gpu(
+                np.array([n.start for n in tree]), np.int32
+            )
+            gd[name + '_n_end'] = gpu.to_gpu(
+                np.array([n.end for n in tree]), np.int32
+            )
+
+        n_src_levels = len(self.fmm_mat.m2m)
+        gd['u2e_obs_n_idxs'] = [
+            gpu.to_gpu(self.fmm_mat.u2e[level].obs_n_idxs, np.int32) for level in range(n_src_levels)
+        ]
+
+        n_obs_levels = len(self.fmm_mat.l2l)
+        gd['d2e_obs_n_idxs'] = [
+            gpu.to_gpu(self.fmm_mat.d2e[level].obs_n_idxs, np.int32) for level in range(n_obs_levels)
+        ]
+
+        return gd
 
 def report_interactions(fmm_mat, order):
     def count_interactions(op_name, op):
@@ -167,69 +228,6 @@ def report_interactions(fmm_mat, order):
     for k, v in interactions.items():
         logger.debug('total %s interactions: %e' % (k, v))
 
-def data_to_gpu(fmm_mat, float_type, surf):
-    src_tree_nodes = fmm_mat.src_tree.nodes
-    obs_tree_nodes = fmm_mat.obs_tree.nodes
-
-    gd = dict()
-
-    K_name = fmm_mat.cfg.kernel_name
-    K = kernels[K_name]
-
-    gd['float_type'] = float_type
-    gd['fmm_mat'] = fmm_mat
-    gd['module'] = get_gpu_module(surf, K, float_type)
-    for a in ['s', 'p']:
-        for b in ['s', 'p']:
-            name = a + '2' + b
-            gd[name] = getattr(gd['module'], name + '_' + K_name)
-    gd['c2e'] = gd['module'].c2e_kernel
-
-    gd['obs_pts'] = gpu.to_gpu(fmm_mat.obs_tree.pts, float_type)
-    gd['obs_normals'] = gpu.to_gpu(fmm_mat.obs_normals, float_type)
-    gd['src_pts'] = gpu.to_gpu(fmm_mat.src_tree.pts, float_type)
-    gd['src_normals'] = gpu.to_gpu(fmm_mat.src_normals, float_type)
-
-    gd['tensor_dim'] = fmm_mat.cfg.tensor_dim
-    gd['n_surf_pts'] = np.int32(surf.shape[0])
-    gd['n_surf_dofs'] = gd['n_surf_pts'] * gd['tensor_dim']
-    gd['params'] = gpu.to_gpu(np.array(fmm_mat.cfg.params), float_type)
-
-    gd['n_multipoles'] = gd['n_surf_dofs'] * len(src_tree_nodes)
-    gd['n_locals'] = gd['n_surf_dofs'] * len(obs_tree_nodes)
-
-    gd['in'] = gpu.empty_gpu(gd['tensor_dim'] * gd['src_pts'].shape[0], float_type)
-    gd['out'] = gpu.empty_gpu(gd['tensor_dim'] * gd['obs_pts'].shape[0], float_type)
-    gd['m_check'] = gpu.empty_gpu(gd['n_multipoles'], float_type)
-    gd['multipoles'] = gpu.empty_gpu(gd['n_multipoles'], float_type)
-    gd['l_check'] = gpu.empty_gpu(gd['n_locals'], float_type)
-    gd['locals'] = gpu.empty_gpu(gd['n_locals'], float_type)
-
-    for name, tree in [('src', src_tree_nodes), ('obs', obs_tree_nodes)]:
-        gd[name + '_n_center'] = gpu.to_gpu(
-            np.array([n.bounds.center for n in tree]).flatten(), float_type
-        )
-        gd[name + '_n_R'] = gpu.to_gpu(
-            np.array([n.bounds.R for n in tree]), float_type
-        )
-        gd[name + '_n_start'] = gpu.to_gpu(
-            np.array([n.start for n in tree]), np.int32
-        )
-        gd[name + '_n_end'] = gpu.to_gpu(
-            np.array([n.end for n in tree]), np.int32
-        )
-
-    n_src_levels = len(fmm_mat.m2m)
-    gd['u2e_obs_n_idxs'] = [
-        gpu.to_gpu(fmm_mat.u2e[level].obs_n_idxs, np.int32) for level in range(n_src_levels)
-    ]
-
-    n_obs_levels = len(fmm_mat.l2l)
-    gd['d2e_obs_n_idxs'] = [
-        gpu.to_gpu(fmm_mat.d2e[level].obs_n_idxs, np.int32) for level in range(n_obs_levels)
-    ]
-
-    return gd
 
 def get_op(op_name, gd):
     return gd[op_name[:3].replace('m', 's').replace('l', 's')]

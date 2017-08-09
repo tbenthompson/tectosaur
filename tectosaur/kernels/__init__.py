@@ -1,18 +1,18 @@
+import attr
+
+@attr.s
 class Kernel:
-    def __init__(self, name, spatial_dim, tensor_dim, needs_obsn, needs_srcn,
-            scale_type, sm_power, flip_negate,
-            constants_code, vector_code, tensor_code):
-        self.name = name
-        self.spatial_dim = spatial_dim
-        self.tensor_dim = tensor_dim
-        self.needs_obsn = needs_obsn
-        self.needs_srcn = needs_srcn
-        self.scale_type = scale_type
-        self.sm_power = sm_power
-        self.flip_negate = flip_negate
-        self.constants_code = constants_code
-        self.vector_code = vector_code
-        self.tensor_code = tensor_code
+    name = attr.ib()
+    spatial_dim = attr.ib()
+    tensor_dim = attr.ib()
+    needs_obsn = attr.ib()
+    needs_srcn = attr.ib()
+    scale_type = attr.ib()
+    sm_power = attr.ib()
+    flip_negate = attr.ib()
+    constants_code = attr.ib()
+    vector_code = attr.ib()
+    tensor_code = attr.ib()
 
 elasticU = Kernel(
     'elasticU3', 3, 3, False, False, -3, 1, False,

@@ -18,54 +18,19 @@ template <typename TreeT>
 void wrap_fmm(py::module& m) {
     constexpr static size_t dim = TreeT::dim;
 
-#define EVALFNC(FNCNAME)\
-        def(#FNCNAME"_eval", [] (FMMMat<TreeT>& m, NPArrayD out, NPArrayD in) {\
-            auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);\
-            auto* in_ptr = reinterpret_cast<double*>(in.request().ptr);\
-            m.FNCNAME##_matvec(out_ptr, in_ptr);\
-        })
-#define EVALFNCLEVEL(FNCNAME)\
-        def(#FNCNAME"_eval", [] (FMMMat<TreeT>& m, NPArrayD out, NPArrayD in, int level) {\
-            auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);\
-            auto* in_ptr = reinterpret_cast<double*>(in.request().ptr);\
-            m.FNCNAME##_matvec(out_ptr, in_ptr, level);\
-        })
 #define OP(NAME)\
         def_readonly(#NAME, &FMMMat<TreeT>::NAME)
-
     py::class_<FMMMat<TreeT>>(m, "FMMMat")
         .def_readonly("obs_tree", &FMMMat<TreeT>::obs_tree)
         .def_readonly("src_tree", &FMMMat<TreeT>::src_tree)
-        .def_property_readonly("obs_normals", [] (FMMMat<TreeT>& mat) {
-            return make_array<double>(
-                {mat.obs_normals.size(), dim},
-                reinterpret_cast<double*>(mat.obs_normals.data())
-            );
-        })
-        .def_property_readonly("src_normals", [] (FMMMat<TreeT>& mat) {
-            return make_array<double>(
-                {mat.src_normals.size(), dim},
-                reinterpret_cast<double*>(mat.src_normals.data())
-            );
-        })
         .def_readonly("cfg", &FMMMat<TreeT>::cfg)
-        .def_property_readonly("tensor_dim", &FMMMat<TreeT>::tensor_dim)
         .OP(u2e).OP(d2e).OP(p2m).OP(m2m).OP(p2l).OP(m2l).OP(l2l).OP(p2p).OP(m2p).OP(l2p);
 
-#undef EXPOSEOP
-#undef EVALFNC
-#undef EVALFNCLEVEL
-
     m.def("fmmmmmmm", 
-        [] (const Octree<dim>& obs_tree, NPArrayD obs_normals,
-            const Octree<dim>& src_tree, NPArrayD src_normals,
+        [] (const Octree<dim>& obs_tree, const Octree<dim>& src_tree, 
             const FMMConfig<dim>& cfg) 
         {
-            return fmmmmmmm(
-                obs_tree, get_vector<std::array<double,dim>>(obs_normals),
-                src_tree, get_vector<std::array<double,dim>>(src_normals),
-                cfg
-            );
+            return fmmmmmmm(obs_tree, src_tree, cfg);
         });
 
     m.def("count_interactions", &count_interactions<Octree<dim>>);
@@ -117,22 +82,14 @@ void wrap_dim(py::module& m) {
 
     py::class_<FMMConfig<dim>>(m, "FMMConfig")
         .def("__init__", 
-            [] (FMMConfig<dim>& cfg, double equiv_r,
-                double check_r, size_t order, std::string k_name,
-                NPArrayD params) 
+            [] (FMMConfig<dim>& cfg, double equiv_r, double check_r, size_t order) 
             {
-                new (&cfg) FMMConfig<dim>{
-                    equiv_r, check_r, order, get_by_name<dim>(k_name),
-                    get_vector<double>(params)                                    
-                };
+                new (&cfg) FMMConfig<dim>{equiv_r, check_r, order};
             }
         )
         .def_readonly("inner_r", &FMMConfig<dim>::inner_r)
         .def_readonly("outer_r", &FMMConfig<dim>::outer_r)
-        .def_readonly("order", &FMMConfig<dim>::order)
-        .def_readonly("params", &FMMConfig<dim>::params)
-        .def_property_readonly("kernel_name", &FMMConfig<dim>::kernel_name)
-        .def_property_readonly("tensor_dim", &FMMConfig<dim>::tensor_dim);
+        .def_readonly("order", &FMMConfig<dim>::order);
 
     wrap_fmm<Octree<dim>>(m);
 }
@@ -153,7 +110,6 @@ PYBIND11_PLUGIN(fmm) {
         .NPARRAYPROP(CompressedInteractionList, obs_n_idxs)
         .NPARRAYPROP(CompressedInteractionList, obs_src_starts)
         .NPARRAYPROP(CompressedInteractionList, src_n_idxs);
-#undef NPARRAYPROP
 
     return m.ptr();
 }

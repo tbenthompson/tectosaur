@@ -66,15 +66,16 @@ def run_full(n, pts_builder, mac, order, kernel, params, max_pts_per_cell = None
     t.report('build trees')
 
     fmm_mat = module[dim].fmmmmmmm(
-        obs_kd, obs_ns_kd, src_kd, src_ns_kd, module[dim].FMMConfig(1.1, mac, order, kernel, params)
+        obs_kd, src_kd, module[dim].FMMConfig(1.1, mac, order)
     )
 
-    tdim = fmm_mat.tensor_dim
+
+    fmm_obj = fmm.FMM(kernel, params, obs_ns_kd, src_ns_kd, fmm_mat, float_type)
+    t.report('setup fmm')
+
+    tdim = fmm_obj.cfg.K.tensor_dim
     input_vals = np.ones(src_pts.shape[0] * tdim)
     n_outputs = obs_pts.shape[0] * tdim
-
-    fmm_obj = fmm.FMM(fmm_mat, float_type)
-    t.report('setup fmm')
 
     est = fmm_obj.eval(input_vals)
     t.report('eval fmm')

@@ -3,7 +3,6 @@
 #include <cmath>
 #include <functional>
 #include <memory>
-#include "fmm_kernels.hpp"
 #include "octree.hpp"
 
 template <size_t dim>
@@ -18,11 +17,6 @@ struct FMMConfig {
     double inner_r;
     double outer_r;
     size_t order;
-    Kernel<dim> kernel;
-    std::vector<double> params;
-
-    std::string kernel_name() const { return kernel.name; }
-    int tensor_dim() const { return kernel.tensor_dim; }
 };
 
 struct CompressedInteractionList {
@@ -62,9 +56,7 @@ CompressedInteractionList compress(const std::vector<std::vector<int>>& list);
 template <typename TreeT>
 struct FMMMat {
     TreeT obs_tree;
-    std::vector<std::array<double,TreeT::dim>> obs_normals;
     TreeT src_tree;
-    std::vector<std::array<double,TreeT::dim>> src_normals;
 
     FMMConfig<TreeT::dim> cfg;
 
@@ -81,16 +73,9 @@ struct FMMMat {
     CompressedInteractionList m2p;
     CompressedInteractionList m2l;
 
-    FMMMat(TreeT obs_tree, std::vector<std::array<double,TreeT::dim>> obs_normals,
-           TreeT src_tree, std::vector<std::array<double,TreeT::dim>> src_normals,
-           FMMConfig<TreeT::dim> cfg);
-
-    int tensor_dim() const { return cfg.tensor_dim(); }
+    FMMMat(TreeT obs_tree, TreeT src_tree, FMMConfig<TreeT::dim> cfg);
 };
 
 template <typename TreeT>
-FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree,
-    const std::vector<std::array<double,TreeT::dim>>& obs_normals,
-    const TreeT& src_tree,
-    const std::vector<std::array<double,TreeT::dim>>& src_normals,
+FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree, const TreeT& src_tree,
     const FMMConfig<TreeT::dim>& cfg);

@@ -70,7 +70,7 @@ def direct_runner(pts, ns, input):
     t.report('eval direct')
     return out_direct
 
-def fmm_runner(pts, ns, input):
+def fmm_runner(pts, ns, input_vals):
     t = Timer()
 
     pts_per_cell = order * 3
@@ -79,18 +79,18 @@ def fmm_runner(pts, ns, input):
     t.report('build tree')
 
     orig_idxs = np.array(tree.orig_idxs)
-    input_tree = input.reshape((-1,tensor_dim))[orig_idxs,:].reshape(-1)
+    input_tree = input_vals.reshape((-1,tensor_dim))[orig_idxs,:].reshape(-1)
     t.report('map input to tree space')
 
     mapped_ns = ns[orig_idxs]
     fmm_mat = fmm.module[dim].fmmmmmmm(
-        tree, mapped_ns, tree, mapped_ns, fmm.module[dim].FMMConfig(1.1, mac, order, K, params)
+        tree, tree, fmm.module[dim].FMMConfig(1.1, mac, order)
     )
     t.report('setup fmm')
     fmm.report_interactions(fmm_mat, order)
     t.report('report')
 
-    fmm_obj = fmm.FMM(fmm_mat, float_type)
+    fmm_obj = fmm.FMM(K, params, mapped_ns, mapped_ns, fmm_mat, float_type)
     t.report('data to gpu')
 
     output = fmm_obj.eval(input_tree)

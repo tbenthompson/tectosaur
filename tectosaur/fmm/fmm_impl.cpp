@@ -203,56 +203,20 @@ void down_collect(FMMMat<TreeT>& mat, InteractionLists& interaction_lists,
 }
 
 template <typename TreeT>
-FMMMat<TreeT>::FMMMat(TreeT obs_tree, std::vector<std::array<double,TreeT::dim>> obs_normals,
-           TreeT src_tree, std::vector<std::array<double,TreeT::dim>> src_normals,
-           FMMConfig<TreeT::dim> cfg):
+FMMMat<TreeT>::FMMMat(TreeT obs_tree, TreeT src_tree, FMMConfig<TreeT::dim> cfg):
     obs_tree(obs_tree),
-    obs_normals(obs_normals),
     src_tree(src_tree),
-    src_normals(src_normals),
     cfg(cfg)
 {}
 
-template <size_t dim>
-std::vector<double> c2e_solve(std::vector<std::array<double,dim>> surf,
-    const Ball<dim>& bounds, double check_r, double equiv_r, const FMMConfig<dim>& cfg) 
-{
-    auto equiv_surf = inscribe_surf(bounds, equiv_r, surf);
-    auto check_surf = inscribe_surf(bounds, check_r, surf);
-
-    auto n_surf = surf.size();
-    auto n_rows = n_surf * cfg.tensor_dim();
-
-    std::vector<double> equiv_to_check(n_rows * n_rows);
-    cfg.kernel.f(
-        {
-            check_surf.data(), surf.data(), 
-            equiv_surf.data(), surf.data(),
-            n_surf, n_surf,
-            cfg.params.data()
-        },
-        equiv_to_check.data());
-
-    // TODO: This should be much higher (1e-14 or so) if double precision is being used
-    // when I move this to using viennacl, doing that will be easier with a simple configuration
-    // option
-    double eps = 1e-5; 
-    auto pinv = qr_pseudoinverse(equiv_to_check.data(), n_rows, eps);
-
-    return pinv;
-}
-
 template <typename TreeT>
-FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree,
-    const std::vector<std::array<double,TreeT::dim>>& obs_normals,
-    const TreeT& src_tree,
-    const std::vector<std::array<double,TreeT::dim>>& src_normals,
+FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree, const TreeT& src_tree,
     const FMMConfig<TreeT::dim>& cfg)
 {
 
     //TODO: Creating the translation surface takes a trivial amount of time
     //and can be moved to python.
-    FMMMat<TreeT> mat(obs_tree, obs_normals, src_tree, src_normals, cfg);
+    FMMMat<TreeT> mat(obs_tree, src_tree, cfg);
 
     mat.u2e.resize(mat.src_tree.max_height + 1);
     mat.d2e.resize(mat.obs_tree.max_height + 1);
@@ -270,15 +234,11 @@ FMMMat<TreeT> fmmmmmmm(const TreeT& obs_tree,
 
 template 
 FMMMat<Octree<2>> fmmmmmmm(const Octree<2>& obs_tree,
-    const std::vector<std::array<double,2>>& obs_normals,
     const Octree<2>& src_tree,
-    const std::vector<std::array<double,2>>& src_normals,
     const FMMConfig<2>& cfg);
 template 
 FMMMat<Octree<3>> fmmmmmmm(const Octree<3>& obs_tree,
-    const std::vector<std::array<double,3>>& obs_normals,
     const Octree<3>& src_tree,
-    const std::vector<std::array<double,3>>& src_normals,
     const FMMConfig<3>& cfg);
 template struct FMMMat<Octree<2>>;
 template struct FMMMat<Octree<3>>;
