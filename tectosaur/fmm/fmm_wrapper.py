@@ -16,9 +16,7 @@ fmm = cppimport("tectosaur.fmm.fmm")
 
 logger = setup_logger(__name__)
 
-#TODO: This file should be split up!
-# I think the gpu_data thing should become a FMM class.
-# such a class can also hide the 2D vs 3D thing...
+# TODO: There's a ton of refactoring still to be done in here.
 
 two = fmm.two
 three = fmm.three
@@ -56,7 +54,9 @@ class FMMConfig:
 
 def build_c2e(tree, check_r, equiv_r, cfg):
     n_rows = cfg.K.tensor_dim * cfg.surf.shape[0]
-    levels_to_compute = (tree.max_height + 1)
+    levels_to_compute = tree.max_height + 1
+    if type(cfg.K.scale_type) is int:
+        levels_to_compute = 1
     c2e_ops = np.empty(levels_to_compute * n_rows * n_rows)
 
     for i in range(levels_to_compute):

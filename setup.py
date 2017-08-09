@@ -9,7 +9,7 @@ except (IOError, ImportError):
 setuptools.setup(
     packages = setuptools.find_packages(),
 
-    install_requires = ['numpy', 'scipy', 'mako', 'cppimport', 'pyopencl'],
+    install_requires = ['numpy', 'scipy', 'mako', 'cppimport', 'pyopencl', 'attrs'],
     zip_safe = False,
     include_package_data = True,
 
