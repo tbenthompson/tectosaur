@@ -4,7 +4,6 @@ import os
 from cppimport import setup_pybind11, turn_off_strict_prototypes
 
 import tectosaur
-import tectosaur.fmm
 from tectosaur.util.gpu import np_to_c_type
 
 #TODO: REMOVE!
@@ -14,8 +13,11 @@ if float_type == np.float64:
 
 gpu_float_type = np_to_c_type(float_type)
 
+def get_fmm_dir():
+    return os.path.join(tectosaur.source_dir, 'fmm')
+
 def to_fmm_dir(filenames):
-    return [os.path.join(tectosaur.fmm.source_dir, fname) for fname in filenames]
+    return [os.path.join(get_fmm_dir(), fname) for fname in filenames]
 
 compiler_args = [
     '-std=c++14', '-O3', '-g', '-Wall', '-Werror', '-fopenmp', '-UNDEBUG', '-DDEBUG'
@@ -33,9 +35,9 @@ def setup_module(cfg):
 
 def fmm_lib_cfg(cfg):
     setup_module(cfg)
-    cfg['sources'] += to_fmm_dir(['fmm_impl.cpp', 'octree.cpp', 'kdtree.cpp'])
+    cfg['sources'] += to_fmm_dir(['traversal.cpp', 'octree.cpp', 'kdtree.cpp'])
     cfg['dependencies'] += to_fmm_dir([
-        'fmm_impl.hpp', 'octree.hpp', 'kdtree.hpp', 'tree_helpers.hpp',
+        'traversal.hpp', 'octree.hpp', 'kdtree.hpp', 'tree_helpers.hpp',
         os.path.join(tectosaur.source_dir, 'include', 'pybind11_nparray.hpp'),
     ])
 
@@ -43,4 +45,4 @@ def fmm_test_cfg(cfg):
     fmm_lib_cfg(cfg)
     cfg['sources'] += ['test_octree.cpp']
     cfg['dependencies'] += ['test_helpers.hpp', 'doctest.h']
-    cfg['include_dirs'] += [tectosaur.fmm.source_dir]
+    cfg['include_dirs'] += [get_fmm_dir()]

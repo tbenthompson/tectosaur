@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 from tectosaur.util.logging import setup_logger
-import tectosaur.fmm.fmm_wrapper as fmm
+import tectosaur.fmm.fmm as fmm
 from tectosaur.util.test_decorators import golden_master
 
 from tectosaur.util.timer import Timer
@@ -9,23 +9,24 @@ from tectosaur.farfield import farfield_pts_direct
 
 setup_logger(__name__)
 
-# K = 'laplaceS2'
+# K_name = 'laplaceS2'
 # tensor_dim = 1
 # mac = 3.0
 # order = 10
 
-K = 'laplaceS3'
+K_name = 'laplaceS3'
 tensor_dim = 1
 mac = 2.0
 order = 100
 
-# K = 'elasticH3'
+# K_name = 'elasticH3'
 # tensor_dim = 3
 # mac = 3.0
 # order = 100
 
+pts_per_cell = order
 float_type = np.float32
-dim = int(K[-1])
+dim = int(K_name[-1])
 params = [1.0, 0.25]
 
 def random_data(N):
@@ -67,38 +68,34 @@ def grid_data(N):
 
 def direct_runner(pts, ns, input):
     t = Timer()
-    out_direct = farfield_pts_direct(K, pts, ns, pts, ns, input.flatten(), params, float_type)
+    out_direct = farfield_pts_direct(K_name, pts, ns, pts, ns, input.flatten(), params, float_type)
     t.report('eval direct')
     return out_direct
 
 def fmm_runner(pts, ns, input_vals):
     t = Timer()
 
-    pts_per_cell = order
-
-    tree = fmm.module[dim].KDTree(pts, pts_per_cell)
+    cfg = fmm.make_config(K_name, params, 1.1, mac, order, pts_per_cell, float_type)
+    tree = fmm.make_tree(pts, cfg)
     t.report('build tree')
 
     orig_idxs = np.array(tree.orig_idxs)
     input_tree = input_vals.reshape((-1,tensor_dim))[orig_idxs,:].reshape(-1)
+    mapped_ns = ns[orig_idxs]
     t.report('map input to tree space')
 
-    mapped_ns = ns[orig_idxs]
-    fmm_mat = fmm.module[dim].fmmmmmmm(
-        tree, tree, fmm.module[dim].FMMConfig(1.1, mac, order)
-    )
+    fmm_obj = fmm.FMM(tree, mapped_ns, tree, mapped_ns, cfg)
     t.report('setup fmm')
-    fmm.report_interactions(fmm_mat, order)
+
+    fmm.report_interactions(fmm_obj)
     t.report('report')
 
-    fmm_obj = fmm.FMM(K, params, mapped_ns, mapped_ns, fmm_mat, float_type)
-    t.report('data to gpu')
-
-    output = fmm_obj.eval(input_tree)
+    evaluator = fmm.FMMEvaluator(fmm_obj)
+    output = fmm.eval(evaluator, input_tree)
     t.report('eval fmm')
 
     for i in range(2):
-        output = fmm_obj.eval(input_tree)
+        output = evaluator.eval(input_tree)
         t.report('eval fmm')
 
     to_orig = fmm_obj.to_orig(output)

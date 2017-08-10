@@ -1,6 +1,6 @@
 import numpy as np
 from dimension import dim
-from tectosaur.fmm.fmm_wrapper import module
+from tectosaur.fmm.cfg import get_dim_module
 from tectosaur.util.test_decorators import slow
 import pytest
 
@@ -11,9 +11,9 @@ def tree_type(request):
 def make_tree(tree_type, pts, n_per_cell):
     dim = pts.shape[1]
     if tree_type == 'kd':
-        return module[dim].kdtree.Tree(pts, n_per_cell)
+        return get_dim_module(dim).kdtree.Tree(pts, n_per_cell)
     elif tree_type == 'oct':
-        return module[dim].octree.Tree(pts, n_per_cell)
+        return get_dim_module(dim).octree.Tree(pts, n_per_cell)
 
 def test_bisects(tree_type, dim):
     pts = np.random.rand(100,dim)
@@ -23,7 +23,7 @@ def test_bisects(tree_type, dim):
         if n.is_leaf:
             continue
         idx_list = set(range(n.start, n.end))
-        for child_i in range(t.n_split()):
+        for child_i in range(t.split):
             child_n = t.nodes[n.children[child_i]]
             child_idx_list = set(range(child_n.start, child_n.end))
             assert(child_idx_list.issubset(idx_list))
@@ -45,10 +45,10 @@ def test_height_depth(tree_type, dim):
     for n in t.nodes:
         if n.is_leaf:
             continue
-        for c in range(t.n_split()):
+        for c in range(t.split):
             assert(n.depth == t.nodes[n.children[c]].depth - 1)
         assert(n.height ==
-            max([t.nodes[n.children[c]].height for c in range(t.n_split())]) + 1)
+            max([t.nodes[n.children[c]].height for c in range(t.split)]) + 1)
 
 def test_one_level(tree_type, dim):
     pts = np.random.rand(dim, dim)
@@ -74,7 +74,7 @@ def test_idx(tree_type, dim):
 def test_law_of_large_numbers():
     n = 10000
     pts = np.random.rand(n, 3)
-    t = module[3].octree.Tree(pts, 100);
+    t = get_dim_module(3).octree.Tree(pts, 100);
     for i in range(8):
         child = t.nodes[t.root().children[i]]
         n_pts = child.end - child.start
