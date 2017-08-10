@@ -5,6 +5,7 @@ import scipy.sparse
 
 from tectosaur.farfield import farfield_pts_direct
 
+import tectosaur.fmm.fmm as fmm
 from tectosaur.nearfield.nearfield_op import NearfieldIntegralOp
 from tectosaur.nearfield.table_lookup import coincident_table, adjacent_table
 
@@ -14,7 +15,6 @@ import tectosaur.util.gpu as gpu
 from tectosaur.util.timer import Timer
 
 from tectosaur.util.logging import setup_logger
-from tectosaur.util.build_cfg import float_type
 
 
 logger = setup_logger(__name__)
@@ -54,9 +54,10 @@ def interp_galerkin_mat(tri_pts, quad_rule):
     return scipy.sparse.coo_matrix((vals, (rows, cols))), quad_pts, quad_ns
 
 class DirectFarfield:
-    def __init__(self, kernel, params, obs_pts, obs_ns, src_pts, src_ns):
+    def __init__(self, kernel, params, obs_pts, obs_ns, src_pts, src_ns, float_type):
         self.params = params
         self.kernel = kernel
+        self.float_type = float_type
         self.gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)
         self.gpu_obs_ns = gpu.to_gpu(obs_ns, float_type)
 
@@ -73,36 +74,35 @@ class DirectFarfield:
     def dot(self, v):
         return farfield_pts_direct(
             self.kernel, self.gpu_obs_pts, self.gpu_obs_ns,
-            self.gpu_src_pts, self.gpu_src_ns, v, self.params
+            self.gpu_src_pts, self.gpu_src_ns, v, self.params, self.float_type
         )
 
 class FMMFarfield:
-    def __init__(self, kernel, params, obs_pts, obs_ns, src_pts, src_ns):
-        import tectosaur.fmm.fmm_wrapper as fmm
-        self.fmm_module = fmm
+    def __init__(self, kernel, params, obs_pts, obs_ns, src_pts, src_ns, float_type):
         order = 100
         mac = 3.0
         pts_per_cell = 300
 
+        cfg = fmm.make_config(kernel, params, 1.1, mac, order, pts_per_cell, float_type)
+
         # TODO: different obs and src pts
-        self.tree = fmm.three.Octree(obs_pts, pts_per_cell)
-        self.fmm_mat = fmm.three.fmmmmmmm(
-            self.tree, obs_ns[self.tree.orig_idxs],
-            self.tree, src_ns[self.tree.orig_idxs],
-            fmm.three.FMMConfig(1.1, mac, order, kernel, params)
-        )
-        fmm.report_interactions(self.fmm_mat)
-        self.gpu_data = fmm.data_to_gpu(self.fmm_mat)
+        self.tree = fmm.make_tree(obs_pts.copy(), cfg)
         self.orig_idxs = np.array(self.tree.orig_idxs)
+        self.fmm_obj = fmm.FMM(
+            self.tree, obs_ns[self.orig_idxs].copy(),
+            self.tree, src_ns[self.orig_idxs].copy(), cfg
+        )
+        fmm.report_interactions(self.fmm_obj)
+        self.evaluator = fmm.FMMEvaluator(self.fmm_obj)
 
     def dot(self, v):
         t = Timer()
         input_tree = v.reshape((-1,3))[self.orig_idxs,:].reshape(-1)
         t.report('to tree space')
-        fmm_out = self.fmm_module.eval_ocl(
-            self.fmm_mat, input_tree, self.gpu_data
-        ).reshape((-1, 3))
+
+        fmm_out = fmm.eval(self.evaluator, input_tree.copy()).reshape((-1, 3))
         t.report('fmm eval')
+
         to_orig = np.empty_like(fmm_out)
         to_orig[self.orig_idxs,:] = fmm_out
         to_orig = to_orig.flatten()
@@ -110,12 +110,12 @@ class FMMFarfield:
         return to_orig
 
 class SparseIntegralOp:
-    def __init__(self, nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, kernel, params, pts, tris, farfield_op_type = None):
+    def __init__(self, nq_vert_adjacent, nq_far, nq_near, near_threshold,
+            kernel, params, pts, tris, float_type, farfield_op_type = None):
 
         self.nearfield = NearfieldIntegralOp(
             nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, kernel, params, pts, tris
+            near_threshold, kernel, params, pts, tris, float_type
         )
 
         far_quad2d = gauss2d_tri(nq_far)
@@ -128,7 +128,7 @@ class SparseIntegralOp:
             farfield_op_type = DirectFarfield
 
         self.farfield_op = farfield_op_type(
-            kernel, params, quad_pts, quad_ns, quad_pts, quad_ns
+            kernel, params, quad_pts, quad_ns, quad_pts, quad_ns, float_type
         )
 
     def nearfield_dot(self, v):

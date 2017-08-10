@@ -1,8 +1,6 @@
 import scipy.sparse
 import numpy as np
 
-from tectosaur.util.build_cfg import float_type, gpu_float_type
-
 import tectosaur.mesh.find_near_adj as find_near_adj
 
 from tectosaur.nearfield.limit import richardson_quad
@@ -25,18 +23,22 @@ def pairs_func_name(singular, check0):
         check0_label = 'Z'
     return 'single_pairs' + singular_label + check0_label
 
-def get_gpu_config(kernel):
-    return {'block_size': 128, 'float_type': gpu_float_type, 'kernel_name': kernel}
+def get_gpu_config(kernel, float_type):
+    return dict(
+        block_size = 128,
+        float_type = gpu.np_to_c_type(float_type),
+        kernel_name = kernel
+    )
 
-def get_gpu_module(kernel):
-    return gpu.load_gpu('nearfield/nearfield.cl', tmpl_args = get_gpu_config(kernel))
+def get_gpu_module(kernel, float_type):
+    return gpu.load_gpu('nearfield/nearfield.cl', tmpl_args = get_gpu_config(kernel, float_type))
 
-def get_pairs_integrator(kernel, singular, check0):
-    module = get_gpu_module(kernel)
+def get_pairs_integrator(kernel, singular, check0, float_type):
+    module = get_gpu_module(kernel, float_type)
     return getattr(module, pairs_func_name(singular, check0))
 
-def pairs_quad(kernel, params, pts, obs_tris, src_tris, q, singular, check0):
-    integrator = get_pairs_integrator(kernel, singular, check0)
+def pairs_quad(kernel, params, pts, obs_tris, src_tris, q, singular, check0, float_type):
+    integrator = get_pairs_integrator(kernel, singular, check0, float_type)
 
     gpu_qx = gpu.to_gpu(q[0], float_type)
     gpu_qw = gpu.to_gpu(q[1], float_type)
@@ -68,11 +70,11 @@ def pairs_quad(kernel, params, pts, obs_tris, src_tris, q, singular, check0):
         call_integrator(*I)
     return out
 
-def vert_adj(nq, kernel, params, pts, obs_tris, src_tris):
+def vert_adj(nq, kernel, params, pts, obs_tris, src_tris, float_type):
     if type(nq) is int:
         nq = (nq, nq, nq)
     q = triangle_rules.vertex_adj_quad(nq[0], nq[1], nq[2])
-    out = pairs_quad(kernel, params, pts, obs_tris, src_tris, q, False, False)
+    out = pairs_quad(kernel, params, pts, obs_tris, src_tris, q, False, False, float_type)
     return out
 
 def pairs_sparse_mat(obs_idxs, src_idxs, integrals):
@@ -115,7 +117,7 @@ def build_nearfield(co_data, ea_data, va_data, near_data, shape):
 class NearfieldIntegralOp:
     @profile
     def __init__(self, nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, kernel, params, pts, tris):
+            near_threshold, kernel, params, pts, tris, float_type):
 
         n = tris.shape[0] * 9
         self.shape = (n, n)
@@ -126,10 +128,10 @@ class NearfieldIntegralOp:
         timer.report("Build gauss rules")
 
         co_indices = np.arange(tris.shape[0])
-        co_mat = coincident_table(kernel, params, pts, tris)
+        co_mat = coincident_table(kernel, params, pts, tris, float_type)
         timer.report("Coincident")
         co_mat_correction = pairs_quad(
-            kernel, params, pts, tris, tris, far_quad, False, True
+            kernel, params, pts, tris, tris, far_quad, False, True, float_type
         )
         timer.report("Coincident correction")
 
@@ -137,10 +139,10 @@ class NearfieldIntegralOp:
         nearfield_pairs, va, ea = find_near_adj.split_adjacent_close(close_or_touch_pairs, tris)
         timer.report("Find nearfield/adjacency")
 
-        ea_mat_rot = adjacent_table(nq_vert_adjacent, kernel, params, pts, tris, ea)
+        ea_mat_rot = adjacent_table(nq_vert_adjacent, kernel, params, pts, tris, ea, float_type)
         timer.report("Edge adjacent")
         ea_mat_correction = pairs_quad(
-            kernel, params, pts, tris[ea[:,0]], tris[ea[:,1]], far_quad, False, False
+            kernel, params, pts, tris[ea[:,0]], tris[ea[:,1]], far_quad, False, False, float_type
         )
         timer.report("Edge adjacent correction")
 
@@ -149,13 +151,13 @@ class NearfieldIntegralOp:
         timer.report("Vert adjacency prep")
 
         va_mat_rot = vert_adj(
-            nq_vert_adjacent, kernel, params, pts, va_obs_tris, va_src_tris
+            nq_vert_adjacent, kernel, params, pts, va_obs_tris, va_src_tris, float_type
         )
         timer.report("Vert adjacent")
         va_mat_correction = pairs_quad(
             kernel, params, pts,
             tris[va_tri_indices[:,0]], tris[va_tri_indices[:,1]],
-            far_quad, False, False
+            far_quad, False, False, float_type
         )
         timer.report("Vert adjacent correction")
 
@@ -163,12 +165,12 @@ class NearfieldIntegralOp:
             nearfield_pairs = np.array([], dtype = np.int).reshape(0,2)
         nearfield_mat = pairs_quad(
             kernel, params, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
-            near_gauss, False, False
+            near_gauss, False, False, float_type
         )
         timer.report("Nearfield")
         nearfield_correction = pairs_quad(
             kernel, params, pts, tris[nearfield_pairs[:,0]], tris[nearfield_pairs[:, 1]],
-            far_quad, False, False
+            far_quad, False, False, float_type
         )
         timer.report("Nearfield correction")
 

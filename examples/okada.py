@@ -66,6 +66,7 @@ def test_okada(n_surf):
     fault_L = 1.0
     top_depth = -0.5
     load_soln = False
+    float_type = np.float32
     n_fault = max(2, n_surf // 5)
 
     timer = Timer()
@@ -91,7 +92,8 @@ def test_okada(n_surf):
         T_op = SparseIntegralOp(
             6, 2, 5, 2.0,
             'elasticT3', k_params, all_mesh[0], all_mesh[1],
-            farfield_op_type = FMMFarfield
+            float_type,
+            # farfield_op_type = FMMFarfield
         )
         timer.report("Integrals")
 
@@ -122,7 +124,7 @@ def test_okada(n_surf):
             soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-    # plot_results(obs_pts, surface_tris, u, vals)
+    plot_results(obs_pts, surface_tris, u, vals)
     # plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln)
     return print_error(obs_pts, u, vals)
 
@@ -219,9 +221,8 @@ def print_error(pts, correct, est):
 
 if __name__ == '__main__':
     t = Timer()
-    for i in range(2):
-        test_okada(int(sys.argv[1]))
-        t.report('okada')
+    test_okada(int(sys.argv[1]))
+    t.report('okada')
 
     # import logging
     # tectosaur.logger.setLevel(logging.DEBUG)

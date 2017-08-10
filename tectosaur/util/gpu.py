@@ -1,7 +1,9 @@
+import os
+import warnings
+
 import numpy as np
 import pyopencl as cl
 import pyopencl.array
-import os
 
 import tectosaur
 import tectosaur.util.logging as tct_log
@@ -174,7 +176,7 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
     module_info['tmpl_args'] = tmpl_args
     compile_options = []
 
-    debug_opts = ['-g']
+    debug_opts = ['-g', '-Werror']
     # compile_options.extend(debug_opts)
     fast_opts = [
         # '-cl-finite-math-only',
@@ -185,9 +187,12 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
     ]
     compile_options.extend(fast_opts)
 
-    module_info['module'] = cl.Program(
-        gpu_ctx, code
-    ).build(options = compile_options)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=pyopencl.CompilerWarning)
+        module_info['module'] = cl.Program(
+            gpu_ctx, code
+        ).build(options = compile_options)
+
     logger.debug('compile took: ' + str(time.time() - start))
 
     if tmpl_name not in gpu_module:

@@ -29,11 +29,10 @@ def run_kernel(n, k_name, flops, testit = False, timeit = False):
     weights = np.random.rand(n, 3).flatten()
 
 
-    get_gpu_module() #preload module so it doesn't get counted in the runtime
     start = time.time()
     params = [1.0, 0.25]
     result = farfield_pts_direct(
-        k_name, obs_pts, obs_ns, src_pts, src_ns, weights, params
+        k_name, obs_pts, obs_ns, src_pts, src_ns, weights, params, np.float32
     ).reshape((n, 3))
     runtime = time.time() - start
     if timeit:

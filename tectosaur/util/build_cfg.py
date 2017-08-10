@@ -6,13 +6,6 @@ from cppimport import setup_pybind11, turn_off_strict_prototypes
 import tectosaur
 from tectosaur.util.gpu import np_to_c_type
 
-#TODO: REMOVE!
-float_type = np.float32
-if float_type == np.float64:
-    print('warning: float type is set to double precision')
-
-gpu_float_type = np_to_c_type(float_type)
-
 def get_fmm_dir():
     return os.path.join(tectosaur.source_dir, 'fmm')
 

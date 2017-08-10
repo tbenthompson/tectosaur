@@ -6,10 +6,8 @@ from tectosaur.ops.dense_op import DenseOp
 import tectosaur.util.gpu as gpu
 import tectosaur.viennacl.viennacl as vcl
 
-from tectosaur.util.build_cfg import float_type
-
-def farfield_tris(kernel, params, pts, obs_tris, src_tris, n_q):
-    integrator = getattr(get_gpu_module(kernel), "farfield_tris")
+def farfield_tris(kernel, params, pts, obs_tris, src_tris, n_q, float_type):
+    integrator = getattr(get_gpu_module(kernel, float_type), "farfield_tris")
     q = gauss4d_tri(n_q, n_q)
 
     gpu_qx = gpu.to_gpu(q[0], float_type)
@@ -46,15 +44,15 @@ def farfield_tris(kernel, params, pts, obs_tris, src_tris, n_q):
 
 class DenseIntegralOp(DenseOp):
     def __init__(self, nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, kernel, params, pts, tris):
+            near_threshold, kernel, params, pts, tris, float_type):
 
         nearfield = NearfieldIntegralOp(
             nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, kernel, params, pts, tris
+            near_threshold, kernel, params, pts, tris, float_type
         ).mat_no_correction.todense()
 
         farfield = farfield_tris(
-            kernel, params, pts, tris, tris, nq_far
+            kernel, params, pts, tris, tris, nq_far, float_type
         ).reshape(nearfield.shape)
 
         self.mat = np.where(np.abs(nearfield) > 0, nearfield, farfield)

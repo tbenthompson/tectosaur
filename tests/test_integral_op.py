@@ -4,7 +4,6 @@ import tectosaur.nearfield.triangle_rules as triangle_rules
 import tectosaur.nearfield.nearfield_op as nearfield_op
 import tectosaur.nearfield.limit as limit
 
-# import tectosaur.ops.fmm_integral_op as fmm_integral_op
 import tectosaur.ops.dense_integral_op as dense_integral_op
 import tectosaur.ops.sparse_integral_op as sparse_integral_op
 import tectosaur.ops.mass_op as mass_op
@@ -21,6 +20,8 @@ from laplace import laplace
 
 # import tectosaur, logging
 # tectosaur.logger.setLevel(logging.ERROR)
+
+float_type = np.float32
 
 @golden_master()
 def test_farfield_two_tris(request):
@@ -51,12 +52,13 @@ def full_integral_op_tester(k, use_fmm, n = 5):
     params = [1.0, 0.25]
     for m in [(pts, tris), rect_mesh]:
         dense_op = dense_integral_op.DenseIntegralOp(
-            5, 3, 3, 2.0, k, params, m[0], m[1]
+            5, 3, 3, 2.0, k, params, m[0], m[1], float_type
         )
         x = np.ones(dense_op.shape[1])
         dense_res = dense_op.dot(x)
         sparse_op = sparse_integral_op.SparseIntegralOp(
             5, 3, 3, 2.0, k, params, m[0], m[1],
+            float_type,
             farfield_op_type = (sparse_integral_op.FMMFarfield if use_fmm else None)
         )
         sparse_res = sparse_op.dot(x)
@@ -148,7 +150,7 @@ def test_interior(request):
     K = 'elasticH3'
     params = [1.0, 0.25]
 
-    return interior_integral(obs_pts, obs_ns, (pts, tris), input, K, 4, 4, params)
+    return interior_integral(obs_pts, obs_ns, (pts, tris), input, K, 4, 4, params, float_type)
 
 @profile
 def benchmark_nearfield_construction():

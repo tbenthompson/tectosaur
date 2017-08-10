@@ -5,7 +5,6 @@ import numpy as np
 
 from tectosaur import get_data_filepath
 from tectosaur.util.timer import Timer
-from tectosaur.util.build_cfg import float_type, gpu_float_type
 import tectosaur.nearfield.limit as limit
 import tectosaur.util.gpu as gpu
 
@@ -15,11 +14,11 @@ from cppimport import cppimport
 fast_lookup = cppimport("tectosaur.nearfield.fast_lookup")
 
 def lookup_interpolation_gpu(table_limits, table_log_coeffs,
-        interp_pts, interp_wts, pts):
+        interp_pts, interp_wts, pts, float_type):
 
     t = Timer(silent = True)
 
-    gpu_cfg = {'float_type': gpu_float_type}
+    gpu_cfg = dict(float_type = gpu.np_to_c_type(float_type))
     module = gpu.load_gpu('nearfield/table_lookup.cl', tmpl_args = gpu_cfg)
     dims = interp_pts.shape[1]
     fnc = getattr(module, 'lookup_interpolation' + str(dims))
@@ -51,7 +50,7 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
     t.report("run interpolation for " + str(n_tris) + " tris")
     return out[:, :, 0], out[:, :, 1]
 
-def coincident_table(kernel, params, pts, tris):
+def coincident_table(kernel, params, pts, tris, float_type):
     t = Timer(prefix = 'coincident')
     if kernel is 'elasticU3':
         filename = 'elasticU_25_0.010000_16_0.000000_8_13_8_coincidenttable.npy'
@@ -85,7 +84,7 @@ def coincident_table(kernel, params, pts, tris):
 
     # 2) Perform interpolation --> GPU!
     interp_vals, log_coeffs = lookup_interpolation_gpu(
-        table_limits, table_log_coeffs, interp_pts, interp_wts, pts
+        table_limits, table_log_coeffs, interp_pts, interp_wts, pts, float_type
     )
     t.report("interpolate")
 
@@ -98,7 +97,7 @@ def coincident_table(kernel, params, pts, tris):
 
     return out
 
-def adjacent_table(nq_va, kernel, params, pts, tris, ea_tri_indices):
+def adjacent_table(nq_va, kernel, params, pts, tris, ea_tri_indices, float_type):
     if ea_tri_indices.shape[0] == 0:
         return np.zeros((0,3,3,3,3))
 
@@ -133,7 +132,7 @@ def adjacent_table(nq_va, kernel, params, pts, tris, ea_tri_indices):
     t.report("get pts")
 
     interp_vals, log_coeffs = lookup_interpolation_gpu(
-        table_limits, table_log_coeffs, interp_pts, interp_wts, np.array(ea.pts)
+        table_limits, table_log_coeffs, interp_pts, interp_wts, np.array(ea.pts), float_type
     )
     t.report("interpolation")
 
@@ -147,7 +146,7 @@ def adjacent_table(nq_va, kernel, params, pts, tris, ea_tri_indices):
     import tectosaur.nearfield.nearfield_op as nearfield_op
     Iv = nearfield_op.vert_adj(
         nq_va, kernel, params,
-        np.array(va.pts), np.array(va.obs_tris), np.array(va.src_tris)
+        np.array(va.pts), np.array(va.obs_tris), np.array(va.src_tris), float_type
     )
     t.report('vert adj subpairs')
     fast_lookup.vert_adj_subbasis(out, Iv, va, ea);
