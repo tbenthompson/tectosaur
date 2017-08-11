@@ -9,7 +9,7 @@ KDTree<dim>::KDTree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_c
     orig_idxs(n_pts)
 {
     auto pts_idxs = combine_pts_idxs(in_pts, n_pts);
-    auto bounds = tree_bounds(pts_idxs.data(), n_pts);
+    auto bounds = root_tree_bounds(pts_idxs.data(), n_pts);
 
     add_node(0, n_pts, 0, n_per_cell, 0, bounds, pts_idxs);
 
@@ -43,7 +43,7 @@ size_t KDTree<dim>::add_node(size_t start, size_t end, int split_dim, size_t n_p
             auto child_start = splits[which_half];
             auto child_end = splits[which_half + 1];
             auto child_n_pts = child_end - child_start;
-            auto child_bounds = tree_bounds(&temp_pts[child_start], child_n_pts);
+            auto child_bounds = child_tree_bounds(&temp_pts[child_start], child_n_pts, bounds);
             auto child_node_idx = add_node(
                 child_start, child_end, (split_dim + 1) % dim,
                 n_per_cell, depth + 1, child_bounds, temp_pts

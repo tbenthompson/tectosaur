@@ -71,6 +71,7 @@ struct Ball {
     std::array<double,dim> center;
     double R;
 
+    Ball() = default;
     Ball(std::array<double,dim> center, double R): center(center), R(R) {}
 
 };

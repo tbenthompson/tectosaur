@@ -14,7 +14,7 @@ def get_dim_module(dim):
 
 def get_traversal_module(K):
     if type(K.scale_type) is int:
-        return get_dim_module(K.spatial_dim).kdtree
+        return get_dim_module(K.spatial_dim).octree
     else:
         return get_dim_module(K.spatial_dim).octree
 

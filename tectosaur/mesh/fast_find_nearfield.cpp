@@ -1,11 +1,13 @@
-/*
 <%
 from tectosaur.util.build_cfg import setup_module
 setup_module(cfg)
 cfg['sources'].extend(['../fmm/octree.cpp'])
-cfg['dependencies'].extend(['../fmm/octree.hpp', '../include/pybind11_nparray.hpp'])
+cfg['dependencies'].extend([
+    '../fmm/octree.hpp',
+    '../include/pybind11_nparray.hpp',
+    '../fmm/tree_helpers.hpp'
+])
 %>
-*/
 
 #include <atomic>
 

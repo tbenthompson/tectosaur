@@ -8,12 +8,14 @@ from tectosaur.util.test_decorators import golden_master
 
 from test_interpolate import ptswts3d
 
+float_type = np.float64
+
 @golden_master()
 def test_coincident_lookup_single(request):
     pts = np.array([[0,0,0],[1,0,0],[0,1,0]])
     tris = np.array([[0,1,2]] * 100)
     params = [1.0, 0.25]
-    res = coincident_table('elasticH3', params, pts, tris)
+    res = coincident_table('elasticH3', params, pts, tris, float_type)
     return res
 
 def test_fast_interp():

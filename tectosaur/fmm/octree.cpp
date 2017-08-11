@@ -23,6 +23,7 @@ std::array<int,OctreeNode<dim>::split+1> octree_partition(
     return splits;
 }
 
+
 template <size_t dim>
 Octree<dim>::Octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_cell):
     pts(n_pts),
@@ -30,7 +31,7 @@ Octree<dim>::Octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_c
 {
     auto pts_idxs = combine_pts_idxs(in_pts, n_pts);
 
-    auto bounds = tree_bounds(pts_idxs.data(), n_pts);
+    auto bounds = root_tree_bounds(pts_idxs.data(), n_pts);
     bounds.R *= std::sqrt(dim);
 
     add_node(0, n_pts, n_per_cell, 0, bounds, pts_idxs);

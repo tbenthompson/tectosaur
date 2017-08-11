@@ -32,7 +32,9 @@ def test_farfield_two_tris(request):
     obs_tris = np.array([[0, 1, 2]], dtype = np.int)
     src_tris = np.array([[3, 4, 5]], dtype = np.int)
     params = [1.0, 0.25]
-    out = dense_integral_op.farfield_tris('elasticH3', params, pts, obs_tris, src_tris, 3)
+    out = dense_integral_op.farfield_tris(
+        'elasticH3', params, pts, obs_tris, src_tris, 3, float_type
+    )
     return out
 
 @golden_master()
@@ -41,7 +43,7 @@ def test_gpu_vert_adjacent(request):
     obs_tris = np.array([[1,2,0]]).astype(np.int32)
     src_tris = np.array([[1,3,4]]).astype(np.int32)
     params = [1.0, 0.25]
-    out = nearfield_op.vert_adj(3, 'elasticH3', params, pts, obs_tris, src_tris)
+    out = nearfield_op.vert_adj(3, 'elasticH3', params, pts, obs_tris, src_tris, float_type)
     return out
 
 def full_integral_op_tester(k, use_fmm, n = 5):
@@ -56,13 +58,16 @@ def full_integral_op_tester(k, use_fmm, n = 5):
         )
         x = np.ones(dense_op.shape[1])
         dense_res = dense_op.dot(x)
+        if use_fmm:
+            farfield_op_type = sparse_integral_op.FMMFarfieldBuilder(100, 3.0, 300)
+        else:
+            farfield_op_type = None
         sparse_op = sparse_integral_op.SparseIntegralOp(
             5, 3, 3, 2.0, k, params, m[0], m[1],
-            float_type,
-            farfield_op_type = (sparse_integral_op.FMMFarfield if use_fmm else None)
+            float_type, farfield_op_type
         )
         sparse_res = sparse_op.dot(x)
-        assert(np.max(np.abs(sparse_res - dense_res)) / np.mean(np.abs(dense_res)) < 3e-4)
+        assert(np.max(np.abs(sparse_res - dense_res)) / np.mean(np.abs(dense_res)) < 5e-4)
         out = np.hstack((out, sparse_res))
     return out
 
@@ -117,7 +122,7 @@ def test_vert_adj_separate_bases():
 
     nq = 6
 
-    I = nearfield_op.vert_adj(nq, K, params, pts, obs_tris, src_tris)
+    I = nearfield_op.vert_adj(nq, K, params, pts, obs_tris, src_tris, float_type)
 
     obs_basis_tris = np.array([
         [[0,0],[0.5,0.5],[0,1]], [[0,0],[1,0],[0.5,0.5]]
@@ -127,7 +132,7 @@ def test_vert_adj_separate_bases():
     ])
     obs_tris = np.array([[0,5,2], [0,1,5]])
     src_tris = np.array([[0,4,3], [0,4,3]])
-    I0 = nearfield_op.vert_adj(nq, K, params, pts, obs_tris, src_tris)
+    I0 = nearfield_op.vert_adj(nq, K, params, pts, obs_tris, src_tris, float_type)
 
     from tectosaur.nearfield.table_lookup import fast_lookup
     I1 = np.array([fast_lookup.sub_basis(

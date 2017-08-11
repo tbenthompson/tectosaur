@@ -1,4 +1,5 @@
 import os
+import attr
 import numpy as np
 import scipy.sparse
 
@@ -78,11 +79,8 @@ class DirectFarfield:
         )
 
 class FMMFarfield:
-    def __init__(self, kernel, params, obs_pts, obs_ns, src_pts, src_ns, float_type):
-        order = 100
-        mac = 3.0
-        pts_per_cell = 300
-
+    def __init__(self, kernel, params, obs_pts, obs_ns, src_pts, src_ns,
+            float_type, order, mac, pts_per_cell):
         cfg = fmm.make_config(kernel, params, 1.1, mac, order, pts_per_cell, float_type)
 
         # TODO: different obs and src pts
@@ -108,6 +106,18 @@ class FMMFarfield:
         to_orig = to_orig.flatten()
         t.report('to output space')
         return to_orig
+
+@attr.s()
+class FMMFarfieldBuilder:
+    order = attr.ib()
+    mac = attr.ib()
+    pts_per_cell = attr.ib()
+
+    def __call__(self, kernel, params, obs_pts, obs_ns, src_pts, src_ns, float_type):
+        return FMMFarfield(
+            kernel, params, obs_pts, obs_ns, src_pts, src_ns, float_type,
+            self.order, self.mac, self.pts_per_cell
+        )
 
 class SparseIntegralOp:
     def __init__(self, nq_vert_adjacent, nq_far, nq_near, near_threshold,

@@ -12,6 +12,8 @@ from tectosaur.nearfield.table_lookup import *
 
 from tectosaur.util.test_decorators import golden_master, slow, kernel
 
+float_type = np.float64
+
 def test_find_va_rotations():
     res = fast_lookup.find_va_rotations([1,3,5],[2,3,4])
     np.testing.assert_equal(res, [[1,2,0],[1,2,0]])
@@ -162,7 +164,7 @@ def coincident_lookup_helper(K, correct_digits, n_tests = 10):
 
             op = DenseIntegralOp(
                 10, 3, 10, 3.0, K, params,
-                pts, tris
+                pts, tris, float_type
             )
             results.append(op.mat)
         except BadTriangleError as e:
@@ -211,7 +213,7 @@ def adjacent_lookup_helper(K, correct_digits, n_tests = 10):
         tris = np.array([[0,1,3],[1,0,2]])
 
         op = DenseIntegralOp(
-            10, 3, 10, 3.0, K, params, pts, tris
+            10, 3, 10, 3.0, K, params, pts, tris, float_type
         )
         results.append(op.mat[:9,9:])
     return np.array(results)

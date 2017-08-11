@@ -19,7 +19,8 @@ def c2e_solve(gpu_module, surf, bounds, check_r, equiv_r, K, params, float_type)
         gpu_module, K, check_surf, surf, equiv_surf, surf, params, float_type
     )
 
-    out = np.linalg.pinv(equiv_to_check, rcond = 1e-15).flatten()
+    rcond = np.finfo(float_type).eps * 30
+    out = np.linalg.pinv(equiv_to_check, rcond = rcond).flatten()
     return out
 
 def direct_matrix(gpu_module, K, obs_pts, obs_ns, src_pts, src_ns, params, float_type):

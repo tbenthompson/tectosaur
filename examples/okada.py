@@ -14,7 +14,7 @@ from tectosaur.constraint_builders import continuity_constraints, \
     constant_bc_constraints, free_edge_constraints
 from tectosaur.util.timer import Timer
 from tectosaur.interior import interior_integral
-from tectosaur.ops.sparse_integral_op import SparseIntegralOp, FMMFarfield
+from tectosaur.ops.sparse_integral_op import SparseIntegralOp, FMMFarfieldBuilder
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.sum_op import SumOp
 
@@ -93,7 +93,7 @@ def test_okada(n_surf):
             6, 2, 5, 2.0,
             'elasticT3', k_params, all_mesh[0], all_mesh[1],
             float_type,
-            # farfield_op_type = FMMFarfield
+            farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
         )
         timer.report("Integrals")
 
