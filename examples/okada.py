@@ -124,7 +124,7 @@ def test_okada(n_surf):
             soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-    plot_results(obs_pts, surface_tris, u, vals)
+    # plot_results(obs_pts, surface_tris, u, vals)
     # plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln)
     return print_error(obs_pts, u, vals)
 
