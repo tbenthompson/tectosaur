@@ -1,14 +1,14 @@
 import os
 
 import numpy as np
-import pyopencl as cl
-import pyopencl.array
 
 import tectosaur
 import tectosaur.util.logging as tct_log
 from tectosaur.util.timer import Timer
-from tectosaur.util.opencl import opencl_compile, ModuleWrapper, empty_gpu,\
-        zeros_gpu, to_gpu, ensure_initialized
+try:
+    from tectosaur.util.cuda import compile, ptr, empty_gpu, zeros_gpu, to_gpu, cluda_preamble
+except ImportError:
+    from tectosaur.util.opencl import compile, ptr, empty_gpu, zeros_gpu, to_gpu, cluda_preamble
 
 logger = tct_log.setup_logger(__name__)
 
@@ -76,7 +76,7 @@ def get_template(tmpl_name, tmpl_dir):
 def template_with_mako(tmpl_name, tmpl_dir, tmpl_args):
     tmpl = get_template(tmpl_name, tmpl_dir)
     try:
-        return tmpl.render(**tmpl_args)
+        return tmpl.render(**tmpl_args, cluda_preamble = cluda_preamble)
     except:
         import mako.exceptions
         logger.error(mako.exceptions.text_error_template().render())
@@ -92,8 +92,6 @@ def load_gpu(tmpl_name, tmpl_dir = None, should_save_code = False,
         no_caching = False, tmpl_args = None):
     if tmpl_args is None:
         tmpl_args = dict()
-
-    ensure_initialized()
 
     if not no_caching and not should_save_code:
         existing_module = get_existing_module(tmpl_name, tmpl_args)
@@ -111,7 +109,7 @@ def load_gpu(tmpl_name, tmpl_dir = None, should_save_code = False,
 
     module_info = dict()
     module_info['tmpl_args'] = tmpl_args
-    module_info['module'] = opencl_compile(code)
+    module_info['module'] = compile(code)
     t.report('compile')
 
     gpu_module[tmpl_name] = gpu_module.get(tmpl_name, []) + [module_info]

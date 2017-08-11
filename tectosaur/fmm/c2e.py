@@ -32,13 +32,12 @@ def direct_matrix(gpu_module, K, obs_pts, obs_ns, src_pts, src_ns, params, float
 
     n_obs = obs_pts.shape[0]
     n_src = src_pts.shape[0]
-    out_shape = (n_obs, n_src)
     gpu_out = gpu.empty_gpu((n_obs * K.tensor_dim, n_src * K.tensor_dim), float_type)
     gpu_module.direct_matrix(
-        out_shape, None,
-        gpu_out.data, gpu_obs_pts.data, gpu_obs_ns.data,
-        gpu_src_pts.data, gpu_src_ns.data,
-        np.int32(n_obs), np.int32(n_src), gpu_params.data
+        gpu.ptr(gpu_out), gpu.ptr(gpu_obs_pts), gpu.ptr(gpu_obs_ns),
+        gpu.ptr(gpu_src_pts), gpu.ptr(gpu_src_ns),
+        np.int32(n_obs), np.int32(n_src), gpu.ptr(gpu_params),
+        grid = (n_obs, n_src, 1), block = (1, 1, 1)
     )
     return gpu_out.get()
 

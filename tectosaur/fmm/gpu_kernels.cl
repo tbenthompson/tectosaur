@@ -3,21 +3,20 @@ def dn(dim):
     return ['x', 'y', 'z'][dim]
 from tectosaur.kernels import kernels
 %>
-
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+${cluda_preamble}
 
 #define Real ${gpu_float_type}
 
 <%namespace name="prim" file="../integral_primitives.cl"/>
 
-__constant Real surf[${surf.size}] = {${str(surf.flatten().tolist())[1:-1]}};
+CONSTANT Real surf[${surf.size}] = {${str(surf.flatten().tolist())[1:-1]}};
 
 <%def name="func_def(op_name, obs_type, src_type)">
-__kernel
+KERNEL
 void ${op_name}_${K.name}(
-        __global Real* out, __global Real* in,
-        int n_blocks, __global Real* params,
-        __global int* obs_n_idxs, __global int* obs_src_starts, __global int* src_n_idxs,
+        GLOBAL_MEM Real* out, GLOBAL_MEM Real* in,
+        int n_blocks, GLOBAL_MEM Real* params,
+        GLOBAL_MEM int* obs_n_idxs, GLOBAL_MEM int* obs_src_starts, GLOBAL_MEM int* src_n_idxs,
         ${params("obs", obs_type)}, ${params("src", src_type)})
 </%def>
 
@@ -40,11 +39,11 @@ void ${op_name}_${K.name}(
 
 <%def name="params(name, type)">
 % if type == "pts":
-    __global int* ${name}_n_starts, __global int* ${name}_n_ends,
-    __global Real* ${name}_pts, __global Real* ${name}_ns
+    GLOBAL_MEM int* ${name}_n_starts, GLOBAL_MEM int* ${name}_n_ends,
+    GLOBAL_MEM Real* ${name}_pts, GLOBAL_MEM Real* ${name}_ns
 % else:
-    __global Real* ${name}_n_center,
-    __global Real* ${name}_n_R, Real ${name}_surf_r
+    GLOBAL_MEM Real* ${name}_n_center,
+    GLOBAL_MEM Real* ${name}_n_R, Real ${name}_surf_r
 % endif
 </%def>
 
@@ -63,11 +62,11 @@ void ${op_name}_${K.name}(
 <%def name="setup_src_local_memory(type)">
 % if type == "pts":
     % if K.needs_srcn:
-    __local Real sh_src_ns[${n_workers_per_block}][${K.spatial_dim}];
+    LOCAL_MEM Real sh_src_ns[${n_workers_per_block}][${K.spatial_dim}];
     % endif
-    __local Real sh_src_pts[${n_workers_per_block}][${K.spatial_dim}];
+    LOCAL_MEM Real sh_src_pts[${n_workers_per_block}][${K.spatial_dim}];
 % endif
-__local Real sh_input[${n_workers_per_block}][${K.tensor_dim}];
+LOCAL_MEM Real sh_input[${n_workers_per_block}][${K.tensor_dim}];
 </%def>
 
 <%def name="obs_loop(obs_type)">
@@ -127,7 +126,7 @@ for (int chunk_start = src_start_idx;
             sh_input[worker_idx][${d}] = in[(input_offset + load_idx) * ${K.tensor_dim} + ${d}];
         % endfor
     }
-    barrier(CLK_LOCAL_MEM_FENCE);
+    LOCAL_BARRIER;
 </%def>
 
 <%def name="src_inner_loop(src_type, check_r2_zero)">
@@ -182,7 +181,7 @@ if (obs_pt_idx < obs_pt_max) {
 </%def>
 
 <%def name="finish_outer_src_loop()">
-    barrier(CLK_LOCAL_MEM_FENCE);
+    LOCAL_BARRIER;
 }
 </%def>
 
@@ -210,11 +209,11 @@ ${fmm_op("s2s", "surf", "surf", False)}
 ${fmm_op("p2p", "pts", "pts", True)}
 ${fmm_op("s2p", "pts", "surf", False)}
 
-__kernel
-void direct_matrix(__global Real* out, 
-    __global Real* obs_pts, __global Real* obs_ns,
-    __global Real* src_pts, __global Real* src_ns,
-    int n_obs, int n_src, __global Real* params)
+KERNEL
+void direct_matrix(GLOBAL_MEM Real* out, 
+    GLOBAL_MEM Real* obs_pts, GLOBAL_MEM Real* obs_ns,
+    GLOBAL_MEM Real* src_pts, GLOBAL_MEM Real* src_ns,
+    int n_obs, int n_src, GLOBAL_MEM Real* params)
 {
     const int i = get_global_id(0);
     const int j = get_global_id(1);
@@ -246,18 +245,18 @@ void direct_matrix(__global Real* out,
 }
 
 // This is essentially a weird in-place block sparse matrix-matrix multiply. 
-__kernel
-void c2e_kernel(__global Real* out, __global Real* in,
-        int n_blocks, int n_rows, __global int* node_idx,
-        __global Real* node_R, int node_depth, __global Real* ops)
+KERNEL
+void c2e_kernel(GLOBAL_MEM Real* out, GLOBAL_MEM Real* in,
+        int n_blocks, int n_rows, GLOBAL_MEM int* node_idx,
+        GLOBAL_MEM Real* node_R, int node_depth, GLOBAL_MEM Real* ops)
 {
     const int local_row = get_local_id(0);
     const int local_col = get_local_id(1);
     const int global_block_idx = get_global_id(0);
     const int global_col = get_global_id(1);
 
-    __local Real Asub[${n_c2e_block_rows}][${n_c2e_block_rows}];
-    __local Real Bsub[${n_c2e_block_rows}][${n_c2e_block_rows}];
+    LOCAL_MEM Real Asub[${n_c2e_block_rows}][${n_c2e_block_rows}];
+    LOCAL_MEM Real Bsub[${n_c2e_block_rows}][${n_c2e_block_rows}];
 
     int global_n_idx = -1;
     if (global_block_idx < n_blocks) {
@@ -265,9 +264,9 @@ void c2e_kernel(__global Real* out, __global Real* in,
     }
 
     % if type(K.scale_type) is int:
-        __global Real* op_start = &ops[0];
+        GLOBAL_MEM Real* op_start = &ops[0];
     % else:
-        __global Real* op_start = &ops[node_depth * n_rows * n_rows];
+        GLOBAL_MEM Real* op_start = &ops[node_depth * n_rows * n_rows];
     % endif
 
     Real sum = 0.0;
@@ -287,7 +286,7 @@ void c2e_kernel(__global Real* out, __global Real* in,
         }
 
 
-        barrier(CLK_LOCAL_MEM_FENCE);
+        LOCAL_BARRIER;
 
         if (global_n_idx != -1 && global_col < n_rows) {
             int max_k = min(${n_c2e_block_rows}, n_rows - ${n_c2e_block_rows} * t);
@@ -296,7 +295,7 @@ void c2e_kernel(__global Real* out, __global Real* in,
             }
         }
 
-        barrier(CLK_LOCAL_MEM_FENCE);
+        LOCAL_BARRIER;
     }
 
     if (global_n_idx != -1 && global_col < n_rows) {

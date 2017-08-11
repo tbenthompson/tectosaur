@@ -54,11 +54,11 @@ class FMMEvaluator:
         n_obs_n = call_data[0].shape[0]
         if n_obs_n > 0:
             out = self.call_kernel(op_name, op,
-                (n_obs_n * self.fmm.cfg.n_workers_per_block,), (self.fmm.cfg.n_workers_per_block,),
-                out_arr.data, in_arr.data,
-                np.int32(n_obs_n), gd['params'].data,
-                *[d.data for d in call_data],
-                wait_for = self.to_ev_list(wait_for)
+                gpu.ptr(out_arr), gpu.ptr(in_arr),
+                np.int32(n_obs_n), gpu.ptr(gd['params']),
+                *[gpu.ptr(d) for d in call_data],
+                grid = (n_obs_n, 1, 1),
+                block = (self.fmm.cfg.n_workers_per_block, 1, 1)
             )
             return out
         else:
@@ -124,19 +124,18 @@ class FMMEvaluator:
 
         if n_c2e > 0:
             n_c2e_block_rows = self.fmm.cfg.n_c2e_block_rows
-            n_rows = int(np.ceil(n_c2e / n_c2e_block_rows) * n_c2e_block_rows)
-            n_cols = int(np.ceil(n_c2e_rows / n_c2e_block_rows) * n_c2e_block_rows)
+            n_rows = int(np.ceil(n_c2e / n_c2e_block_rows))
+            n_cols = int(np.ceil(n_c2e_rows / n_c2e_block_rows))
             return self.call_kernel(
                 name, c2e,
-                (n_rows, n_cols),
-                (n_c2e_block_rows, n_c2e_block_rows),
-                out_arr.data, in_arr.data,
+                gpu.ptr(out_arr), gpu.ptr(in_arr),
                 np.int32(n_c2e), np.int32(n_c2e_rows),
-                gd[name + '_obs_n_idxs'][level].data,
-                R_data.data,
+                gpu.ptr(gd[name + '_obs_n_idxs'][level]),
+                gpu.ptr(R_data),
                 np.int32(depth),
-                gd[name + '_ops'].data,
-                wait_for = self.to_ev_list(evs)
+                gpu.ptr(gd[name + '_ops']),
+                grid = (n_rows, n_cols, 1),
+                block = (n_c2e_block_rows, n_c2e_block_rows, 1)
             )
         else:
             return None
@@ -151,21 +150,17 @@ class FMMEvaluator:
     def prep_data_for_eval(self, input_vals):
         self.inp[:] = input_vals.astype(self.fmm.cfg.float_type).flatten()
         for arr in ['out', 'm_check', 'multipoles', 'l_check', 'locals']:
-            getattr(self, arr)[:] = 0
+            getattr(self, arr).fill(0)
 
     def eval(self, input_vals, should_log_timing = True):
         self.kernel_evs = dict()
         t = Timer()
 
         self.prep_data_for_eval(input_vals)
-        t.report('prep for eval')
 
         p2m_ev = self.gpu_p2m()
-        t.report('p2m')
         p2p_ev = self.gpu_p2p()
-        t.report('p2p')
         p2l_ev = self.gpu_p2l()
-        t.report('p2l')
 
         m2m_evs = []
         u2e_evs = []
@@ -174,12 +169,9 @@ class FMMEvaluator:
         for i in range(1, len(self.fmm.interactions.m2m)):
             m2m_evs.append(self.gpu_m2m(i, [u2e_evs[-1]]))
             u2e_evs.append(self.gpu_u2e(i, [m2m_evs[-1]]))
-        t.report('m2m')
 
         m2l_ev = self.gpu_m2l([u2e_evs[-1]])
-        t.report('m2l')
         m2p_ev = self.gpu_m2p([u2e_evs[-1]])
-        t.report('m2p')
 
         l2l_evs = []
         d2e_evs = []
@@ -187,16 +179,12 @@ class FMMEvaluator:
         if p2l_ev is not None:
             d2e_wait_for.append(p2l_ev)
         d2e_evs.append(self.gpu_d2e(0, d2e_wait_for))
-        t.report('p2l')
 
         for i in range(1, len(self.fmm.interactions.l2l)):
             l2l_evs.append(self.gpu_l2l(i, d2e_evs[-1]))
             d2e_evs.append(self.gpu_d2e(i, [l2l_evs[-1]]))
-        t.report('l2l')
 
         l2p_ev = self.gpu_l2p(d2e_evs[-1])
-
-        t.report('l2p')
 
         retval = self.out.get()
         t.report('fmm data returned')

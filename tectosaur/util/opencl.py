@@ -1,5 +1,6 @@
 import os
 import pyopencl
+import pyopencl.array
 import warnings
 import numpy as np
 
@@ -34,6 +35,11 @@ def ensure_initialized():
     if not gpu_initialized:
         initialize_with_ctx(pyopencl.create_some_context())
 
+def ptr(arr):
+    if type(arr) is pyopencl.array.Array:
+        return arr.data
+    return arr
+
 def to_gpu(arr, float_type = np.float32):
     ensure_initialized()
     if type(arr) is pyopencl.array.Array:
@@ -56,11 +62,14 @@ class ModuleWrapper:
 
     def __getattr__(self, name):
         kernel = getattr(self.module, name)
-        def provide_queue_wrapper(*args, **kwargs):
-            return kernel(gpu_queue, *args, **kwargs)
+        def provide_queue_wrapper(*args, grid = None, block = None, **kwargs):
+            global_size = [b * g for b, g in zip(grid, block)]
+            return kernel(gpu_queue, global_size, block, *args, **kwargs)
         return provide_queue_wrapper
 
-def opencl_compile(code):
+def compile(code):
+    ensure_initialized()
+
     compile_options = []
 
     debug_opts = ['-g', '-Werror']
@@ -79,3 +88,33 @@ def opencl_compile(code):
         return ModuleWrapper(pyopencl.Program(
             gpu_ctx, code
         ).build(options = compile_options))
+
+cluda_preamble = """
+// taken from pyopencl._cluda
+#define LOCAL_BARRIER barrier(CLK_LOCAL_MEM_FENCE)
+// 'static' helps to avoid the "no previous prototype for function" warning
+#if __OPENCL_VERSION__ >= 120
+#define WITHIN_KERNEL static
+#else
+#define WITHIN_KERNEL
+#endif
+#define KERNEL __kernel
+#define GLOBAL_MEM __global
+#define LOCAL_MEM __local
+#define LOCAL_MEM_DYNAMIC __local
+#define LOCAL_MEM_ARG __local
+#define CONSTANT __constant
+// INLINE is already defined in Beignet driver
+#ifndef INLINE
+#define INLINE inline
+#endif
+#define SIZE_T size_t
+#define VSIZE_T size_t
+// used to align fields in structures
+#define ALIGN(bytes) __attribute__ ((aligned(bytes)))
+#if defined(cl_khr_fp64)
+#pragma OPENCL EXTENSION cl_khr_fp64: enable
+#elif defined(cl_amd_fp64)
+#pragma OPENCL EXTENSION cl_amd_fp64: enable
+#endif
+"""

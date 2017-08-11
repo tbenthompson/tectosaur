@@ -48,7 +48,7 @@ class FMMConfig:
     n_c2e_block_rows = attr.ib()
 
 def make_config(K_name, params, inner_r, outer_r, order, max_pts_per_cell,
-        float_type, n_workers_per_block = 128, n_c2e_block_rows = 16):
+        float_type, n_workers_per_block = 64, n_c2e_block_rows = 16):
     K = kernels[K_name]
     surf = surrounding_surf(order, K.spatial_dim)
     return FMMConfig(

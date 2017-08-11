@@ -4,19 +4,18 @@ from tectosaur.kernels import elastic_kernels, kernels
 def dn(dim):
     return ['x', 'y', 'z'][dim]
 %>
-
-#pragma OPENCL EXTENSION cl_khr_fp64: enable
+${cluda_preamble}
 
 #define Real ${float_type}
 
 <%namespace name="prim" file="integral_primitives.cl"/>
 
 <%def name="farfield_pts(K)">
-__kernel
+KERNEL
 void farfield_pts${K.name}(
-    __global Real* result, __global Real* obs_pts, __global Real* obs_ns,
-    __global Real* src_pts, __global Real* src_ns, __global Real* input,
-    __global Real* params, int n_obs, int n_src)
+    GLOBAL_MEM Real* result, GLOBAL_MEM Real* obs_pts, GLOBAL_MEM Real* obs_ns,
+    GLOBAL_MEM Real* src_pts, GLOBAL_MEM Real* src_ns, GLOBAL_MEM Real* input,
+    GLOBAL_MEM Real* params, int n_obs, int n_src)
 {
     int i = get_global_id(0);
     int local_id = get_local_id(0);
@@ -42,10 +41,10 @@ void farfield_pts${K.name}(
     % endif
 
     % if K.needs_srcn:
-    __local Real sh_src_ns[${K.spatial_dim} * ${block_size}];
+    LOCAL_MEM Real sh_src_ns[${K.spatial_dim} * ${block_size}];
     % endif
-    __local Real sh_src_pts[${K.spatial_dim} * ${block_size}];
-    __local Real sh_input[${K.tensor_dim} * ${block_size}];
+    LOCAL_MEM Real sh_src_pts[${K.spatial_dim} * ${block_size}];
+    LOCAL_MEM Real sh_input[${K.tensor_dim} * ${block_size}];
 
     
     ${K.constants_code}
@@ -57,7 +56,7 @@ void farfield_pts${K.name}(
     int j = 0;
     int tile = 0;
     for (; j < n_src; j += ${block_size}, tile++) {
-        barrier(CLK_LOCAL_MEM_FENCE);
+        LOCAL_BARRIER;
         int idx = tile * ${block_size} + local_id;
         if (idx < n_src) {
             for (int k = 0; k < ${K.spatial_dim}; k++) {
@@ -70,7 +69,7 @@ void farfield_pts${K.name}(
                 sh_input[local_id * ${K.tensor_dim} + k] = input[idx * ${K.tensor_dim} + k];
             }
         }
-        barrier(CLK_LOCAL_MEM_FENCE);
+        LOCAL_BARRIER;
 
         if (i >= n_obs) {
             continue;

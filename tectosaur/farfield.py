@@ -29,15 +29,14 @@ def farfield_pts_direct(K, obs_pts, obs_ns, src_pts, src_ns, vec, params, float_
     gpu_params = gpu.to_gpu(np.array(params), float_type)
 
     n_blocks = int(np.ceil(n_obs / block_size))
-    global_size = block_size * n_blocks
     gpu_farfield_fnc(
-        (global_size,), (block_size,),
-        gpu_result.data,
-        gpu_obs_pts.data, gpu_obs_ns.data,
-        gpu_src_pts.data, gpu_src_ns.data,
-        gpu_vec.data,
-        gpu_params.data,
+        gpu.ptr(gpu_result),
+        gpu.ptr(gpu_obs_pts), gpu.ptr(gpu_obs_ns),
+        gpu.ptr(gpu_src_pts), gpu.ptr(gpu_src_ns),
+        gpu.ptr(gpu_vec), gpu.ptr(gpu_params),
         np.int32(n_obs), np.int32(n_src),
+        grid = (n_blocks, 1, 1),
+        block = (block_size, 1, 1)
     )
     return gpu_result.get()
 
