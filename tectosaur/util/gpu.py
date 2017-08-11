@@ -120,6 +120,13 @@ def compare(a, b):
             return res
     return a == b
 
+class ModuleWrapper:
+    def __init__(self, module):
+        self.module = module
+
+    def __getattr__(self, name):
+        return getattr(self.module, name)
+
 def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
         no_caching = False, tmpl_args = None):
 
@@ -199,4 +206,4 @@ def load_gpu(tmpl_name, tmpl_dir = None, print_code = False,
         gpu_module[tmpl_name] = []
     gpu_module[tmpl_name].append(module_info)
 
-    return module_info['module']
+    return ModuleWrapper(module_info['module'])
