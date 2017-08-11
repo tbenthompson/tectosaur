@@ -53,10 +53,9 @@ class FMMEvaluator:
 
         n_obs_n = call_data[0].shape[0]
         if n_obs_n > 0:
-            out = self.call_kernel(op_name, op,
-                gpu.ptr(out_arr), gpu.ptr(in_arr),
-                np.int32(n_obs_n), gpu.ptr(gd['params']),
-                *[gpu.ptr(d) for d in call_data],
+            out = self.call_kernel(
+                op_name, op, out_arr, in_arr,
+                np.int32(n_obs_n), gd['params'], *call_data,
                 grid = (n_obs_n, 1, 1),
                 block = (self.fmm.cfg.n_workers_per_block, 1, 1)
             )
@@ -128,12 +127,11 @@ class FMMEvaluator:
             n_cols = int(np.ceil(n_c2e_rows / n_c2e_block_rows))
             return self.call_kernel(
                 name, c2e,
-                gpu.ptr(out_arr), gpu.ptr(in_arr),
+                out_arr, in_arr,
                 np.int32(n_c2e), np.int32(n_c2e_rows),
-                gpu.ptr(gd[name + '_obs_n_idxs'][level]),
-                gpu.ptr(R_data),
-                np.int32(depth),
-                gpu.ptr(gd[name + '_ops']),
+                gd[name + '_obs_n_idxs'][level],
+                R_data, np.int32(depth),
+                gd[name + '_ops'],
                 grid = (n_rows, n_cols, 1),
                 block = (n_c2e_block_rows, n_c2e_block_rows, 1)
             )

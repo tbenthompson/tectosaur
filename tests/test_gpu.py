@@ -30,7 +30,7 @@ def test_simple_module():
 
     in_gpu = gpu.to_gpu(in_arr, np.float32)
     out_gpu = gpu.empty_gpu(n, np.float32)
-    fnc(gpu.ptr(out_gpu), gpu.ptr(in_gpu), grid = (n,1,1), block = (1,1,1))
+    fnc(out_gpu, in_gpu, grid = (n,1,1), block = (1,1,1))
     output = out_gpu.get()
 
     correct = in_arr + arg

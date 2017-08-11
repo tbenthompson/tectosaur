@@ -33,7 +33,11 @@ class ModuleWrapper:
         self.module = module
 
     def __getattr__(self, name):
-        return self.module.get_function(name)
+        kernel = self.module.get_function(name)
+        def wrapper(*args, **kwargs):
+            arg_ptrs = [ptr(a) for a in args]
+            return kernel(*arg_ptrs, **kwargs)
+        return wrapper
 
 def compile(code):
     ensure_initialized()

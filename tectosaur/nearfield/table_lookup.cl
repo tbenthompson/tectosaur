@@ -1,13 +1,13 @@
-#pragma OPENCL EXTENSION cl_khr_fp64: enable
+${cluda_preamble}
 
 #define Real ${float_type}
 
 <%def name="lookup_interpolation(dims)">
-__kernel
-void lookup_interpolation${dims}(__global Real* result,
-    int n_interp_pts, __global Real* table_limits, __global Real* table_log_coeffs,
-    __global Real* interp_pts, __global Real* interp_wts, 
-    __global Real* pts)
+KERNEL
+void lookup_interpolation${dims}(GLOBAL_MEM Real* result,
+    int n_interp_pts, GLOBAL_MEM Real* table_limits, GLOBAL_MEM Real* table_log_coeffs,
+    GLOBAL_MEM Real* interp_pts, GLOBAL_MEM Real* interp_wts, 
+    GLOBAL_MEM Real* pts)
 {
     const int i = get_global_id(0);
     Real this_pt[${dims}];

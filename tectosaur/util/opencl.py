@@ -64,7 +64,8 @@ class ModuleWrapper:
         kernel = getattr(self.module, name)
         def provide_queue_wrapper(*args, grid = None, block = None, **kwargs):
             global_size = [b * g for b, g in zip(grid, block)]
-            return kernel(gpu_queue, global_size, block, *args, **kwargs)
+            arg_ptrs = [ptr(a) for a in args]
+            return kernel(gpu_queue, global_size, block, *arg_ptrs, **kwargs)
         return provide_queue_wrapper
 
 def compile(code):

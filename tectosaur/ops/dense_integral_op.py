@@ -26,13 +26,12 @@ def farfield_tris(kernel, params, pts, obs_tris, src_tris, n_q, float_type):
         gpu_result = gpu.empty_gpu((n_items, 3, 3, src_tris.shape[0], 3, 3), float_type)
         gpu_obs_tris = gpu.to_gpu(obs_tris[start_idx:end_idx], np.int32)
         integrator(
-            (n_items, src_tris.shape[0]), None,
-            gpu_result.data,
-            np.int32(q[0].shape[0]), gpu_qx.data, gpu_qw.data,
-            gpu_pts.data,
-            np.int32(n_items), gpu_obs_tris.data,
-            np.int32(src_tris.shape[0]), gpu_src_tris.data,
-            gpu_params.data
+            gpu_result, np.int32(q[0].shape[0]), gpu_qx, gpu_qw,
+            gpu_pts, np.int32(n_items), gpu_obs_tris,
+            np.int32(src_tris.shape[0]), gpu_src_tris,
+            gpu_params,
+            grid = (n_items, src_tris.shape[0], 1),
+            block = (1, 1, 1)
         )
         out[start_idx:end_idx] = gpu_result.get()
 

@@ -8,7 +8,7 @@ def dn(dim):
     return ['x', 'y', 'z'][dim]
 
 %>
-#pragma OPENCL EXTENSION cl_khr_fp64: enable
+${cluda_preamble}
 
 #define Real ${float_type}
 
@@ -93,11 +93,11 @@ def dn(dim):
 </%def>
 
 <%def name="single_pairs(K, limit, check0)">
-__kernel
-void ${pairs_func_name(limit, check0)}(__global Real* result, 
-    int n_quad_pts, __global Real* quad_pts, __global Real* quad_wts,
-    __global Real* pts, __global int* obs_tris, __global int* src_tris, 
-    __global Real* params)
+KERNEL
+void ${pairs_func_name(limit, check0)}(GLOBAL_MEM Real* result, 
+    int n_quad_pts, GLOBAL_MEM Real* quad_pts, GLOBAL_MEM Real* quad_wts,
+    GLOBAL_MEM Real* pts, GLOBAL_MEM int* obs_tris, GLOBAL_MEM int* src_tris, 
+    GLOBAL_MEM Real* params)
 {
     const int i = get_global_id(0);
 
@@ -112,12 +112,12 @@ void ${pairs_func_name(limit, check0)}(__global Real* result,
 </%def>
 
 <%def name="farfield_tris(K)">
-__kernel
-void farfield_tris(__global Real* result,
-    int n_quad_pts, __global Real* quad_pts, __global Real* quad_wts,
-    __global Real* pts, int n_obs_tris, __global int* obs_tris, 
-    int n_src_tris, __global int* src_tris, 
-    __global Real* params)
+KERNEL
+void farfield_tris(GLOBAL_MEM Real* result,
+    int n_quad_pts, GLOBAL_MEM Real* quad_pts, GLOBAL_MEM Real* quad_wts,
+    GLOBAL_MEM Real* pts, int n_obs_tris, GLOBAL_MEM int* obs_tris, 
+    int n_src_tris, GLOBAL_MEM int* src_tris, 
+    GLOBAL_MEM Real* params)
 {
     const int i = get_global_id(0);
     const int j = get_global_id(1);

@@ -36,14 +36,15 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
     gpu_result = gpu.empty_gpu(n_tris * 81 * 2, float_type)
 
     fnc(
-        (n_tris,), None,
-        gpu_result.data,
+        gpu_result,
         np.int32(gpu_interp_pts.shape[0]),
-        gpu_table_limits.data,
-        gpu_table_log_coeffs.data,
-        gpu_interp_pts.data,
-        gpu_interp_wts.data,
-        gpu_pts.data
+        gpu_table_limits,
+        gpu_table_log_coeffs,
+        gpu_interp_pts,
+        gpu_interp_wts,
+        gpu_pts,
+        grid = (n_tris, 1, 1),
+        block = (1, 1, 1)
     )
 
     out = gpu_result.get().reshape((n_tris, 81, 2))

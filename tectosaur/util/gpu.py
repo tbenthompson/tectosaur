@@ -6,9 +6,9 @@ import tectosaur
 import tectosaur.util.logging as tct_log
 from tectosaur.util.timer import Timer
 try:
-    from tectosaur.util.cuda import compile, ptr, empty_gpu, zeros_gpu, to_gpu, cluda_preamble
+    from tectosaur.util.cuda import compile, empty_gpu, zeros_gpu, to_gpu, cluda_preamble
 except ImportError:
-    from tectosaur.util.opencl import compile, ptr, empty_gpu, zeros_gpu, to_gpu, cluda_preamble
+    from tectosaur.util.opencl import compile, empty_gpu, zeros_gpu, to_gpu, cluda_preamble
 
 logger = tct_log.setup_logger(__name__)
 
