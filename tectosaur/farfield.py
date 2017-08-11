@@ -31,7 +31,7 @@ def farfield_pts_direct(K, obs_pts, obs_ns, src_pts, src_ns, vec, params, float_
     n_blocks = int(np.ceil(n_obs / block_size))
     global_size = block_size * n_blocks
     gpu_farfield_fnc(
-        gpu.gpu_queue, (global_size,), (block_size,),
+        (global_size,), (block_size,),
         gpu_result.data,
         gpu_obs_pts.data, gpu_obs_ns.data,
         gpu_src_pts.data, gpu_src_ns.data,

@@ -57,7 +57,7 @@ def pairs_quad(kernel, params, pts, obs_tris, src_tris, q, singular, check0, flo
         gpu_obs_tris = gpu.to_gpu(obs_tris[start_idx:end_idx], np.int32)
         gpu_src_tris = gpu.to_gpu(src_tris[start_idx:end_idx], np.int32)
         integrator(
-            gpu.gpu_queue, (n_items,), None,
+            (n_items,), None,
             gpu_result.data,
             np.int32(q[0].shape[0]), gpu_qx.data, gpu_qw.data,
             gpu_pts.data, gpu_obs_tris.data, gpu_src_tris.data,
