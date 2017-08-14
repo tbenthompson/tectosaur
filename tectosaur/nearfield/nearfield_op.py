@@ -151,6 +151,8 @@ class NearfieldIntegralOp:
             find_near_adj.vert_adj_prep(tris, va)
         timer.report("Vert adjacency prep")
 
+        # TODO: Instead of vert adj prep, just send the raw data to
+        # an integration function that has been specialized to take the correct info.
         va_mat_rot = vert_adj(
             nq_vert_adjacent, kernel, params, pts, va_obs_tris, va_src_tris, float_type
         )
@@ -191,6 +193,7 @@ class NearfieldIntegralOp:
             (nearfield_mat, nearfield_pairs, 0 * nearfield_correction),
             self.shape
         )
+        #TODO: Convert to using the base matrix and a correction matrix instead of "uncorrected"
         timer.report("Assemble uncorrected matrix")
 
     def dot(self, v):

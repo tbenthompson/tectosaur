@@ -24,10 +24,6 @@ def initialize_with_ctx(ctx):
     )
     gpu_initialized = True
 
-    # Lazy import to avoid a circular dependency
-    import tectosaur.viennacl.viennacl as vcl
-    vcl.setup(gpu_ctx.int_ptr, gpu_ctx.devices[0].int_ptr, gpu_queue.int_ptr)
-
     report_devices(ctx)
 
 def ensure_initialized():

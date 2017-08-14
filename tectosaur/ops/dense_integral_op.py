@@ -4,7 +4,6 @@ from tectosaur.nearfield.nearfield_op import NearfieldIntegralOp, get_gpu_module
 from tectosaur.util.quadrature import gauss4d_tri
 from tectosaur.ops.dense_op import DenseOp
 import tectosaur.util.gpu as gpu
-import tectosaur.viennacl.viennacl as vcl
 
 def farfield_tris(kernel, params, pts, obs_tris, src_tris, n_q, float_type):
     integrator = getattr(get_gpu_module(kernel, float_type), "farfield_tris")
@@ -59,6 +58,8 @@ class DenseIntegralOp(DenseOp):
         self.gpu_mat = None
 
     def dot(self, v):
-        if self.gpu_mat is None:
-            self.gpu_mat = gpu.to_gpu(self.mat, np.float32)
-        return np.squeeze(vcl.prod(self.gpu_mat, v, np.float32).get())
+        return self.mat.dot(v)
+        # TODO: Use skcuda if available.
+        # if self.gpu_mat is None:
+        #     self.gpu_mat = gpu.to_gpu(self.mat, np.float32)
+        # return np.squeeze(vcl.prod(self.gpu_mat, v, np.float32).get())

@@ -77,7 +77,9 @@ for (int obs_pt_start = obs_pt_min; obs_pt_start < obs_pt_max; obs_pt_start += $
     int obs_pt_idx = obs_pt_start + worker_idx;
     % for d in range(K.spatial_dim):
         Real obs${dn(d)};
-        Real nobs${dn(d)};
+        % if K.needs_obsn or obs_type == "surf":
+            Real nobs${dn(d)};
+        % endif
         Real sum${dn(d)};
     % endfor
     if (obs_pt_idx < obs_pt_max) {
@@ -222,8 +224,12 @@ void direct_matrix(GLOBAL_MEM Real* out,
     % for d in range(K.spatial_dim):
         Real obs${dn(d)} = obs_pts[i * ${K.spatial_dim} + ${d}];
         Real src${dn(d)} = src_pts[j * ${K.spatial_dim} + ${d}];
-        Real nobs${dn(d)} = obs_ns[i * ${K.spatial_dim} + ${d}];
-        Real nsrc${dn(d)} = src_ns[j * ${K.spatial_dim} + ${d}];
+        % if K.needs_obsn:
+            Real nobs${dn(d)} = obs_ns[i * ${K.spatial_dim} + ${d}];
+        % endif
+        % if K.needs_srcn:
+            Real nsrc${dn(d)} = src_ns[j * ${K.spatial_dim} + ${d}];
+        % endif
         Real D${dn(d)} = src${dn(d)} - obs${dn(d)};
     % endfor
     Real r2 = Dx * Dx;
