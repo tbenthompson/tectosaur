@@ -330,11 +330,13 @@ std::array<double,81> transform_from_standard(const std::array<double,81>& I,
 
 KernelProps get_kernel_props(std::string K) {
     % for k_name, K in kernels.items():
-        if (K == "${K.name}") { 
-            return {
-                ${K.scale_type}, ${K.sm_power}, ${str(K.flip_negate).lower()}
-            };
-        }
+        % if K.spatial_dim == 3:
+            if (K == "${K.name}") { 
+                return {
+                    ${K.scale_type}, ${K.sm_power}, ${str(K.flip_negate).lower()}
+                };
+            }
+        % endif
     % endfor
     else { throw std::runtime_error("unknown kernel"); }
 }
@@ -628,8 +630,8 @@ std::array<std::array<int,3>,2> find_va_rotations(const std::array<int,3>& ot,
 struct VertexAdjacentSubTris {
     std::vector<Vec3> pts;
     std::vector<int> original_pair_idx;
-    std::vector<std::array<size_t,3>> obs_tris;
-    std::vector<std::array<size_t,3>> src_tris;
+    std::vector<std::array<size_t,3>> tris;
+    std::vector<std::array<size_t,4>> pairs;
     std::vector<std::array<std::array<double,2>,3>> obs_basis;
     std::vector<std::array<std::array<double,2>,3>> src_basis;
 };
@@ -752,10 +754,11 @@ py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
                 auto st_rot = rot[1];
 
                 va.original_pair_idx.push_back(i);
-                va.obs_tris.push_back({
+                va.pairs.push_back({va.tris.size(), va.tris.size() + 1, 0, 0});
+                va.tris.push_back({
                     ot[ot_rot[0]] + 6 * i, ot[ot_rot[1]] + 6 * i, ot[ot_rot[2]] + 6 * i,
                 });
-                va.src_tris.push_back({
+                va.tris.push_back({
                     st[st_rot[0]] + 6 * i, st[st_rot[1]] + 6 * i, st[st_rot[2]] + 6 * i,
                 });
                 va.obs_basis.push_back({
@@ -955,8 +958,8 @@ PYBIND11_PLUGIN(fast_lookup) {
     py::class_<VertexAdjacentSubTris>(m, "VertexAdjacentSubTris")
         .def_readonly("pts", &VertexAdjacentSubTris::pts)
         .def_readonly("original_pair_idx", &VertexAdjacentSubTris::original_pair_idx)
-        .def_readonly("obs_tris", &VertexAdjacentSubTris::obs_tris)
-        .def_readonly("src_tris", &VertexAdjacentSubTris::src_tris)
+        .def_readonly("tris", &VertexAdjacentSubTris::tris)
+        .def_readonly("pairs", &VertexAdjacentSubTris::pairs)
         .def_readonly("obs_basis", &VertexAdjacentSubTris::obs_basis)
         .def_readonly("src_basis", &VertexAdjacentSubTris::src_basis);
 

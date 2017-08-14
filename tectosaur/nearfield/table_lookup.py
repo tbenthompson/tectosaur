@@ -143,13 +143,16 @@ def adjacent_table(nq_va, kernel, params, pts, tris, ea_tri_indices, float_type)
 
     t.report("from standard")
 
-    # TODO: Return the info necessary for vert_adj instead of actually running it
-    import tectosaur.nearfield.nearfield_op as nearfield_op
-    Iv = nearfield_op.vert_adj(
-        nq_va, kernel, params,
-        np.array(va.pts), np.array(va.obs_tris), np.array(va.src_tris), float_type
-    )
+    va_pts = np.array(va.pts)
+    va_tris = np.array(va.tris)
+    va_pairs = np.array(va.pairs)
+    t.report('vert adj to nparray')
+
+    from tectosaur.nearfield.pairs_integrator import PairsIntegrator
+    pairs_int = PairsIntegrator(kernel, params, float_type, 1, 1, va_pts, va_tris)
+    Iv = pairs_int.vert_adj(nq_va, va_pairs)
     t.report('vert adj subpairs')
+
     fast_lookup.vert_adj_subbasis(out, Iv, va, ea);
     t.report('vert adj subbasis')
 

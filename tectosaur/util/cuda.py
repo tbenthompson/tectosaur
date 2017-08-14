@@ -63,6 +63,8 @@ cluda_preamble = """
 // used to align fields in structures
 #define ALIGN(bytes) __align__(bytes)
 
+//IF EVER NEEDED, THESE CAN BE CONVERTED TO DEFINES SO THAT THERE IS LESS PER
+// KERNEL OVERHEAD.
 WITHIN_KERNEL SIZE_T get_local_id(unsigned int dim)
 {
     if(dim == 0) return threadIdx.x;

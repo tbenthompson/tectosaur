@@ -149,7 +149,7 @@ class SparseIntegralOp:
 
     def dot(self, v):
         t = Timer()
-        near_out = self.nearfield.dot(v)
+        near_out = self.nearfield_dot(v)
         t.report('nearfield dot')
         far_out = self.farfield_dot(v)
         t.report('farfield dot')

@@ -27,13 +27,18 @@ WITHIN_KERNEL void get_unscaled_normal(Real tri[3][3], Real out[3]) {
 WITHIN_KERNEL Real magnitude(Real v[3]) {
     return sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
+
+WITHIN_KERNEL int positive_mod(int i, int n) {
+        return (i % n + n) % n;
+}
 </%def>
 
-<%def name="get_triangle(name, tris, index)">
+<%def name="get_triangle(name, tris)">
 Real ${name}[3][3];
 for (int c = 0; c < 3; c++) {
+    int pt_idx = ${tris}[3 * ${name}_idx + positive_mod(c + ${name}_rot_clicks, 3)];
     for (int d = 0; d < 3; d++) {
-        ${name}[c][d] = pts[3 * ${tris}[3 * ${index} + c] + d];
+        ${name}[c][d] = pts[pt_idx * 3 + d];
     }
 }
 </%def>

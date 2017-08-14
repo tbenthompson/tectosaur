@@ -1,6 +1,7 @@
 import numpy as np
 
-from tectosaur.nearfield.nearfield_op import NearfieldIntegralOp, get_gpu_module
+from tectosaur.nearfield.nearfield_op import NearfieldIntegralOp
+from tectosaur.nearfield.pairs_integrator import get_gpu_module
 from tectosaur.util.quadrature import gauss4d_tri
 from tectosaur.ops.dense_op import DenseOp
 import tectosaur.util.gpu as gpu

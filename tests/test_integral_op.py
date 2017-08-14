@@ -73,7 +73,7 @@ def full_integral_op_tester(k, use_fmm, n = 5):
 
 @slow
 @golden_master(digits = 5)
-def test_full_integral_op(request, kernel):
+def test_full_integral_op_nofmm(request, kernel):
     return full_integral_op_tester(kernel, False)
 
 @slow
