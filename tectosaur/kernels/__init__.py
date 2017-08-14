@@ -48,7 +48,6 @@ elasticU = Kernel(
 )
 
 TA_const_code = '''
-    const Real G = params[0];
     const Real nu = params[1];
     const Real CsT0 = (1-2.0*nu)/(8.0*M_PI*(1.0-nu));
     const Real CsT1 = 3.0/(8.0*M_PI*(1.0-nu));

@@ -15,8 +15,8 @@ ${cluda_preamble}
 <%namespace name="prim" file="../integral_primitives.cl"/>
 
 <%def name="integrate_pair(K, limit, check0)">
-    ${prim.tri_info("obs", "nobs")}
-    ${prim.tri_info("src", "nsrc")}
+    ${prim.tri_info("obs", "nobs", K.needs_obsn or limit)}
+    ${prim.tri_info("src", "nsrc", K.needs_srcn)}
 
     Real result_temp[81];
     Real kahanC[81];
@@ -74,7 +74,6 @@ ${cluda_preamble}
         obsb[1] *= quadw;
         obsb[2] *= quadw;
 
-        Real val, y, t;
         int idx = 0;
         for (int b_obs = 0; b_obs < 3; b_obs++) {
         for (int d_obs = 0; d_obs < 3; d_obs++) {

@@ -187,8 +187,8 @@ class FMMEvaluator:
         retval = self.out.get()
         t.report('fmm data returned')
 
-        if should_log_timing:
-            self.log_timing()
+        # if should_log_timing:
+        #     self.log_timing()
 
         return retval
 

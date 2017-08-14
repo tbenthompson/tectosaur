@@ -4,19 +4,19 @@ def dn(dim):
 %>
 
 <%def name="geometry_fncs()">
-void vec_cross(Real x[3], Real y[3], Real out[3]) {
+WITHIN_KERNEL void vec_cross(Real x[3], Real y[3], Real out[3]) {
     out[0] = x[1] * y[2] - x[2] * y[1];
     out[1] = x[2] * y[0] - x[0] * y[2];
     out[2] = x[0] * y[1] - x[1] * y[0];
 }
 
-void sub(Real x[3], Real y[3], Real out[3]) {
+WITHIN_KERNEL void sub(Real x[3], Real y[3], Real out[3]) {
     % for d in range(3):
     out[${d}] = x[${d}] - y[${d}];
     % endfor
 }
 
-void get_unscaled_normal(Real tri[3][3], Real out[3]) {
+WITHIN_KERNEL void get_unscaled_normal(Real tri[3][3], Real out[3]) {
     Real s20[3];
     Real s21[3];
     sub(tri[2], tri[0], s20);
@@ -24,7 +24,7 @@ void get_unscaled_normal(Real tri[3][3], Real out[3]) {
     vec_cross(s20, s21, out);
 }
 
-Real magnitude(Real v[3]) {
+WITHIN_KERNEL Real magnitude(Real v[3]) {
     return sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
 </%def>
@@ -38,15 +38,17 @@ for (int c = 0; c < 3; c++) {
 }
 </%def>
 
-<%def name="tri_info(prefix,normal_prefix)">
+<%def name="tri_info(prefix,normal_prefix, need_normal)">
 Real ${prefix}_unscaled_normal[3];
 get_unscaled_normal(${prefix}_tri, ${prefix}_unscaled_normal);
 Real ${prefix}_normal_length = magnitude(${prefix}_unscaled_normal);
 Real ${prefix}_jacobian = ${prefix}_normal_length;
-% for dim in range(3):
-Real ${normal_prefix}${dn(dim)} = 
-    ${prefix}_unscaled_normal[${dim}] / ${prefix}_normal_length;
-% endfor
+% if need_normal:
+    % for dim in range(3):
+    Real ${normal_prefix}${dn(dim)} = 
+        ${prefix}_unscaled_normal[${dim}] / ${prefix}_normal_length;
+    % endfor
+% endif
 </%def>
 
 <%def name="basis(prefix)">

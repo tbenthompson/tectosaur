@@ -50,23 +50,3 @@ def vert_adj_prep(tris, va):
     out = adj_prep(tris, va, vert_adj_clicks)
     assert(np.all(out[3][:, 0] == out[4][:, 0]))
     return out
-
-def edge_adj_orient(touching_verts):
-    tv = sorted(touching_verts)
-    if tv[0] == 0:
-        if tv[1] == 2:
-            return 2
-        return 0
-    return 1
-
-def edge_adj_clicks(pair):
-    obs_clicks = edge_adj_orient([pair[2][0][0], pair[2][1][0]])
-    src_clicks = edge_adj_orient([pair[2][0][1], pair[2][1][1]])
-    return obs_clicks, src_clicks
-
-def edge_adj_prep(tris, ea):
-    out = adj_prep(tris, ea, edge_adj_clicks)
-    # These assertions are not true with triple junctions...
-    # assert(np.all(out[3][:, 0] == out[4][:, 1]))
-    # assert(np.all(out[3][:, 1] == out[4][:, 0]))
-    return out

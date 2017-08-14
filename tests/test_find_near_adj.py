@@ -85,10 +85,10 @@ def benchmark_find_nearfield():
     # va, ea = adjacency.find_adjacents(tris)
     near_pairs = find_close_or_touching(pts, tris, 1.25)
 
-def benchmark_find_adjacency():
+def benchmark_adjacency():
     from tectosaur.mesh.mesh_gen import make_rect
     from tectosaur.util.timer import Timer
-    L = 10
+    L = 8
     nx = ny = int(2 ** L / np.sqrt(2))
     t = Timer()
     m = make_rect(nx, ny, [[-1, -1, 0], [-1, 1, 0], [1, 1, 0], [1, -1, 0]])
@@ -98,7 +98,9 @@ def benchmark_find_adjacency():
     t.report('close or touching')
     close, va, ea = split_adjacent_close(close_pairs, m[1])
     t.report('find adj')
+    result = vert_adj_prep(m[1], va.reshape((-1, 4)))
+    t.report('va prep')
 
 if __name__ == "__main__":
-    benchmark_find_adjacency()
+    benchmark_adjacency()
     # benchmark_find_nearfield()
