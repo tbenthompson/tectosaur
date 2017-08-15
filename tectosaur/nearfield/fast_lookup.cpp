@@ -1,12 +1,12 @@
 <%
-setup_pybind11(cfg)
-cfg['compiler_args'].extend(['-std=c++14', '-O3', '-Wall', '-fopenmp'])
-cfg['linker_args'] = ['-fopenmp']
+from tectosaur.util.build_cfg import setup_module
+setup_module(cfg)
 cfg['dependencies'] = [
     '../include/pybind11_nparray.hpp',
     '../include/vec_tensor.hpp',
     '../include/timing.hpp'
 ]
+
 from tectosaur.nearfield.table_params import min_angle_isoceles_height,\
      table_min_internal_angle, minlegalA, minlegalB, maxlegalA, maxlegalB, min_intersect_angle
 
@@ -264,7 +264,6 @@ StandardizeResult standardize(const Tensor3& tri, double angle_lim, bool should_
     }
     auto trans_out = translate(relabeled);
     auto rot_out = full_standardize_rotate(trans_out.first);
-    assert(0 == rot_out.first[2][2]);
     auto scale_out = scale(rot_out.first);
     int code = check_bad_tri(scale_out.first, angle_lim);
     return {
@@ -955,20 +954,18 @@ PYBIND11_PLUGIN(fast_lookup) {
     m.def("get_adjacent_phi", get_adjacent_phi);
     m.def("find_va_rotations", find_va_rotations);
 
+#define NPARRAYPROP(type, name)\
+    def_property_readonly(#name, [] (type& op) {\
+        return make_array({op.name.size()}, op.name.data());\
+    })
     py::class_<VertexAdjacentSubTris>(m, "VertexAdjacentSubTris")
-        .def_readonly("pts", &VertexAdjacentSubTris::pts)
-        .def_readonly("original_pair_idx", &VertexAdjacentSubTris::original_pair_idx)
-        .def_readonly("tris", &VertexAdjacentSubTris::tris)
-        .def_readonly("pairs", &VertexAdjacentSubTris::pairs)
-        .def_readonly("obs_basis", &VertexAdjacentSubTris::obs_basis)
-        .def_readonly("src_basis", &VertexAdjacentSubTris::src_basis);
+        .NPARRAYPROP(VertexAdjacentSubTris, pts)
+        .NPARRAYPROP(VertexAdjacentSubTris, tris)
+        .NPARRAYPROP(VertexAdjacentSubTris, pairs);
+#undef NPARRAYPROP
 
     py::class_<EdgeAdjacentLookupTris>(m, "EdgeAdjacentLookupTris")
-        .def_readonly("pts", &EdgeAdjacentLookupTris::pts)
-        .def_readonly("obs_clicks", &EdgeAdjacentLookupTris::obs_clicks)
-        .def_readonly("src_clicks", &EdgeAdjacentLookupTris::src_clicks)
-        .def_readonly("obs_basis", &EdgeAdjacentLookupTris::obs_basis)
-        .def_readonly("src_basis", &EdgeAdjacentLookupTris::src_basis);
+        .def_readonly("pts", &EdgeAdjacentLookupTris::pts);
 
     m.def("adjacent_lookup_pts", adjacent_lookup_pts);
     m.def("vert_adj_subbasis", vert_adj_subbasis);

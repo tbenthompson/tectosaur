@@ -8,6 +8,7 @@ from tectosaur.util.timer import Timer
 import tectosaur.nearfield.limit as limit
 import tectosaur.util.gpu as gpu
 
+from tectosaur.nearfield.pairs_integrator import PairsIntegrator
 from tectosaur.nearfield.table_params import *
 
 from cppimport import cppimport
@@ -137,7 +138,7 @@ def adjacent_table(nq_va, kernel, params, pts, tris, ea_tri_indices, float_type)
     t.report("get pts")
 
     interp_vals, log_coeffs = lookup_interpolation_gpu(
-        table_limits, table_log_coeffs, interp_pts, interp_wts, np.array(ea.pts), float_type
+        table_limits, table_log_coeffs, interp_pts, interp_wts, ea.pts, float_type
     )
     t.report("interpolation")
 
@@ -147,14 +148,8 @@ def adjacent_table(nq_va, kernel, params, pts, tris, ea_tri_indices, float_type)
 
     t.report("from standard")
 
-    va_pts = np.array(va.pts)
-    va_tris = np.array(va.tris)
-    va_pairs = np.array(va.pairs)
-    t.report('vert adj to nparray')
-
-    from tectosaur.nearfield.pairs_integrator import PairsIntegrator
-    pairs_int = PairsIntegrator(kernel, params, float_type, 1, 1, va_pts, va_tris)
-    Iv = pairs_int.vert_adj(nq_va, va_pairs)
+    pairs_int = PairsIntegrator(kernel, params, float_type, 1, 1, va.pts, va.tris)
+    Iv = pairs_int.vert_adj(nq_va, va.pairs)
     t.report('vert adj subpairs')
 
     fast_lookup.vert_adj_subbasis(out, Iv, va, ea);

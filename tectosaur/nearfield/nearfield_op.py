@@ -22,11 +22,15 @@ def build_nearfield(co_data, ea_data, va_data, near_data, shape):
     va_vals,va_rows,va_cols = to_sparse_mat(*va_data)
     near_vals,near_rows,near_cols = to_sparse_mat(*near_data)
     t.report("build pairs")
+
+    #TODO: Pass each individual array to make_bsr_matrix and I can reduce
+    # the copies by one.
     rows = np.concatenate((co_rows, ea_rows, va_rows, near_rows))
     cols = np.concatenate((co_cols, ea_cols, va_cols, near_cols))
     vals = np.concatenate((co_vals, ea_vals, va_vals, near_vals))
     t.report("stack pairs")
 
+    #TODO: Make BSR could be done in-place with no memory allocation?
     data, indices, indptr = fast_assembly.make_bsr_matrix(
         shape[0], shape[1], 9, 9, vals, rows, cols
     )

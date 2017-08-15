@@ -17,11 +17,34 @@ std::vector<size_t> calc_strides(const std::vector<size_t>& shape, size_t unit_s
 }
 
 template <typename T>
-NPArray<T> make_array(const std::vector<size_t>& shape, T* buffer_ptr = nullptr) {
-    return pybind11::array(pybind11::buffer_info(
-        buffer_ptr, sizeof(T), pybind11::format_descriptor<T>::value,
-        shape.size(), shape, calc_strides(shape, sizeof(T))
-    ));
+struct ArrayMaker {
+    static NPArray<T> make_array(const std::vector<size_t>& shape, T* buffer_ptr = nullptr) 
+    {
+        return pybind11::array(pybind11::buffer_info(
+            buffer_ptr, sizeof(T), pybind11::format_descriptor<T>::value,
+            shape.size(), shape, calc_strides(shape, sizeof(T))
+        ));
+    }
+};
+
+template <typename T, size_t dim>
+struct ArrayMaker<std::array<T,dim>> {
+    static NPArray<T> make_array(const std::vector<size_t>& shape_in, 
+            std::array<T,dim>* buffer_ptr_in = nullptr) 
+    {
+        auto shape = shape_in;
+        shape.push_back(dim);
+        auto* buffer_ptr = reinterpret_cast<T*>(buffer_ptr_in);
+        return pybind11::array(pybind11::buffer_info(
+            buffer_ptr, sizeof(T), pybind11::format_descriptor<T>::value,
+            shape.size(), shape, calc_strides(shape, sizeof(T))
+        ));
+    }
+};
+
+template <typename T>
+auto make_array(const std::vector<size_t>& shape, T* buffer_ptr = nullptr) {
+    return ArrayMaker<T>::make_array(shape, buffer_ptr);
 }
 
 template <typename T>

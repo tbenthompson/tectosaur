@@ -1,6 +1,7 @@
 <%
-setup_pybind11(cfg)
-cfg['dependencies'] = ['../include/pybind11_nparray.hpp']
+from tectosaur.util.build_cfg import setup_module
+setup_module(cfg)
+cfg['dependencies'] += ['../include/pybind11_nparray.hpp']
 %> 
 
 #include "../include/pybind11_nparray.hpp"
