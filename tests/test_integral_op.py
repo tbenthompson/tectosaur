@@ -20,6 +20,8 @@ from laplace import laplace
 
 # import tectosaur, logging
 # tectosaur.logger.setLevel(logging.ERROR)
+from tectosaur.util.logging import setup_logger
+logger = setup_logger(__name__)
 
 float_type = np.float32
 
@@ -165,6 +167,30 @@ def benchmark_nearfield_construction():
     pts, tris = mesh_gen.make_rect(n, n, corners)
     n = nearfield_op.NearfieldIntegralOp(1, 1, 1, 2.0, 'elasticU3', [1.0, 0.25], pts, tris)
 
+@profile
+def benchmark_vert_adj():
+    from tectosaur.util.timer import Timer
+    import tectosaur.mesh.find_near_adj as find_near_adj
+    from tectosaur.nearfield.pairs_integrator import PairsIntegrator
+    kernel = 'elasticH3'
+    params = [1.0, 0.25]
+    float_type = np.float32
+    L = 5
+    nq_vert_adjacent = 7
+
+    nx = ny = int(2 ** L / np.sqrt(2))
+    t = Timer()
+    pts, tris = mesh_gen.make_rect(nx, ny, [[-1, -1, 0], [-1, 1, 0], [1, 1, 0], [1, -1, 0]])
+    logger.debug('n_tris: ' + str(tris.shape[0]))
+    t.report('make rect')
+    close_or_touch_pairs = find_near_adj.find_close_or_touching(pts, tris, 1.25)
+    nearfield_pairs, va, ea = find_near_adj.split_adjacent_close(close_or_touch_pairs, tris)
+    t.report('find near')
+    pairs_int = PairsIntegrator(kernel, params, float_type, 1, 1, pts, tris)
+    t.report('setup integrator')
+    va_mat_rot = pairs_int.vert_adj(nq_vert_adjacent, va)
+    t.report('vert adj')
+
 if __name__ == "__main__":
-    benchmark_nearfield_construction()
+    benchmark_vert_adj()
 

@@ -36,7 +36,6 @@ def build_nearfield(co_data, ea_data, va_data, near_data, shape):
 
     return mat
 
-
 class NearfieldIntegralOp:
     @profile
     def __init__(self, nq_vert_adjacent, nq_far, nq_near,

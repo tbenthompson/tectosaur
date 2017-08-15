@@ -98,8 +98,6 @@ def benchmark_adjacency():
     t.report('close or touching')
     close, va, ea = split_adjacent_close(close_pairs, m[1])
     t.report('find adj')
-    result = vert_adj_prep(m[1], va.reshape((-1, 4)))
-    t.report('va prep')
 
 if __name__ == "__main__":
     benchmark_adjacency()

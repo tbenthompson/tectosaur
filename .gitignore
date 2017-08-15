@@ -20,3 +20,5 @@ dist
 *.npy
 !tests/golden_masters/*.npy
 !tectosaur/data/*.npy
+
+*.nvprof

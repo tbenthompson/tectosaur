@@ -34,7 +34,7 @@ class PairsIntegrator:
         return [gpu.to_gpu(arr, self.float_type) for arr in q]
 
     def get_gpu_fnc(self, check0):
-        return getattr(self.module, pairs_func_name(check0) + '_new')
+        return getattr(self.module, pairs_func_name(check0))
 
     def pairs_quad(self, integrator, q, pairs_list):
         gpu_pairs_list = gpu.to_gpu(pairs_list.copy(), np.int32)
@@ -47,11 +47,14 @@ class PairsIntegrator:
         gpu_result = gpu.empty_gpu((n, 3, 3, 3, 3), self.float_type)
 
         def call_integrator(start_idx, end_idx):
+            block_size = 256
+            n_threads = int(np.ceil((end_idx - start_idx) / block_size))
             integrator(
                 gpu_result, np.int32(q[0].shape[0]), q[0], q[1],
                 self.gpu_pts, self.gpu_tris,
-                gpu_pairs_list, np.int32(start_idx), self.gpu_params,
-                grid = (end_idx - start_idx, 1, 1), block = (1, 1, 1)
+                gpu_pairs_list, np.int32(start_idx), np.int32(end_idx),
+                self.gpu_params,
+                grid = (n_threads, 1, 1), block = (block_size, 1, 1)
             )
 
         for I in gpu.intervals(n, call_size):
@@ -71,4 +74,3 @@ class PairsIntegrator:
         q = triangle_rules.vertex_adj_quad(nq[0], nq[1], nq[2])
         gpu_q = self.quad_to_gpu(q)
         return self.pairs_quad(integrator, gpu_q, pairs_list)
-

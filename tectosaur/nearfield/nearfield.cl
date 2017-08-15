@@ -81,33 +81,13 @@ ${cluda_preamble}
 KERNEL
 void ${pairs_func_name(check0)}(GLOBAL_MEM Real* result, 
     int n_quad_pts, GLOBAL_MEM Real* quad_pts, GLOBAL_MEM Real* quad_wts,
-    GLOBAL_MEM Real* pts, GLOBAL_MEM int* obs_tris, GLOBAL_MEM int* src_tris, 
-    GLOBAL_MEM Real* params)
-{
-    const int i = get_global_id(0);
-
-    const int obs_tri_idx = i;
-    const int src_tri_idx = i;
-    const int obs_tri_rot_clicks = 0;
-    const int src_tri_rot_clicks = 0;
-    ${prim.get_triangle("obs_tri", "obs_tris")}
-    ${prim.get_triangle("src_tri", "src_tris")}
-    ${integrate_pair(K, check0)}
-    
-    for (int iresult = 0; iresult < 81; iresult++) {
-        result[i * 81 + iresult] = obs_jacobian * src_jacobian * result_temp[iresult];
-    }
-}
-</%def>
-
-<%def name="single_pairs_new(K, check0)">
-KERNEL
-void ${pairs_func_name(check0)}_new(GLOBAL_MEM Real* result, 
-    int n_quad_pts, GLOBAL_MEM Real* quad_pts, GLOBAL_MEM Real* quad_wts,
     GLOBAL_MEM Real* pts, GLOBAL_MEM int* tris, GLOBAL_MEM int* pairs_list, 
-    int start_idx, GLOBAL_MEM Real* params)
+    int start_idx, int end_idx, GLOBAL_MEM Real* params)
 {
     const int pair_idx = get_global_id(0) + start_idx;
+    if (pair_idx >= end_idx) {
+        return;
+    }
 
     const int obs_tri_idx = pairs_list[pair_idx * 2];
     const int src_tri_idx = pairs_list[pair_idx * 2 + 1];
@@ -128,9 +108,12 @@ KERNEL
 void ${pairs_func_name(check0)}_vert_adj(GLOBAL_MEM Real* result, 
     int n_quad_pts, GLOBAL_MEM Real* quad_pts, GLOBAL_MEM Real* quad_wts,
     GLOBAL_MEM Real* pts, GLOBAL_MEM int* tris, GLOBAL_MEM int* pairs_list, 
-    int start_idx, GLOBAL_MEM Real* params)
+    int start_idx, int end_idx, GLOBAL_MEM Real* params)
 {
     const int pair_idx = get_global_id(0) + start_idx;
+    if (pair_idx >= end_idx) {
+        return;
+    }
 
     const int obs_tri_idx = pairs_list[pair_idx * 4];
     const int src_tri_idx = pairs_list[pair_idx * 4 + 1];
@@ -173,7 +156,6 @@ void farfield_tris(GLOBAL_MEM Real* result,
     ${prim.get_triangle("src_tri", "src_tris")}
     ${integrate_pair(K, check0 = False)}
 
-
     for (int b_obs = 0; b_obs < 3; b_obs++) {
     for (int d_obs = 0; d_obs < 3; d_obs++) {
     for (int b_src = 0; b_src < 3; b_src++) {
@@ -193,7 +175,5 @@ void farfield_tris(GLOBAL_MEM Real* result,
 ${prim.geometry_fncs()}
 ${single_pairs(K, check0 = True)}
 ${single_pairs(K, check0 = False)}
-${single_pairs_new(K, check0 = True)}
-${single_pairs_new(K, check0 = False)}
 ${single_pairs_vert_adj(K)}
 ${farfield_tris(K)}

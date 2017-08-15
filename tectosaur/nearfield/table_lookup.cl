@@ -5,11 +5,16 @@ ${cluda_preamble}
 <%def name="lookup_interpolation(dims)">
 KERNEL
 void lookup_interpolation${dims}(GLOBAL_MEM Real* result,
-    int n_interp_pts, GLOBAL_MEM Real* table_limits, GLOBAL_MEM Real* table_log_coeffs,
+    int n_eval_pts, int n_interp_pts,
+    GLOBAL_MEM Real* table_limits, GLOBAL_MEM Real* table_log_coeffs,
     GLOBAL_MEM Real* interp_pts, GLOBAL_MEM Real* interp_wts, 
     GLOBAL_MEM Real* pts)
 {
     const int i = get_global_id(0);
+    if (i >= n_eval_pts) {
+        return;
+    }
+
     Real this_pt[${dims}];
     for (int d = 0; d < ${dims}; d++) {
         this_pt[d] = pts[i * ${dims} + d];
