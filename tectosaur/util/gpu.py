@@ -7,8 +7,12 @@ import tectosaur.util.logging as tct_log
 from tectosaur.util.timer import Timer
 try:
     from tectosaur.util.cuda import compile, empty_gpu, zeros_gpu, to_gpu, cluda_preamble
+    cuda_backend = True
+    ocl_backend = False
 except ImportError:
     from tectosaur.util.opencl import compile, empty_gpu, zeros_gpu, to_gpu, cluda_preamble
+    cuda_backend = False
+    ocl_backend = True
 
 logger = tct_log.setup_logger(__name__)
 
