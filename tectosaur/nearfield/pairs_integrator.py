@@ -10,9 +10,11 @@ def pairs_func_name(check0):
         check0_label = 'Z'
     return 'single_pairs' + check0_label
 
+block_size = 256
+
 def get_gpu_config(kernel, float_type):
     return dict(
-        block_size = 128,
+        block_size = block_size,
         float_type = gpu.np_to_c_type(float_type),
         kernel_name = kernel
     )
@@ -47,7 +49,6 @@ class PairsIntegrator:
         gpu_result = gpu.empty_gpu((n, 3, 3, 3, 3), self.float_type)
 
         def call_integrator(start_idx, end_idx):
-            block_size = 256
             n_threads = int(np.ceil((end_idx - start_idx) / block_size))
             integrator(
                 gpu_result, np.int32(q[0].shape[0]), q[0], q[1],
