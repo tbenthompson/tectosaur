@@ -99,12 +99,6 @@ class NearfieldIntegralOp:
         self.gpu_mat = None
 
     def dot(self, v):
-        # if gpu.cuda_backend:
-        #     from tectosaur.util.cusparse_bsr import cusparseBSR
-        #     if self.gpu_mat is None:
-        #         self.gpu_mat = cusparseBSR(self.mat)
-        #     return self.gpu_mat.dot(v)
-        # else:
         return self.mat.dot(v)
 
     def nearfield_no_correction_dot(self, v):
