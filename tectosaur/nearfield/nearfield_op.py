@@ -8,6 +8,7 @@ from tectosaur.nearfield.table_lookup import coincident_table, adjacent_table
 from tectosaur.nearfield.pairs_integrator import PairsIntegrator
 
 from tectosaur.util.timer import Timer
+import tectosaur.util.gpu as gpu
 
 from cppimport import cppimport
 fast_assembly = cppimport("tectosaur.ops.fast_assembly")
@@ -95,7 +96,15 @@ class NearfieldIntegralOp:
         #TODO: Convert to using the base matrix and a correction matrix instead of "uncorrected"
         timer.report("Assemble uncorrected matrix")
 
+        self.gpu_mat = None
+
     def dot(self, v):
+        # if gpu.cuda_backend:
+        #     from tectosaur.util.cusparse_bsr import cusparseBSR
+        #     if self.gpu_mat is None:
+        #         self.gpu_mat = cusparseBSR(self.mat)
+        #     return self.gpu_mat.dot(v)
+        # else:
         return self.mat.dot(v)
 
     def nearfield_no_correction_dot(self, v):

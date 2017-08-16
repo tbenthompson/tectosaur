@@ -221,8 +221,9 @@ def print_error(pts, correct, est):
 
 if __name__ == '__main__':
     t = Timer()
-    test_okada(int(sys.argv[1]))
-    t.report('okada')
+    for i in range(2):
+        test_okada(int(sys.argv[1]))
+        t.report('okada')
 
     # import logging
     # tectosaur.logger.setLevel(logging.DEBUG)

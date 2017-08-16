@@ -140,6 +140,7 @@ class SparseIntegralOp:
         self.farfield_op = farfield_op_type(
             kernel, params, quad_pts, quad_ns, quad_pts, quad_ns, float_type
         )
+        self.gpu_nearfield = None
 
     def nearfield_dot(self, v):
         return self.nearfield.dot(v)
