@@ -8,6 +8,7 @@ from tectosaur.nearfield.table_lookup import coincident_table, adjacent_table
 from tectosaur.nearfield.pairs_integrator import PairsIntegrator
 
 from tectosaur.util.timer import Timer
+import tectosaur.util.sparse as sparse
 import tectosaur.util.gpu as gpu
 
 from cppimport import cppimport
@@ -99,7 +100,8 @@ class NearfieldIntegralOp:
         self.gpu_mat = None
 
     def dot(self, v):
-        return self.mat.dot(v)
+        return sparse.bsr_mv(self.mat, v)
+        # return self.mat.dot(v)
 
     def nearfield_no_correction_dot(self, v):
         return self.mat_no_correction.dot(v)

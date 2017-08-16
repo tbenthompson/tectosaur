@@ -8,45 +8,6 @@ cfg['dependencies'].extend(['../include/pybind11_nparray.hpp'])
 
 namespace py = pybind11;
 
-int positive_mod(int i, int n) {
-    return (i % n + n) % n;
-}
-
-std::array<int,3> rotate_tri(int clicks) {
-    return {positive_mod(clicks, 3), positive_mod(clicks + 1, 3), positive_mod(clicks + 2, 3)};
-}
-
-void derotate_adj_mat(NPArray<float> adj_mat, NPArray<long> obs_clicks, NPArray<long> src_clicks) 
-{
-    auto n_pairs = obs_clicks.request().shape[0];
-
-    auto* obs_clicks_ptr = as_ptr<long>(obs_clicks);
-    auto* src_clicks_ptr = as_ptr<long>(src_clicks);
-    auto* adj_mat_ptr = as_ptr<float>(adj_mat);
-
-    std::array<float,81> temp{};
-    for (size_t i = 0; i < n_pairs; i++) {
-        auto obs_derot = rotate_tri(-obs_clicks_ptr[i]);
-        auto src_derot = rotate_tri(-src_clicks_ptr[i]);
-
-        for (int b1 = 0; b1 < 3; b1++) {
-            for (int b2 = 0; b2 < 3; b2++) {
-                for (int d1 = 0; d1 < 3; d1++) {
-                    for (int d2 = 0; d2 < 3; d2++) {
-                        auto out_idx = b1 * 27 + d1 * 9 + b2 * 3 + d2;
-                        auto in_idx = i * 81 + obs_derot[b1] * 27 + d1 * 9 + src_derot[b2] * 3 + d2;
-                        temp[out_idx] = adj_mat_ptr[in_idx];
-                    }
-                }
-            }
-        }
-
-        for (int j = 0; j < 81; j++) {
-            adj_mat_ptr[i * 81 + j] = temp[j];
-        }
-    }
-}
-
 py::tuple make_bsr_matrix(size_t n_rows, size_t n_cols, size_t blockrows, size_t blockcols,
         NPArray<double> in_data, NPArray<long> rows, NPArray<long> cols) 
 {
@@ -102,6 +63,5 @@ py::tuple make_bsr_matrix(size_t n_rows, size_t n_cols, size_t blockrows, size_t
 PYBIND11_PLUGIN(fast_assembly) {
     pybind11::module m("fast_assembly", "");
     m.def("make_bsr_matrix", &make_bsr_matrix);
-    m.def("derotate_adj_mat", &derotate_adj_mat);
     return m.ptr();
 }
