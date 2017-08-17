@@ -25,7 +25,7 @@ def test_simple_module():
     in_arr = np.random.rand(n)
     arg = 1.0;
     this_dir = os.path.dirname(os.path.realpath(__file__))
-    module = gpu.load_gpu('ocl_kernel.cl', tmpl_dir = this_dir, tmpl_args = dict(arg = arg))
+    module = gpu.load_gpu('kernel.cl', tmpl_dir = this_dir, tmpl_args = dict(arg = arg))
     fnc = module.add
 
     in_gpu = gpu.to_gpu(in_arr, np.float32)

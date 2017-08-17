@@ -42,11 +42,37 @@ def test_farfield_two_tris(request):
 @golden_master()
 def test_gpu_vert_adjacent(request):
     pts = np.array([[0,0,0],[1,0,0],[0,1,0],[1,-1,0],[2,0,0]]).astype(np.float32)
-    obs_tris = np.array([[1,2,0]]).astype(np.int32)
-    src_tris = np.array([[1,3,4]]).astype(np.int32)
+    tris = np.array([[1,2,0],[1,3,4]]).astype(np.int32)
     params = [1.0, 0.25]
-    out = nearfield_op.vert_adj(3, 'elasticH3', params, pts, obs_tris, src_tris, float_type)
+    pairs_int = nearfield_op.PairsIntegrator('elasticH3', params, np.float32, 1, 1, pts, tris)
+    out = pairs_int.vert_adj(3, np.array([[0,1,0,0]]))
     return out
+
+def test_vert_adj_separate_bases():
+    K = 'elasticH3'
+    params = [1.0, 0.25]
+    nq = 6
+    full_tris = np.array([[0,1,2], [0,4,3]])
+    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[-0.5,0,0],[0,0,-2],[0.5,0.5,0]])
+    pairs_int = nearfield_op.PairsIntegrator('elasticH3', params, np.float32, 1, 1, pts, full_tris)
+    I = pairs_int.vert_adj(nq, np.array([[0,1,0,0]]))
+
+    obs_basis_tris = np.array([
+        [[0,0],[0.5,0.5],[0,1]], [[0,0],[1,0],[0.5,0.5]]
+    ])
+    src_basis_tris = np.array([
+        [[0,0],[1,0],[0,1]], [[0,0],[1,0],[0,1]]
+    ])
+    sep_tris = np.array([[0,5,2], [0,1,5], [0,4,3], [0,4,3]])
+    pairs_int = nearfield_op.PairsIntegrator('elasticH3', params, np.float32, 1, 1, pts, sep_tris)
+    I0 = pairs_int.vert_adj(nq, np.array([[0,2,0,0],[1,3,0,0]]))
+
+    from tectosaur.nearfield.table_lookup import fast_lookup
+    I1 = np.array([fast_lookup.sub_basis(
+        I0[i].flatten().tolist(), obs_basis_tris[i].tolist(), src_basis_tris[i].tolist()
+    ) for i in range(2)]).reshape((2,3,3,3,3))
+    np.testing.assert_almost_equal(I[0], I1[0] + I1[1], 6)
+
 
 def full_integral_op_tester(k, use_fmm, n = 5):
     pts = np.array([[0,0,0], [1,1,0], [0, 1, 1], [0,0,2]])
@@ -114,33 +140,6 @@ def test_mass_op():
     )
     np.testing.assert_almost_equal(op.mat[0,0], exact00)
     np.testing.assert_almost_equal(op.mat[0,3], exact03)
-
-def test_vert_adj_separate_bases():
-    K = 'elasticH3'
-    params = [1.0, 0.25]
-    obs_tris = np.array([[0,1,2]])
-    src_tris = np.array([[0,4,3]])
-    pts = np.array([[0,0,0],[1,0,0],[0,1,0],[-0.5,0,0],[0,0,-2],[0.5,0.5,0]])
-
-    nq = 6
-
-    I = nearfield_op.vert_adj(nq, K, params, pts, obs_tris, src_tris, float_type)
-
-    obs_basis_tris = np.array([
-        [[0,0],[0.5,0.5],[0,1]], [[0,0],[1,0],[0.5,0.5]]
-    ])
-    src_basis_tris = np.array([
-        [[0,0],[1,0],[0,1]], [[0,0],[1,0],[0,1]]
-    ])
-    obs_tris = np.array([[0,5,2], [0,1,5]])
-    src_tris = np.array([[0,4,3], [0,4,3]])
-    I0 = nearfield_op.vert_adj(nq, K, params, pts, obs_tris, src_tris, float_type)
-
-    from tectosaur.nearfield.table_lookup import fast_lookup
-    I1 = np.array([fast_lookup.sub_basis(
-        I0[i].flatten().tolist(), obs_basis_tris[i].tolist(), src_basis_tris[i].tolist()
-    ) for i in range(2)]).reshape((2,3,3,3,3))
-    np.testing.assert_almost_equal(I[0], I1[0] + I1[1], 6)
 
 @golden_master()
 def test_interior(request):

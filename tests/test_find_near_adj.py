@@ -26,12 +26,6 @@ def test_rotate_tri():
     assert(rotate_tri(1) == [1, 2, 0])
     assert(rotate_tri(2) == [2, 0, 1])
 
-def test_vert_adj_prep():
-    tris = np.array([[0, 1, 2], [1, 3, 4], [6, 7, 2]])
-    va, ea = find_adjacents(tris)
-    result = vert_adj_prep(tris, va.reshape((-1, 4)))
-    assert(np.all(result[3][:, 0] == result[4][:, 0]))
-
 def test_nearfield():
     corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
     pts, tris = mesh_gen.make_rect(3,3 ,corners)

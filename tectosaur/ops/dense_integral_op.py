@@ -46,10 +46,10 @@ class DenseIntegralOp(DenseOp):
             near_threshold, kernel, params, pts, tris, float_type):
         self.float_type = float_type
 
-        nearfield = NearfieldIntegralOp(
+        nearfield = sum([mat.to_bsr().to_scipy().todense() for mat in NearfieldIntegralOp(
             nq_vert_adjacent, nq_far, nq_near,
             near_threshold, kernel, params, pts, tris, float_type
-        ).mat_no_correction.todense()
+        ).mat_no_correction])
 
         farfield = farfield_tris(
             kernel, params, pts, tris, tris, nq_far, float_type
