@@ -11,36 +11,13 @@ from tectosaur.util.timer import Timer
 import tectosaur.util.sparse as sparse
 import tectosaur.util.gpu as gpu
 
-from cppimport import cppimport
-fast_assembly = cppimport("tectosaur.ops.fast_assembly")
+def to_sparse_mat(entries, pairs, shape):
+    bcoo = sparse.BCOOMatrix(pairs[:, 0], pairs[:, 1], entries.reshape((-1, 9, 9)), shape)
+    bsr = bcoo.to_bsr()
+    return bcoo
 
-def to_sparse_mat(entries, pairs):
-    return entries.reshape((-1, 9, 9)), pairs[:, 0], pairs[:, 1]
-
-def build_nearfield(co_data, ea_data, va_data, near_data, shape):
-    t = Timer(tabs = 2)
-    co_vals,co_rows,co_cols = to_sparse_mat(*co_data)
-    ea_vals,ea_rows,ea_cols = to_sparse_mat(*ea_data)
-    va_vals,va_rows,va_cols = to_sparse_mat(*va_data)
-    near_vals,near_rows,near_cols = to_sparse_mat(*near_data)
-    t.report("build pairs")
-
-    #TODO: Pass each individual array to make_bsr_matrix and I can reduce
-    # the copies by one.
-    rows = np.concatenate((co_rows, ea_rows, va_rows, near_rows))
-    cols = np.concatenate((co_cols, ea_cols, va_cols, near_cols))
-    vals = np.concatenate((co_vals, ea_vals, va_vals, near_vals))
-    t.report("stack pairs")
-
-    #TODO: Make BSR could be done in-place with no memory allocation?
-    data, indices, indptr = fast_assembly.make_bsr_matrix(
-        shape[0], shape[1], 9, 9, vals, rows, cols
-    )
-    t.report("to bsr")
-    mat = scipy.sparse.bsr_matrix((data, indices, indptr))
-    t.report('make bsr')
-
-    return mat
+def build_nearfield(shape, *mats):
+    return [to_sparse_mat(*m, shape) for m in mats]
 
 class NearfieldIntegralOp:
     @profile
@@ -80,28 +57,26 @@ class NearfieldIntegralOp:
         timer.report("Nearfield correction")
 
         self.mat = build_nearfield(
+            self.shape,
             (co_mat - co_mat_correction, co_indices),
             (ea_mat_rot - ea_mat_correction, ea[:,:2]),
             (va_mat_rot - va_mat_correction, va[:,:2]),
-            (nearfield_mat - nearfield_correction, nearfield_pairs),
-            self.shape
+            (nearfield_mat - nearfield_correction, nearfield_pairs)
         )
         timer.report("Assemble matrix")
         self.mat_no_correction = build_nearfield(
+            self.shape,
             (co_mat, co_indices),
             (ea_mat_rot, ea[:,:2]),
             (va_mat_rot, va[:,:2]),
             (nearfield_mat, nearfield_pairs),
-            self.shape
         )
-        #TODO: Convert to using the base matrix and a correction matrix instead of "uncorrected"
         timer.report("Assemble uncorrected matrix")
 
         self.gpu_mat = None
 
     def dot(self, v):
-        return sparse.bsr_mv(self.mat, v)
-        # return self.mat.dot(v)
+        return sum(arr.dot(v) for arr in self.mat)
 
     def nearfield_no_correction_dot(self, v):
-        return self.mat_no_correction.dot(v)
+        return sum(arr.dot(v) for arr in self.mat_no_correction)

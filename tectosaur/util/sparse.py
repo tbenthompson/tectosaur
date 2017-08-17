@@ -1,15 +1,67 @@
+import scipy.sparse
 import numpy as np
-import cppimport
 
+import cppimport
 fast_sparse = cppimport.cppimport("tectosaur.util.fast_sparse")
 
-def bsr_mv(A, x):
-    out = np.empty(A.shape[1], dtype = A.dtype)
-    fnc_name = 'bsrmv' + str(A.blocksize[0])
-    assert(A.blocksize[0] == A.blocksize[1])
-    if A.dtype == np.float32:
-        fnc = getattr(fast_sparse, 's' + fnc_name)
+def get_mv_fnc(base_name, dtype, blocksize):
+    fnc_name = base_name + str(blocksize)
+    if dtype == np.float32:
+        return getattr(fast_sparse, 's' + fnc_name)
     else:
-        fnc = getattr(fast_sparse, 'd' + fnc_name)
-    fnc(A.shape[0] // A.blocksize[0], A.indptr, A.indices, A.data, x, out)
-    return out
+        return getattr(fast_sparse, 'd' + fnc_name)
+
+class BCOOMatrix:
+    def __init__(self, rows, cols, data, shape):
+        self.rows = rows
+        self.cols = cols
+        self.data = data
+        self.shape = shape
+
+    @property
+    def dtype(self):
+        return self.data.dtype
+
+    @property
+    def blocksize(self):
+        return self.data.shape[1]
+
+    def dot(self, v):
+        out = np.zeros(self.shape[1], dtype = self.dtype)
+        fnc = get_mv_fnc('bcoomv', self.dtype, self.blocksize)
+        fnc(self.rows, self.cols, self.data, v.astype(self.dtype), out)
+        return out
+
+    def to_bsr(self):
+        indptr, indices, data = fast_sparse.make_bsr_matrix(
+            *self.shape, self.data, self.rows, self.cols
+        )
+        return BSRMatrix(indptr, indices, data, self.shape)
+
+class BSRMatrix:
+    def __init__(self, indptr, indices, data, shape):
+        assert(data.shape[1] == data.shape[2])
+        self.indptr = indptr
+        self.indices = indices
+        self.data = data
+        self.shape = shape
+
+    @property
+    def dtype(self):
+        return self.data.dtype
+
+    @property
+    def blocksize(self):
+        return self.data.shape[1]
+
+    def dot(self, v):
+        out = np.empty(self.shape[1], dtype = self.dtype)
+        fnc = get_mv_fnc('bsrmv', self.dtype, self.blocksize)
+        fnc(self.indptr, self.indices, self.data, v.astype(self.dtype), out)
+        return out
+
+    def to_scipy(self):
+        return scipy.sparse.bsr_matrix((self.data, self.indices, self.indptr))
+
+def from_scipy_bsr(A):
+    return BSRMatrix(A.indptr, A.indices, A.data, A.shape)

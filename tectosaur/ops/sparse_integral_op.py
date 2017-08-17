@@ -20,9 +20,6 @@ from tectosaur.util.logging import setup_logger
 
 logger = setup_logger(__name__)
 
-from cppimport import cppimport
-fast_assembly = cppimport("tectosaur.ops.fast_assembly")
-
 def interp_galerkin_mat(tri_pts, quad_rule):
     nt = tri_pts.shape[0]
     qx, qw = quad_rule
