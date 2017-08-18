@@ -6,6 +6,7 @@ setup_module(cfg)
 #include <pybind11/stl.h>
 #include <pybind11/operators.h>
 #include "include/pybind11_nparray.hpp"
+#include "include/timing.hpp"
 
 namespace py = pybind11;
 
@@ -181,7 +182,9 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
 
 py::tuple build_constraint_matrix(const std::vector<ConstraintEQ>& cs, size_t n_total_dofs) {
 
+    Timer t;
     auto lower_tri_cs = reduce_constraints(cs, n_total_dofs);
+    t.report("reduce");
 
     std::vector<size_t> rows;    
     std::vector<size_t> cols;    
@@ -206,13 +209,16 @@ py::tuple build_constraint_matrix(const std::vector<ConstraintEQ>& cs, size_t n_
             next_new_dof++;
         }
     }
-    return py::make_tuple(
+    t.report("insert");
+    auto out = py::make_tuple(
         array_from_vector(rows),
         array_from_vector(cols),
         array_from_vector(vals),
         array_from_vector(rhs),
         lower_tri_cs.size()
     );
+    t.report("make out");
+    return out;
 }
 
 

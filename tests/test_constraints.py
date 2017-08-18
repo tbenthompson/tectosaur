@@ -2,6 +2,10 @@ from tectosaur.constraints import *
 from tectosaur.constraint_builders import *
 import numpy as np
 
+from tectosaur.util.logging import setup_logger
+logger = setup_logger(__name__)
+
+
 def test_rearrange_constraint_eq():
     eqtn = ConstraintEQ([Term(3,0),Term(-1,1),Term(4,2)], 13.7)
     rearr = isolate_term_on_lhs(eqtn, 2)
@@ -100,5 +104,25 @@ def test_composite():
     assert(cs[1].terms[0].dof == 3)
     assert(cs[1].rhs == 3)
 
+def benchmark_build_constraint_matrix():
+    from tectosaur.util.timer import Timer
+    import tectosaur.mesh.mesh_gen as mesh_gen
+    from tectosaur.constraints import fast_constraints
+    import scipy.sparse
+    t = Timer()
+    corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
+    n = 100
+    m = mesh_gen.make_rect(n, n, corners)
+    t.report('make mesh')
+    cs = continuity_constraints(m[1], np.array([]), m[0])
+    t.report('make constraints')
+    n_total_dofs = m[1].size * 3
+    rows, cols, vals, rhs, n_unique_cs = fast_constraints.build_constraint_matrix(cs, n_total_dofs)
+    t.report('build matrix')
+    n_rows = n_total_dofs
+    n_cols = n_total_dofs - n_unique_cs
+    cm = scipy.sparse.csr_matrix((vals, (rows, cols)), shape = (n_rows, n_cols))
+    t.report('to csr')
+
 if __name__ == '__main__':
-    test_rearrange_constraint_eq()
+    benchmark_build_constraint_matrix()
