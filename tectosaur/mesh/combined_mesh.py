@@ -1,12 +1,12 @@
 import numpy as np
 import itertools
-import tectosaur.mesh as mesh
+from tectosaur.mesh.modify import concat
 
 class CombinedMesh:
     def __init__(self, named_pieces):
         self.names = [np[0] for np in named_pieces]
         pieces = [np[1] for np in named_pieces]
-        self.pts, self.tris = mesh.concat(*pieces)
+        self.pts, self.tris = concat(*pieces)
         self.sizes = [p[1].shape[0] for p in pieces]
         bounds = [0] + list(itertools.accumulate(self.sizes))
         self.start = bounds[:-1]

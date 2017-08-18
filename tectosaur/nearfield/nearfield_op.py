@@ -13,7 +13,6 @@ import tectosaur.util.gpu as gpu
 
 def to_sparse_mat(entries, pairs, shape):
     bcoo = sparse.BCOOMatrix(pairs[:, 0], pairs[:, 1], entries.reshape((-1, 9, 9)), shape)
-    bsr = bcoo.to_bsr()
     return bcoo
 
 def build_nearfield(shape, *mats):
