@@ -47,6 +47,7 @@ def compile(code):
     ))
 
 cluda_preamble = """
+#include <stdio.h>
 #define CUDA
 // taken from pycuda._cluda
 #define LOCAL_BARRIER __syncthreads()

@@ -18,8 +18,13 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
         interp_pts, interp_wts, pts, float_type):
 
     t = Timer(silent = True)
+    block_size = 128
 
-    gpu_cfg = dict(float_type = gpu.np_to_c_type(float_type))
+    gpu_cfg = dict(
+        np_float_type = float_type,
+        float_type = gpu.np_to_c_type(float_type),
+        block_size = block_size
+    )
     module = gpu.load_gpu('nearfield/table_lookup.cl', tmpl_args = gpu_cfg)
     dims = interp_pts.shape[1]
     fnc = getattr(module, 'lookup_interpolation' + str(dims))
@@ -36,7 +41,6 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
 
     gpu_result = gpu.empty_gpu(n_tris * 81 * 2, float_type)
 
-    block_size = 256
     n_threads = int(np.ceil(n_tris / block_size))
 
     fnc(

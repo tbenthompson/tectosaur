@@ -46,10 +46,11 @@ class PairsIntegrator:
             return np.empty((0,3,3,3,3), dtype = self.float_type)
 
         call_size = 2 ** 17
-        gpu_result = gpu.empty_gpu((n, 3, 3, 3, 3), self.float_type)
+        result = np.empty((n, 3, 3, 3, 3), dtype = self.float_type)
 
         def call_integrator(start_idx, end_idx):
             n_threads = int(np.ceil((end_idx - start_idx) / block_size))
+            gpu_result = gpu.empty_gpu((end_idx - start_idx, 3, 3, 3, 3), self.float_type)
             integrator(
                 gpu_result, np.int32(q[0].shape[0]), q[0], q[1],
                 self.gpu_pts, self.gpu_tris,
@@ -57,10 +58,11 @@ class PairsIntegrator:
                 self.gpu_params,
                 grid = (n_threads, 1, 1), block = (block_size, 1, 1)
             )
+            result[start_idx:end_idx] = gpu_result.get()
 
         for I in gpu.intervals(n, call_size):
             call_integrator(*I)
-        return gpu_result.get()
+        return result
 
     def correction(self, pairs_list, check0):
         return self.pairs_quad(self.get_gpu_fnc(check0), self.gpu_far_q, pairs_list)

@@ -82,9 +82,6 @@ def test_okada(n_surf):
 
     if not load_soln:
 
-        cs = build_constraints(surface_tris, fault_tris, all_mesh[0])
-        timer.report("Constraints")
-
         surface_pt_idxs = np.unique(surface_tris)
         obs_pts = all_mesh[0][surface_pt_idxs,:]
 
@@ -96,6 +93,9 @@ def test_okada(n_surf):
             farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
         )
         timer.report("Integrals")
+
+        cs = build_constraints(surface_tris, fault_tris, all_mesh[0])
+        timer.report("Constraints")
 
         mass_op = MassOp(3, all_mesh[0], all_mesh[1])
         iop = SumOp([T_op, mass_op])

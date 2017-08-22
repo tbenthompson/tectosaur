@@ -77,6 +77,14 @@ ${cluda_preamble}
     }
 </%def>
 
+<%def name="setup_pair()">
+    const int i = get_global_id(0);
+    const int pair_idx = i + start_idx;
+    if (pair_idx >= end_idx) {
+        return;
+    }
+</%def>
+
 <%def name="single_pairs(K, check0)">
 KERNEL
 void ${pairs_func_name(check0)}(GLOBAL_MEM Real* result, 
@@ -84,10 +92,7 @@ void ${pairs_func_name(check0)}(GLOBAL_MEM Real* result,
     GLOBAL_MEM Real* pts, GLOBAL_MEM int* tris, GLOBAL_MEM int* pairs_list, 
     int start_idx, int end_idx, GLOBAL_MEM Real* params)
 {
-    const int pair_idx = get_global_id(0) + start_idx;
-    if (pair_idx >= end_idx) {
-        return;
-    }
+    ${setup_pair()}
 
     const int obs_tri_idx = pairs_list[pair_idx * 2];
     const int src_tri_idx = pairs_list[pair_idx * 2 + 1];
@@ -98,7 +103,7 @@ void ${pairs_func_name(check0)}(GLOBAL_MEM Real* result,
     ${integrate_pair(K, check0)}
     
     for (int iresult = 0; iresult < 81; iresult++) {
-        result[pair_idx * 81 + iresult] = obs_jacobian * src_jacobian * result_temp[iresult];
+        result[i * 81 + iresult] = obs_jacobian * src_jacobian * result_temp[iresult];
     }
 }
 </%def>
@@ -110,10 +115,7 @@ void ${pairs_func_name(check0)}_vert_adj(GLOBAL_MEM Real* result,
     GLOBAL_MEM Real* pts, GLOBAL_MEM int* tris, GLOBAL_MEM int* pairs_list, 
     int start_idx, int end_idx, GLOBAL_MEM Real* params)
 {
-    const int pair_idx = get_global_id(0) + start_idx;
-    if (pair_idx >= end_idx) {
-        return;
-    }
+    ${setup_pair()}
 
     const int obs_tri_idx = pairs_list[pair_idx * 4];
     const int src_tri_idx = pairs_list[pair_idx * 4 + 1];
@@ -132,7 +134,7 @@ void ${pairs_func_name(check0)}_vert_adj(GLOBAL_MEM Real* result,
                     int out_idx = b1 * 27 + d1 * 9 + b2 * 3 + d2;
                     int in_idx = obs_derot * 27 + d1 * 9 + src_derot * 3 + d2;
                     Real val = obs_jacobian * src_jacobian * result_temp[in_idx];
-                    result[pair_idx * 81 + out_idx] = val;
+                    result[i * 81 + out_idx] = val;
                 }
             }
         }
