@@ -125,18 +125,18 @@ def test_okada(n_surf):
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
     # plot_results(obs_pts, surface_tris, u, vals)
-    # plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln)
+    plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln, float_type)
     return print_error(obs_pts, u, vals)
 
-def plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln):
+def plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln, float_type):
     xs = np.linspace(-10, 10, 100)
-    # for i, z in enumerate(np.linspace(0.1, 4.0, 100)):
-    for i, z in [(0, 1.0)]:
+    for i, z in enumerate(np.linspace(0.1, 4.0, 100)):
+    # for i, z in [(0, 1.0)]:
         X, Y = np.meshgrid(xs, xs)
-        obs_pts = np.array([X.flatten(), Y.flatten(), -z * np.ones(X.size)]).T
+        obs_pts = np.array([X.flatten(), Y.flatten(), -z * np.ones(X.size)]).T.copy()
         # exact_disp = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
         interior_disp = -interior_integral(
-            obs_pts, obs_pts, all_mesh, soln, 'elasticT3', 3, 8, k_params
+            obs_pts, obs_pts, all_mesh, soln, 'elasticT3', 3, 8, k_params, float_type
         ).reshape((-1, 3))
         # for d in range(1):
         #     plt.figure()
@@ -221,9 +221,8 @@ def print_error(pts, correct, est):
 
 if __name__ == '__main__':
     t = Timer()
-    for i in range(2):
-        test_okada(int(sys.argv[1]))
-        t.report('okada')
+    test_okada(int(sys.argv[1]))
+    t.report('okada')
 
     # import logging
     # tectosaur.logger.setLevel(logging.DEBUG)
