@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 
 from sphere_quad import lebedev, surrounding_surface_sphere
 
-import tectosaur_fmm.fmm_wrapper as fmm
+from tectosaur.fmm.c2e import direct_matrix
+from tectosaur.fmm.cfg import make_config
 
 def plot_pt_distances(pts):
     src_r = np.sqrt(np.sum(pts ** 2, axis = 1))
@@ -29,14 +30,15 @@ def calc_translation_error(basis, E, C, MAC):
     src_pts, src_ns  = random_box_pts(n, 1.0 / np.sqrt(3))
     obs_pts, obs_ns  = random_box_pts(n, 10.0)
 
-    k_name = "elasticH"
+    k_name = "elasticH3"
     params = np.array([1.0, 0.25])
     tensor_dim = 3
+    fmm_cfg = make_config(k_name, params, 1.1, 3.0, 1, 1, np.float64)
 
     def mat_fnc(op, on, sp, sn):
-        return fmm.direct_eval(
-            k_name, op, on, sp, sn, params
-        ).reshape((tensor_dim * op.shape[0], tensor_dim * sp.shape[0]))
+        return direct_matrix(
+            fmm_cfg.gpu_module, fmm_cfg.K, op, on, sp, sn, params, fmm_cfg.float_type
+        )
 
     basis_pts, basis_wts = basis
     check_surf = C * basis_pts
