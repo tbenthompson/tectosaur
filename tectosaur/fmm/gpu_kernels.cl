@@ -80,6 +80,8 @@ for (int obs_pt_start = obs_pt_min; obs_pt_start < obs_pt_max; obs_pt_start += $
         % if K.needs_obsn or obs_type == "surf":
             Real nobs${dn(d)};
         % endif
+    % endfor
+    % for d in range(K.tensor_dim):
         Real sum${dn(d)};
     % endfor
     if (obs_pt_idx < obs_pt_max) {
