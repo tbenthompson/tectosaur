@@ -6,8 +6,8 @@ from tectosaur.fmm.c2e import build_c2e
 from tectosaur import setup_logger
 logger = setup_logger(__name__)
 
-def make_tree(pts, cfg):
-    return cfg.traversal_module.Tree(pts, cfg.max_pts_per_cell)
+def make_tree(pts, cfg, max_pts_per_cell):
+    return cfg.traversal_module.Tree(pts, max_pts_per_cell)
 
 class FMM:
     def __init__(self, obs_tree, obs_normals, src_tree, src_normals, cfg):

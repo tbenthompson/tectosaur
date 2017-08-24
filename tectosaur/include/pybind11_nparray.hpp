@@ -21,7 +21,10 @@ struct ArrayMaker {
     static NPArray<T> make_array(const std::vector<size_t>& shape, T* buffer_ptr = nullptr) 
     {
         pybind11::handle c_object;
-        //TODO: This could be causing some memory leaks. Think about that...
+        //TODO: This could be causing some memory leaks. Think about that... valgrind?
+
+        // This is done so that pybind11 doesn't copy the underlying. Essentially, 
+        // we're telling it that we're managing the memory already!
         if (buffer_ptr != nullptr) {
             #if PY_MAJOR_VERSION >= 3
                 c_object = PyCapsule_New(buffer_ptr, nullptr, nullptr);

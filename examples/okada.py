@@ -13,7 +13,7 @@ import tectosaur.constraints as constraints
 from tectosaur.constraint_builders import continuity_constraints, \
     constant_bc_constraints, free_edge_constraints
 from tectosaur.util.timer import Timer
-from tectosaur.interior import interior_integral
+from tectosaur.interior import interior_integral, direct_interior_farfield, FMMInteriorFarfield
 from tectosaur.ops.sparse_integral_op import SparseIntegralOp, FMMFarfieldBuilder
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.sum_op import SumOp
@@ -130,7 +130,7 @@ def test_okada(n_surf):
     return print_error(obs_pts, u, vals)
 
 def plot_interior_displacement2(k_params, all_mesh, soln, float_type):
-    nxy = 250
+    nxy = 500
     nz = 250
     d = 0
     xs = np.linspace(-10, 10, nxy)
@@ -139,9 +139,11 @@ def plot_interior_displacement2(k_params, all_mesh, soln, float_type):
     obs_pts = np.array([X.flatten(), Y.flatten(), Z.flatten()]).T.copy()
     t = Timer()
     interior_disp = -interior_integral(
-        obs_pts, obs_pts, all_mesh, soln, 'elasticT3', 3, 8, k_params, float_type
+        obs_pts, obs_pts, all_mesh, soln, 'elasticT3', 3, 8, k_params, float_type,
+        # farfield_fnc = direct_interior_farfield
+        farfield_fnc = FMMInteriorFarfield(100, 3.0, 5000, 25)
     ).reshape((nxy, nxy, nz, 3))
-    t.report('eval ' + str(obs_pts.shape[0]) + ' interior pts')
+    t.report('eval %.2E interior pts' % obs_pts.shape[0])
     # for i in range(nz):
     #     plt.figure()
     #     plt.pcolor(xs, xs, interior_disp[:,:,i,d])

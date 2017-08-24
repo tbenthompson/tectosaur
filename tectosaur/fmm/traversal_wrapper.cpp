@@ -47,12 +47,7 @@ void wrap_fmm(py::module& m) {
         .def_readonly("nodes", &TreeT::nodes)
         .NPARRAYPROP(TreeT, orig_idxs)
         .def_readonly("max_height", &TreeT::max_height)
-        .def_property_readonly("pts", [] (TreeT& tree) {
-            Timer t;
-            auto out = make_array({tree.pts.size()}, tree.pts.data());
-            t.report("yo!");
-            return out;
-        })
+        .NPARRAYPROP(TreeT, pts)
         .def_property_readonly("node_centers", [] (TreeT& tree) {
             auto out = make_array<double>({tree.nodes.size(), TreeT::dim});
             auto* out_ptr = as_ptr<std::array<double,TreeT::dim>>(out);

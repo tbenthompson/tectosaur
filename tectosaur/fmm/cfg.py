@@ -40,14 +40,13 @@ class FMMConfig:
     outer_r = attr.ib()
     inner_r = attr.ib()
     order = attr.ib()
-    max_pts_per_cell = attr.ib()
     float_type = attr.ib()
     gpu_module = attr.ib()
     traversal_module = attr.ib()
     n_workers_per_block = attr.ib()
     n_c2e_block_rows = attr.ib()
 
-def make_config(K_name, params, inner_r, outer_r, order, max_pts_per_cell,
+def make_config(K_name, params, inner_r, outer_r, order,
         float_type, n_workers_per_block = 64, n_c2e_block_rows = 16):
     K = kernels[K_name]
     surf = surrounding_surf(order, K.spatial_dim)
@@ -58,7 +57,6 @@ def make_config(K_name, params, inner_r, outer_r, order, max_pts_per_cell,
         outer_r = outer_r,
         inner_r = inner_r,
         order = order,
-        max_pts_per_cell = max_pts_per_cell,
         float_type = float_type,
         gpu_module = get_gpu_module(surf, K, float_type, n_workers_per_block, n_c2e_block_rows),
         traversal_module = get_traversal_module(K),
