@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 
 from sphere_quad import lebedev, surrounding_surface_sphere
 
+from tectosaur.fmm.surrounding_surf import surrounding_surf
 from tectosaur.fmm.c2e import direct_matrix
 from tectosaur.fmm.cfg import make_config
 
@@ -13,8 +14,8 @@ def plot_pt_distances(pts):
     seaborn.distplot(src_r)
     plt.show()
 
-def random_box_pts(n, w):
-    pts = np.random.rand(n, 3) * 2 * w - w
+def random_box_pts(dim, n, w):
+    pts = np.random.rand(n, dim) * 2 * w - w
     ns = pts / np.linalg.norm(pts, axis = 1)[:,np.newaxis]
     return pts, ns
 
@@ -27,13 +28,13 @@ def calc_translation_error(basis, E, C, MAC):
     print(basis[0].shape[0], E, C, MAC)
 
     n = 1000
-    src_pts, src_ns  = random_box_pts(n, 1.0 / np.sqrt(3))
-    obs_pts, obs_ns  = random_box_pts(n, 10.0)
 
-    k_name = "elasticH3"
+    k_name = "laplaceH2"
     params = np.array([1.0, 0.25])
-    tensor_dim = 3
     fmm_cfg = make_config(k_name, params, 1.1, 3.0, 1, 1, np.float64)
+
+    src_pts, src_ns  = random_box_pts(fmm_cfg.K.spatial_dim, n, 1.0 / np.sqrt(fmm_cfg.K.spatial_dim))
+    obs_pts, obs_ns  = random_box_pts(fmm_cfg.K.spatial_dim, n, 10.0)
 
     def mat_fnc(op, on, sp, sn):
         return direct_matrix(
@@ -42,18 +43,12 @@ def calc_translation_error(basis, E, C, MAC):
 
     basis_pts, basis_wts = basis
     check_surf = C * basis_pts
-    check_wts = 4 * np.pi * C ** 2 * np.repeat(basis_wts, tensor_dim)[:, np.newaxis]
     equiv_surf = E * basis_pts
-    equiv_wts = 4 * np.pi * E ** 2 * np.repeat(basis_wts, tensor_dim)[np.newaxis, :]
     surf_normals = basis_pts
 
     src_to_check = mat_fnc(check_surf, surf_normals, src_pts, src_ns)
-    src_to_check *= check_wts
     equiv_to_check = mat_fnc(check_surf, surf_normals, equiv_surf, surf_normals)
-    equiv_to_check *= check_wts
-    equiv_to_check *= equiv_wts
     equiv_to_obs = mat_fnc(obs_pts, obs_ns, equiv_surf, surf_normals)
-    equiv_to_obs *= equiv_wts
 
     # SHOULD USE THE ORIGINAL FACTORS FROM THE SVD RATHER THAN COMPUTING
     # A PSEUDOINVERSE SINCE THIS MAINTAINS NUMERICAL PRECISION.
@@ -62,19 +57,19 @@ def calc_translation_error(basis, E, C, MAC):
     obs_vals = equiv_to_obs.dot(c2e_svd[2].T.dot(
         np.diag(c2e_svd[1]).dot(
             c2e_svd[0].T.dot(src_to_check.dot(
-                np.ones(tensor_dim * src_pts.shape[0])
+                np.ones(fmm_cfg.K.tensor_dim * src_pts.shape[0])
             ))
         )
     ))
 
-    input = np.ones(tensor_dim * src_pts.shape[0])
+    input = np.ones(fmm_cfg.K.tensor_dim * src_pts.shape[0])
     correct = mat_fnc(obs_pts, obs_ns, src_pts, src_ns).dot(input)
     # from tectosaur.ops.sparse_integral_op import farfield_pts_wrapper
     # correct = farfield_pts_wrapper(k_name, obs_pts, obs_ns, src_pts, src_ns, input, params)
     obs_r = np.sqrt(np.sum(obs_pts ** 2, axis = 1))
 
-    obs_filtered = obs_vals[obs_r.repeat(tensor_dim) > MAC]
-    cor_filtered = correct[obs_r.repeat(tensor_dim) > MAC]
+    obs_filtered = obs_vals[obs_r.repeat(fmm_cfg.K.tensor_dim) > MAC]
+    cor_filtered = correct[obs_r.repeat(fmm_cfg.K.tensor_dim) > MAC]
 
     M = np.mean(np.abs(cor_filtered))
     err = np.abs((obs_filtered - cor_filtered)) / M
@@ -87,7 +82,8 @@ def calc_translation_error(basis, E, C, MAC):
 if __name__ == '__main__':
 
     C = 3.0
-    basis_f = lambda p: surrounding_surface_sphere(lebedev(p)[0].shape[0])
+    # basis_f = lambda p: surrounding_surface_sphere(lebedev(p)[0].shape[0])
+    basis_f = lambda p: (surrounding_surf(p, 2), np.ones(p))
     # basis_f = lebedev
     # for basis_f in [lebedev, lambda p: surrounding_surface_sphere(lebedev(p)[0].shape[0])]:
     for MAC in [3.0]:
@@ -98,7 +94,7 @@ if __name__ == '__main__':
 
         # ps = np.arange(10, 300, 40)
 
-        ps = np.arange(3, 20, 3).astype(np.int)
+        ps = np.arange(3, 50, 3).astype(np.int)
         for p in ps:
             print(p)
             # C = 3.0
@@ -150,4 +146,4 @@ if __name__ == '__main__':
     # check_to_equiv = np.linalg.pinv(equiv_to_check, rcond = 1e-13)
     # src_to_equiv = check_to_equiv.dot(src_to_check)
     # src_to_obs = equiv_to_obs.dot(src_to_equiv)
-    # obs_vals = src_to_obs.dot(np.ones(tensor_dim * src_pts.shape[0]))
+    # obs_vals = src_to_obs.dot(np.ones(fmm_cfg.tensor_dim * src_pts.shape[0]))
