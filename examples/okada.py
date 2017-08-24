@@ -65,7 +65,7 @@ def test_okada(n_surf):
     k_params = [sm, pr]
     fault_L = 1.0
     top_depth = -0.5
-    load_soln = False
+    load_soln = True
     float_type = np.float32
     n_fault = max(2, n_surf // 5)
 
@@ -125,12 +125,33 @@ def test_okada(n_surf):
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
     # plot_results(obs_pts, surface_tris, u, vals)
-    plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln, float_type)
+    # plot_interior_displacement(k_params, all_mesh, soln, float_type)
+    plot_interior_displacement2(k_params, all_mesh, soln, float_type)
     return print_error(obs_pts, u, vals)
 
-def plot_interior_displacement(fault_L, top_depth, k_params, all_mesh, soln, float_type):
+def plot_interior_displacement2(k_params, all_mesh, soln, float_type):
+    nxy = 250
+    nz = 250
+    d = 0
+    xs = np.linspace(-10, 10, nxy)
+    zs = np.linspace(-0.1, -4.0, nz)
+    X, Y, Z = np.meshgrid(xs, xs, zs)
+    obs_pts = np.array([X.flatten(), Y.flatten(), Z.flatten()]).T.copy()
+    t = Timer()
+    interior_disp = -interior_integral(
+        obs_pts, obs_pts, all_mesh, soln, 'elasticT3', 3, 8, k_params, float_type
+    ).reshape((nxy, nxy, nz, 3))
+    t.report('eval ' + str(obs_pts.shape[0]) + ' interior pts')
+    # for i in range(nz):
+    #     plt.figure()
+    #     plt.pcolor(xs, xs, interior_disp[:,:,i,d])
+    #     plt.colorbar()
+    #     plt.title('at z = ' + ('%.3f' % zs[i]) + '    u' + ['x', 'y', 'z'][d])
+    #     plt.show()
+
+def plot_interior_displacement(k_params, all_mesh, soln, float_type):
     xs = np.linspace(-10, 10, 100)
-    for i, z in enumerate(np.linspace(0.1, 4.0, 100)):
+    for i, z in enumerate(np.linspace(0.1, 4.0, 10)):
     # for i, z in [(0, 1.0)]:
         X, Y = np.meshgrid(xs, xs)
         obs_pts = np.array([X.flatten(), Y.flatten(), -z * np.ones(X.size)]).T.copy()

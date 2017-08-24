@@ -19,7 +19,6 @@ def build_nearfield(shape, *mats):
     return [to_sparse_mat(*m, shape) for m in mats]
 
 class NearfieldIntegralOp:
-    @profile
     def __init__(self, nq_vert_adjacent, nq_far, nq_near,
             near_threshold, kernel, params, pts, tris, float_type):
 

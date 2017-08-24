@@ -4,6 +4,7 @@ fmm_lib_cfg(cfg)
 %>
 
 #include "include/pybind11_nparray.hpp"
+#include "include/timing.hpp"
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/functional.h>
@@ -13,6 +14,11 @@ fmm_lib_cfg(cfg)
 #include "kdtree.hpp"
 
 namespace py = pybind11;
+
+#define NPARRAYPROP(type, name)\
+    def_property_readonly(#name, [] (type& op) {\
+        return make_array({op.name.size()}, op.name.data());\
+    })
 
 template <typename TreeT>
 void wrap_fmm(py::module& m) {
@@ -39,13 +45,13 @@ void wrap_fmm(py::module& m) {
         .def("root", &TreeT::root)
         .def_property_readonly("split", [] (const TreeT& t) { return TreeT::split; })
         .def_readonly("nodes", &TreeT::nodes)
-        .def_readonly("orig_idxs", &TreeT::orig_idxs)
+        .NPARRAYPROP(TreeT, orig_idxs)
         .def_readonly("max_height", &TreeT::max_height)
         .def_property_readonly("pts", [] (TreeT& tree) {
-            return make_array<double>(
-                {tree.pts.size(), TreeT::dim},
-                reinterpret_cast<double*>(tree.pts.data())
-            );
+            Timer t;
+            auto out = make_array({tree.pts.size()}, tree.pts.data());
+            t.report("yo!");
+            return out;
         })
         .def_property_readonly("node_centers", [] (TreeT& tree) {
             auto out = make_array<double>({tree.nodes.size(), TreeT::dim});
@@ -96,15 +102,10 @@ PYBIND11_PLUGIN(traversal_wrapper) {
     wrap_dim<2>(two);
     wrap_dim<3>(three);
 
-#define NPARRAYPROP(type, name)\
-    def_property_readonly(#name, [] (type& op) {\
-        return make_array({op.name.size()}, op.name.data());\
-    })
     py::class_<CompressedInteractionList>(m, "CompressedInteractionList")
         .NPARRAYPROP(CompressedInteractionList, obs_n_idxs)
         .NPARRAYPROP(CompressedInteractionList, obs_src_starts)
         .NPARRAYPROP(CompressedInteractionList, src_n_idxs);
-#undef NPARRAYPROP
 
 #define OP(NAME)\
         def_readonly(#NAME, &Interactions::NAME)

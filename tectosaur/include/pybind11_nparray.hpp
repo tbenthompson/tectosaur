@@ -20,10 +20,19 @@ template <typename T>
 struct ArrayMaker {
     static NPArray<T> make_array(const std::vector<size_t>& shape, T* buffer_ptr = nullptr) 
     {
-        return pybind11::array(pybind11::buffer_info(
-            buffer_ptr, sizeof(T), pybind11::format_descriptor<T>::value,
-            shape.size(), shape, calc_strides(shape, sizeof(T))
-        ));
+        pybind11::handle c_object;
+        //TODO: This could be causing some memory leaks. Think about that...
+        if (buffer_ptr != nullptr) {
+            #if PY_MAJOR_VERSION >= 3
+                c_object = PyCapsule_New(buffer_ptr, nullptr, nullptr);
+            # else
+                c_object = PyCObject_FromVoidPtr(buffer_ptr, nullptr);
+            #endif
+        }
+        return pybind11::array(
+            pybind11::dtype::of<T>(), shape,
+            calc_strides(shape, sizeof(T)), buffer_ptr, c_object 
+        );
     }
 };
 
@@ -35,10 +44,7 @@ struct ArrayMaker<std::array<T,dim>> {
         auto shape = shape_in;
         shape.push_back(dim);
         auto* buffer_ptr = reinterpret_cast<T*>(buffer_ptr_in);
-        return pybind11::array(pybind11::buffer_info(
-            buffer_ptr, sizeof(T), pybind11::format_descriptor<T>::value,
-            shape.size(), shape, calc_strides(shape, sizeof(T))
-        ));
+        return ArrayMaker<T>::make_array(shape, buffer_ptr);
     }
 };
 
