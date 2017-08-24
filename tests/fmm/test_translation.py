@@ -17,7 +17,7 @@ def test_c2e_solve(request):
     s = surrounding_surf(50, 3)
     K_name = 'elasticH3'
     params = np.array([1.0, 0.25])
-    cfg = fmm.make_config(K_name, params, 1.0, 1.0, 1, 1, float_type)
+    cfg = fmm.make_config(K_name, params, 1.0, 1.0, 1, float_type)
     op = c2e_solve(cfg.gpu_module, s, b, 3.0, 1.1, cfg.K, params, float_type)
     return op
 
@@ -26,7 +26,7 @@ def test_scaling_relations():
     s = surrounding_surf(5, 2)
 
     K_name = 'laplaceD2'
-    cfg = fmm.make_config(K_name, [], 1.0, 1.0, 1, 1, float_type)
+    cfg = fmm.make_config(K_name, [], 1.0, 1.0, 1, float_type)
     op = np.array(c2e_solve(cfg.gpu_module, s, b, 3.0, 1.1, cfg.K, cfg.params, float_type))
 
     for i in range(5):

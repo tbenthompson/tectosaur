@@ -57,10 +57,10 @@ def run_full(n, pts_builder, mac, order, kernel, params, max_pts_per_cell = None
 
     dim = obs_pts.shape[1]
 
-    cfg = fmm.make_config(kernel, params, 1.1, mac, order, max_pts_per_cell, float_type)
+    cfg = fmm.make_config(kernel, params, 1.1, mac, order, float_type)
 
-    obs_kd = fmm.make_tree(obs_pts, cfg)
-    src_kd = fmm.make_tree(src_pts, cfg)
+    obs_kd = fmm.make_tree(obs_pts, cfg, max_pts_per_cell)
+    src_kd = fmm.make_tree(src_pts, cfg, max_pts_per_cell)
     obs_ns_kd = obs_ns[obs_kd.orig_idxs]
     src_ns_kd = src_ns[src_kd.orig_idxs]
     t.report('build trees')
@@ -147,7 +147,7 @@ def test_direct_matrix():
     K_name = "elasticU3"
     obs_pts, obs_ns, src_pts, src_ns = get_pts(rand_pts(3), 100)
     params = np.array([1.0, 0.25])
-    cfg = fmm.make_config(K_name, params, 1.0, 1.0, 1, 1, float_type)
+    cfg = fmm.make_config(K_name, params, 1.0, 1.0, 1, float_type)
     matrix = direct_matrix(cfg.gpu_module, cfg.K, obs_pts, obs_ns, src_pts, src_ns, params, float_type)
     est = matrix.dot(np.ones(matrix.shape[1]))
     check_kernel(K_name, obs_pts, obs_ns, src_pts, src_ns, est)

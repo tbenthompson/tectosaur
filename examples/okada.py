@@ -65,7 +65,7 @@ def test_okada(n_surf):
     k_params = [sm, pr]
     fault_L = 1.0
     top_depth = -0.5
-    load_soln = True
+    load_soln = False
     float_type = np.float32
     n_fault = max(2, n_surf // 5)
 
@@ -130,8 +130,8 @@ def test_okada(n_surf):
     return print_error(obs_pts, u, vals)
 
 def plot_interior_displacement2(k_params, all_mesh, soln, float_type):
-    nxy = 500
-    nz = 250
+    nxy = 100
+    nz = 100
     d = 0
     xs = np.linspace(-10, 10, nxy)
     zs = np.linspace(-0.1, -4.0, nz)
@@ -141,7 +141,7 @@ def plot_interior_displacement2(k_params, all_mesh, soln, float_type):
     interior_disp = -interior_integral(
         obs_pts, obs_pts, all_mesh, soln, 'elasticT3', 3, 8, k_params, float_type,
         # farfield_fnc = direct_interior_farfield
-        farfield_fnc = FMMInteriorFarfield(100, 3.0, 5000, 25)
+        farfield_fnc = FMMInteriorFarfield(100, 300000000000.0, 5000, 25)
     ).reshape((nxy, nxy, nz, 3))
     t.report('eval %.2E interior pts' % obs_pts.shape[0])
     # for i in range(nz):

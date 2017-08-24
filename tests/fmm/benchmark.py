@@ -75,8 +75,8 @@ def direct_runner(pts, ns, input):
 def fmm_runner(pts, ns, input_vals):
     t = Timer()
 
-    cfg = fmm.make_config(K_name, params, 1.1, mac, order, pts_per_cell, float_type)
-    tree = fmm.make_tree(pts, cfg)
+    cfg = fmm.make_config(K_name, params, 1.1, mac, order, float_type)
+    tree = fmm.make_tree(pts, cfg, pts_per_cell)
     t.report('build tree')
 
     orig_idxs = np.array(tree.orig_idxs)

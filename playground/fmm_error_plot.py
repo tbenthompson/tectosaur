@@ -31,7 +31,7 @@ def calc_translation_error(basis, E, C, MAC):
 
     k_name = "laplaceH2"
     params = np.array([1.0, 0.25])
-    fmm_cfg = make_config(k_name, params, 1.1, 3.0, 1, 1, np.float64)
+    fmm_cfg = make_config(k_name, params, 1.1, 3.0, 1, np.float64)
 
     src_pts, src_ns  = random_box_pts(fmm_cfg.K.spatial_dim, n, 1.0 / np.sqrt(fmm_cfg.K.spatial_dim))
     obs_pts, obs_ns  = random_box_pts(fmm_cfg.K.spatial_dim, n, 10.0)

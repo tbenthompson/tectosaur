@@ -50,6 +50,8 @@ def make_config(K_name, params, inner_r, outer_r, order,
         float_type, n_workers_per_block = 64, n_c2e_block_rows = 16):
     K = kernels[K_name]
     surf = surrounding_surf(order, K.spatial_dim)
+    if len(params) == 0:
+        params = [0.0]
     return FMMConfig(
         K = K,
         params = np.array(params),

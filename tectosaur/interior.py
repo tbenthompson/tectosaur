@@ -50,6 +50,9 @@ class FMMInteriorFarfield:
 def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near,
         params, float_type, farfield_fnc):
 
+    # 1) find nearfield pairs (maybe group into boxes using the fmm tree structure?)
+    # 2) perform some higher order quadrature for those pairs
+
     far_quad = gauss2d_tri(nq_far)
     IGmat, quad_pts, quad_ns = interp_galerkin_mat(
         mesh[0][mesh[1]], far_quad

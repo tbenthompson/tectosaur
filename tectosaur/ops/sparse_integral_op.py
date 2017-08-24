@@ -78,10 +78,10 @@ class DirectFarfield:
 class FMMFarfield:
     def __init__(self, kernel, params, obs_pts, obs_ns, src_pts, src_ns,
             float_type, order, mac, pts_per_cell):
-        cfg = fmm.make_config(kernel, params, 1.1, mac, order, pts_per_cell, float_type)
+        cfg = fmm.make_config(kernel, params, 1.1, mac, order, float_type)
 
         # TODO: different obs and src pts
-        self.tree = fmm.make_tree(obs_pts.copy(), cfg)
+        self.tree = fmm.make_tree(obs_pts.copy(), cfg, pts_per_cell)
         self.orig_idxs = np.array(self.tree.orig_idxs)
         self.fmm_obj = fmm.FMM(
             self.tree, obs_ns[self.orig_idxs].copy(),
