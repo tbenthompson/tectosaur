@@ -956,7 +956,7 @@ PYBIND11_PLUGIN(fast_lookup) {
 
 #define NPARRAYPROP(type, name)\
     def_property_readonly(#name, [] (type& op) {\
-        return expose_array({op.name.size()}, op.name.data());\
+        return make_array({op.name.size()}, op.name.data());\
     })
     py::class_<VertexAdjacentSubTris>(m, "VertexAdjacentSubTris")
         .NPARRAYPROP(VertexAdjacentSubTris, pts)
