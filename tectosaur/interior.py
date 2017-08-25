@@ -58,7 +58,7 @@ def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near,
     interp_v = IGmat.dot(input)
 
     if fmm_params is None:
-        far = farfield_pts_direct(K, obs_pts, obs_ns, src_pts, src_ns, v, params, float_type)
+        far = farfield_pts_direct(K, obs_pts, obs_ns, quad_pts, quad_ns, interp_v, params, float_type)
     else:
         far = interior_fmm_farfield(
             K, params, obs_pts, obs_ns, quad_pts, quad_ns, interp_v,
