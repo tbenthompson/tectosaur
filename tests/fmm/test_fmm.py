@@ -73,8 +73,8 @@ def run_full(n, pts_builder, mac, order, kernel, params, max_pts_per_cell = None
     t.report('eval fmm')
 
     return (
-        obs_kd.pts, obs_ns_kd,
-        src_kd.pts, src_ns_kd, est
+        np.array(obs_kd.pts), obs_ns_kd,
+        np.array(src_kd.pts), src_ns_kd, est
     )
 
 def check(est, correct, accuracy):
@@ -101,7 +101,7 @@ def check_kernel(K, obs_pts, obs_ns, src_pts, src_ns, est, accuracy = 3):
 def test_ones(dim):
     K = 'one' + str(dim)
     obs_pts, _, src_pts, _, est = run_full(5000, rand_pts(dim), 0.5, 1, K, [])
-    assert(np.all(np.abs(est - src_pts.shape[0]) < 1e-3))
+    assert(np.all(np.abs(est - np.array(src_pts, copy = False).shape[0]) < 1e-3))
 
 import pytest
 @pytest.fixture(params = ["laplaceS", "laplaceD", "laplaceH"])
