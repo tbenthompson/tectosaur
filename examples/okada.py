@@ -13,7 +13,7 @@ import tectosaur.constraints as constraints
 from tectosaur.constraint_builders import continuity_constraints, \
     constant_bc_constraints, free_edge_constraints
 from tectosaur.util.timer import Timer
-from tectosaur.interior import interior_integral, direct_interior_farfield, FMMInteriorFarfield
+from tectosaur.interior import interior_integral
 from tectosaur.ops.sparse_integral_op import SparseIntegralOp, FMMFarfieldBuilder
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.sum_op import SumOp
@@ -65,7 +65,7 @@ def test_okada(n_surf):
     k_params = [sm, pr]
     fault_L = 1.0
     top_depth = -0.5
-    load_soln = False
+    load_soln = True
     float_type = np.float32
     n_fault = max(2, n_surf // 5)
 
@@ -130,8 +130,8 @@ def test_okada(n_surf):
     return print_error(obs_pts, u, vals)
 
 def plot_interior_displacement2(k_params, all_mesh, soln, float_type):
-    nxy = 100
-    nz = 100
+    nxy = 300
+    nz = 300
     d = 0
     xs = np.linspace(-10, 10, nxy)
     zs = np.linspace(-0.1, -4.0, nz)
@@ -140,8 +140,7 @@ def plot_interior_displacement2(k_params, all_mesh, soln, float_type):
     t = Timer()
     interior_disp = -interior_integral(
         obs_pts, obs_pts, all_mesh, soln, 'elasticT3', 3, 8, k_params, float_type,
-        # farfield_fnc = direct_interior_farfield
-        farfield_fnc = FMMInteriorFarfield(100, 300000000000.0, 5000, 25)
+        fmm_params = [100, 3.0, 3000, 25]
     ).reshape((nxy, nxy, nz, 3))
     t.report('eval %.2E interior pts' % obs_pts.shape[0])
     # for i in range(nz):
@@ -151,31 +150,31 @@ def plot_interior_displacement2(k_params, all_mesh, soln, float_type):
     #     plt.title('at z = ' + ('%.3f' % zs[i]) + '    u' + ['x', 'y', 'z'][d])
     #     plt.show()
 
-def plot_interior_displacement(k_params, all_mesh, soln, float_type):
-    xs = np.linspace(-10, 10, 100)
-    for i, z in enumerate(np.linspace(0.1, 4.0, 10)):
-    # for i, z in [(0, 1.0)]:
-        X, Y = np.meshgrid(xs, xs)
-        obs_pts = np.array([X.flatten(), Y.flatten(), -z * np.ones(X.size)]).T.copy()
-        # exact_disp = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-        interior_disp = -interior_integral(
-            obs_pts, obs_pts, all_mesh, soln, 'elasticT3', 3, 8, k_params, float_type
-        ).reshape((-1, 3))
-        # for d in range(1):
-        #     plt.figure()
-        #     plt.imshow(exact_disp[:,d].reshape((xs.shape[0], -1)), interpolation = 'none')
-        #     plt.colorbar()
-        #     plt.title('exact u' + ['x', 'y', 'z'][d])
-        d = 0
-        plt.figure()
-        plt.pcolor(
-            xs, xs,
-            interior_disp[:,d].reshape((xs.shape[0], -1)),
-        )
-        # plt.colorbar()
-        plt.title('at z = ' + ('%.3f' % z) + '    u' + ['x', 'y', 'z'][d])
-        plt.show()
-        # plt.savefig('okada_depth_animation/' + str(i) + '.png')
+# def plot_interior_displacement(k_params, all_mesh, soln, float_type):
+#     xs = np.linspace(-10, 10, 100)
+#     for i, z in enumerate(np.linspace(0.1, 4.0, 10)):
+#     # for i, z in [(0, 1.0)]:
+#         X, Y = np.meshgrid(xs, xs)
+#         obs_pts = np.array([X.flatten(), Y.flatten(), -z * np.ones(X.size)]).T.copy()
+#         # exact_disp = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
+#         interior_disp = -interior_integral(
+#             obs_pts, obs_pts, all_mesh, soln, 'elasticT3', 3, 8, k_params, float_type
+#         ).reshape((-1, 3))
+#         # for d in range(1):
+#         #     plt.figure()
+#         #     plt.imshow(exact_disp[:,d].reshape((xs.shape[0], -1)), interpolation = 'none')
+#         #     plt.colorbar()
+#         #     plt.title('exact u' + ['x', 'y', 'z'][d])
+#         d = 0
+#         plt.figure()
+#         plt.pcolor(
+#             xs, xs,
+#             interior_disp[:,d].reshape((xs.shape[0], -1)),
+#         )
+#         # plt.colorbar()
+#         plt.title('at z = ' + ('%.3f' % z) + '    u' + ['x', 'y', 'z'][d])
+#         plt.show()
+#         # plt.savefig('okada_depth_animation/' + str(i) + '.png')
 
 def okada_exact(obs_pts, fault_L, top_depth, sm, pr):
     lam = 2 * sm * pr / (1 - 2 * pr)

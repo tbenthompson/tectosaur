@@ -21,27 +21,29 @@ namespace py = pybind11;
 
 template <size_t dim>
 void query_helper(std::vector<long>& out,
-    const Octree<dim>& tree, const std::vector<double>& expanded_node_r,
-    const OctreeNode<dim>& node1, const OctreeNode<dim>& node2,
-    double* radius_ptr, double threshold) 
+    const OctreeNode<dim>& obs_node, const Octree<dim>& obs_tree,
+    const std::vector<double>& obs_expanded_r, double* obs_radius_ptr,
+    const OctreeNode<dim>& src_node, const Octree<dim>& src_tree,
+    const std::vector<double>& src_expanded_r, double* src_radius_ptr,
+    double threshold) 
 {
-    double r1 = expanded_node_r[node1.idx];
-    double r2 = expanded_node_r[node2.idx];
+    double r1 = obs_expanded_r[obs_node.idx];
+    double r2 = src_expanded_r[src_node.idx];
     double limit = std::pow((r1 + r2) * threshold, 2);
-    if (dist2(node1.bounds.center, node2.bounds.center) > limit) {
+    if (dist2(obs_node.bounds.center, src_node.bounds.center) > limit) {
         return;
     }
-    if (node1.is_leaf && node2.is_leaf) {
-        for (size_t i = node1.start; i < node1.end; i++) {
-            auto orig_idx_i = tree.orig_idxs[i];
-            for (size_t j = node2.start; j < node2.end; j++) {
-                if (i == j) {
+    if (obs_node.is_leaf && src_node.is_leaf) {
+        for (size_t i = obs_node.start; i < obs_node.end; i++) {
+            auto orig_idx_i = obs_tree.orig_idxs[i];
+            for (size_t j = src_node.start; j < src_node.end; j++) {
+                if (&obs_node == &src_node && i == j) { //TODO: Get rid of this!
                     continue;
                 }
-                auto orig_idx_j = tree.orig_idxs[j];
-                auto pt_touching_sep = radius_ptr[i] + radius_ptr[j];
+                auto orig_idx_j = src_tree.orig_idxs[j];
+                auto pt_touching_sep = obs_radius_ptr[i] + src_radius_ptr[j];
                 auto pt_limit = std::pow(pt_touching_sep * threshold, 2);
-                if (dist2(tree.pts[i], tree.pts[j]) > pt_limit) {
+                if (dist2(obs_tree.pts[i], src_tree.pts[j]) > pt_limit) {
                     continue;
                 }
                 out.push_back(orig_idx_i);
@@ -50,21 +52,25 @@ void query_helper(std::vector<long>& out,
         }
         return;
     }
-    bool split2 = ((r1 < r2) && !node2.is_leaf) || node1.is_leaf;
+    bool split2 = ((r1 < r2) && !src_node.is_leaf) || obs_node.is_leaf;
     if (split2) {
         for (size_t i = 0; i < OctreeNode<dim>::split; i++) {
             query_helper(
-                out, tree, expanded_node_r, 
-                node1, tree.nodes[node2.children[i]],
-                radius_ptr, threshold
+                out, 
+                obs_node, obs_tree, obs_expanded_r, obs_radius_ptr,
+                src_tree.nodes[src_node.children[i]], src_tree,
+                src_expanded_r, src_radius_ptr,
+                threshold
             ); 
         }
     } else {
         for (size_t i = 0; i < OctreeNode<dim>::split; i++) {
             query_helper(
-                out, tree, expanded_node_r, 
-                tree.nodes[node1.children[i]], node2,
-                radius_ptr, threshold
+                out,
+                obs_tree.nodes[obs_node.children[i]], obs_tree,
+                obs_expanded_r, obs_radius_ptr,
+                src_node, src_tree, src_expanded_r, src_radius_ptr,
+                threshold
             ); 
         }
     }
@@ -91,9 +97,11 @@ std::vector<double> get_expanded_node_r(const Octree<dim>& tree, double* radius_
 
 template <size_t dim>
 std::vector<long> query_ball_points(
-    const Octree<dim>& tree, const std::vector<double>& expanded_node_r,
-    std::array<double,dim>* pt_ptr, double* radius_ptr,
-    size_t n_entities, double threshold) 
+    const Octree<dim>& obs_tree, const std::vector<double>& obs_expanded_r,
+    std::array<double,dim>* obs_pt_ptr, double* obs_radius_ptr, size_t n_obs,
+    const Octree<dim>& src_tree, const std::vector<double>& src_expanded_r,
+    std::array<double,dim>* src_pt_ptr, double* src_radius_ptr, size_t n_src,
+    double threshold) 
 {
 
     std::vector<long> out;
@@ -104,17 +112,19 @@ std::vector<long> query_ball_points(
 
         std::vector<long> out_private;
 #pragma omp for
-        for (size_t i = 0; i < tree.nodes.size(); i++) {
-            auto& n = tree.nodes[i];
-            if (n.depth > parallelize_depth) {
+        for (size_t i = 0; i < obs_tree.nodes.size(); i++) {
+            auto& obs_n = obs_tree.nodes[i];
+            if (obs_n.depth > parallelize_depth) {
                 continue;
             }
-            if (n.depth != parallelize_depth && !n.is_leaf) {
+            if (obs_n.depth != parallelize_depth && !obs_n.is_leaf) {
                 continue;
             }
             query_helper(
-                out_private, tree, expanded_node_r,
-                n, tree.root(), radius_ptr, threshold
+                out_private, 
+                obs_n, obs_tree, obs_expanded_r, obs_radius_ptr,
+                src_tree.root(), src_tree, src_expanded_r, src_radius_ptr,
+                threshold
             );
         }
         size_t insertion_start_idx = n_pairs.fetch_add(out_private.size());
@@ -169,21 +179,57 @@ PYBIND11_PLUGIN(fast_find_nearfield) {
     constexpr static int dim = 3;
 
     m.def("get_nearfield",
-        [] (NPArrayD pt, NPArrayD radius, double threshold, int leaf_size) {
-            auto pt_ptr = as_ptr<std::array<double,dim>>(pt);
-            auto radius_ptr = as_ptr<double>(radius);
-            auto n_entities = pt.request().shape[0];
-            Timer t(true);
-            Octree<dim> tree(pt_ptr, n_entities, leaf_size);
-            t.report("build tree");
-            auto expanded_r = get_expanded_node_r(tree, radius_ptr);
-            t.report("expanded R");
+        [] (NPArrayD obs_pts, NPArrayD obs_radius,
+            NPArrayD src_pts, NPArrayD src_radius,
+            double threshold, int leaf_size) 
+        {
+            Timer t{true};
+            auto obs_pts_ptr = as_ptr<std::array<double,dim>>(obs_pts);
+            auto obs_radius_ptr = as_ptr<double>(obs_radius);
+            auto n_obs = obs_pts.request().shape[0];
+            Octree<dim> obs_tree(obs_pts_ptr, n_obs, leaf_size);
+            auto obs_expanded_r = get_expanded_node_r(obs_tree, obs_radius_ptr);
+
+            auto src_pts_ptr = as_ptr<std::array<double,dim>>(src_pts);
+            auto src_radius_ptr = as_ptr<double>(src_radius);
+            auto n_src = src_pts.request().shape[0];
+            Octree<dim> src_tree(src_pts_ptr, n_src, leaf_size);
+            auto src_expanded_r = get_expanded_node_r(src_tree, src_radius_ptr);
+            t.report("setup");
+
             auto out_vec = query_ball_points(
-                tree, expanded_r, pt_ptr, radius_ptr, n_entities, threshold
+                obs_tree, obs_expanded_r, obs_pts_ptr, obs_radius_ptr, n_obs,
+                src_tree, src_expanded_r, src_pts_ptr, src_radius_ptr, n_src,
+                threshold
             );
             t.report("query");
+
             auto out_arr = array_from_vector(out_vec, {out_vec.size() / 2, 2});
-            t.report("to array");
+            t.report("make out");
+
+            return out_arr;
+        });
+
+    m.def("self_get_nearfield",
+        [] (NPArrayD pts, NPArrayD radius, double threshold, int leaf_size) {
+            Timer t{true};
+            auto pts_ptr = as_ptr<std::array<double,dim>>(pts);
+            auto radius_ptr = as_ptr<double>(radius);
+            auto n_obs = pts.request().shape[0];
+            Octree<dim> tree(pts_ptr, n_obs, leaf_size);
+            auto expanded_r = get_expanded_node_r(tree, radius_ptr);
+            t.report("setup");
+
+            auto out_vec = query_ball_points(
+                tree, expanded_r, pts_ptr, radius_ptr, n_obs,
+                tree, expanded_r, pts_ptr, radius_ptr, n_obs,
+                threshold
+            );
+            t.report("query");
+
+            auto out_arr = array_from_vector(out_vec, {out_vec.size() / 2, 2});
+            t.report("make out");
+
             return out_arr;
         });
     

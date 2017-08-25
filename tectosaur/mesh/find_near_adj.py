@@ -9,15 +9,19 @@ fast_find_nearfield = cppimport('tectosaur.mesh.fast_find_nearfield')
 
 split_adjacent_close = fast_find_nearfield.split_adjacent_close
 
-def find_close_or_touching(pts, tris, threshold):
+def get_tri_centroids_rs(pts, tris):
     tri_pts = pts[tris]
-    tri_centroid = np.sum(tri_pts, axis = 1) / 3.0
-    tri_r = np.sqrt(np.max(
-        np.sum((tri_pts - tri_centroid[:,np.newaxis,:]) ** 2, axis = 2),
+    centroid = np.sum(tri_pts, axis = 1) / 3.0
+    r = np.sqrt(np.max(
+        np.sum((tri_pts - centroid[:,np.newaxis,:]) ** 2, axis = 2),
         axis = 1
     ))
+    return centroid, r
 
-    out = fast_find_nearfield.get_nearfield(tri_centroid, tri_r, threshold, 50)
+def find_close_or_touching(pts, tris, threshold):
+    out = fast_find_nearfield.self_get_nearfield(
+        *get_tri_centroids_rs(pts, tris), threshold, 50
+    )
     return out
 
 def rotate_tri(clicks):

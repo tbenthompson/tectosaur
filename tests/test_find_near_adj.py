@@ -28,7 +28,7 @@ def test_rotate_tri():
 
 def test_nearfield():
     corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
-    pts, tris = mesh_gen.make_rect(3,3 ,corners)
+    pts, tris = mesh_gen.make_rect(3, 3, corners)
     assert(tris.shape[0] == 8)
     close_pairs = find_close_or_touching(pts, tris, 1.0)
     close, va, ea = split_adjacent_close(close_pairs, tris)
@@ -39,6 +39,17 @@ def test_nearfield():
     assert(len(close) == len(check_for))
     for pair in check_for:
         assert(pair in close)
+
+@golden_master()
+def test_find_close_notself(request):
+    corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
+    m = mesh_gen.make_rect(2, 2, corners)
+    threshold = 1.0
+    obs_pts = np.array([0.5 * np.ones(5), 0.5 * np.ones(5), np.linspace(0, 2, 5)]).T.copy()
+    out = fast_find_nearfield.get_nearfield(
+        obs_pts, np.zeros(obs_pts.shape[0]), *get_tri_centroids_rs(*m), threshold, 50
+    )
+    return out
 
 @golden_master()
 def test_close_or_touching(request):
