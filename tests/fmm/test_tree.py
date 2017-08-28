@@ -11,9 +11,9 @@ def tree_type(request):
 def make_tree(tree_type, pts, n_per_cell):
     dim = pts.shape[1]
     if tree_type == 'kd':
-        return get_dim_module(dim).kdtree.Tree(pts, n_per_cell)
+        return get_dim_module(dim).kdtree.Tree.build(pts, n_per_cell)
     elif tree_type == 'oct':
-        return get_dim_module(dim).octree.Tree(pts, n_per_cell)
+        return get_dim_module(dim).octree.Tree.build(pts, n_per_cell)
 
 def test_bisects(tree_type, dim):
     pts = np.random.rand(100,dim)
@@ -74,7 +74,7 @@ def test_idx(tree_type, dim):
 def test_law_of_large_numbers():
     n = 10000
     pts = np.random.rand(n, 3)
-    t = get_dim_module(3).octree.Tree(pts, 100);
+    t = get_dim_module(3).octree.Tree.build(pts, 100);
     for i in range(8):
         child = t.nodes[t.root().children[i]]
         n_pts = child.end - child.start

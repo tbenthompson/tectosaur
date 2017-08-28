@@ -70,7 +70,7 @@ TEST_CASE("octree partition") {
 TEST_CASE("one level octree") 
 {
     auto es = random_pts<3>(3);
-    Octree<3> oct(es.data(), es.size(), 4);
+    auto oct = Octree<3>::build_fnc(es.data(), es.size(), 4);
     REQUIRE(oct.max_height == 0);
     REQUIRE(oct.nodes.size() == 1);
     REQUIRE(oct.root().is_leaf);
@@ -82,7 +82,7 @@ TEST_CASE("one level octree")
 TEST_CASE("many level octree") 
 {
     auto pts = random_pts<3>(1000);
-    Octree<3> oct(pts.data(), pts.size(), 999); 
+    auto oct = Octree<3>::build_fnc(pts.data(), pts.size(), 999); 
     REQUIRE(oct.orig_idxs.size() == 1000);
     REQUIRE(oct.nodes[oct.root().children[0]].depth == 1);
 }

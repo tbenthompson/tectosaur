@@ -25,10 +25,17 @@ std::array<int,OctreeNode<dim>::split+1> octree_partition(
 template <size_t dim>
 Ball<dim> bounding_ball(PtWithIdx<dim>* pts, size_t n_pts);
 
+template <size_t dim>
+struct Octree;
+
+template <size_t dim>
+Octree<dim> build_octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_cell);
+
 template <size_t _dim>
 struct Octree {
     constexpr static size_t dim = _dim;
     constexpr static size_t split = 2 << (dim - 1);
+    constexpr static auto build_fnc = build_octree<dim>;
     using Node = OctreeNode<dim>;
 
     std::vector<std::array<double,dim>> pts;
@@ -38,10 +45,4 @@ struct Octree {
     std::vector<OctreeNode<dim>> nodes;
 
     const OctreeNode<dim>& root() const { return nodes.front(); }
-
-    Octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_cell);
-
-    size_t add_node(size_t start, size_t end, 
-        size_t n_per_cell, int depth, Ball<dim> bounds,
-        std::vector<PtWithIdx<dim>>& temp_pts);
 };

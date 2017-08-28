@@ -25,33 +25,35 @@ std::array<int,OctreeNode<dim>::split+1> octree_partition(
 
 
 template <size_t dim>
-Octree<dim>::Octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_cell):
-    pts(n_pts),
-    orig_idxs(n_pts)
-{
+Octree<dim> build_octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_cell) {
     auto pts_idxs = combine_pts_idxs(in_pts, n_pts);
 
     auto bounds = root_tree_bounds(pts_idxs.data(), n_pts);
     bounds.R *= std::sqrt(dim);
 
-    add_node(0, n_pts, n_per_cell, 0, bounds, pts_idxs);
+    Octree<dim> out;
+    add_node(out, 0, n_pts, n_per_cell, 0, bounds, pts_idxs);
 
-    max_height = nodes[0].height;
+    out.max_height = out.nodes[0].height;
 
+    out.pts.resize(n_pts);
+    out.orig_idxs.resize(n_pts);
     for (size_t i = 0; i < n_pts; i++) {
-        pts[i] = pts_idxs[i].pt;
-        orig_idxs[i] = pts_idxs[i].orig_idx;
+        out.pts[i] = pts_idxs[i].pt;
+        out.orig_idxs[i] = pts_idxs[i].orig_idx;
     }
+
+    return out;
 }
 
 template <size_t dim>
-size_t Octree<dim>::add_node(size_t start, size_t end, 
+size_t add_node(Octree<dim>& tree, size_t start, size_t end, 
     size_t n_per_cell, int depth, Ball<dim> bounds,
     std::vector<PtWithIdx<dim>>& temp_pts)
 {
     bool is_leaf = end - start <= n_per_cell; 
-    auto n_idx = nodes.size();
-    nodes.push_back({start, end, bounds, is_leaf, 0, depth, n_idx, {}});
+    auto n_idx = tree.nodes.size();
+    tree.nodes.push_back({start, end, bounds, is_leaf, 0, depth, n_idx, {}});
     if (!is_leaf) {
         auto splits = octree_partition(bounds, temp_pts.data() + start, temp_pts.data() + end);
         int max_child_height = 0;
@@ -60,16 +62,19 @@ size_t Octree<dim>::add_node(size_t start, size_t end,
             auto child_start = start + splits[octant];
             auto child_end = start + splits[octant + 1];
             auto child_node_idx = add_node(
-                child_start, child_end,
+                tree, child_start, child_end,
                 n_per_cell, depth + 1, child_bounds, temp_pts
             );
-            nodes[n_idx].children[octant] = child_node_idx;
-            max_child_height = std::max(max_child_height, nodes[child_node_idx].height);
+            tree.nodes[n_idx].children[octant] = child_node_idx;
+            max_child_height = std::max(max_child_height, tree.nodes[child_node_idx].height);
         }
-        nodes[n_idx].height = max_child_height + 1;
+        tree.nodes[n_idx].height = max_child_height + 1;
     }
     return n_idx;
 }
 
 template struct Octree<2>;
 template struct Octree<3>;
+
+template Octree<2> build_octree(std::array<double,2>* in_pts, size_t n_pts, size_t n_per_cell);
+template Octree<3> build_octree(std::array<double,3>* in_pts, size_t n_pts, size_t n_per_cell);

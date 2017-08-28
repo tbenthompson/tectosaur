@@ -187,13 +187,13 @@ PYBIND11_PLUGIN(fast_find_nearfield) {
             auto obs_pts_ptr = as_ptr<std::array<double,dim>>(obs_pts);
             auto obs_radius_ptr = as_ptr<double>(obs_radius);
             auto n_obs = obs_pts.request().shape[0];
-            Octree<dim> obs_tree(obs_pts_ptr, n_obs, leaf_size);
+            auto obs_tree = Octree<dim>::build_fnc(obs_pts_ptr, n_obs, leaf_size);
             auto obs_expanded_r = get_expanded_node_r(obs_tree, obs_radius_ptr);
 
             auto src_pts_ptr = as_ptr<std::array<double,dim>>(src_pts);
             auto src_radius_ptr = as_ptr<double>(src_radius);
             auto n_src = src_pts.request().shape[0];
-            Octree<dim> src_tree(src_pts_ptr, n_src, leaf_size);
+            auto src_tree = Octree<dim>::build_fnc(src_pts_ptr, n_src, leaf_size);
             auto src_expanded_r = get_expanded_node_r(src_tree, src_radius_ptr);
             t.report("setup");
 
@@ -216,7 +216,7 @@ PYBIND11_PLUGIN(fast_find_nearfield) {
             auto pts_ptr = as_ptr<std::array<double,dim>>(pts);
             auto radius_ptr = as_ptr<double>(radius);
             auto n_obs = pts.request().shape[0];
-            Octree<dim> tree(pts_ptr, n_obs, leaf_size);
+            auto tree = Octree<dim>::build_fnc(pts_ptr, n_obs, leaf_size);
             auto expanded_r = get_expanded_node_r(tree, radius_ptr);
             t.report("setup");
 

@@ -11,7 +11,7 @@ import tectosaur.ops.mass_op as mass_op
 import tectosaur.util.quadrature as quad
 import tectosaur.mesh.mesh_gen as mesh_gen
 
-from tectosaur.interior import interior_integral, direct_interior_farfield
+from tectosaur.interior import interior_integral
 
 from tectosaur.util.test_decorators import slow, golden_master, kernel
 from tectosaur.util.timer import Timer
@@ -157,8 +157,7 @@ def test_interior(request):
     params = [1.0, 0.25]
 
     return interior_integral(
-        obs_pts, obs_ns, (pts, tris), input, K, 4, 4, params, float_type,
-        direct_interior_farfield
+        obs_pts, obs_ns, (pts, tris), input, K, 4, 4, params, float_type
     )
 
 @profile

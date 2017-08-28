@@ -34,14 +34,14 @@ void wrap_fmm(py::module& m) {
         .def_readonly("children", &Node::children);
 
     py::class_<TreeT>(m, "Tree")
-        .def("__init__",
-        [] (TreeT& t, NPArrayD np_pts, size_t n_per_cell) {
-            check_shape<TreeT::dim>(np_pts);
-            new (&t) TreeT(
-                as_ptr<std::array<double,TreeT::dim>>(np_pts),
-                np_pts.request().shape[0], n_per_cell
-            );
-        })
+        .def_static("build", 
+            [] (NPArrayD np_pts, size_t n_per_cell) {
+                check_shape<TreeT::dim>(np_pts);
+                return TreeT::build_fnc(
+                    as_ptr<std::array<double,TreeT::dim>>(np_pts),
+                    np_pts.request().shape[0], n_per_cell
+                );
+            })
         .def("root", &TreeT::root)
         .def_property_readonly("split", [] (const TreeT& t) { return TreeT::split; })
         .def_readonly("nodes", &TreeT::nodes)
