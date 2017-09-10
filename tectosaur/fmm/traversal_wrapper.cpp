@@ -15,11 +15,6 @@ fmm_lib_cfg(cfg)
 
 namespace py = pybind11;
 
-#define NPARRAYPROP(type, name)\
-    def_property_readonly(#name, [] (type& op) {\
-        return make_array({op.name.size()}, op.name.data());\
-    })
-
 template <typename TreeT>
 void wrap_fmm(py::module& m) {
     using Node = typename TreeT::Node;

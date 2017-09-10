@@ -91,3 +91,8 @@ void check_shape(NPArrayD& arr) {
     }
 }
 
+#define NPARRAYPROP(type, name)\
+    def_property_readonly(#name, [] (type& op) {\
+        return make_array({op.name.size()}, op.name.data());\
+    })
+

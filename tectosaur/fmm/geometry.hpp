@@ -39,7 +39,7 @@ inline double dot(const std::array<double,dim>& a, const std::array<double,dim>&
 
 BINOP(add,+)
 BINOP(sub,-)
-BINOP(mult,*)
+BINOP(mul,*)
 BINOP(div,/)
 
 #undef BINOPVECVEC

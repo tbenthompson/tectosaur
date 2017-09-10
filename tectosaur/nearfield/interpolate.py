@@ -18,10 +18,7 @@ def cheb_wts(a, b, n):
     return ((-1) ** j) * np.sin(((2 * j + 1) * np.pi) / (2 * n))
 
 def cheblob(a, b, n):
-    out = []
-    for i in range(n):
-        out.append(to_interval(a, b, np.cos((i * np.pi) / (n - 1))))
-    return out
+    return to_interval(a, b, np.cos((np.arange(n) * np.pi) / (n - 1)))
 
 def cheblob_wts(a, b, n):
     wts = ((-1) ** np.arange(n)) * np.ones(n)

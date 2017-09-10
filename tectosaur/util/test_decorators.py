@@ -43,6 +43,7 @@ def golden_master(digits = 6):
             if save:
                 np.save(filename, result)
             correct = np.load(filename)
+            print(np.max(result - correct))
             np.testing.assert_almost_equal(result, correct, digits)
         return wrapper
     return decorator

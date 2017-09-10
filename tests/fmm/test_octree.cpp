@@ -1,5 +1,5 @@
-#include "doctest.h"
-#include "test_helpers.hpp"
+#include "include/doctest.h"
+#include "include/test_helpers.hpp"
 #include "octree.hpp"
 
 #include <iostream>

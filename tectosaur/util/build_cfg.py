@@ -37,5 +37,8 @@ def fmm_lib_cfg(cfg):
 def fmm_test_cfg(cfg):
     fmm_lib_cfg(cfg)
     cfg['sources'] += ['test_octree.cpp']
-    cfg['dependencies'] += ['test_helpers.hpp', 'doctest.h']
+    cfg['dependencies'] += [
+        'test_helpers.hpp',
+        os.path.join(tectosaur.source_dir, 'include', 'doctest.h')
+    ]
     cfg['include_dirs'] += [get_fmm_dir()]
