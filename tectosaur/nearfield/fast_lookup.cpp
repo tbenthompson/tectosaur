@@ -316,7 +316,9 @@ std::array<double,81> transform_from_standard(const std::array<double,81>& I,
             for (int d1 = 0; d1 < 3; d1++) {
                 for (int d2 = 0; d2 < 3; d2++) {
                     if (flip_negate && d1 != d2) {
+                    // if (flip_negate) {
                         out[cb1 * 27 + d1 * 9 + cb2 * 3 + d2] = -I_scale[d1][d2];
+                        std::cout << "FLIP" << std::endl;
                     } else {
                         out[cb1 * 27 + d1 * 9 + cb2 * 3 + d2] = I_scale[d1][d2];
                     }
@@ -394,7 +396,7 @@ double from_interval(double a, double b, double x) {
 py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
     auto tri_pts_buf = tri_pts.request();
     auto* tri_pts_ptr = reinterpret_cast<double*>(tri_pts_buf.ptr);
-    auto n_tris = tri_pts_buf.shape[0];
+    size_t n_tris = tri_pts_buf.shape[0];
 
     auto out = make_array<double>({n_tris, 3});
     auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);
@@ -627,7 +629,7 @@ std::array<std::array<int,3>,2> find_va_rotations(const std::array<int,3>& ot,
 }
 
 struct VertexAdjacentSubTris {
-    std::vector<Vec3> pts;
+    std::vector<std::array<double,3>> pts;
     std::vector<int> original_pair_idx;
     std::vector<std::array<size_t,3>> tris;
     std::vector<std::array<size_t,4>> pairs;
@@ -636,7 +638,7 @@ struct VertexAdjacentSubTris {
 };
 
 struct EdgeAdjacentLookupTris {
-    NPArray<double> pts;
+    std::vector<std::array<double,2>> pts;
     std::vector<Tensor3> obs_tris;
     std::vector<int> obs_clicks;
     std::vector<int> src_clicks;
@@ -644,7 +646,7 @@ struct EdgeAdjacentLookupTris {
     std::vector<std::array<std::array<double,2>,3>> src_basis;
 
     EdgeAdjacentLookupTris(size_t n_tris):
-        pts(make_array<double>({n_tris, 2})),
+        pts(n_tris),
         obs_tris(n_tris),
         obs_clicks(n_tris),
         src_clicks(n_tris),
@@ -672,12 +674,10 @@ int edge_adj_orient(int touching_vert0, int touching_vert1) {
 py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
     NPArray<long> ea_tri_indices, double pr, bool flip_symmetry) 
 {
-    auto n_tris = ea_tri_indices.request().shape[0];
+    size_t n_tris = ea_tri_indices.request().shape[0];
 
     VertexAdjacentSubTris va; 
     EdgeAdjacentLookupTris ea(n_tris);
-
-    auto ea_pts_ptr = as_ptr<double>(ea.pts);
 
     auto* pts_ptr = as_ptr<double>(pts);
     auto* tris_ptr = as_ptr<long>(tris);
@@ -787,8 +787,8 @@ py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
 
         auto phihat = from_interval(${min_intersect_angle}, phi_max, phi);
         auto prhat = from_interval(0, 0.5, pr); 
-        ea_pts_ptr[i * 2] = phihat;
-        ea_pts_ptr[i * 2 + 1] = prhat;
+        ea.pts[i][0] = phihat;
+        ea.pts[i][1] = prhat;
     }
     return py::make_tuple(va, ea);
 }
@@ -857,7 +857,7 @@ void derotate(int obs_clicks, int src_clicks, double* out_start, double* in_star
 void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
     const VertexAdjacentSubTris& va, const EdgeAdjacentLookupTris& ea) 
 {
-    auto n_integrals = Iv.request().shape[0];    
+    size_t n_integrals = Iv.request().shape[0];    
     auto Iv_ptr = as_ptr<double>(Iv);
     auto out_ptr = as_ptr<double>(out);
 #pragma omp parallel for
@@ -919,8 +919,7 @@ NPArray<double> adjacent_lookup_from_standard(
     return out;
 }
 
-PYBIND11_PLUGIN(fast_lookup) {
-    py::module m("fast_lookup");
+PYBIND11_MODULE(fast_lookup, m) {
     m.def("barycentric_evalnd", barycentric_evalnd_py); 
     
     m.def("get_edge_lens", get_edge_lens);
@@ -954,21 +953,14 @@ PYBIND11_PLUGIN(fast_lookup) {
     m.def("get_adjacent_phi", get_adjacent_phi);
     m.def("find_va_rotations", find_va_rotations);
 
-#define NPARRAYPROP(type, name)\
-    def_property_readonly(#name, [] (type& op) {\
-        return make_array({op.name.size()}, op.name.data());\
-    })
     py::class_<VertexAdjacentSubTris>(m, "VertexAdjacentSubTris")
         .NPARRAYPROP(VertexAdjacentSubTris, pts)
         .NPARRAYPROP(VertexAdjacentSubTris, tris)
         .NPARRAYPROP(VertexAdjacentSubTris, pairs);
-#undef NPARRAYPROP
 
     py::class_<EdgeAdjacentLookupTris>(m, "EdgeAdjacentLookupTris")
-        .def_readonly("pts", &EdgeAdjacentLookupTris::pts);
+        .NPARRAYPROP(EdgeAdjacentLookupTris, pts);
 
     m.def("adjacent_lookup_pts", adjacent_lookup_pts);
     m.def("vert_adj_subbasis", vert_adj_subbasis);
-
-    return m.ptr();
 }

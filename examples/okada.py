@@ -7,6 +7,7 @@ import okada_wrapper
 import scipy.spatial
 
 import tectosaur
+import tectosaur.mesh.refine as mesh_refine
 import tectosaur.mesh.modify as mesh_modify
 import tectosaur.mesh.mesh_gen as mesh_gen
 import tectosaur.constraints as constraints
@@ -42,35 +43,49 @@ def make_free_surface(w, n):
     return mesh_gen.make_rect(n, n, corners)
 
 def make_fault(L, top_depth, n_fault):
-    return mesh_gen.make_rect(n_fault, n_fault, [
+    m = mesh_gen.make_rect(n_fault, n_fault, [
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
+    for idx in range(2):
+        should_refine = np.ones(m[1].shape[0], dtype = np.bool)
+        for i in range(m[1].shape[0]):
+            if np.any(m[0][:,2][m[1][i]] > -1e-5):
+                should_refine[i] = False
+            else:
+                should_refine[i] = True
+        m = mesh_refine.selective_refine(m, should_refine)
+    return m
+
 
 def make_meshes(fault_L, top_depth, n_surf, n_fault):
     t = Timer()
-    surface = make_free_surface(10, n_surf)
+    surf_w = 5
+    surface = make_free_surface(surf_w, n_surf)
     t.report('make free surface')
     fault = make_fault(fault_L, top_depth, n_fault)
     t.report('make fault')
-    all_mesh = mesh_modify.concat_two_no_remove_duplicates(surface, fault)
+    all_mesh = mesh_modify.concat(surface, fault)
     t.report('concat meshes')
     surface_tris = all_mesh[1][:surface[1].shape[0]]
     fault_tris = all_mesh[1][surface[1].shape[0]:]
     return all_mesh, surface_tris, fault_tris
 
-def test_okada(n_surf):
+def test_okada(n_surf, n_fault = None):
     sm = 1.0
     pr = 0.25
     k_params = [sm, pr]
     fault_L = 1.0
-    top_depth = -0.5
-    load_soln = True
+    top_depth = -0.0
+    load_soln = False
     float_type = np.float32
-    n_fault = max(2, n_surf // 5)
+    if n_fault is None:
+        n_fault = max(2, n_surf // 5)
 
     timer = Timer()
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth, n_surf, n_fault)
+
+    # mesh_gen.plot_mesh3d(*all_mesh)
     timer.report('make meshes')
     logger.info('n_elements: ' + str(all_mesh[1].shape[0]))
 
@@ -125,9 +140,28 @@ def test_okada(n_surf):
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
     # plot_results(obs_pts, surface_tris, u, vals)
+    results_xsec(all_mesh[0], surface_tris, soln)
     # plot_interior_displacement(k_params, all_mesh, soln, float_type)
-    plot_interior_displacement2(k_params, all_mesh, soln, float_type)
+    # plot_interior_displacement2(k_params, all_mesh, soln, float_type)
     return print_error(obs_pts, u, vals)
+
+def results_xsec(pts, surface_tris, soln):
+    xsec_pts = []
+    xsec_idxs = []
+    xsec_vals = []
+    for i in range(surface_tris.shape[0]):
+        for pt_idx in range(3):
+            p = pts[surface_tris[i,pt_idx],:]
+            if np.abs(p[0]) > 0.001:
+                continue
+            xsec_pts.append(p)
+            xsec_vals.append([soln[i * 9 + pt_idx * 3 + d] for d in range(3)])
+            xsec_idxs.append([i * 9 + pt_idx * 3 + d for d in range(3)])
+    xsec_pts = np.array(xsec_pts)
+    xsec_vals = np.array(xsec_vals)
+    print(xsec_pts)
+    plt.plot(xsec_pts[:,1], xsec_vals[:,0], 'o-')
+    plt.show()
 
 def plot_interior_displacement2(k_params, all_mesh, soln, float_type):
     nxy = 300
@@ -186,7 +220,7 @@ def okada_exact(obs_pts, fault_L, top_depth, sm, pr):
     for i in range(n_pts):
         pt = obs_pts[i, :]
         [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
-            alpha, pt, 0.5, 90.0,
+            alpha, pt, -top_depth, 90.0,
             [-fault_L, fault_L], [-1.0, 0.0], [1.0, 0.0, 0.0]
         )
         if suc != 0:
@@ -231,9 +265,11 @@ def plot_results(pts, tris, correct, est):
 
 def print_error(pts, correct, est):
     close = np.sqrt(np.sum(pts ** 2, axis = 1)) < 4.0
-    diff = correct[close,:] - est[close,:]
+    not0 = np.abs(pts[:,1]) > 1e-5
+    test = np.logical_and(close, not0)
+    diff = correct[test,:] - est[test,:]
     l2diff = np.sum(diff ** 2)
-    l2correct = np.sum(correct[close,:] ** 2)
+    l2correct = np.sum(correct[test,:] ** 2)
     linferr = np.max(np.abs(diff))
     print("L2diff: " + str(l2diff))
     print("L2correct: " + str(l2correct))
@@ -243,7 +279,10 @@ def print_error(pts, correct, est):
 
 if __name__ == '__main__':
     t = Timer()
-    test_okada(int(sys.argv[1]))
+    if len(sys.argv) == 3:
+        test_okada(int(sys.argv[1]), n_fault = int(sys.argv[2]))
+    else:
+        test_okada(int(sys.argv[1]))
     t.report('okada')
 
     # import logging

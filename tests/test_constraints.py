@@ -1,5 +1,7 @@
 from tectosaur.constraints import *
 from tectosaur.constraint_builders import *
+import tectosaur.mesh.mesh_gen as mesh_gen
+import tectosaur.mesh.modify as mesh_modify
 import numpy as np
 
 from tectosaur.util.logging import setup_logger
@@ -104,9 +106,38 @@ def test_composite():
     assert(cs[1].terms[0].dof == 3)
     assert(cs[1].rhs == 3)
 
+def test_redundant_continuity():
+    n = 13
+    corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
+    m = mesh_gen.make_rect(n, n, corners)
+    cs = continuity_constraints(m[1], np.array([]), m[0])
+    n_total_dofs = m[1].size * 3
+    rows, cols, vals, rhs, n_unique_cs = fast_constraints.build_constraint_matrix(cs, n_total_dofs)
+    n_rows = n_total_dofs
+    n_cols = n_total_dofs - n_unique_cs
+    cm = scipy.sparse.csr_matrix((vals, (rows, cols)), shape = (n_rows, n_cols))
+    assert(cm.shape[1] == 3 * n ** 2)
+
+def test_faulted_continuity():
+    n = 3
+    corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
+    m = mesh_gen.make_rect(n, n, corners)
+    fault_corners = [[-1.0, 0.0, 0.0], [-1.0, 0.0, -1.0], [1.0, 0.0, -1.0], [1.0, 0.0, 0.0]]
+    m2 = mesh_gen.make_rect(n, n, fault_corners)
+    all_mesh = mesh_modify.concat(m, m2)
+    surface_tris = all_mesh[1][:m[1].shape[0]]
+    fault_tris = all_mesh[1][m[1].shape[0]:]
+
+    cs = continuity_constraints(surface_tris, fault_tris, all_mesh[0])
+    n_total_dofs = m[1].size * 3
+    rows, cols, vals, rhs, n_unique_cs = fast_constraints.build_constraint_matrix(cs, n_total_dofs)
+    n_rows = n_total_dofs
+    n_cols = n_total_dofs - n_unique_cs
+    cm = scipy.sparse.csr_matrix((vals, (rows, cols)), shape = (n_rows, n_cols))
+    assert(cm.shape[1] == 3 * n ** 2)
+
 def benchmark_build_constraint_matrix():
     from tectosaur.util.timer import Timer
-    import tectosaur.mesh.mesh_gen as mesh_gen
     from tectosaur.constraints import fast_constraints
     import scipy.sparse
     t = Timer()

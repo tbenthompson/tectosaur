@@ -226,3 +226,54 @@ def test_adjacent_fast_lookup(request, kernel):
 @golden_master()
 def test_adjacent_lookup(request, kernel):
     return adjacent_lookup_helper(kernel, 5)
+
+def test_adj_theta_dependence():
+    ts = np.linspace(0.2 * np.pi, 1.8 * np.pi, 20)
+    K = 'elasticT3'
+    params = [1.0, 0.25]
+    v1 = []
+    v2 = []
+    for theta in ts:
+        pts = np.array([
+            [0, 0, 0], [1, 0, 0], [0.5, 0.5, 0],
+            [0.5, 0.5 * np.cos(theta), 0.5 * np.sin(theta)]
+        ])
+        tris = np.array([[0,1,2],[1,0,3]])
+        op = DenseIntegralOp(
+            10, 3, 10, 3.0, K, params, pts, tris, float_type
+        )
+        v1.append(op.mat[:9,9:].reshape((3,3,3,3)))
+        v2.append(op.mat[9:,:9].reshape((3,3,3,3)))
+    v1 = np.array(v1)
+    v2 = np.array(v2)
+    import matplotlib.pyplot as plt
+    for b1 in range(3):
+        for d1 in range(3):
+            for b2 in range(3):
+                for d2 in range(3):
+                    plt.plot(ts, v1[:,b1,d1,b2,d2], 'r-')
+                    plt.plot(ts, v2[:,b1,d1,b2,d2], 'b-')
+                    plt.title(' '.join([str(x) for x in [b1,d1,b2,d2]]))
+                    plt.show()
+
+
+def test_fault_surface():
+    pts = np.array([[-1, 0, 0], [0, -1, 0], [0, 1, 0], [1, 0, 0], [0, 0, -1]])
+    tris = np.array([[0, 1, 2], [2, 1, 3], [1, 2, 4]])
+    K = 'elasticT3'
+    params = [1.0, 0.25]
+    op = DenseIntegralOp(
+        10, 3, 10, 3.0, K, params, pts, tris, float_type
+    )
+    A = op.mat[:9,18:]
+    B = op.mat[9:18,18:]
+    import matplotlib.pyplot as plt
+    plt.imshow(np.sign(A) * np.log10(np.abs(A)), interpolation = 'none')
+    plt.colorbar()
+    plt.figure()
+    plt.imshow(np.sign(B) * np.log10(np.abs(B)), interpolation = 'none')
+    plt.title('B')
+    plt.show()
+    import ipdb
+    ipdb.set_trace()
+

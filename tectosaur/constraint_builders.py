@@ -40,18 +40,6 @@ def build_composite_constraints(*cs_and_starts):
             ))
     return all_cs
 
-def check_if_crosses_fault(tri1, tri2, fault_touching_pts, fault_tris, pts):
-    for fault_tri_idx,_ in fault_touching_pts:
-        fault_t = fault_tris[fault_tri_idx]
-        plane = pts[fault_t]
-        tri1_sides = [geom.which_side_point(plane, pts[tri1[d]]) for d in range(3)]
-        tri2_sides = [geom.which_side_point(plane, pts[tri2[d]]) for d in range(3)]
-        side1 = geom.tri_side(tri1_sides)
-        side2 = geom.tri_side(tri2_sides)
-        if side1 != side2:
-            return True
-    return False
-
 def elastic_rigid_body_constraints(pts, tris, basis_idxs):
     fixed_pt_idx = basis_idxs[0]
     fixed_pt = pts[tris[fixed_pt_idx[0], fixed_pt_idx[1]]]
@@ -100,6 +88,17 @@ def elastic_rigid_body_constraints(pts, tris, basis_idxs):
     return cs
 
 
+def check_if_crosses_fault(tri1, tri2, fault_touching_pts, fault_tris, pts):
+    for fault_tri_idx,_ in fault_touching_pts:
+        fault_t = fault_tris[fault_tri_idx]
+        plane = pts[fault_t]
+        tri1_sides = [geom.which_side_point(plane, pts[tri1[d]]) for d in range(3)]
+        tri2_sides = [geom.which_side_point(plane, pts[tri2[d]]) for d in range(3)]
+        side1 = geom.tri_side(tri1_sides)
+        side2 = geom.tri_side(tri2_sides)
+        if side1 != side2:
+            return True
+    return False
 
 def continuity_constraints(surface_tris, fault_tris, pts):
     n_surf_tris = surface_tris.shape[0]
@@ -113,31 +112,49 @@ def continuity_constraints(surface_tris, fault_tris, pts):
         if len(tpt) == 0:
             continue
 
-        tri1_idx = tpt[0][0]
-        tri1 = surface_tris[tri1_idx]
-        for dependent in tpt[1:]:
-            tri2_idx = dependent[0]
-            tri2 = surface_tris[tri2_idx]
+        for independent_idx in range(len(tpt)):
+            independent = tpt[independent_idx]
+            independent_tri_idx = independent[0]
+            independent_tri = surface_tris[independent_tri_idx]
 
-            # Check for anything that touches across the fault.
-            crosses = (
-                fault_tris.shape[0] > 0
-                and check_if_crosses_fault(
-                    tri1, tri2, fault_touching_pt[i], fault_tris, pts
+            for dependent_idx in range(independent_idx + 1, len(tpt)):
+                dependent = tpt[dependent_idx]
+                dependent_tri_idx = dependent[0]
+                dependent_tri = surface_tris[dependent_tri_idx]
+
+                # Check for anything that touches across the fault.
+                crosses = (
+                    fault_tris.shape[0] > 0
+                    and check_if_crosses_fault(
+                        independent_tri, dependent_tri, fault_touching_pt[i], fault_tris, pts
+                    )
                 )
-            )
-            if crosses:
-                continue
 
-            for d in range(3):
-                indepedent_dof = tri1_idx * 9 + tpt[0][1] * 3 + d
-                dependent_dof = tri2_idx * 9 + dependent[1] * 3 + d
-                if dependent_dof <= indepedent_dof:
-                    continue
-                constraints.append(ConstraintEQ(
-                    [Term(1.0, dependent_dof), Term(-1.0, indepedent_dof)], 0.0
-                ))
+                # if crosses:
+                #     # print('YO ' + str(i) + ' ' + str(pts[i,:]) + ' ' + str(independent) + ' ' + str(dependent))
+                #     continue
 
+                # if crosses:
+                #     def make_c(dof, d):
+                #         print(dof)
+                #         rhs = (-0.5 if dof < 32000 else 0.5) if d == 0 else 0
+                #         constraints.append(ConstraintEQ([Term(1.0, dof)], rhs))
+                #     for d in range(3):
+                #         make_c(independent_tri_idx * 9 + independent[1] * 3 + d, d)
+                #         make_c(dependent_tri_idx * 9 + dependent[1] * 3 + d, d)
+                #     continue
+
+                for d in range(3):
+                    independent_dof = independent_tri_idx * 9 + independent[1] * 3 + d
+                    dependent_dof = dependent_tri_idx * 9 + dependent[1] * 3 + d
+                    if dependent_dof <= independent_dof:
+                        continue
+                    diff = 1.0 if (d == 0 and crosses) else 0.0
+                    constraints.append(ConstraintEQ(
+                        [Term(1.0, dependent_dof), Term(-1.0, independent_dof)], diff
+                    ))
+                    # if diff != 0:
+                    #     print(([(d.dof, d.val) for d in constraints[-1].terms], constraints[-1].rhs))
     return constraints
 
 def free_edge_constraints(tris):
