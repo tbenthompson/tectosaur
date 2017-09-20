@@ -284,27 +284,53 @@ def adj_flipping_experiment():
         [0, 0, 0], [1, 0, 0], [0.5, 0.5, 0],
         [0.5, 0.5 * np.cos(theta), 0.5 * np.sin(theta)]
     ])
+    print(pts)
     tris = np.array([[0,1,2],[1,0,3]])
     tris2 = np.array([[0,1,2],[0,1,3]])
     op = DenseIntegralOp(10, 3, 10, 3.0, K, params, pts, tris, float_type)
     op2 = DenseIntegralOp(10, 3, 10, 3.0, K, params, pts, tris2, float_type)
-    A = op.mat[9:,:9]#.reshape((3,3,3,3))
-    B = op2.mat[9:,:9]#.reshape((3,3,3,3))
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.imshow(A, interpolation = 'none')
-    plt.colorbar()
-    plt.figure()
-    plt.imshow(B, interpolation = 'none')
-    plt.colorbar()
-    plt.title('B')
-    plt.figure()
-    plt.imshow(A+B, interpolation = 'none')
-    plt.colorbar()
-    plt.title('diff')
-    plt.show()
+    A = op.mat[:9,9:].reshape((3,3,3,3))
+    B = op2.mat[:9,9:].reshape((3,3,3,3))
+
+    AG,BG = np.load('flipped_experiment_90.npy')
+    AG = AG.reshape((3,3,3,3))
+    BG = BG.reshape((3,3,3,3))
+    CG = BG.copy()
+    CG[:,:,0,:] = BG[:,:,1,:]
+    CG[:,:,1,:] = BG[:,:,0,:]
+    CG *= -1
     import ipdb
     ipdb.set_trace()
+
+def test_orient_simple():
+    pts = np.array([[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0], [0.5, -0.5, 0.0]])
+    tris = np.array([[0,1,2], [1,0,3]])
+    result = fast_lookup.orient_adj_tris(pts, tris, 0, 1)
+    assert(result[0] == 0)
+    np.testing.assert_almost_equal(result[1], pts[tris[0]])
+    assert(result[2] == 0)
+    assert(not result[3])
+    np.testing.assert_almost_equal(result[4], pts[tris[1]])
+
+def test_orient_rot():
+    pts = np.array([[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0], [0.5, -0.5, 0.0]])
+    tris = np.array([[1,2,0], [1,0,3]])
+    result = fast_lookup.orient_adj_tris(pts, tris, 0, 1)
+    assert(result[0] == 2)
+    np.testing.assert_almost_equal(result[1], pts[[0,1,2]])
+    assert(result[2] == 0)
+    assert(not result[3])
+    np.testing.assert_almost_equal(result[4], pts[tris[1]])
+
+def test_orient_flip():
+    pts = np.array([[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0], [0.5, -0.5, 0.0]])
+    tris = np.array([[0,1,2], [0,1,3]])
+    result = fast_lookup.orient_adj_tris(pts, tris, 0, 1)
+    assert(result[0] == 0);
+    np.testing.assert_almost_equal(result[1], pts[tris[0]])
+    assert(result[2] == 0);
+    assert(result[3])
+    np.testing.assert_almost_equal(result[4], pts[[1,0,3]])
 
 if __name__ == "__main__":
     adj_flipping_experiment()

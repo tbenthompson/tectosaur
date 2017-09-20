@@ -318,7 +318,6 @@ std::array<double,81> transform_from_standard(const std::array<double,81>& I,
                     if (flip_negate && d1 != d2) {
                     // if (flip_negate) {
                         out[cb1 * 27 + d1 * 9 + cb2 * 3 + d2] = -I_scale[d1][d2];
-                        std::cout << "FLIP" << std::endl;
                     } else {
                         out[cb1 * 27 + d1 * 9 + cb2 * 3 + d2] = I_scale[d1][d2];
                     }
@@ -642,6 +641,7 @@ struct EdgeAdjacentLookupTris {
     std::vector<Tensor3> obs_tris;
     std::vector<int> obs_clicks;
     std::vector<int> src_clicks;
+    std::vector<bool> src_flips;
     std::vector<std::array<std::array<double,2>,3>> obs_basis;
     std::vector<std::array<std::array<double,2>,3>> src_basis;
 
@@ -650,25 +650,94 @@ struct EdgeAdjacentLookupTris {
         obs_tris(n_tris),
         obs_clicks(n_tris),
         src_clicks(n_tris),
+        src_flips(n_tris),
         obs_basis(n_tris),
         src_basis(n_tris)
     {}
 };
 
-int edge_adj_orient(int touching_vert0, int touching_vert1) {
-    auto tv0 = touching_vert0;
-    auto tv1 = touching_vert1;
-    if (touching_vert1 < touching_vert0) {
-        tv0 = touching_vert1;
-        tv1 = touching_vert0;
-    }
-    if (tv0 == 0) {
-        if (tv1 == 2) {
-            return 2;
+std::tuple<int,Tensor3,int,bool,Tensor3> orient_adj_tris(double* pts_ptr,
+        long* tris_ptr, int tri_idx1, int tri_idx2)
+{
+    std::pair<int,int> pair1 = {-1,-1};
+    std::pair<int,int> pair2 = {-1,-1};
+    for (int d1 = 0; d1 < 3; d1++) {
+        for (int d2 = 0; d2 < 3; d2++) {
+            if (tris_ptr[tri_idx1 * 3 + d1] != tris_ptr[tri_idx2 * 3 + d2]) {
+                continue;
+            }
+            if (pair1.first == -1) {
+                pair1 = {d1, d2};
+            } else {
+                pair2 = {d1, d2};
+            }
         }
-        return 0;
     }
-    return 1;
+
+    assert(pair1.first != -1);
+    assert(pair1.second != -1);
+    assert(pair2.first != -1);
+    assert(pair2.second != -1);
+
+    int obs_clicks = -1;
+    if (positive_mod(pair1.first + 1, 3) == pair2.first) {
+        obs_clicks = pair1.first;
+    } else {
+        obs_clicks = pair2.first;
+        std::swap(pair1, pair2);
+    }
+    assert(obs_clicks != -1);
+
+    // bool src_misordered = (pair1.second + 1) % 3 == pair2.second;
+    // if (src_misordered) {
+    //     std::cout << "SRC" << std::endl;
+    // }
+    int src_clicks = -1;
+    bool src_flip = false;
+    if (positive_mod(pair1.second + 1, 3) == pair2.second) {
+        src_flip = true;
+        src_clicks = pair1.second;
+    } else {
+        src_clicks = pair2.second;
+    }
+    assert(src_clicks != -1);
+
+    auto obs_rot = rotate_tri(obs_clicks);
+    auto src_rot = rotate_tri(src_clicks);
+    if (src_flip) {
+        std::swap(src_rot[0], src_rot[1]);
+    }
+
+    Tensor3 obs_tri;
+    Tensor3 src_tri;
+    for (int d1 = 0; d1 < 3; d1++) {
+        for (int d2 = 0; d2 < 3; d2++) {
+            auto obs_v_idx = obs_rot[d1];
+            auto src_v_idx = src_rot[d1];
+            obs_tri[d1][d2] = pts_ptr[tris_ptr[tri_idx1 * 3 + obs_v_idx] * 3 + d2];
+            src_tri[d1][d2] = pts_ptr[tris_ptr[tri_idx2 * 3 + src_v_idx] * 3 + d2];
+        }
+    }
+
+    for (int d = 0; d < 3; d++) {
+        assert(obs_tri[0][d] == src_tri[1][d]);
+        assert(obs_tri[1][d] == src_tri[0][d]);
+    }
+
+    return std::make_tuple(obs_clicks, obs_tri, src_clicks, src_flip, src_tri);
+}
+
+py::tuple orient_adj_tris_shim(NPArray<double> pts, NPArray<long> tris,
+    int tri_idx1, int tri_idx2)
+{
+    auto* pts_ptr = as_ptr<double>(pts);
+    auto* tris_ptr = as_ptr<long>(tris);
+    auto result = orient_adj_tris(pts_ptr, tris_ptr, tri_idx1, tri_idx2);
+    return py::make_tuple(
+        std::get<0>(result), std::get<1>(result),
+        std::get<2>(result), std::get<3>(result),
+        std::get<4>(result)
+    );
 }
 
 py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
@@ -686,38 +755,14 @@ py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
     for (size_t i = 0; i < n_tris; i++) {
         auto tri_idx1 = ea_tri_indices_ptr[i * 2];
         auto tri_idx2 = ea_tri_indices_ptr[i * 2 + 1];
-        std::pair<int,int> pair1 = {-1,-1};
-        std::pair<int,int> pair2 = {-1,-1};
-        for (int d1 = 0; d1 < 3; d1++) {
-            for (int d2 = 0; d2 < 3; d2++) {
-                if (tris_ptr[tri_idx1 * 3 + d1] != tris_ptr[tri_idx2 * 3 + d2]) {
-                    continue;
-                }
-                if (pair1.first == -1) {
-                    pair1 = {d1, d2};
-                } else {
-                    pair2 = {d1, d2};
-                }
-            }
-        }
-        ea.obs_clicks[i] = edge_adj_orient(pair1.first, pair2.first);
-        ea.src_clicks[i] = edge_adj_orient(pair1.second, pair2.second);
-        auto obs_rot = rotate_tri(ea.obs_clicks[i]);
-        auto src_rot = rotate_tri(ea.src_clicks[i]);
+        auto oriented = orient_adj_tris(pts_ptr, tris_ptr, tri_idx1, tri_idx2);
+        ea.obs_clicks[i] = std::get<0>(oriented);
+        ea.obs_tris[i] = std::get<1>(oriented);
+        ea.src_clicks[i] = std::get<2>(oriented);
+        ea.src_flips[i] = std::get<3>(oriented);
+        auto src_tri = std::get<4>(oriented);
 
-        Tensor3 obs_tri;
-        Tensor3 src_tri;
-        for (int d1 = 0; d1 < 3; d1++) {
-            for (int d2 = 0; d2 < 3; d2++) {
-                auto obs_v_idx = obs_rot[d1];
-                auto src_v_idx = src_rot[d1];
-                obs_tri[d1][d2] = pts_ptr[tris_ptr[tri_idx1 * 3 + obs_v_idx] * 3 + d2];
-                src_tri[d1][d2] = pts_ptr[tris_ptr[tri_idx2 * 3 + src_v_idx] * 3 + d2];
-            }
-        }
-        ea.obs_tris[i] = obs_tri;
-
-        auto sep_res = separate_tris(obs_tri, src_tri);
+        auto sep_res = separate_tris(ea.obs_tris[i], src_tri);
 
         ea.obs_basis[i] = sep_res.obs_basis_tri[0];
         ea.src_basis[i] = sep_res.src_basis_tri[0];
@@ -773,7 +818,7 @@ py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
             }
         }
 
-        auto phi = get_adjacent_phi(obs_tri, src_tri);
+        auto phi = get_adjacent_phi(ea.obs_tris[i], src_tri);
         double phi_max = M_PI;
         if (flip_symmetry) {
             if (phi > M_PI) {
@@ -837,17 +882,24 @@ std::array<double,81> sub_basis(const std::array<double,81>& I,
 }
 
 // TODO: Duplicated with derotate_adj_mat in fast_assembly.cpp, refactor, fix.
-void derotate(int obs_clicks, int src_clicks, double* out_start, double* in_start) {
+void derotate(int obs_clicks, int src_clicks, bool src_flip, double* out_start, double* in_start) {
     auto obs_derot = rotate_tri(-obs_clicks);
     auto src_derot = rotate_tri(-src_clicks);
+    if (src_flip) {
+        std::swap(src_derot[0], src_derot[1]);
+    }
     for (int b1 = 0; b1 < 3; b1++) {
         for (int b2 = 0; b2 < 3; b2++) {
             for (int d1 = 0; d1 < 3; d1++) {
                 for (int d2 = 0; d2 < 3; d2++) {
                     auto out_idx = b1 * 27 + d1 * 9 + b2 * 3 + d2;
                     auto in_idx = obs_derot[b1] * 27 + d1 * 9 + src_derot[b2] * 3 + d2;
+                    auto val = in_start[in_idx];
+                    if (src_flip) {
+                        val *= -1;
+                    }
 #pragma omp atomic
-                    out_start[out_idx] += in_start[in_idx];
+                    out_start[out_idx] += val;
                 }
             }
         }
@@ -870,7 +922,7 @@ void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
 
         int out_idx = va.original_pair_idx[i];
         derotate(
-            ea.obs_clicks[out_idx], ea.src_clicks[out_idx],
+            ea.obs_clicks[out_idx], ea.src_clicks[out_idx], ea.src_flips[out_idx],
             &out_ptr[out_idx * 81], res.data()
         );
     }
@@ -914,7 +966,7 @@ NPArray<double> adjacent_lookup_from_standard(
 
         auto chunk = sub_basis(transformed, ea.obs_basis[i], ea.src_basis[i]);
 
-        derotate(ea.obs_clicks[i], ea.src_clicks[i], &out_ptr[i * 81], chunk.data());
+        derotate(ea.obs_clicks[i], ea.src_clicks[i], ea.src_flips[i], &out_ptr[i * 81], chunk.data());
     }
     return out;
 }
@@ -961,6 +1013,7 @@ PYBIND11_MODULE(fast_lookup, m) {
     py::class_<EdgeAdjacentLookupTris>(m, "EdgeAdjacentLookupTris")
         .NPARRAYPROP(EdgeAdjacentLookupTris, pts);
 
+    m.def("orient_adj_tris", orient_adj_tris_shim);
     m.def("adjacent_lookup_pts", adjacent_lookup_pts);
     m.def("vert_adj_subbasis", vert_adj_subbasis);
 }

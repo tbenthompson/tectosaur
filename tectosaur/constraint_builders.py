@@ -134,16 +134,6 @@ def continuity_constraints(surface_tris, fault_tris, pts):
                 #     # print('YO ' + str(i) + ' ' + str(pts[i,:]) + ' ' + str(independent) + ' ' + str(dependent))
                 #     continue
 
-                # if crosses:
-                #     def make_c(dof, d):
-                #         print(dof)
-                #         rhs = (-0.5 if dof < 32000 else 0.5) if d == 0 else 0
-                #         constraints.append(ConstraintEQ([Term(1.0, dof)], rhs))
-                #     for d in range(3):
-                #         make_c(independent_tri_idx * 9 + independent[1] * 3 + d, d)
-                #         make_c(dependent_tri_idx * 9 + dependent[1] * 3 + d, d)
-                #     continue
-
                 for d in range(3):
                     independent_dof = independent_tri_idx * 9 + independent[1] * 3 + d
                     dependent_dof = dependent_tri_idx * 9 + dependent[1] * 3 + d
