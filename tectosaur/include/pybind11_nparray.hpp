@@ -59,7 +59,7 @@ NPArray<T> array_from_vector(const std::vector<T>& in, std::vector<size_t> shape
         shape = {in.size()};
     }
     auto out = make_array<T>(shape);
-    assert(out.size() == in.size());
+    assert(static_cast<size_t>(out.size()) == in.size());
     T* ptr = reinterpret_cast<T*>(out.request().ptr);
     for (size_t i = 0; i < in.size(); i++) {
         ptr[i] = in[i];

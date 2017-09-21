@@ -9,8 +9,8 @@ cfg['dependencies'] += ['../include/pybind11_nparray.hpp']
 namespace py = pybind11;
 
 py::tuple build_op(NPArray<double> basis_factors, NPArray<double> jacobians) {
-    auto n_tris = jacobians.request().shape[0];
-    auto n_entries = n_tris * 27;
+    size_t n_tris = jacobians.request().shape[0];
+    size_t n_entries = n_tris * 27;
 
     auto basis_factors_ptr = as_ptr<double>(basis_factors);
     auto jacobians_ptr = as_ptr<double>(jacobians);
@@ -39,8 +39,6 @@ py::tuple build_op(NPArray<double> basis_factors, NPArray<double> jacobians) {
     return py::make_tuple(rows, cols, vals);
 }
 
-PYBIND11_PLUGIN(_mass_op) {
-    pybind11::module m("_mass_op", "");
+PYBIND11_MODULE(_mass_op,m) {
     m.def("build_op", &build_op);
-    return m.ptr();
 }

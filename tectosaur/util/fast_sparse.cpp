@@ -14,13 +14,13 @@ namespace py = pybind11;
 py::tuple make_bsr_matrix(size_t n_rows, size_t n_cols, 
         NPArray<double> in_data, NPArray<long> rows, NPArray<long> cols) 
 {
-    auto blockrows = in_data.request().shape[1];
-    auto blockcols = in_data.request().shape[2];
+    size_t blockrows = in_data.request().shape[1];
+    size_t blockcols = in_data.request().shape[2];
     assert(blockrows == blockcols);
 
-    auto n_row_blocks = n_rows / blockrows;
-    auto n_blocks = rows.request().shape[0];
-    auto blocksize = blockrows * blockcols;
+    size_t n_row_blocks = n_rows / blockrows;
+    size_t n_blocks = rows.request().shape[0];
+    size_t blocksize = blockrows * blockcols;
 
     auto* rows_ptr = as_ptr<long>(rows);
     auto* cols_ptr = as_ptr<long>(cols);
@@ -167,8 +167,7 @@ void bcoomv${blocksize}(NPArray<long> rows, NPArray<long> cols,
     ${bcoomv(blocksize)}
 % endfor 
 
-PYBIND11_PLUGIN(fast_sparse) {
-    py::module m("fast_sparse");
+PYBIND11_MODULE(fast_sparse,m) {
     m.def("make_bsr_matrix", &make_bsr_matrix);
     % for blocksize in range(1, 10):
         m.def("sbsrmv${blocksize}", &bsrmv${blocksize}<float>);
@@ -176,6 +175,5 @@ PYBIND11_PLUGIN(fast_sparse) {
         m.def("sbcoomv${blocksize}", &bcoomv${blocksize}<float>);
         m.def("dbcoomv${blocksize}", &bcoomv${blocksize}<double>);
     % endfor
-    return m.ptr();
 }
 

@@ -84,8 +84,7 @@ void wrap_dim(py::module& m) {
 }
 
 
-PYBIND11_PLUGIN(traversal_wrapper) {
-    py::module m("traversal_wrapper");
+PYBIND11_MODULE(traversal_wrapper,m) {
     auto two = m.def_submodule("two");
     auto three = m.def_submodule("three");
 
@@ -102,6 +101,4 @@ PYBIND11_PLUGIN(traversal_wrapper) {
     py::class_<Interactions>(m, "Interactions")
         .OP(u2e).OP(d2e).OP(p2m).OP(m2m).OP(p2l).OP(m2l).OP(l2l).OP(p2p).OP(m2p).OP(l2p);
 #undef OP
-
-    return m.ptr();
 }

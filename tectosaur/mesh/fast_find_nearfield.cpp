@@ -174,8 +174,7 @@ std::array<std::vector<long>,3> split_adjacent_close(long* close_pairs,
     return out;
 }
 
-PYBIND11_PLUGIN(fast_find_nearfield) {
-    py::module m("fast_find_nearfield", "");
+PYBIND11_MODULE(fast_find_nearfield,m) {
     constexpr static int dim = 3;
 
     m.def("get_nearfield",
@@ -246,6 +245,4 @@ PYBIND11_PLUGIN(fast_find_nearfield) {
                 array_from_vector(out[2], {out[2].size() / 2, 2})
             );
         });
-
-    return m.ptr();
 }

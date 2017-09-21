@@ -222,21 +222,18 @@ py::tuple build_constraint_matrix(const std::vector<ConstraintEQ>& cs, size_t n_
 }
 
 
-PYBIND11_PLUGIN(fast_constraints) {
-    py::module m("fast_constraints", "");
-
+PYBIND11_MODULE(fast_constraints,m) {
     py::class_<Term>(m, "Term")
-        .def("__init__", [] (Term& t, double val, size_t dof) {
-            t.val = val;
-            t.dof = dof; 
-        })
+        .def(py::init([] (double val, size_t dof) {
+            return Term{val, dof};
+        }))
         .def_readonly("val", &Term::val)
         .def_readonly("dof", &Term::dof);
 
     py::class_<ConstraintEQ>(m, "ConstraintEQ")
-        .def("__init__", [] (ConstraintEQ& c, const TermVector& terms, double rhs) {
-            new (&c) ConstraintEQ{terms, rhs};
-        })
+        .def(py::init([] (const TermVector& terms, double rhs) {
+            return ConstraintEQ{terms, rhs};
+        }))
         .def_readonly("terms", &ConstraintEQ::terms)
         .def_readonly("rhs", &ConstraintEQ::rhs)
         .def(py::self == py::self);
@@ -251,6 +248,4 @@ PYBIND11_PLUGIN(fast_constraints) {
     m.def("combine_terms", &combine_terms);
     m.def("filter_zero_terms", &filter_zero_terms);
     m.def("build_constraint_matrix", &build_constraint_matrix);
-
-    return m.ptr();
 }
