@@ -11,7 +11,6 @@ def find_touching_pts(tris):
             out[t[d]].append((i, d))
     return out
 
-
 def find_free_edges(tris):
     edges = dict()
     for i, t in enumerate(tris):
@@ -107,6 +106,9 @@ def continuity_constraints(surface_tris, fault_tris, pts):
     touching_pt = find_touching_pts(surface_tris)
     if fault_tris.shape[0] > 0:
         fault_touching_pt = find_touching_pts(fault_tris)
+    fault_touching_pt.extend(
+        [[] for i in range(len(touching_pt) - len(fault_touching_pt))]
+    )
     constraints = []
     for i, tpt in enumerate(touching_pt):
         if len(tpt) == 0:
@@ -130,16 +132,16 @@ def continuity_constraints(surface_tris, fault_tris, pts):
                     )
                 )
 
-                # if crosses:
-                #     # print('YO ' + str(i) + ' ' + str(pts[i,:]) + ' ' + str(independent) + ' ' + str(dependent))
-                #     continue
+                if crosses:
+                    continue
 
                 for d in range(3):
                     independent_dof = independent_tri_idx * 9 + independent[1] * 3 + d
                     dependent_dof = dependent_tri_idx * 9 + dependent[1] * 3 + d
                     if dependent_dof <= independent_dof:
                         continue
-                    diff = 1.0 if (d == 0 and crosses) else 0.0
+                    # diff = 1.0 if (d == 0 and crosses) else 0.0
+                    diff = 0.0
                     constraints.append(ConstraintEQ(
                         [Term(1.0, dependent_dof), Term(-1.0, independent_dof)], diff
                     ))

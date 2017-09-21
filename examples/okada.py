@@ -47,20 +47,11 @@ def make_fault(L, top_depth, n_fault):
         [-L, 0, top_depth], [-L, 0, top_depth - 1],
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
-    for idx in range(2):
-        should_refine = np.ones(m[1].shape[0], dtype = np.bool)
-        for i in range(m[1].shape[0]):
-            if np.any(m[0][:,2][m[1][i]] > -1e-5):
-                should_refine[i] = False
-            else:
-                should_refine[i] = True
-        m = mesh_refine.selective_refine(m, should_refine)
     return m
-
 
 def make_meshes(fault_L, top_depth, n_surf, n_fault):
     t = Timer()
-    surf_w = 5
+    surf_w = 10
     surface = make_free_surface(surf_w, n_surf)
     t.report('make free surface')
     fault = make_fault(fault_L, top_depth, n_fault)
@@ -89,17 +80,7 @@ def test_okada(n_surf, n_fault = None):
     timer.report('make meshes')
     logger.info('n_elements: ' + str(all_mesh[1].shape[0]))
 
-    # to check that the fault-surface alignment is correct
-    # plt.triplot(all_mesh[0][:,0], all_mesh[0][:,1], surface_tris, linewidth = 0.3)
-    # plt.triplot(all_mesh[0][:,0], all_mesh[0][:,1], fault_tris, linewidth = 0.3)
-    # plt.plot(all_mesh[0][:,0], all_mesh[0][:,1], 'o', markersize = 3)
-    # plt.show()
-
     if not load_soln:
-
-        surface_pt_idxs = np.unique(surface_tris)
-        obs_pts = all_mesh[0][surface_pt_idxs,:]
-
 
         T_op = SparseIntegralOp(
             6, 2, 5, 2.0,
@@ -120,17 +101,16 @@ def test_okada(n_surf, n_fault = None):
         # soln = direct_solve(iop, cs)
         timer.report("Solve")
 
-        disp = soln[:iop.shape[0]].reshape(
-            (int(iop.shape[0] / 9), 3, 3)
-        )[:-fault_tris.shape[0]]
-        vals = [None] * surface_pt_idxs.shape[0]
-        for i in range(surface_tris.shape[0]):
-            for b in range(3):
-                idx = surface_tris[i, b]
-                # if vals[idx] is not None:
-                #     np.testing.assert_almost_equal(vals[idx], disp[i,b,:], 9)
-                vals[idx] = disp[i,b,:]
-        vals = np.array(vals)
+        surface_pt_idxs = np.unique(surface_tris)
+        obs_pts = all_mesh[0][surface_pt_idxs,:]
+
+        disp = soln.reshape((-1, 3, 3))
+        all_vals = np.empty((all_mesh[0].shape[0], 3))
+        for b in range(3):
+            for d in range(3):
+                all_vals[all_mesh[1][:,b],d] = disp[:,b,d]
+
+        vals = all_vals[surface_pt_idxs,:]
         timer.report("Extract surface displacement")
         with open('okada.npy', 'wb') as f:
             pickle.dump((soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr), f)
