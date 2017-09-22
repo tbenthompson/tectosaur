@@ -106,6 +106,8 @@ def continuity_constraints(surface_tris, fault_tris, pts):
     touching_pt = find_touching_pts(surface_tris)
     if fault_tris.shape[0] > 0:
         fault_touching_pt = find_touching_pts(fault_tris)
+    else:
+        fault_touching_pt = []
     fault_touching_pt.extend(
         [[] for i in range(len(touching_pt) - len(fault_touching_pt))]
     )

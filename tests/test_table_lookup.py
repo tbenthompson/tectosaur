@@ -227,8 +227,7 @@ def test_adjacent_fast_lookup(request, kernel):
 def test_adjacent_lookup(request, kernel):
     return adjacent_lookup_helper(kernel, 5)
 
-
-def test_fault_surface():
+def fault_surface_experiment():
     pts = np.array([[-1, 0, 0], [0, -1, 0], [0, 1, 0], [1, 0, 0], [0, 0, -1]])
     tris = np.array([[0, 1, 2], [2, 1, 3], [1, 2, 4]])
     K = 'elasticT3'
