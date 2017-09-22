@@ -3,8 +3,12 @@ import pycuda
 import pycuda.gpuarray
 import pycuda.compiler
 
+cuda_initialized = False
 def ensure_initialized():
-    import pycuda.autoinit
+    global cuda_initialized
+    if not cuda_initialized:
+        cuda_initialized = True
+        import pycuda.autoinit
 
 def ptr(arr):
     if type(arr) is pycuda.gpuarray.GPUArray:
