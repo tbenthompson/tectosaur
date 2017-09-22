@@ -9,8 +9,6 @@ fmm_test_cfg(cfg)
 
 namespace py = pybind11;
 
-PYBIND11_PLUGIN(test_main) {
-    py::module m("test_main");
+PYBIND11_MODULE(test_main,m) {
     m.def("run_tests", [] () { main(0, nullptr); });
-    return m.ptr();
 }

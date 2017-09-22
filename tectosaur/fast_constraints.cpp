@@ -182,7 +182,7 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
 
 py::tuple build_constraint_matrix(const std::vector<ConstraintEQ>& cs, size_t n_total_dofs) {
 
-    Timer t;
+    Timer t(true);
     auto lower_tri_cs = reduce_constraints(cs, n_total_dofs);
     t.report("reduce");
 

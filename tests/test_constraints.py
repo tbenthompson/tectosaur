@@ -134,7 +134,7 @@ def test_faulted_continuity():
     n_rows = n_total_dofs
     n_cols = n_total_dofs - n_unique_cs
     cm = scipy.sparse.csr_matrix((vals, (rows, cols)), shape = (n_rows, n_cols))
-    assert(cm.shape[1] == 3 * n ** 2)
+    assert(cm.shape[1] == 36)
 
 def benchmark_build_constraint_matrix():
     from tectosaur.util.timer import Timer
