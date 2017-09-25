@@ -18,10 +18,8 @@ from tectosaur.util.timer import Timer
 
 from laplace import laplace
 
-# import tectosaur, logging
-# tectosaur.logger.setLevel(logging.ERROR)
-from tectosaur.util.logging import setup_logger
-logger = setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 float_type = np.float32
 

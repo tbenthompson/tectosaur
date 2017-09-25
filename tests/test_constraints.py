@@ -4,8 +4,8 @@ import tectosaur.mesh.mesh_gen as mesh_gen
 import tectosaur.mesh.modify as mesh_modify
 import numpy as np
 
-from tectosaur.util.logging import setup_logger
-logger = setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 
 def test_rearrange_constraint_eq():

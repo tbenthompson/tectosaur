@@ -2,6 +2,10 @@ import numpy as np
 import pycuda
 import pycuda.gpuarray
 import pycuda.compiler
+import tectosaur.util.logging as tct_log
+
+import logging
+logger = logging.getLogger(__name__)
 
 cuda_initialized = False
 def ensure_initialized():
@@ -9,6 +13,10 @@ def ensure_initialized():
     if not cuda_initialized:
         cuda_initialized = True
         import pycuda.autoinit
+        gpu_idx = pycuda.driver.Context.get_device().get_attribute(
+            pycuda._driver.device_attribute.MULTI_GPU_BOARD_GROUP_ID
+        )
+        logger.debug('Initialized CUDA on gpu: ' + str(gpu_idx))
 
 def ptr(arr):
     if type(arr) is pycuda.gpuarray.GPUArray:
@@ -17,11 +25,9 @@ def ptr(arr):
 
 def to_gpu(arr, float_type = np.float32):
     ensure_initialized()
-    ensure_initialized()
     if type(arr) is pycuda.gpuarray.GPUArray:
         return arr
     to_type = arr.astype(float_type)
-    # tct_log.get_caller_logger().debug('sending n_bytes: ' + str(to_type.nbytes))
     return pycuda.gpuarray.to_gpu(to_type)
 
 def empty_gpu(shape, float_type = np.float32):

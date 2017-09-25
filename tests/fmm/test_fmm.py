@@ -8,8 +8,8 @@ from tectosaur.fmm.c2e import direct_matrix
 
 from dimension import dim
 
-from tectosaur import setup_logger
-logger = setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 float_type = np.float64
 

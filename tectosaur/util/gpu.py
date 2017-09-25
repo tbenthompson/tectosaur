@@ -3,7 +3,6 @@ import os
 import numpy as np
 
 import tectosaur
-import tectosaur.util.logging as tct_log
 from tectosaur.util.timer import Timer
 try:
     from tectosaur.util.cuda import compile, empty_gpu, zeros_gpu, to_gpu, cluda_preamble
@@ -14,7 +13,8 @@ except ImportError:
     cuda_backend = False
     ocl_backend = True
 
-logger = tct_log.setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 gpu_module = dict()
 

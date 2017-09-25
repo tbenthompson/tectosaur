@@ -2,11 +2,11 @@ import numpy as np
 import scipy.sparse as sparse
 import scipy.sparse.linalg
 
-from tectosaur import setup_logger
 from tectosaur.util.timer import Timer
 from tectosaur.constraints import build_constraint_matrix
 
-logger = setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 # master-slave constrained direct solves look like:
 # Kˆ uˆ = ˆf, in which Kˆ = TT K T, ˆf = TT (f − K g).

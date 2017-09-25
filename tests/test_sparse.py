@@ -2,8 +2,8 @@ import numpy as np
 import scipy.sparse
 import tectosaur.util.sparse as sparse
 
-from tectosaur.util.logging import setup_logger
-logger = setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 def test_bsrmv():
     A = np.zeros((4,4))

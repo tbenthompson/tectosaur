@@ -4,8 +4,8 @@ import pyopencl.array
 import warnings
 import numpy as np
 
-from tectosaur.util.logging import setup_logger
-logger = setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 gpu_initialized = False
 gpu_ctx = None
@@ -41,7 +41,6 @@ def to_gpu(arr, float_type = np.float32):
     if type(arr) is pyopencl.array.Array:
         return arr
     to_type = arr.astype(float_type)
-    # tct_log.get_caller_logger().debug('sending n_bytes: ' + str(to_type.nbytes))
     return pyopencl.array.to_device(gpu_queue, to_type)
 
 def zeros_gpu(shape, float_type = np.float32):

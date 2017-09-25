@@ -5,8 +5,8 @@ from tectosaur.mesh.find_near_adj import *
 
 from tectosaur.util.test_decorators import golden_master,flatten
 
-from tectosaur.util.logging import setup_logger
-logger = setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 def find_adjacents(tris):
     pts = np.random.rand(np.max(tris) + 1, 3)

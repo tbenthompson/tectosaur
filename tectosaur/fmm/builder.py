@@ -3,8 +3,8 @@ import numpy as np
 import tectosaur.util.gpu as gpu
 from tectosaur.fmm.c2e import build_c2e
 
-from tectosaur import setup_logger
-logger = setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 def make_tree(pts, cfg, max_pts_per_cell):
     return cfg.traversal_module.Tree.build(pts, max_pts_per_cell)

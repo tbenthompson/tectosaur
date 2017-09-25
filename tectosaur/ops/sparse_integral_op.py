@@ -15,10 +15,8 @@ import tectosaur.util.geometry as geometry
 import tectosaur.util.gpu as gpu
 from tectosaur.util.timer import Timer
 
-from tectosaur.util.logging import setup_logger
-
-
-logger = setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 def interp_galerkin_mat(tri_pts, quad_rule):
     nt = tri_pts.shape[0]

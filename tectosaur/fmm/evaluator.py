@@ -3,8 +3,8 @@ import numpy as np
 import tectosaur.util.gpu as gpu
 from tectosaur.util.timer import Timer
 
-from tectosaur import setup_logger
-logger = setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 def convert_op_name_to_kernel_name(op_name):
     return op_name[:3].replace('m', 's').replace('l', 's')

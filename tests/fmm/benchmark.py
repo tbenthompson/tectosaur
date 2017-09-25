@@ -1,13 +1,13 @@
 import sys
 import numpy as np
-from tectosaur.util.logging import setup_logger
 import tectosaur.fmm.fmm as fmm
 from tectosaur.util.test_decorators import golden_master
 
 from tectosaur.util.timer import Timer
 from tectosaur.farfield import farfield_pts_direct
 
-setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 # K_name = 'laplaceS2'
 # tensor_dim = 1

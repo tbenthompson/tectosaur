@@ -21,7 +21,8 @@ from tectosaur.ops.sum_op import SumOp
 
 from solve import iterative_solve, direct_solve
 
-logger = tectosaur.setup_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 def build_constraints(surface_tris, fault_tris, pts):
     n_surf_tris = surface_tris.shape[0]
