@@ -12,8 +12,12 @@ def setup_root_logger(log_name):
     L.setLevel(logging.DEBUG)
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.DEBUG)
-    format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    formatter = logging.Formatter(format)
+    formatter = logging.Formatter(
+        # "[%(asctime)s:%(levelname)8s:%(name)35s] %(message)s",
+        # "[%(asctime)s:%(levelname)s:%(name)s]\n    %(message)s",
+        "[%(relativeCreated)d:%(levelname)s:%(name)s]\n    %(message)s",
+        datefmt='%j:%H:%M:%S'
+    )
     ch.setFormatter(formatter)
     L.addHandler(ch)
     return L
