@@ -39,7 +39,7 @@ class BCOOMatrix:
         return BSRMatrix(indptr, indices, data, self.shape)
 
     def to_dense(self):
-        return self.to_bsr().to_scipy().to_dense()
+        return self.to_bsr().to_scipy().todense()
 
 class BSRMatrix:
     def __init__(self, indptr, indices, data, shape):
