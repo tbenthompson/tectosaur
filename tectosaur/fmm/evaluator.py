@@ -199,12 +199,21 @@ class FMMEvaluator:
         for k, t in times.items():
             logger.debug(k + ' took ' + str(t))
 
+def getter(gpu_out):
+    import pycuda.autoinit
+    ctx = pycuda.autoinit.context
+    ctx.push()
+    res = gpu_out.get()
+    ctx.pop()
+    return res
+
 async def async_eval(evaluator, input_vals, should_log_timing = True):
     t = Timer()
     gpu_out = evaluator.eval(input_vals)
     t.report('fmm evaluation launched')
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, gpu_out.get)
+    result = await loop.run_in_executor(None, getter, gpu_out)
+    result = gpu_out.get()
     t.report('fmm evaluation complete')
     if should_log_timing:
         evaluator.log_timing()

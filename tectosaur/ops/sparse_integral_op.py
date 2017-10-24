@@ -2,6 +2,7 @@ import os
 import attr
 import numpy as np
 import scipy.sparse
+import asyncio
 
 
 from tectosaur.farfield import farfield_pts_direct
@@ -73,6 +74,9 @@ class DirectFarfield:
             self.gpu_src_pts, self.gpu_src_ns, v, self.params, self.float_type
         )
 
+    def async_dot(self, v):
+        return self.dot(v)
+
 class FMMFarfield:
     def __init__(self, kernel, params, obs_pts, obs_ns, src_pts, src_ns,
             float_type, order, mac, pts_per_cell):
@@ -88,17 +92,36 @@ class FMMFarfield:
         fmm.report_interactions(self.fmm_obj)
         self.evaluator = fmm.FMMEvaluator(self.fmm_obj)
 
+    def to_tree_space(self, v):
+        return v.reshape((-1,3))[self.orig_idxs,:].reshape(-1)
+
+    def from_tree_space(self, fmm_out):
+        to_orig = np.empty_like(fmm_out)
+        to_orig[self.orig_idxs,:] = fmm_out
+        to_orig = to_orig.flatten()
+        return to_orig
+
     def dot(self, v):
         t = Timer()
-        input_tree = v.reshape((-1,3))[self.orig_idxs,:].reshape(-1)
+        input_tree = self.to_tree_space(v)
         t.report('to tree space')
 
         fmm_out = fmm.eval(self.evaluator, input_tree.copy()).reshape((-1, 3))
         t.report('fmm eval')
 
-        to_orig = np.empty_like(fmm_out)
-        to_orig[self.orig_idxs,:] = fmm_out
-        to_orig = to_orig.flatten()
+        to_orig = self.from_tree_space(fmm_out)
+        t.report('to output space')
+        return to_orig
+
+    async def async_dot(self, v):
+        t = Timer()
+        input_tree = self.to_tree_space(v)
+        t.report('to tree space')
+
+        fmm_out = fmm.eval(self.evaluator, input_tree.copy()).reshape((-1, 3))
+        t.report('fmm eval')
+
+        to_orig = self.from_tree_space(fmm_out)
         t.report('to output space')
         return to_orig
 
@@ -144,12 +167,13 @@ class SparseIntegralOp:
         return self.nearfield.nearfield_no_correction_dot(v)
 
     def dot(self, v):
-        t = Timer()
-        near_out = self.nearfield_dot(v)
-        t.report('nearfield dot')
-        far_out = self.farfield_dot(v)
-        t.report('farfield dot')
-        return near_out + far_out
+        return async_dot(self, v)
+        # t = Timer()
+        # near_out = self.nearfield_dot(v)
+        # t.report('nearfield dot')
+        # far_out = self.farfield_dot(v)
+        # t.report('farfield dot')
+        # return near_out + far_out
 
     def farfield_dot(self, v):
         t = Timer()
@@ -160,3 +184,25 @@ class SparseIntegralOp:
         out = self.interp_galerkin_mat.T.dot(nbody_result)
         t.report('interp_galerkin_mat.T.dot')
         return out
+
+async def nearfield_dot(op, v):
+    t = Timer()
+    out = op.nearfield_dot(v)
+    t.report('nearfield dot')
+    return out
+
+async def farfield_dot(op, v):
+    t = Timer()
+    out = op.farfield_dot(v)
+    t.report('farfield dot')
+    return out
+
+def async_dot(op, v):
+    loop = asyncio.get_event_loop()
+    near_out_fut = loop.create_task(nearfield_dot(op, v))
+    far_out_fut = loop.create_task(farfield_dot(op, v))
+    loop.run_until_complete(asyncio.wait([near_out_fut, far_out_fut]))
+    near_out = near_out_fut.result()
+    far_out = far_out_fut.result()
+    return near_out + far_out
+
