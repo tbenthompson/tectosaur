@@ -16,7 +16,7 @@ def ensure_initialized():
         gpu_idx = pycuda.driver.Context.get_device().get_attribute(
             pycuda._driver.device_attribute.MULTI_GPU_BOARD_GROUP_ID
         )
-        logger.debug('Initialized CUDA on gpu: ' + str(gpu_idx))
+        logger.info('Initialized CUDA on gpu: ' + str(gpu_idx))
 
 def ptr(arr):
     if type(arr) is pycuda.gpuarray.GPUArray:

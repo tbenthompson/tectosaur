@@ -94,9 +94,9 @@ def fmm_runner(pts, ns, input_vals):
     output = fmm.eval(evaluator, input_tree)
     t.report('eval fmm')
 
-    for i in range(2):
-        output = evaluator.eval(input_tree)
-        t.report('eval fmm')
+    # for i in range(2):
+    #     output = evaluator.eval(input_tree)
+    #     t.report('eval fmm')
 
     to_orig = fmm_obj.to_orig(output)
     t.report('map to input space')

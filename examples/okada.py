@@ -21,8 +21,8 @@ from tectosaur.ops.sum_op import SumOp
 
 from solve import iterative_solve, direct_solve
 
-import logging
-logger = logging.getLogger(__name__)
+from tectosaur.util.logging import setup_root_logger
+logger = setup_root_logger(__name__)
 
 def build_constraints(surface_tris, fault_tris, pts):
     n_surf_tris = surface_tris.shape[0]
@@ -68,7 +68,7 @@ def test_okada(n_surf, n_fault = None):
     pr = 0.25
     k_params = [sm, pr]
     fault_L = 1.0
-    top_depth = -0.0
+    top_depth = -0.5
     load_soln = False
     float_type = np.float32
     if n_fault is None:
@@ -102,8 +102,7 @@ def test_okada(n_surf, n_fault = None):
         # soln = direct_solve(iop, cs)
         timer.report("Solve")
 
-        surface_pt_idxs = np.unique(surface_tris)
-        obs_pts = all_mesh[0][surface_pt_idxs,:]
+        obs_pts = all_mesh[0]
 
         disp = soln.reshape((-1, 3, 3))
         all_vals = np.empty((all_mesh[0].shape[0], 3))
@@ -111,7 +110,7 @@ def test_okada(n_surf, n_fault = None):
             for d in range(3):
                 all_vals[all_mesh[1][:,b],d] = disp[:,b,d]
 
-        vals = all_vals[surface_pt_idxs,:]
+        vals = all_vals[:,:]
         timer.report("Extract surface displacement")
         with open('okada.npy', 'wb') as f:
             pickle.dump((soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr), f)
@@ -120,7 +119,7 @@ def test_okada(n_surf, n_fault = None):
             soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-    # plot_results(obs_pts, surface_tris, u, vals)
+    plot_results(obs_pts, surface_tris, u, vals)
     results_xsec(all_mesh[0], surface_tris, soln)
     # plot_interior_displacement(k_params, all_mesh, soln, float_type)
     # plot_interior_displacement2(k_params, all_mesh, soln, float_type)

@@ -1,3 +1,4 @@
+import asyncio
 import numpy as np
 
 import tectosaur.util.gpu as gpu
@@ -150,9 +151,8 @@ class FMMEvaluator:
         for arr in ['out', 'm_check', 'multipoles', 'l_check', 'locals']:
             getattr(self, arr).fill(0)
 
-    def eval(self, input_vals, should_log_timing = True):
+    def eval(self, input_vals):
         self.kernel_evs = dict()
-        t = Timer()
 
         self.prep_data_for_eval(input_vals)
 
@@ -183,14 +183,7 @@ class FMMEvaluator:
             d2e_evs.append(self.gpu_d2e(i, [l2l_evs[-1]]))
 
         l2p_ev = self.gpu_l2p(d2e_evs[-1])
-
-        retval = self.out.get()
-        t.report('fmm data returned')
-
-        # if should_log_timing:
-        #     self.log_timing()
-
-        return retval
+        return self.out
 
     def log_timing(self):
         def get_time(ev):
@@ -206,5 +199,17 @@ class FMMEvaluator:
         for k, t in times.items():
             logger.debug(k + ' took ' + str(t))
 
-def eval(evaluator, input_vals):
-    return evaluator.eval(input_vals)
+async def async_eval(evaluator, input_vals, should_log_timing = True):
+    t = Timer()
+    gpu_out = evaluator.eval(input_vals)
+    t.report('fmm evaluation launched')
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, gpu_out.get)
+    t.report('fmm evaluation complete')
+    if should_log_timing:
+        evaluator.log_timing()
+    return result
+
+def eval(evaluator, input_vals, should_log_timing = True):
+    loop = asyncio.get_event_loop()
+    return loop.run_until_complete(async_eval(evaluator, input_vals, should_log_timing))
