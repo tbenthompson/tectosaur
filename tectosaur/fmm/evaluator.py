@@ -185,7 +185,7 @@ class FMMEvaluator:
         l2p_ev = self.gpu_l2p(d2e_evs[-1])
 
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, self.out.get)
+        result = await loop.run_in_executor(None, gpu.threaded_get, self.out)
 
         if should_log_timing:
             self.log_timing()

@@ -51,6 +51,9 @@ def empty_gpu(shape, float_type = np.float32):
     ensure_initialized()
     return pyopencl.array.empty(gpu_queue, shape, float_type)
 
+def threaded_get(arr):
+    return arr.get()
+
 class ModuleWrapper:
     def __init__(self, module):
         self.module = module

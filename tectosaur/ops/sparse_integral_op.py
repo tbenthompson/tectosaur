@@ -149,6 +149,8 @@ class SparseIntegralOp:
     async def async_dot(self, v):
         # far_out = await self.farfield_dot(v)
         # near_out = await self.nearfield_dot(v)
+        import taskloaf.launch
+        taskloaf.launch.launch(2,
         far_out, near_out = await asyncio.gather(
             asyncio.ensure_future(self.farfield_dot(v)),
             asyncio.ensure_future(self.nearfield_dot(v))

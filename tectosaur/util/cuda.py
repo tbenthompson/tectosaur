@@ -38,6 +38,24 @@ def zeros_gpu(shape, float_type = np.float32):
     ensure_initialized()
     return pycuda.gpuarray.zeros(shape, float_type)
 
+
+
+class CUDAContextWrapper(object):
+    def __init__(self, context):
+        self.ctx = context
+
+    def __enter__(self):
+        self.ctx.push()
+        return self
+
+    def __exit__(self, evalue, etype, etraceback):
+        self.ctx.pop()
+
+def threaded_get(arr):
+    import pycuda.autoinit
+    with CUDAContextWrapper(pycuda.autoinit.context):
+        return arr.get()
+
 class ModuleWrapper:
     def __init__(self, module):
         self.module = module

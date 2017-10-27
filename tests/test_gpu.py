@@ -1,6 +1,7 @@
 import os
 import pytest
 import numpy as np
+from threading import Thread
 import tectosaur.util.gpu as gpu
 import tectosaur.util.opencl as opencl
 
@@ -35,3 +36,14 @@ def test_simple_module():
 
     correct = in_arr + arg
     np.testing.assert_almost_equal(correct, output)
+
+def test_threaded_get():
+    R = np.random.rand(10)
+    gpu_R = gpu.to_gpu(R, np.float32)
+    def f():
+        f.R2 = gpu.threaded_get(gpu_R)
+    f.R2 = None
+    thread = Thread(target = f)
+    thread.start()
+    thread.join()
+    np.testing.assert_almost_equal(R, f.R2)
