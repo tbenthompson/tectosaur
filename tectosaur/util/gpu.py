@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+import taskloaf as tsk
 
 import tectosaur
 from tectosaur.util.timer import Timer
@@ -23,6 +24,10 @@ def np_to_c_type(t):
         return 'float'
     elif t == np.float64:
         return 'double'
+
+async def get(arr):
+    result = await tsk.run_in_thread(lambda: threaded_get(arr))
+    return result
 
 def intervals(length, step_size):
     out = []
@@ -77,8 +82,8 @@ def get_template(tmpl_name, tmpl_dir):
     lookup = mako.lookup.TemplateLookup(directories = template_dirs)
     return lookup.get_template(tmpl_name)
 
-def template_with_mako(tmpl_name, tmpl_dir, tmpl_args):
-    tmpl = get_template(tmpl_name, tmpl_dir)
+
+def template_with_mako(tmpl, tmpl_args):
     try:
         return tmpl.render(**tmpl_args, cluda_preamble = cluda_preamble)
     except:
@@ -103,10 +108,22 @@ def load_gpu(tmpl_name, tmpl_dir = None, should_save_code = False,
             logger.debug('returning cached gpu module ' + tmpl_name)
             return existing_module
 
+    tmpl = get_template(tmpl_name, tmpl_dir)
+    return compile_module(tmpl, tmpl_name, should_save_code, tmpl_args)
+
+def load_gpu_from_code(code, should_save_code = False, tmpl_args = None):
+    from mako.template import Template
+    tmpl = Template(code)
+    return compile_module(tmpl, 'anonymous', should_save_code, tmpl_args)
+
+def compile_module(tmpl, tmpl_name, should_save_code, tmpl_args):
+    if tmpl_args is None:
+        tmpl_args = dict()
+
+    code = template_with_mako(tmpl, tmpl_args)
+
     t = Timer()
     logger.debug('start compiling ' + tmpl_name)
-
-    code = template_with_mako(tmpl_name, tmpl_dir, tmpl_args)
 
     if should_save_code:
         save_code(code)
