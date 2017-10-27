@@ -2,7 +2,8 @@ import tectosaur.util.logging as tct_log
 import time
 
 class Timer(object):
-    def __init__(self, tabs = 0, silent = False, prefix = "", logger = None):
+    def __init__(self, just_print = False, tabs = 0, silent = False, prefix = "", logger = None):
+        self.just_print = just_print
         self.tabs = tabs
         self.silent = silent
         self.start = time.time()
@@ -10,6 +11,12 @@ class Timer(object):
         self.logger = logger
         if self.logger is None:
             self.logger = tct_log.get_caller_logger()
+
+    def write(self, text):
+        if self.just_print:
+            print(text)
+        else:
+            self.logger.debug(text)
 
     def restart(self):
         self.start = time.time()
@@ -21,6 +28,6 @@ class Timer(object):
                 text += self.prefix + ' -- '
             text += name + " took "
             text += str(time.time() - self.start)
-            self.logger.debug(text)
+            self.write(text)
         if should_restart:
             self.restart()

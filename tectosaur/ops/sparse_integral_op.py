@@ -67,7 +67,7 @@ class DirectFarfield:
         else:
             self.gpu_src_ns = gpu.to_gpu(src_ns, float_type)
 
-    def dot(self, v):
+    async def dot(self, v):
         return farfield_pts_direct(
             self.kernel, self.gpu_obs_pts, self.gpu_obs_ns,
             self.gpu_src_pts, self.gpu_src_ns, v, self.params, self.float_type
@@ -88,12 +88,13 @@ class FMMFarfield:
         fmm.report_interactions(self.fmm_obj)
         self.evaluator = fmm.FMMEvaluator(self.fmm_obj)
 
-    def dot(self, v):
+    async def dot(self, v):
         t = Timer()
         input_tree = v.reshape((-1,3))[self.orig_idxs,:].reshape(-1)
         t.report('to tree space')
 
-        fmm_out = fmm.eval(self.evaluator, input_tree.copy()).reshape((-1, 3))
+        fmm_out = await self.evaluator.eval(input_tree.copy())
+        fmm_out = fmm_out.reshape((-1, 3))
         t.report('fmm eval')
 
         to_orig = np.empty_like(fmm_out)
@@ -114,6 +115,7 @@ class FMMFarfieldBuilder:
             self.order, self.mac, self.pts_per_cell
         )
 
+import asyncio
 class SparseIntegralOp:
     def __init__(self, nq_vert_adjacent, nq_far, nq_near, near_threshold,
             kernel, params, pts, tris, float_type, farfield_op_type = None):
@@ -137,26 +139,29 @@ class SparseIntegralOp:
         )
         self.gpu_nearfield = None
 
-    def nearfield_dot(self, v):
+    async def nearfield_dot(self, v):
+        print("STARTNEAR")
         return self.nearfield.dot(v)
 
-    def nearfield_no_correction_dot(self, v):
+    async def nearfield_no_correction_dot(self, v):
         return self.nearfield.nearfield_no_correction_dot(v)
 
-    def dot(self, v):
-        t = Timer()
-        near_out = self.nearfield_dot(v)
-        t.report('nearfield dot')
-        far_out = self.farfield_dot(v)
-        t.report('farfield dot')
+    async def async_dot(self, v):
+        # far_out = await self.farfield_dot(v)
+        # near_out = await self.nearfield_dot(v)
+        far_out, near_out = await asyncio.gather(
+            asyncio.ensure_future(self.farfield_dot(v)),
+            asyncio.ensure_future(self.nearfield_dot(v))
+        )
         return near_out + far_out
 
-    def farfield_dot(self, v):
-        t = Timer()
+    def dot(self, v):
+        return asyncio.get_event_loop().run_until_complete(self.async_dot(v))
+
+    async def farfield_dot(self, v):
+        print("STARTFAR")
         interp_v = self.interp_galerkin_mat.dot(v).flatten()
-        t.report('interp_galerkin_mat.dot')
-        nbody_result = self.farfield_op.dot(interp_v)
-        t.report('farfield_op.dot')
+        nbody_result = await self.farfield_op.dot(interp_v)
         out = self.interp_galerkin_mat.T.dot(nbody_result)
-        t.report('interp_galerkin_mat.T.dot')
+        print("ENDFAR")
         return out

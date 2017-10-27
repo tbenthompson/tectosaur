@@ -91,7 +91,9 @@ def fmm_runner(pts, ns, input_vals):
     t.report('report')
 
     evaluator = fmm.FMMEvaluator(fmm_obj)
-    output = fmm.eval(evaluator, input_tree)
+
+    import asyncio
+    output = asyncio.get_event_loop().run_until_complete(evaluator.eval(input_tree))
     t.report('eval fmm')
 
     # for i in range(2):
