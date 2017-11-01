@@ -74,12 +74,13 @@ class Side:
     intersect = 2
 
 def which_side_point(tri, pt):
+    threshold = 1e-13
     normal = tri_normal(tri)
     tri_center = np.mean(tri, axis = 0)
     dot_val = (pt - tri_center).dot(normal)
-    if dot_val > 0:
+    if dot_val > threshold:
         return Side.front
-    elif dot_val < 0:
+    elif dot_val < -threshold:
         return Side.behind
     else:
         return Side.intersect
