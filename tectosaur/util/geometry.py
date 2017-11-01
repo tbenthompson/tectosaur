@@ -73,8 +73,7 @@ class Side:
     behind = 1
     intersect = 2
 
-def which_side_point(tri, pt):
-    threshold = 1e-13
+def which_side_point(tri, pt, threshold = 1e-12):
     normal = tri_normal(tri, normalize = True)
     tri_center = np.mean(tri, axis = 0)
     direction = pt - tri_center
