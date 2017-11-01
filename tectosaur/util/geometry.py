@@ -75,9 +75,11 @@ class Side:
 
 def which_side_point(tri, pt):
     threshold = 1e-13
-    normal = tri_normal(tri)
+    normal = tri_normal(tri, normalize = True)
     tri_center = np.mean(tri, axis = 0)
-    dot_val = (pt - tri_center).dot(normal)
+    direction = pt - tri_center
+    direction /= np.linalg.norm(direction)
+    dot_val = direction.dot(normal)
     if dot_val > threshold:
         return Side.front
     elif dot_val < -threshold:
