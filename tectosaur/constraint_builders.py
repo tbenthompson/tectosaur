@@ -91,10 +91,8 @@ def check_if_crosses_fault(tri1, tri2, fault_touching_pts, fault_tris, pts):
     for fault_tri_idx,_ in fault_touching_pts:
         fault_t = fault_tris[fault_tri_idx]
         plane = pts[fault_t]
-        tri1_sides = [geom.which_side_point(plane, pts[tri1[d]]) for d in range(3)]
-        tri2_sides = [geom.which_side_point(plane, pts[tri2[d]]) for d in range(3)]
-        side1 = geom.tri_side(tri1_sides)
-        side2 = geom.tri_side(tri2_sides)
+        side1 = geom.tri_side(plane, pts[tri1])
+        side2 = geom.tri_side(plane, pts[tri2])
         if side1 != side2:
             return True
     return False

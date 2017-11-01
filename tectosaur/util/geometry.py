@@ -96,7 +96,7 @@ def segment_side(sides):
     else:
         return Side.intersect
 
-def tri_side(s):
+def tri_side2(s):
     edge0 = segment_side([s[0], s[1]]);
     edge1 = segment_side([s[0], s[2]]);
     edge2 = segment_side([s[1], s[2]]);
@@ -107,3 +107,17 @@ def tri_side(s):
     if edge2 == Side.intersect and edge0 == edge1:
         return edge0;
     return edge0;
+
+def tri_side(tri1, tri2, threshold = 1e-12):
+    tri1_normal = tri_normal(tri1, normalize = True)
+    tri1_center = np.mean(tri1, axis = 0)
+    tri2_center = np.mean(tri2, axis = 0)
+    direction = tri2_center - tri1_center
+    direction /= np.linalg.norm(direction)
+    dot_val = direction.dot(tri1_normal)
+    if dot_val > threshold:
+        return Side.front
+    elif dot_val < -threshold:
+        return Side.behind
+    else:
+        return Side.intersect
