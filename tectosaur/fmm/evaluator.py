@@ -1,4 +1,3 @@
-import asyncio
 import numpy as np
 
 import tectosaur.util.gpu as gpu
@@ -184,8 +183,7 @@ class FMMEvaluator:
 
         l2p_ev = self.gpu_l2p(d2e_evs[-1])
 
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, gpu.threaded_get, self.out)
+        result = await gpu.get(self.out)
 
         if should_log_timing:
             self.log_timing()

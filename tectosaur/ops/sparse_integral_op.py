@@ -115,7 +115,7 @@ class FMMFarfieldBuilder:
             self.order, self.mac, self.pts_per_cell
         )
 
-import asyncio
+import taskloaf as tsk
 class SparseIntegralOp:
     def __init__(self, nq_vert_adjacent, nq_far, nq_near, near_threshold,
             kernel, params, pts, tris, float_type, farfield_op_type = None):
@@ -141,24 +141,22 @@ class SparseIntegralOp:
 
     async def nearfield_dot(self, v):
         print("STARTNEAR")
-        return self.nearfield.dot(v)
+        out = self.nearfield.dot(v)
+        print("ENDNEAR")
+        return out
 
     async def nearfield_no_correction_dot(self, v):
         return self.nearfield.nearfield_no_correction_dot(v)
 
     async def async_dot(self, v):
-        # far_out = await self.farfield_dot(v)
-        # near_out = await self.nearfield_dot(v)
-        import taskloaf.launch
-        taskloaf.launch.launch(2,
-        far_out, near_out = await asyncio.gather(
-            asyncio.ensure_future(self.farfield_dot(v)),
-            asyncio.ensure_future(self.nearfield_dot(v))
-        )
+        far_t = tsk.submit_coro(self.farfield_dot(v))
+        near_t = tsk.submit_coro(self.nearfield_dot(v))
+        far_out = await far_t
+        near_out = await near_t
         return near_out + far_out
 
     def dot(self, v):
-        return asyncio.get_event_loop().run_until_complete(self.async_dot(v))
+        return tsk.run(self.async_dot(v))
 
     async def farfield_dot(self, v):
         print("STARTFAR")
