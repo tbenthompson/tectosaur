@@ -75,7 +75,8 @@ class Side:
 
 def which_side_point(tri, pt):
     normal = tri_normal(tri)
-    dot_val = (pt - tri[0]).dot(normal)
+    tri_center = np.mean(tri, axis = 0)
+    dot_val = (pt - tri_center).dot(normal)
     if dot_val > 0:
         return Side.front
     elif dot_val < 0:
