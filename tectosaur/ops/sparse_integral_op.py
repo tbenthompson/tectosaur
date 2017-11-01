@@ -140,17 +140,22 @@ class SparseIntegralOp:
         self.gpu_nearfield = None
 
     async def nearfield_dot(self, v):
-        print("STARTNEAR")
+        t = Timer()
+        logger.debug("start nearfield_dot")
         out = self.nearfield.dot(v)
-        print("ENDNEAR")
+        t.report("nearfield_dot")
         return out
 
     async def nearfield_no_correction_dot(self, v):
         return self.nearfield.nearfield_no_correction_dot(v)
 
     async def async_dot(self, v):
-        far_t = tsk.submit_coro(self.farfield_dot(v))
-        near_t = tsk.submit_coro(self.nearfield_dot(v))
+        async def call_farfield():
+            return (await self.farfield_dot(v))
+        async def call_nearfield():
+            return (await self.nearfield_dot(v))
+        near_t = tsk.task(call_nearfield)
+        far_t = tsk.task(call_farfield)
         far_out = await far_t
         near_out = await near_t
         return near_out + far_out
@@ -159,9 +164,10 @@ class SparseIntegralOp:
         return tsk.run(self.async_dot(v))
 
     async def farfield_dot(self, v):
-        print("STARTFAR")
+        t = Timer()
+        logger.debug("start farfield_dot")
         interp_v = self.interp_galerkin_mat.dot(v).flatten()
         nbody_result = await self.farfield_op.dot(interp_v)
         out = self.interp_galerkin_mat.T.dot(nbody_result)
-        print("ENDFAR")
+        t.report('farfield_dot')
         return out
