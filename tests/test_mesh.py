@@ -2,6 +2,7 @@ from tectosaur.mesh.refine import refine, selective_refine, refine_to_size
 from tectosaur.mesh.modify import concat, flip_normals, remove_duplicate_pts
 from tectosaur.mesh.mesh_gen import make_rect
 from tectosaur.util.geometry import tri_normal
+from tectosaur.util.test_decorators import golden_master
 import numpy as np
 
 def test_remove_duplicates():
@@ -28,6 +29,12 @@ def test_remove_duplicates_threshold():
     m2 = remove_duplicate_pts(m, 1e-5)
     assert(m2[0].shape[0] == 3)
     np.testing.assert_almost_equal(m2[0][m2[1]], m[0][m[1]], 5)
+
+@golden_master()
+def test_remove_duplicates_real(request):
+    m = np.load('tests/remove_duplicates.npy')
+    m2 = remove_duplicate_pts(m)
+    return m2[0]
 
 def test_flip_normals():
     m = make_rect(2, 2, [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]])

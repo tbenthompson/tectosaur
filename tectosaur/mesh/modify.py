@@ -4,15 +4,12 @@ import scipy.spatial
 
 fast_modify = cppimport.imp('tectosaur.mesh.fast_modify')
 
-# TODO: The current implementation of this works well for checking equality of pts
-# but doesn't work well with larger thresholds because two points can be arbitrarily
-# close but on opposite sides of a bucket boundary. This can be avoided probabalistically
-# by choosing two thresholds that are close but not equal.
 def remove_duplicate_pts(m, threshold = None):
     dim = m[0].shape[1]
     if threshold is None:
         default_threshold_factor = 1e-13
-        threshold = np.max(np.max(m[0], axis = 0) - np.min(m[0], axis = 0)) * default_threshold_factor
+        spatial_range = np.max(np.max(m[0], axis = 0) - np.min(m[0], axis = 0))
+        threshold = spatial_range * default_threshold_factor
     kd = scipy.spatial.cKDTree(m[0])
     pairs = np.array(list(kd.query_pairs(threshold)))
     if len(pairs.shape) == 1:
