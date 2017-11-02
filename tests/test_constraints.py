@@ -128,7 +128,7 @@ def test_faulted_continuity():
     surface_tris = all_mesh[1][:m[1].shape[0]]
     fault_tris = all_mesh[1][m[1].shape[0]:]
 
-    cs = continuity_constraints(surface_tris, fault_tris, all_mesh[0])
+    cs = continuity_constraints(surface_tris, fault_tris)
     n_total_dofs = m[1].size * 3
     rows, cols, vals, rhs, n_unique_cs = fast_constraints.build_constraint_matrix(cs, n_total_dofs)
     n_rows = n_total_dofs

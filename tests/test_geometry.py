@@ -17,18 +17,3 @@ def test_tri_unit_normal():
 
 def test_tri_area():
     np.testing.assert_almost_equal(tri_area(np.array([[0,0,0],[1,0,0],[0,1,0]])), 0.5)
-
-def test_which_side_pt():
-    tri = np.array([[0,0,0],[1,0,0],[0,1,0]])
-    assert(which_side_point(tri, np.array([0,0,-1])) == Side.behind)
-    assert(which_side_point(tri, np.array([0,0,1])) == Side.front)
-    assert(which_side_point(tri, np.array([0,0,0])) == Side.intersect)
-    assert(which_side_point(tri, np.array([0,0,1e-14])) == Side.intersect)
-
-def test_tri_side():
-    assert(tri_side([Side.front, Side.front, Side.front]) == Side.front);
-    assert(tri_side([Side.intersect, Side.front, Side.front]) == Side.front);
-    assert(tri_side([Side.intersect, Side.intersect, Side.front]) == Side.front);
-    assert(tri_side([Side.behind, Side.intersect, Side.behind]) == Side.behind);
-    assert(tri_side([Side.behind, Side.front, Side.behind]) == Side.intersect);
-

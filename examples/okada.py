@@ -28,7 +28,7 @@ def build_constraints(surface_tris, fault_tris, pts):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
 
-    cs = continuity_constraints(surface_tris, fault_tris, pts)
+    cs = continuity_constraints(surface_tris, fault_tris)
 
     # X component = 1
     # Y comp = Z comp = 0
@@ -68,16 +68,16 @@ def test_okada(n_surf, n_fault = None):
     pr = 0.25
     k_params = [sm, pr]
     fault_L = 1.0
-    top_depth = -0.5
+    top_depth = 0.0
     load_soln = False
     float_type = np.float32
     if n_fault is None:
-        n_fault = max(2, n_surf // 5)
+        n_fault = 7#max(2, n_surf // 5)
 
     timer = Timer()
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth, n_surf, n_fault)
 
-    # mesh_gen.plot_mesh3d(*all_mesh)
+    mesh_gen.plot_mesh3d(*all_mesh)
     timer.report('make meshes')
     logger.info('n_elements: ' + str(all_mesh[1].shape[0]))
 
@@ -120,7 +120,7 @@ def test_okada(n_surf, n_fault = None):
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
     # plot_results(obs_pts, surface_tris, u, vals)
-    # results_xsec(all_mesh[0], surface_tris, soln)
+    results_xsec(all_mesh[0], surface_tris, soln)
     # plot_interior_displacement(k_params, all_mesh, soln, float_type)
     # plot_interior_displacement2(k_params, all_mesh, soln, float_type)
     return print_error(obs_pts, u, vals)

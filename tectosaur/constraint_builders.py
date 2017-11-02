@@ -87,17 +87,29 @@ def elastic_rigid_body_constraints(pts, tris, basis_idxs):
     return cs
 
 
-def check_if_crosses_fault(tri1, tri2, fault_touching_pts, fault_tris, pts):
-    for fault_tri_idx,_ in fault_touching_pts:
-        fault_t = fault_tris[fault_tri_idx]
-        plane = pts[fault_t]
-        side1 = geom.tri_side(plane, pts[tri1])
-        side2 = geom.tri_side(plane, pts[tri2])
-        if side1 != side2:
+def check_if_crosses_fault(tri1, tri2, fault_touching_pts, fault_tris):
+    shared_pts = []
+    for d in range(3):
+        idx = np.where(tri2 == tri1[d])[0]
+        if idx.shape[0] == 0:
+            continue
+        shared_pts.append(d)
+    assert(0 < len(shared_pts) < 3)
+
+    if len(shared_pts) == 1:
+        if len(fault_touching_pts[tri1[shared_pts[0]]]) > 0:
             return True
+
+    if len(shared_pts) == 2:
+        p1_touches = len(fault_touching_pts[tri1[shared_pts[0]]]) > 0
+        p2_touches = len(fault_touching_pts[tri1[shared_pts[1]]]) > 0
+        if p1_touches and p2_touches:
+            return True
+
     return False
 
-def continuity_constraints(surface_tris, fault_tris, pts):
+
+def continuity_constraints(surface_tris, fault_tris):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
 
@@ -128,7 +140,7 @@ def continuity_constraints(surface_tris, fault_tris, pts):
                 crosses = (
                     fault_tris.shape[0] > 0
                     and check_if_crosses_fault(
-                        independent_tri, dependent_tri, fault_touching_pt[i], fault_tris, pts
+                        independent_tri, dependent_tri, fault_touching_pt, fault_tris
                     )
                 )
 
@@ -140,13 +152,10 @@ def continuity_constraints(surface_tris, fault_tris, pts):
                     dependent_dof = dependent_tri_idx * 9 + dependent[1] * 3 + d
                     if dependent_dof <= independent_dof:
                         continue
-                    # diff = 1.0 if (d == 0 and crosses) else 0.0
                     diff = 0.0
                     constraints.append(ConstraintEQ(
                         [Term(1.0, dependent_dof), Term(-1.0, independent_dof)], diff
                     ))
-                    # if diff != 0:
-                    #     print(([(d.dof, d.val) for d in constraints[-1].terms], constraints[-1].rhs))
     return constraints
 
 def free_edge_constraints(tris):
