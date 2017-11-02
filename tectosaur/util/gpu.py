@@ -91,32 +91,32 @@ def template_with_mako(tmpl, tmpl_args):
         logger.error(mako.exceptions.text_error_template().render())
         raise
 
-def save_code(code):
+def save_code_to_tmp(code):
     import tempfile
     with tempfile.NamedTemporaryFile(mode = 'w', delete = False) as temp:
         temp.write(code)
         logger.info('gpu module code written to ' + temp.name)
 
-def load_gpu(tmpl_name, tmpl_dir = None, should_save_code = False,
+def load_gpu(tmpl_name, tmpl_dir = None, save_code = False,
         no_caching = False, tmpl_args = None):
     if tmpl_args is None:
         tmpl_args = dict()
 
-    if not no_caching and not should_save_code:
+    if not no_caching and not save_code:
         existing_module = get_existing_module(tmpl_name, tmpl_args)
         if existing_module is not None:
             logger.debug('returning cached gpu module ' + tmpl_name)
             return existing_module
 
     tmpl = get_template(tmpl_name, tmpl_dir)
-    return compile_module(tmpl, tmpl_name, should_save_code, tmpl_args)
+    return compile_module(tmpl, tmpl_name, save_code, tmpl_args)
 
-def load_gpu_from_code(code, should_save_code = False, tmpl_args = None):
+def load_gpu_from_code(code, save_code = False, tmpl_args = None):
     from mako.template import Template
     tmpl = Template(code)
-    return compile_module(tmpl, 'anonymous', should_save_code, tmpl_args)
+    return compile_module(tmpl, 'anonymous', save_code, tmpl_args)
 
-def compile_module(tmpl, tmpl_name, should_save_code, tmpl_args):
+def compile_module(tmpl, tmpl_name, save_code, tmpl_args):
     if tmpl_args is None:
         tmpl_args = dict()
 
@@ -125,8 +125,8 @@ def compile_module(tmpl, tmpl_name, should_save_code, tmpl_args):
     t = Timer()
     logger.debug('start compiling ' + tmpl_name)
 
-    if should_save_code:
-        save_code(code)
+    if save_code:
+        save_code_to_tmp(code)
 
     module_info = dict()
     module_info['tmpl_args'] = tmpl_args

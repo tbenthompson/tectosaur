@@ -23,22 +23,20 @@ def ptr(arr):
         return arr.gpudata
     return arr
 
-def to_gpu(arr, float_type = np.float32):
+def to_gpu(arr, float_type):
     ensure_initialized()
     if type(arr) is pycuda.gpuarray.GPUArray:
         return arr
     to_type = arr.astype(float_type)
     return pycuda.gpuarray.to_gpu(to_type)
 
-def empty_gpu(shape, float_type = np.float32):
+def empty_gpu(shape, float_type):
     ensure_initialized()
     return pycuda.gpuarray.empty(shape, float_type)
 
-def zeros_gpu(shape, float_type = np.float32):
+def zeros_gpu(shape, float_type):
     ensure_initialized()
     return pycuda.gpuarray.zeros(shape, float_type)
-
-
 
 class CUDAContextWrapper(object):
     def __init__(self, context):

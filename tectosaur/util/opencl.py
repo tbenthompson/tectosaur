@@ -36,18 +36,18 @@ def ptr(arr):
         return arr.data
     return arr
 
-def to_gpu(arr, float_type = np.float32):
+def to_gpu(arr, float_type):
     ensure_initialized()
     if type(arr) is pyopencl.array.Array:
         return arr
     to_type = arr.astype(float_type)
     return pyopencl.array.to_device(gpu_queue, to_type)
 
-def zeros_gpu(shape, float_type = np.float32):
+def zeros_gpu(shape, float_type):
     ensure_initialized()
     return pyopencl.array.zeros(gpu_queue, shape, float_type)
 
-def empty_gpu(shape, float_type = np.float32):
+def empty_gpu(shape, float_type):
     ensure_initialized()
     return pyopencl.array.empty(gpu_queue, shape, float_type)
 

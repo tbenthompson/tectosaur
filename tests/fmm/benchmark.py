@@ -14,15 +14,15 @@ logger = logging.getLogger(__name__)
 # mac = 3.0
 # order = 10
 
-K_name = 'laplaceS3'
-tensor_dim = 1
-mac = 2.0
-order = 100
-
-# K_name = 'elasticH3'
-# tensor_dim = 3
-# mac = 3.0
+# K_name = 'laplaceS3'
+# tensor_dim = 1
+# mac = 2.0
 # order = 100
+
+K_name = 'elasticT3'
+tensor_dim = 3
+mac = 3.0
+order = 100
 
 pts_per_cell = order
 float_type = np.float32
