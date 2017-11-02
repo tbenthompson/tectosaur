@@ -1,6 +1,7 @@
 import sys
 import numpy as np
 
+import taskloaf as tsk
 from tectosaur.farfield import farfield_pts_direct
 from tectosaur.util.timer import Timer
 import tectosaur.fmm.fmm as fmm
@@ -69,7 +70,7 @@ def run_full(n, pts_builder, mac, order, kernel, params, max_pts_per_cell = None
     t.report('setup fmm')
 
     evaluator = fmm.FMMEvaluator(fmm_obj)
-    est = evaluator.eval(np.ones(fmm_obj.n_input))
+    est = tsk.run(evaluator.eval(np.ones(fmm_obj.n_input)))
     t.report('eval fmm')
 
     return (

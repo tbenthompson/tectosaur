@@ -110,7 +110,7 @@ def test_redundant_continuity():
     n = 13
     corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
     m = mesh_gen.make_rect(n, n, corners)
-    cs = continuity_constraints(m[1], np.array([]), m[0])
+    cs = continuity_constraints(m[1], np.array([]))
     n_total_dofs = m[1].size * 3
     rows, cols, vals, rhs, n_unique_cs = fast_constraints.build_constraint_matrix(cs, n_total_dofs)
     n_rows = n_total_dofs
