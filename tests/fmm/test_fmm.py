@@ -4,6 +4,7 @@ import numpy as np
 import taskloaf as tsk
 from tectosaur.farfield import farfield_pts_direct
 from tectosaur.util.timer import Timer
+from tectosaur.util.test_decorators import slow
 import tectosaur.fmm.fmm as fmm
 from tectosaur.fmm.c2e import direct_matrix
 
@@ -11,8 +12,6 @@ from dimension import dim
 
 import logging
 logger = logging.getLogger(__name__)
-
-float_type = np.float64
 
 def rand_pts(dim):
     def f(n, source):
@@ -48,7 +47,9 @@ def get_pts(pts_builder, n):
     src_ns /= np.linalg.norm(src_ns, axis = 1)[:,np.newaxis]
     return obs_pts, obs_ns, src_pts, src_ns
 
-def run_full(n, pts_builder, mac, order, kernel, params, max_pts_per_cell = None):
+def run_full(n, pts_builder, mac, order, kernel, params,
+        float_type = np.float64, max_pts_per_cell = None):
+
     if max_pts_per_cell is None:
         max_pts_per_cell = order
     t = Timer()
@@ -90,7 +91,8 @@ def check(est, correct, accuracy):
     rhs = correct / rms_c
     np.testing.assert_almost_equal(lhs, rhs, accuracy)
 
-def check_kernel(K, obs_pts, obs_ns, src_pts, src_ns, est, accuracy = 3):
+def check_kernel(K, obs_pts, obs_ns, src_pts, src_ns, est,
+        float_type = np.float64, accuracy = 3):
     dim = obs_pts.shape[1]
     tensor_dim = int(est.size / obs_pts.shape[0])
     vec = np.ones(src_pts.shape[0] * tensor_dim)
@@ -132,6 +134,17 @@ def test_elastic():
         4000, rand_pts(dim), 2.6, order, K, [1.0, 0.25]
     ), accuracy = 1)
 
+@slow
+def test_elasticT_and_floattypes():
+    np.random.seed(10)
+    dim = 3
+    K = 'elasticU' + str(dim)
+    order = 16 if dim == 2 else 64
+    for ft in [np.float32, np.float64]:
+        check_kernel(K, *run_full(
+            20000, rand_pts(dim), 2.6, order, K, [1.0, 0.25], float_type = ft
+        ), float_type = ft, accuracy = 3)
+
 def test_m2l(laplace_kernel, dim):
     K = laplace_kernel + str(dim)
     order = 15 if dim == 2 else 100
@@ -148,6 +161,7 @@ def test_direct_matrix():
     K_name = "elasticU3"
     obs_pts, obs_ns, src_pts, src_ns = get_pts(rand_pts(3), 100)
     params = np.array([1.0, 0.25])
+    float_type = np.float64
     cfg = fmm.make_config(K_name, params, 1.0, 1.0, 1, float_type)
     matrix = direct_matrix(cfg.gpu_module, cfg.K, obs_pts, obs_ns, src_pts, src_ns, params, float_type)
     est = matrix.dot(np.ones(matrix.shape[1]))

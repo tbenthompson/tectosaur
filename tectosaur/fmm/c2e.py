@@ -11,7 +11,7 @@ class Ball:
 def inscribe_surf(ball, scaling, surf):
     return surf * ball.R * scaling + ball.center
 
-def c2e_solve(gpu_module, surf, bounds, check_r, equiv_r, K, params, float_type):
+def c2e_solve(gpu_module, surf, bounds, check_r, equiv_r, K, params, alpha, float_type):
     equiv_surf = inscribe_surf(bounds, equiv_r, surf)
     check_surf = inscribe_surf(bounds, check_r, surf)
 
@@ -19,8 +19,12 @@ def c2e_solve(gpu_module, surf, bounds, check_r, equiv_r, K, params, float_type)
         gpu_module, K, check_surf, surf, equiv_surf, surf, params, float_type
     )
 
-    rcond = np.finfo(float_type).eps * 30
-    out = np.linalg.pinv(equiv_to_check, rcond = rcond).flatten()
+    # A tikhonov regularization least squares solution via the SVD eigenvalue
+    # relation.
+    U, eig, VT = np.linalg.svd(equiv_to_check)
+    inv_eig = eig / (eig ** 2 + alpha ** 2)
+    out = (VT.T * inv_eig).dot(U.T).flatten()
+
     return out
 
 def direct_matrix(gpu_module, K, obs_pts, obs_ns, src_pts, src_ns, params, float_type):
@@ -46,7 +50,7 @@ def build_c2e(tree, check_r, equiv_r, cfg):
         return c2e_solve(
             cfg.gpu_module, cfg.surf,
             Ball([0] * cfg.K.spatial_dim, R), check_r, equiv_r,
-            cfg.K, cfg.params, cfg.float_type
+            cfg.K, cfg.params, cfg.alpha, cfg.float_type
         )
 
     n_rows = cfg.K.tensor_dim * cfg.surf.shape[0]
