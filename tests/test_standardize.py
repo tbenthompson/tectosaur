@@ -4,39 +4,6 @@ from tectosaur.util.test_decorators import slow, kernel
 
 import tectosaur_tables.coincident as coincident
 
-
-def test_xyhat_from_pt_simple():
-    P = np.array([0.5,0.5,0.0])
-    T = np.array([[0,0,0],[1,0,0],[0,1,0]])
-    xyhat = xyhat_from_pt(P.tolist(), T.tolist())
-    np.testing.assert_almost_equal(xyhat, [0.5, 0.5])
-
-def test_xyhat_from_pt_harder():
-    P = np.array([0,2.0,0.0])
-    T = np.array([[0,2,0],[0,3,0],[0,2,1]])
-    xyhat = xyhat_from_pt(P.tolist(), T.tolist())
-    np.testing.assert_almost_equal(xyhat, [0.0, 0.0])
-
-    P = np.array([0,2.5,0.5])
-    T = np.array([[0,2,0],[0,3,0],[0,2,1]])
-    xyhat = xyhat_from_pt(P.tolist(), T.tolist())
-    np.testing.assert_almost_equal(xyhat, [0.5, 0.5])
-
-    P = np.array([0,3.0,0.5])
-    T = np.array([[0,2,0],[0,4,0],[0,2,1]])
-    xyhat = xyhat_from_pt(P.tolist(), T.tolist())
-    np.testing.assert_almost_equal(xyhat, [0.5, 0.5])
-
-def test_xyhat_from_pt_random():
-    for i in range(20):
-        xhat = np.random.rand(1)[0]
-        yhat = np.random.rand(1)[0] * (1 - xhat)
-        T = np.random.rand(3,3)
-        P = tri_pt(linear_basis_tri(xhat, yhat), T)
-        xhat2, yhat2 = xyhat_from_pt(P.tolist(), T.tolist())
-        np.testing.assert_almost_equal(xhat, xhat2)
-        np.testing.assert_almost_equal(yhat, yhat2)
-
 def test_origin_vertex():
     assert(get_origin_vertex(get_edge_lens(np.array([[0,0,0],[1,0,0],[0.2,0.5,0]]))) == 0)
     assert(get_origin_vertex(get_edge_lens(np.array([[0,0,0],[1,0,0],[0.8,0.5,0]]))) == 1)
@@ -153,7 +120,10 @@ def standardized_tri_tester(K, sm, pr, rho_order, theta_order, tol, starting_eps
     #     " " + str(A) +
     #     " " + str(B)
     # )
-    err = np.abs((unstandardized_limits[:,0,:,0] - correct_limits[:,0,:,0]) / np.max(np.abs(correct_limits[:,0,:,0])))
+    err = np.abs(
+        (unstandardized_limits[:,0,:,0] - correct_limits[:,0,:,0]) /
+        np.max(np.abs(correct_limits[:,0,:,0]))
+    )
     assert(np.all(err < 0.03))
     # np.testing.assert_almost_equal(unstandardized_limits, correct_limits, 4)
 
@@ -164,18 +134,15 @@ def kernel_properties_tester(K, sm, pr):
         [[0.0,0.0,0.0], [0.0,1.0,0.0], [-0.3,0.4,0.0]], # JUST ROTATE
         [[0.0,0.0,0.0], [0.0,1.1,0.0], [-0.3,0.4,0.0]], # ROTATE + SCALE
         [[0.0,0.0,0.0], [0.0,0.0,1.1], [0.0,-0.3,0.4]], # ROTATE + SCALE
-        [[0.0,0.0,0.0], [0.0,0.3,1.1], [0.0,-0.3,0.4]],
+        [[0.0,0.0,0.0], [0.0,0.3,1.1], [0.0,-0.3,0.4]], # Two rotations and scalings
         [[0.0,0.0,0.0], [0.0,-0.3,0.4], [0.0,0.35,1.1]],
         [[0.0,0.35,1.1], [0.0,0.0,0.0], [0.0,-0.3,0.4]],
         [[0.0, -0.3, 0.4], [0.0,0.35,1.1], [0.0,0.0,0.0]],
         [[1.0,0.0,0.0], [0.0,-0.3,0.45], [0.0,0.35,1.1]]
     ]
     for t in test_tris:
-        # print("TESTING " + str(t))
         standardized_tri_tester(K, sm, pr, 50, 50, 0.005, 0.08, 3, t)
-        # print("SUCCESS")
 
 @slow
-def test_U_properties(kernel):
+def test_kernel_transformation_properties(kernel):
     kernel_properties_tester(kernel, 1.0, 0.25)
-

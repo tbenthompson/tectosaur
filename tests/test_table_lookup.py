@@ -9,6 +9,7 @@ from tectosaur.nearfield.interpolate import to_interval
 from tectosaur.ops.dense_integral_op import DenseIntegralOp
 
 from tectosaur.nearfield.table_lookup import *
+from tectosaur.nearfield.table_params import min_angle_isoceles_height
 
 from tectosaur.util.test_decorators import golden_master, slow, kernel
 
@@ -45,20 +46,6 @@ def test_internal_angles():
     angles = fast_lookup.triangle_internal_angles([[0,0,0],[1,0,0],[0,1,0]])
     np.testing.assert_almost_equal(angles, [np.pi / 2, np.pi / 4, np.pi / 4])
 
-def test_get_split_pt():
-    split_pt = fast_lookup.get_split_pt([[0,0,0],[1,0,0],[0.4,0.8,0.0]])
-    np.testing.assert_almost_equal(split_pt, [0.5, min_angle_isoceles_height, 0.0])
-
-def test_get_split_pt_rotated():
-    for i in range(50):
-        R = random_rotation()
-        scale = np.random.rand(1) * 10.0
-        tri = np.array([[0,0,0],[1,0,0],[np.random.rand(1)[0] * 0.5,np.random.rand(1)[0],0.0]])
-        rot_tri = scale * R.dot(tri.T).T
-        split_pt = fast_lookup.get_split_pt(rot_tri.tolist())
-        rot_correct = scale * R.dot([0.5, min_angle_isoceles_height, 0.0])
-        np.testing.assert_almost_equal(split_pt, rot_correct)
-
 def interp_pts_wts_test(pts, wts, f):
     fvs = f(pts)
     max_err = 0
@@ -82,32 +69,6 @@ def test_adjacent_interp_pts_wts():
     f = lambda xs: (np.sin(xs[:,0]) * np.cos(xs[:,1]))[:, np.newaxis]
     max_err = interp_pts_wts_test(pts, wts, f)
     # print(max_err)
-
-def test_separate():
-    i = 5
-    while i > 0:
-        pts = np.random.rand(4,3)
-
-        obs_tri = pts[:3,:]
-        src_tri = pts[[1,0,3],:]
-
-        # ensure the random triangles are legal triangles
-        try:
-            standardize(obs_tri, 20, True)
-            standardize(src_tri, 20, True)
-        except BadTriangleError:
-            continue
-
-        pts, obs_set, src_set, obs_basis_tris, src_basis_tris =\
-            fast_lookup.separate_tris(obs_tri.tolist(), src_tri.tolist())
-        obs0_angles = fast_lookup.triangle_internal_angles(np.array(pts)[obs_set[0]].tolist())
-        src0_angles = fast_lookup.triangle_internal_angles(np.array(pts)[src_set[0]].tolist())
-
-        np.testing.assert_almost_equal(obs0_angles[0], np.deg2rad(table_min_internal_angle))
-        np.testing.assert_almost_equal(obs0_angles[1], np.deg2rad(table_min_internal_angle))
-        np.testing.assert_almost_equal(src0_angles[0], np.deg2rad(table_min_internal_angle))
-        np.testing.assert_almost_equal(src0_angles[1], np.deg2rad(table_min_internal_angle))
-        i -= 1
 
 def test_sub_basis():
     xs = np.linspace(0.0, 1.0, 11)

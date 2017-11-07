@@ -3,7 +3,7 @@ from tectosaur.nearfield.interpolate import cheb, cheb_wts
 
 table_min_internal_angle = 10
 min_angle_isoceles_height = 0.5 * np.tan(np.deg2rad(table_min_internal_angle))
-min_intersect_angle = 20. / 180. * np.pi
+min_intersect_angle = np.deg2rad(20.0)
 
 minlegalA = 0.0160559624778
 maxlegalA = 0.5

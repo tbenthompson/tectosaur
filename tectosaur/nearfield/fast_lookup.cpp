@@ -1,11 +1,12 @@
 <%
 from tectosaur.util.build_cfg import setup_module
 setup_module(cfg)
-cfg['dependencies'] = [
+cfg['sources'].append('edge_adj_separate.cpp')
+cfg['dependencies'].extend([
     '../include/pybind11_nparray.hpp',
     '../include/vec_tensor.hpp',
     '../include/timing.hpp'
-]
+])
 
 from tectosaur.nearfield.table_params import min_angle_isoceles_height,\
      table_min_internal_angle, minlegalA, minlegalB, maxlegalA, maxlegalB, min_intersect_angle
@@ -16,7 +17,7 @@ from tectosaur.kernels import kernels
 #include <pybind11/stl.h>
 #include "../include/pybind11_nparray.hpp"
 #include "../include/vec_tensor.hpp"
-#include "../include/timing.hpp"
+#include "edge_adj_separate.hpp"
 
 //TODO: In general, this is some of the most disgusting code in tectosaur. This
 // whole mess needs to be treated as some legacy crap and cleaned up. That said,
@@ -24,17 +25,6 @@ from tectosaur.kernels import kernels
 // refactoring. Maybe not anytime soon...
 
 namespace py = pybind11;
-
-Vec3 get_split_pt(const Tensor3& tri) {
-    auto base_vec = sub(tri[1], tri[0]);
-    auto midpt = add(mult(base_vec, 0.5), tri[0]);
-    auto to2 = sub(tri[2], midpt);
-    auto V = sub(to2, projection(to2, base_vec));
-    auto Vlen = length(V);
-    auto base_len = length(base_vec);
-    auto V_scaled = mult(V, base_len * ${min_angle_isoceles_height} / Vlen);
-    return add(midpt, V_scaled);
-}
 
 Vec3 get_edge_lens(const Tensor3& tri) {
     Vec3 out;
@@ -125,19 +115,19 @@ int check_bad_tri(const Tensor3& tri, double angle_lim) {
         return 2;
     }
 
-    // filter out when T1 < 20
+    // filter out when T1 < angle_lim
     auto A1 = lawcos(1.0, L3, L2);
     if (rad2deg(A1) < angle_lim - eps) {
         return 3;
     }
 
-    // filter out when A2 < 20
+    // filter out when A2 < angle_lim
     auto A2 = lawcos(1.0, L2, L3);
     if (rad2deg(A2) < angle_lim - eps) {
         return 4;
     }
 
-    // filter out when A3 < 20
+    // filter out when A3 < angle_lim
     auto A3 = lawcos(L2, L3, 1.0);
     if (rad2deg(A3) < angle_lim - eps) {
         return 5;
@@ -469,81 +459,6 @@ NPArray<double> coincident_lookup_from_standard(
     return out;
 }
 
-Vec2 cramers_rule(const Vec2& a, const Vec2& b, const Vec2& c) {
-    auto denom = a[0] * b[1] - b[0] * a[1];
-    return {
-        (c[0] * b[1] - b[0] * c[1]) / denom,
-        (c[1] * a[0] - a[1] * c[0]) / denom
-    };
-}
-
-// Solve least squares for a 3x2 system using cramers rule and the normal eqtns.
-Vec2 least_squares_helper(const Vec3& a, const Vec3& b, const Vec3& c) {
-    auto ada = dot(a, a);
-    auto adb = dot(a, b);
-    auto bdb = dot(b, b);
-
-    auto adc = dot(a, c);
-    auto bdc = dot(b, c);
-
-    return cramers_rule({ada, adb}, {adb, bdb}, {adc, bdc});
-}
-
-Vec2 xyhat_from_pt(const Vec3& pt, const Tensor3& tri) {
-    auto v1 = sub(tri[1], tri[0]);
-    auto v2 = sub(tri[2], tri[0]);
-    auto pt_trans = sub(pt, tri[0]);
-        
-    // Use cramer's rule to solve for xhat, yhat
-    auto out = least_squares_helper(v1, v2, pt_trans);
-    assert(out[0] + out[1] <= 1.0 + 1e-15);
-    assert(out[0] >= -1e-15);
-    assert(out[1] >= -1e-15);
-
-    return out;
-}
-
-struct SeparateTriResult {
-    std::array<Vec3,6> pts;
-    std::array<std::array<int,3>,3> obs_tri;
-    std::array<std::array<int,3>,3> src_tri;
-    std::array<std::array<Vec2,3>,3> obs_basis_tri;
-    std::array<std::array<Vec2,3>,3> src_basis_tri;
-};
-
-SeparateTriResult separate_tris(const Tensor3& obs_tri, const Tensor3& src_tri) {
-    auto obs_split_pt = get_split_pt(obs_tri);
-    auto obs_split_pt_xyhat = xyhat_from_pt(obs_split_pt, obs_tri);
-
-    auto src_split_pt = get_split_pt(src_tri);
-    auto src_split_pt_xyhat = xyhat_from_pt(src_split_pt, src_tri);
-
-    std::array<Vec3,6> pts = {
-        obs_tri[0], obs_tri[1], obs_tri[2], src_tri[2], obs_split_pt, src_split_pt
-    };
-    std::array<std::array<int,3>,3> obs_tris = {{{0,1,4}, {4,1,2}, {0,4,2}}};
-    std::array<std::array<int,3>,3> src_tris = {{{1,0,5}, {5,0,3}, {1,5,3}}};
-    std::array<std::array<Vec2,3>,3> obs_basis_tris = {{
-        {{{0,0},{1,0},obs_split_pt_xyhat}},
-        {{obs_split_pt_xyhat, {1,0},{0,1}}},
-        {{{0,0},obs_split_pt_xyhat,{0,1}}}
-    }};
-    std::array<std::array<Vec2,3>,3> src_basis_tris = {{
-        {{{0,0},{1,0},src_split_pt_xyhat}},
-        {{src_split_pt_xyhat, {1,0},{0,1}}},
-        {{{0,0},src_split_pt_xyhat,{0,1}}}
-    }};
-
-    return {pts, obs_tris, src_tris, obs_basis_tris, src_basis_tris};
-}
-
-py::tuple separate_tris_pyshim(const Tensor3& obs_tri, const Tensor3& src_tri) {
-    auto out = separate_tris(obs_tri, src_tri);
-    return py::make_tuple(
-        out.pts, out.obs_tri, out.src_tri, out.obs_basis_tri, out.src_basis_tri
-    );
-}
-
 
 Vec3 triangle_internal_angles(const Tensor3& tri) {
     auto v01 = sub(tri[1], tri[0]);
@@ -596,7 +511,7 @@ double get_adjacent_phi(const Tensor3& obs_tri, const Tensor3& src_tri) {
 
 //TODO: Duplicated with fast_assembly.cpp
 int positive_mod(int i, int n) {
-        return (i % n + n) % n;
+    return (i % n + n) % n;
 }
 
 //TODO: Duplicated with fast_assembly.cpp
@@ -762,7 +677,7 @@ py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
         ea.src_flips[i] = std::get<3>(oriented);
         auto src_tri = std::get<4>(oriented);
 
-        auto sep_res = separate_tris(ea.obs_tris[i], src_tri);
+        auto sep_res = separate_tris(ea.obs_tris[i], src_tri, ${min_angle_isoceles_height});
 
         ea.obs_basis[i] = sep_res.obs_basis_tri[0];
         ea.src_basis[i] = sep_res.src_basis_tri[0];
@@ -989,7 +904,6 @@ PYBIND11_MODULE(fast_lookup, m) {
     py::class_<StandardizeResult>(m, "StandardizeResult");
     m.def("standardize", standardize_pyshim);
 
-    m.def("get_split_pt", get_split_pt);
 
     m.def("transform_from_standard", transform_from_standard_pyshim);
     m.def("sub_basis", sub_basis);
@@ -999,6 +913,7 @@ PYBIND11_MODULE(fast_lookup, m) {
     m.def("coincident_lookup_from_standard", coincident_lookup_from_standard);
     m.def("adjacent_lookup_from_standard", adjacent_lookup_from_standard);
 
+    m.def("get_split_pt", get_split_pt);
     m.def("xyhat_from_pt", xyhat_from_pt);
     m.def("separate_tris", separate_tris_pyshim);
     m.def("triangle_internal_angles", triangle_internal_angles);

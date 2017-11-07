@@ -1,5 +1,7 @@
 import numpy as np
 
+#TODO: Should this module even exist? Can it be deleted and spread out? Or should it simply be a shim over the C++ variants of each of these functions?
+
 def projection(V, b):
     return (V.dot(b) * b) / (np.linalg.norm(b) ** 2)
 
@@ -10,12 +12,14 @@ def vec_angle(v1, v2):
     arg = min(max(v1d2 / (v1L * v2L),-1),1)
     return np.arccos(arg)
 
+#TODO: Duplicated with standardize c++ stuff
 def get_edge_lens(tri):
     L0 = np.sum((tri[1,:] - tri[0,:])**2)
     L1 = np.sum((tri[2,:] - tri[1,:])**2)
     L2 = np.sum((tri[2,:] - tri[0,:])**2)
     return L0, L1, L2
 
+#TODO: Duplicated with standardize c++ stuff
 def get_longest_edge(lens):
     if lens[0] >= lens[1] and lens[0] >= lens[2]:
         return 0

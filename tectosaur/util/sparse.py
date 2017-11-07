@@ -66,5 +66,8 @@ class BSRMatrix:
     def to_scipy(self):
         return scipy.sparse.bsr_matrix((self.data, self.indices, self.indptr), self.shape)
 
+    def to_dense(self):
+        return self.to_scipy().todense()
+
 def from_scipy_bsr(A):
     return BSRMatrix(A.indptr, A.indices, A.data, A.shape)

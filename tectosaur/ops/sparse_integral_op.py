@@ -3,7 +3,6 @@ import attr
 import numpy as np
 import scipy.sparse
 
-
 from tectosaur.farfield import farfield_pts_direct
 
 import tectosaur.fmm.fmm as fmm
