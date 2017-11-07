@@ -89,3 +89,9 @@ py::tuple separate_tris_pyshim(const Tensor3& obs_tri, const Tensor3& src_tri,
         out.pts, out.obs_tri, out.src_tri, out.obs_basis_tri, out.src_basis_tri
     );
 }
+
+void expose_edge_adj_separate(pybind11::module& m) {
+    m.def("get_split_pt", get_split_pt);
+    m.def("xyhat_from_pt", xyhat_from_pt);
+    m.def("separate_tris", separate_tris_pyshim);
+}

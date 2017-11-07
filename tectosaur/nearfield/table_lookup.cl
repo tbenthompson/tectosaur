@@ -5,6 +5,8 @@ ${cluda_preamble}
 
 #define Real ${float_type}
 
+//TODO: Why isn't this a more general interpolation algorithm?
+
 <%def name="lookup_interpolation(dims)">
 KERNEL
 void lookup_interpolation${dims}(GLOBAL_MEM Real* result,

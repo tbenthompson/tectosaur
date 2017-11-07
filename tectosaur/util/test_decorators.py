@@ -20,15 +20,6 @@ except AttributeError as e:
     def slow(ob):
         return ob
 
-def flatten(container):
-    for i in container:
-        if isinstance(i, (list,tuple,set)):
-            for j in flatten(i):
-                yield j
-        else:
-            yield i
-
-
 def golden_master(digits = 6):
     def decorator(test_fnc):
         try:

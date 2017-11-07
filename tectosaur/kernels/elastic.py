@@ -1,5 +1,4 @@
 import os
-import pickle
 import sympy as sp
 
 from tectosaur.kernels.tensors import vec_inner, tensor_outer, Ident, SYM, SKW

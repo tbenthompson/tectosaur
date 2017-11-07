@@ -1,10 +1,20 @@
 import numpy as np
 
 #TODO: Should this module even exist? Can it be deleted and spread out? Or should it simply be a shim over the C++ variants of each of these functions?
+import cppimport
+_geometry = cppimport.cppimport('tectosaur.util._geometry')
+
+def random_rotation():
+    axis = np.random.rand(3) * 2 - 1.0
+    axis /= np.linalg.norm(axis)
+    theta = np.random.rand(1) * 2 * np.pi
+    R = np.array(_geometry.rotation_matrix(axis.tolist(), theta[0]))
+    return R
 
 def projection(V, b):
     return (V.dot(b) * b) / (np.linalg.norm(b) ** 2)
 
+#TODO: Duplicated with standardize c++ stuff
 def vec_angle(v1, v2):
     v1L = np.linalg.norm(v1)
     v2L = np.linalg.norm(v2)

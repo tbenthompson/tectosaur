@@ -2,9 +2,8 @@ import pytest
 import numpy as np
 
 import tectosaur.util.geometry as geometry
-from tectosaur.mesh.find_near_adj import rotate_tri
+from tectosaur.nearfield.standardize import standardize, BadTriangleError
 import tectosaur.nearfield.nearfield_op as nearfield_op
-from tectosaur.nearfield.standardize import standardize, rotation_matrix, BadTriangleError
 from tectosaur.nearfield.interpolate import to_interval
 from tectosaur.ops.dense_integral_op import DenseIntegralOp
 
@@ -34,13 +33,6 @@ def test_adjacent_phi():
             [[0,0,0],[1,0,0],[0.5,rho*np.cos(phi),rho*np.sin(phi)]],
         )
         np.testing.assert_almost_equal(out, phi)
-
-def random_rotation():
-    axis = np.random.rand(3) * 2 - 1.0
-    axis /= np.linalg.norm(axis)
-    theta = np.random.rand(1) * 2 * np.pi
-    R = np.array(rotation_matrix(axis, theta[0]))
-    return R
 
 def test_internal_angles():
     angles = fast_lookup.triangle_internal_angles([[0,0,0],[1,0,0],[0,1,0]])
@@ -112,7 +104,7 @@ def coincident_lookup_helper(K, correct_digits, n_tests = 10):
 
             params = [1.0, pr]
 
-            R = random_rotation()
+            R = geometry.random_rotation()
             # print(R)
 
             pts = scale * np.array([[0,0,0],[1,0,0],[A,B,0]], dtype = np.float64)
@@ -158,7 +150,7 @@ def adjacent_lookup_helper(K, correct_digits, n_tests = 10):
 
         scale = np.random.rand(1)[0] * 3
         translation = np.random.rand(3)
-        R = random_rotation()
+        R = geometry.random_rotation()
 
         # print(alpha, beta, phi, pr, scale, translation.tolist(), R.tolist())
 

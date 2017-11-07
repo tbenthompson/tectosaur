@@ -1,8 +1,7 @@
+import numpy as np
 from tectosaur.nearfield.standardize import *
 from tectosaur.util.geometry import tri_pt, linear_basis_tri
 from tectosaur.util.test_decorators import slow, kernel
-
-import tectosaur_tables.coincident as coincident
 
 def test_origin_vertex():
     assert(get_origin_vertex(get_edge_lens(np.array([[0,0,0],[1,0,0],[0.2,0.5,0]]))) == 0)
@@ -47,21 +46,9 @@ def test_check_bad_tri():
     assert(check_bad_tri([[0,0,0],[1,0,0],[0.5,0.5,0]], 20) == 0)
 
 def test_standardize():
-    # out = standardize(np.array([[0,0,0],[0.2,0,0],[0.4,0.5,0]]))
-    # np.testing.assert_almost_equal(out, [[0,0,0],[0.4,0.5,0],[0.2,0,0]])
     code, out,_,_,_,_ = standardize(np.array([[0,0,0],[1,0.0,0],[0.0,0.5,0]]), 20, True)
     assert(code == 0);
     np.testing.assert_almost_equal(out, [[0,0,0],[1.0,0.0,0],[0.2,0.4,0]])
-
-def co_integrals(K, tri, rho_order, theta_order, tol, eps_start, n_steps, sm, pr):
-    epsvs = eps_start * (2.0 ** (-np.arange(n_steps)))
-    vals = []
-    for eps in epsvs:
-        vals.append(coincident_integral(
-            tol, K, tri, eps, sm, pr, rho_order, theta_order
-        ))
-    vals = np.array(vals)
-    return epsvs, vals
 
 # To test whether the standardization procedure and the transform_from_standard function
 # are working properly, I compare the results of a direct integration with the results
@@ -83,6 +70,7 @@ def standardized_tri_tester(K, sm, pr, rho_order, theta_order, tol, starting_eps
         [[0,0,0],[1,0,0],[standard_tri[2][0],standard_tri[2][1],0]]
     )
 
+    import tectosaur_tables.coincident as coincident
     p = coincident.make_coincident_params(
         K, 1e-3, 25, True, True, 25, 25, starting_eps, n_eps, K == 'elasticH', 1, 1, 1
     )

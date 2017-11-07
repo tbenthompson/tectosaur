@@ -6,11 +6,13 @@ import taskloaf as tsk
 import tectosaur
 from tectosaur.util.timer import Timer
 try:
-    from tectosaur.util.cuda import compile, empty_gpu, zeros_gpu, to_gpu, cluda_preamble, threaded_get
+    from tectosaur.util.cuda import compile, empty_gpu, zeros_gpu, to_gpu,\
+            cluda_preamble, threaded_get
     cuda_backend = True
     ocl_backend = False
 except ImportError:
-    from tectosaur.util.opencl import compile, empty_gpu, zeros_gpu, to_gpu, cluda_preamble, threaded_get
+    from tectosaur.util.opencl import compile, empty_gpu, zeros_gpu, to_gpu,\
+            cluda_preamble, threaded_get
     cuda_backend = False
     ocl_backend = True
 

@@ -108,3 +108,32 @@ inline Vec3 cross(const Vec3& x, const Vec3& y) {
 inline Vec3 tri_normal(const Tensor3& t) {
     return cross(sub(t[2], t[0]), sub(t[2], t[1]));
 }
+
+inline Vec3 triangle_internal_angles(const Tensor3& tri) {
+    auto v01 = sub(tri[1], tri[0]);
+    auto v02 = sub(tri[2], tri[0]);
+    auto v12 = sub(tri[2], tri[1]);
+
+    auto L01 = length(v01);
+    auto L02 = length(v02);
+    auto L12 = length(v12);
+
+    auto A1 = acos(dot(v01, v02) / (L01 * L02));
+    auto A2 = acos(-dot(v01, v12) / (L01 * L12));
+    auto A3 = M_PI - A1 - A2;
+
+    return {A1, A2, A3};
+}
+
+inline double vec_angle(const Vec3& v1, const Vec3& v2) {
+    auto v1L = length(v1);
+    auto v2L = length(v2);
+    auto v1d2 = dot(v1, v2);
+    auto arg = v1d2 / (v1L * v2L);
+    if (arg < -1) {
+        arg = -1;
+    } else if (arg > 1) {
+        arg = 1;
+    }
+    return acos(arg);
+}

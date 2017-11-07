@@ -10,8 +10,8 @@ import numpy as np
 # scale triangle so that 1 vertex is at (1, 0, 0) and store scale factor
 # check that triangle internal angles are greater than 20 degrees
 
-from cppimport import cppimport
-fast_lookup = cppimport("tectosaur.nearfield.fast_lookup")
+from tectosaur.util.cpp import imp
+cppmod = imp("tectosaur.nearfield._standardize")
 
 class BadTriangleError(Exception):
     def __init__(self, code):
@@ -26,21 +26,19 @@ def tolist_args(f):
         return f(*new_args)
     return wrapper
 
-get_edge_lens = tolist_args(fast_lookup.get_edge_lens)
-get_longest_edge = tolist_args(fast_lookup.get_longest_edge)
-get_origin_vertex = tolist_args(fast_lookup.get_origin_vertex)
-relabel = tolist_args(fast_lookup.relabel)
-check_bad_tri = tolist_args(fast_lookup.check_bad_tri)
-transform_from_standard = tolist_args(fast_lookup.transform_from_standard)
-rotation_matrix = tolist_args(fast_lookup.rotation_matrix)
-translate = tolist_args(fast_lookup.translate)
-rotate1_to_xaxis = tolist_args(fast_lookup.rotate1_to_xaxis)
-rotate2_to_xyplane = tolist_args(fast_lookup.rotate2_to_xyplane)
-full_standardize_rotate = tolist_args(fast_lookup.full_standardize_rotate)
-scale = tolist_args(fast_lookup.scale)
-xyhat_from_pt = tolist_args(fast_lookup.xyhat_from_pt)
+get_edge_lens = tolist_args(cppmod.get_edge_lens)
+get_longest_edge = tolist_args(cppmod.get_longest_edge)
+get_origin_vertex = tolist_args(cppmod.get_origin_vertex)
+relabel = tolist_args(cppmod.relabel)
+check_bad_tri = tolist_args(cppmod.check_bad_tri)
+transform_from_standard = tolist_args(cppmod.transform_from_standard)
+translate = tolist_args(cppmod.translate)
+rotate1_to_xaxis = tolist_args(cppmod.rotate1_to_xaxis)
+rotate2_to_xyplane = tolist_args(cppmod.rotate2_to_xyplane)
+full_standardize_rotate = tolist_args(cppmod.full_standardize_rotate)
+scale = tolist_args(cppmod.scale)
 
-standardize_unwrapped = tolist_args(fast_lookup.standardize);
+standardize_unwrapped = tolist_args(cppmod.standardize);
 def standardize(*args):
     out = standardize_unwrapped(*args)
     should_relabel = args[-1];

@@ -23,6 +23,3 @@ def find_close_or_touching(pts, tris, threshold):
         *get_tri_centroids_rs(pts, tris), threshold, 50
     )
     return out
-
-def rotate_tri(clicks):
-    return [np.mod(clicks, 3), np.mod((1 + clicks), 3), np.mod((2 + clicks), 3)]

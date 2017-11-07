@@ -1,6 +1,8 @@
 import numpy as np
-from tectosaur.util.geometry import tri_pt, linear_basis_tri
+from tectosaur.util.geometry import tri_pt, linear_basis_tri, random_rotation
 from tectosaur.nearfield.standardize import *
+from tectosaur.nearfield.table_params import min_angle_isoceles_height, \
+        table_min_internal_angle
 
 def test_xyhat_from_pt_simple():
     P = np.array([0.5,0.5,0.0])

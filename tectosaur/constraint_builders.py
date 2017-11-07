@@ -1,6 +1,5 @@
 import numpy as np
 
-import tectosaur.util.geometry as geom
 from tectosaur.constraints import ConstraintEQ, Term
 
 def find_touching_pts(tris):
@@ -10,25 +9,6 @@ def find_touching_pts(tris):
         for d in range(3):
             out[t[d]].append((i, d))
     return out
-
-def find_free_edges(tris):
-    edges = dict()
-    for i, t in enumerate(tris):
-        for d in range(3):
-            pt1_idx = t[d]
-            pt2_idx = t[(d + 1) % 3]
-            if pt1_idx > pt2_idx:
-                pt2_idx,pt1_idx = pt1_idx,pt2_idx
-            pt_pair = (pt1_idx, pt2_idx)
-            edges[pt_pair] = edges.get(pt_pair, []) + [(i, d)]
-
-    free_edges = []
-    for k,e in edges.items():
-        if len(e) > 1:
-            continue
-        free_edges.append(e[0])
-
-    return free_edges
 
 def build_composite_constraints(*cs_and_starts):
     all_cs = []
@@ -87,6 +67,9 @@ def elastic_rigid_body_constraints(pts, tris, basis_idxs):
     return cs
 
 
+# Crossing a fault can be defined in an entirely topological sense.
+# If a pair of triangles shares an edge that is not a fault edge, then
+# those triangle are not across the fault from each other.
 def check_if_crosses_fault(tri1, tri2, fault_touching_pts, fault_tris):
     shared_pts = []
     for d in range(3):
@@ -107,7 +90,6 @@ def check_if_crosses_fault(tri1, tri2, fault_touching_pts, fault_tris):
             return True
 
     return False
-
 
 def continuity_constraints(surface_tris, fault_tris):
     n_surf_tris = surface_tris.shape[0]
@@ -157,6 +139,25 @@ def continuity_constraints(surface_tris, fault_tris):
                         [Term(1.0, dependent_dof), Term(-1.0, independent_dof)], diff
                     ))
     return constraints
+
+def find_free_edges(tris):
+    edges = dict()
+    for i, t in enumerate(tris):
+        for d in range(3):
+            pt1_idx = t[d]
+            pt2_idx = t[(d + 1) % 3]
+            if pt1_idx > pt2_idx:
+                pt2_idx,pt1_idx = pt1_idx,pt2_idx
+            pt_pair = (pt1_idx, pt2_idx)
+            edges[pt_pair] = edges.get(pt_pair, []) + [(i, d)]
+
+    free_edges = []
+    for k,e in edges.items():
+        if len(e) > 1:
+            continue
+        free_edges.append(e[0])
+
+    return free_edges
 
 def free_edge_constraints(tris):
     free_edges = find_free_edges(tris)

@@ -1,12 +1,15 @@
 <%
 from tectosaur.util.build_cfg import setup_module
 setup_module(cfg)
-cfg['sources'].append('edge_adj_separate.cpp')
+cfg['sources'].extend(['edge_adj_separate.cpp'])
 cfg['dependencies'].extend([
     '../include/pybind11_nparray.hpp',
     '../include/vec_tensor.hpp',
-    '../include/timing.hpp'
+    '../include/math_tools.hpp',
+    '_standardize.hpp',
+    'edge_adj_separate.hpp',
 ])
+cfg['compiler_args'].extend(['-Wl,--unresolved-symbols=ignore-all'])
 
 from tectosaur.nearfield.table_params import min_angle_isoceles_height,\
      table_min_internal_angle, minlegalA, minlegalB, maxlegalA, maxlegalB, min_intersect_angle
@@ -15,8 +18,10 @@ from tectosaur.kernels import kernels
 %>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include "../include/pybind11_nparray.hpp"
-#include "../include/vec_tensor.hpp"
+#include "include/pybind11_nparray.hpp"
+#include "include/vec_tensor.hpp"
+#include "include/math_tools.hpp"
+#include "_standardize.hpp"
 #include "edge_adj_separate.hpp"
 
 //TODO: In general, this is some of the most disgusting code in tectosaur. This
@@ -25,362 +30,6 @@ from tectosaur.kernels import kernels
 // refactoring. Maybe not anytime soon...
 
 namespace py = pybind11;
-
-Vec3 get_edge_lens(const Tensor3& tri) {
-    Vec3 out;
-    for (int d = 0; d < 3; d++) {
-        out[d] = 0.0;
-        for (int c = 0; c < 3; c++) {
-            auto delta = tri[(d + 1) % 3][c] - tri[d][c];
-            out[d] += delta * delta;
-        }
-    }
-    return out;
-}
-
-int get_longest_edge(const Vec3& lens) {
-    if (lens[0] >= lens[1] && lens[0] >= lens[2]) {
-        return 0;
-    } else if (lens[1] >= lens[0] && lens[1] >= lens[2]) {
-        return 1;
-    } else {// if (lens[2] >= lens[0] && lens[2] >= lens[1]) {
-        return 2;
-    }
-}
-
-int get_origin_vertex(const Vec3& lens) {
-    auto longest = get_longest_edge(lens);
-    if (longest == 0 && lens[1] >= lens[2]) {
-        return 0;
-    } else if (longest == 0 && lens[2] >= lens[1]) {
-        return 1;
-    } else if (longest == 1 && lens[2] >= lens[0]) {
-        return 1;
-    } else if (longest == 1 && lens[0] >= lens[2]) {
-        return 2;
-    } else if (longest == 2 && lens[0] >= lens[1]) {
-        return 2;
-    } else {//if (longest == 2 && lens[1] >= lens[0]) {
-        return 0;
-    }
-}
-
-std::pair<Tensor3,std::array<int,3>> relabel(
-    const Tensor3& tri, int ov, int longest_edge) 
-{
-    std::array<int,3> labels;
-
-    if (longest_edge == ov) {
-        labels = {ov, (ov + 1) % 3, (ov + 2) % 3};
-    } else if ((longest_edge + 1) % 3 == ov) {
-        labels = {ov, (ov + 2) % 3, (ov + 1) % 3};
-    } else {
-        throw std::runtime_error("BAD!");
-    }
-    Tensor3 out;
-    for (int i = 0; i < 3; i++) {
-        out[i] = tri[labels[i]];
-    }
-    return {out, labels};
-}
-
-py::tuple relabel_shim(const Tensor3& tri, int ov, int longest_edge) {
-    auto out = relabel(tri, ov, longest_edge);
-    return py::make_tuple(out.first, out.second);
-}
-
-double lawcos(double a, double b, double c) {
-    return acos((a*a + b*b - c*c) / (2*a*b));
-}
-
-double rad2deg(double radians) {
-    return radians * 180 / M_PI;
-}
-
-int check_bad_tri(const Tensor3& tri, double angle_lim) {
-    double eps = 1e-10;
-
-    auto a = tri[2][0];
-    auto b = tri[2][1];
-
-    // filter out when L2 > 1
-    auto L2 = sqrt(std::pow(a-1,2) + b*b);
-    if (L2 > 1 + eps) {
-        return 1;
-    }
-
-    // filter out when L3 > 1
-    auto L3 = sqrt(a*a + b*b);
-    if (L3 >= 1 + eps) {
-        return 2;
-    }
-
-    // filter out when T1 < angle_lim
-    auto A1 = lawcos(1.0, L3, L2);
-    if (rad2deg(A1) < angle_lim - eps) {
-        return 3;
-    }
-
-    // filter out when A2 < angle_lim
-    auto A2 = lawcos(1.0, L2, L3);
-    if (rad2deg(A2) < angle_lim - eps) {
-        return 4;
-    }
-
-    // filter out when A3 < angle_lim
-    auto A3 = lawcos(L2, L3, 1.0);
-    if (rad2deg(A3) < angle_lim - eps) {
-        return 5;
-    }
-
-    return 0;
-}
-
-std::pair<Tensor3,Vec3> translate(const Tensor3& tri) {
-    Vec3 translation; 
-    Tensor3 out_tri;
-    for (int d1 = 0; d1 < 3; d1++) {
-        translation[d1] = -tri[0][d1];
-    }
-    for (int d1 = 0; d1 < 3; d1++) {
-        for (int d2 = 0; d2 < 3; d2++) {
-            out_tri[d1][d2] = tri[d1][d2] + translation[d2];
-        }
-    }
-    return {out_tri, translation}; 
-}
-
-py::tuple translate_pyshim(const Tensor3& tri) {
-    auto out = translate(tri);
-    return py::make_tuple(out.first, out.second);
-}
-
-std::pair<Tensor3,Tensor3> rotate1_to_xaxis(const Tensor3& tri) {
-    // rotate 180deg around the axis halfway in between the 0-1 vector and
-    // the 0-(L,0,0) vector, where L is the length of the 0-1 vector
-    auto to_pt1 = sub(tri[1], tri[0]);
-    auto pt1L = length(to_pt1);
-    Vec3 to_target = {pt1L, 0, 0};
-    auto axis = div(add(to_pt1, to_target), 2.0);
-    auto axis_mag = length(axis); 
-    if (axis_mag == 0.0) {
-        axis = {0, 0, 1};
-    } else {
-        axis = div(axis, axis_mag);
-    }
-    double theta = M_PI;
-    auto rot_mat = rotation_matrix(axis, theta);
-    auto out_tri = transpose(mult(rot_mat, transpose(tri)));
-    return {out_tri, rot_mat};
-}
-
-py::tuple rotate1_to_xaxis_pyshim(const Tensor3& tri) {
-    auto out = rotate1_to_xaxis(tri);
-    return py::make_tuple(out.first, out.second);
-}
-
-std::pair<Tensor3,Tensor3> rotate2_to_xyplane(const Tensor3& tri) {
-    Vec3 xaxis = {1, 0, 0};
-
-    // Find angle to rotate to reach x-y plane
-    double ydot2 = tri[2][1] / length({0, tri[2][1], tri[2][2]});
-    double theta = acos(ydot2);
-
-    auto rot_mat = rotation_matrix(xaxis, theta);
-    auto out_tri = transpose(mult(rot_mat, transpose(tri)));
-
-    if (fabs(out_tri[2][2]) > 1e-10) {
-        theta = -acos(ydot2);
-        rot_mat = rotation_matrix(xaxis, theta);
-        out_tri = transpose(mult(rot_mat, transpose(tri)));
-    }
-    return {out_tri, rot_mat};
-}
-
-py::tuple rotate2_to_xyplane_pyshim(const Tensor3& tri) {
-    auto out = rotate2_to_xyplane(tri);
-    return py::make_tuple(out.first, out.second);
-}
-
-std::pair<Tensor3,Tensor3> full_standardize_rotate(const Tensor3& tri) {
-    auto rot1 = rotate1_to_xaxis(tri);
-    auto rot2 = rotate2_to_xyplane(rot1.first);
-    return {rot2.first, mult(rot2.second, rot1.second)};
-}
-
-py::tuple full_standardize_rotate_pyshim(const Tensor3& tri) {
-    auto out = full_standardize_rotate(tri);
-    return py::make_tuple(out.first, out.second);
-}
-
-std::pair<Tensor3,double> scale(const Tensor3& tri) {
-    double scale = 1.0 / tri[1][0];
-    Tensor3 out_tri;
-    for (int d1 = 0; d1 < 3; d1++) {
-        for (int d2 = 0; d2 < 3; d2++) {
-            out_tri[d1][d2] = tri[d1][d2] * scale;
-        }
-    }
-    return {out_tri, scale}; 
-}
-
-py::tuple scale_pyshim(const Tensor3& tri) {
-    auto out = scale(tri);
-    return py::make_tuple(out.first, out.second);
-}
-
-struct StandardizeResult {
-    int bad_tri_code;
-    Tensor3 tri;
-    std::array<int,3> labels;
-    Vec3 translation;
-    Tensor3 R;
-    double scale;
-};
-
-StandardizeResult standardize(const Tensor3& tri, double angle_lim, bool should_relabel) {
-    std::array<int,3> labels;
-    Tensor3 relabeled;
-    if (should_relabel) {
-        auto ls = get_edge_lens(tri);
-        auto longest = get_longest_edge(ls);
-        auto ov = get_origin_vertex(ls);
-        auto relabel_out = relabel(tri, ov, longest);
-        relabeled = relabel_out.first;
-        labels = relabel_out.second;
-    } else {
-        relabeled = tri;
-        labels = {0,1,2};
-    }
-    auto trans_out = translate(relabeled);
-    auto rot_out = full_standardize_rotate(trans_out.first);
-    auto scale_out = scale(rot_out.first);
-    int code = check_bad_tri(scale_out.first, angle_lim);
-    return {
-        code, scale_out.first, labels, trans_out.second, rot_out.second, scale_out.second
-    };
-}
-
-py::tuple standardize_pyshim(const Tensor3& tri, double angle_lim, bool should_relabel) {
-    auto out = standardize(tri, angle_lim, should_relabel);
-    return py::make_tuple(
-        out.bad_tri_code, out.tri, out.labels, out.translation, out.R, out.scale
-    );
-}
-
-struct KernelProps {
-    int scale_power;
-    int sm_power;
-    bool flip_negate;
-};
-
-std::array<double,81> transform_from_standard(const std::array<double,81>& I,
-    const KernelProps& k_props, double sm, const std::array<int,3>& labels,
-    const Vec3& translation, const Tensor3& R, double scale) 
-{
-    std::array<double,81> out;
-
-    bool flip_negate = (labels[1] != (labels[0] + 1) % 3) && k_props.flip_negate;
-    double scale_times_sm = std::pow(scale, k_props.scale_power) * std::pow(sm, k_props.sm_power);
-
-    for (int sb1 = 0; sb1 < 3; sb1++) {
-        for (int sb2 = 0; sb2 < 3; sb2++) {
-            auto cb1 = labels[sb1];
-            auto cb2 = labels[sb2];
-            
-            Tensor3 I_chunk;
-            for (int d1 = 0; d1 < 3; d1++) {
-                for (int d2 = 0; d2 < 3; d2++) {
-                    I_chunk[d1][d2] = I[sb1 * 27 + d1 * 9 + sb2 * 3 + d2];
-                }
-            }
-
-            // Multiply by rotation tensor.
-            Tensor3 I_rot = mult(mult(transpose(R), I_chunk), R);
-
-            // Multiply by scale
-            // Multiply by shear mod.
-            Tensor3 I_scale = mult(I_rot, scale_times_sm);
-
-            // Output
-            for (int d1 = 0; d1 < 3; d1++) {
-                for (int d2 = 0; d2 < 3; d2++) {
-                    if (flip_negate && d1 != d2) {
-                    // if (flip_negate) {
-                        out[cb1 * 27 + d1 * 9 + cb2 * 3 + d2] = -I_scale[d1][d2];
-                    } else {
-                        out[cb1 * 27 + d1 * 9 + cb2 * 3 + d2] = I_scale[d1][d2];
-                    }
-                }
-            }
-        }
-    }
-    return out;
-}
-
-KernelProps get_kernel_props(std::string K) {
-    % for k_name, K in kernels.items():
-        % if K.spatial_dim == 3:
-            if (K == "${K.name}") { 
-                return {
-                    ${K.scale_type}, ${K.sm_power}, ${str(K.flip_negate).lower()}
-                };
-            }
-        % endif
-    % endfor
-    else { throw std::runtime_error("unknown kernel"); }
-}
-
-std::array<double,81> transform_from_standard_pyshim(const std::array<double,81>& I,
-    std::string K, double sm, const std::array<int,3>& labels,
-    const Vec3& translation, const Tensor3& R, double scale) {
-
-    return transform_from_standard(I, get_kernel_props(K), sm, labels, translation, R, scale);
-}
-
-NPArray<double> barycentric_evalnd_py(NPArray<double> pts, NPArray<double> wts, NPArray<double> vals, NPArray<double> xhat) {
-
-    auto pts_buf = pts.request();
-    auto vals_buf = vals.request();
-    auto* pts_ptr = reinterpret_cast<double*>(pts.request().ptr);
-    auto* wts_ptr = reinterpret_cast<double*>(wts.request().ptr);
-    auto* vals_ptr = reinterpret_cast<double*>(vals.request().ptr);
-    auto* xhat_ptr = reinterpret_cast<double*>(xhat.request().ptr);
-
-    size_t n_out_dims = vals_buf.shape[1];
-    size_t n_pts = pts_buf.shape[0];
-    size_t n_dims = pts_buf.shape[1];
-
-    auto out = make_array<double>({n_out_dims});
-    auto* out_ptr = reinterpret_cast<double*>(out.request().ptr); 
-    for (size_t out_d = 0; out_d < n_out_dims; out_d++) {
-        double denom = 0;
-        double numer = 0;
-        for (size_t i = 0; i < n_pts; i++) {
-            double kernel = 1.0;
-            for (size_t d = 0; d < n_dims; d++) {
-                double dist = xhat_ptr[d] - pts_ptr[i * n_dims + d];
-                if (dist == 0) {
-                    dist = 1e-16;
-                }
-                kernel *= dist;
-            }
-            kernel = wts_ptr[i] / kernel; 
-            denom += kernel;
-            numer += kernel * vals_ptr[i * n_out_dims + out_d];
-        }
-        out_ptr[out_d] = numer / denom;
-    }
-    return out;
-}
-
-double to_interval(double a, double b, double x) {
-    return a + (b - a) * (x + 1.0) / 2.0;
-}
-
-double from_interval(double a, double b, double x) {
-    return ((x - a) / (b - a)) * 2.0 - 1.0;
-}
 
 py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
     auto tri_pts_buf = tri_pts.request();
@@ -459,36 +108,6 @@ NPArray<double> coincident_lookup_from_standard(
     return out;
 }
 
-
-Vec3 triangle_internal_angles(const Tensor3& tri) {
-    auto v01 = sub(tri[1], tri[0]);
-    auto v02 = sub(tri[2], tri[0]);
-    auto v12 = sub(tri[2], tri[1]);
-
-    auto L01 = length(v01);
-    auto L02 = length(v02);
-    auto L12 = length(v12);
-
-    auto A1 = acos(dot(v01, v02) / (L01 * L02));
-    auto A2 = acos(-dot(v01, v12) / (L01 * L12));
-    auto A3 = M_PI - A1 - A2;
-
-    return {A1, A2, A3};
-}
-
-double vec_angle(const Vec3& v1, const Vec3& v2) {
-    auto v1L = length(v1);
-    auto v2L = length(v2);
-    auto v1d2 = dot(v1, v2);
-    auto arg = v1d2 / (v1L * v2L);
-    if (arg < -1) {
-        arg = -1;
-    } else if (arg > 1) {
-        arg = 1;
-    }
-    return acos(arg);
-}
-
 double get_adjacent_phi(const Tensor3& obs_tri, const Tensor3& src_tri) {
     auto p = sub(obs_tri[1], obs_tri[0]);
     auto L1 = sub(obs_tri[2], obs_tri[0]);
@@ -507,16 +126,6 @@ double get_adjacent_phi(const Tensor3& obs_tri, const Tensor3& src_tri) {
     } else {
         return 2 * M_PI - phi;
     }
-}
-
-//TODO: Duplicated with fast_assembly.cpp
-int positive_mod(int i, int n) {
-    return (i % n + n) % n;
-}
-
-//TODO: Duplicated with fast_assembly.cpp
-std::array<int,3> rotate_tri(int clicks) {
-    return {positive_mod(clicks, 3), positive_mod(clicks + 1, 3), positive_mod(clicks + 2, 3)};
 }
 
 std::array<std::array<int,3>,2> find_va_rotations(const std::array<int,3>& ot,
@@ -539,7 +148,7 @@ std::array<std::array<int,3>,2> find_va_rotations(const std::array<int,3>& ot,
         }
     }
 
-    return {rotate_tri(ot_clicks), rotate_tri(st_clicks)};
+    return {rotation_idxs<3>(ot_clicks), rotation_idxs<3>(st_clicks)};
 }
 
 struct VertexAdjacentSubTris {
@@ -603,10 +212,6 @@ std::tuple<int,Tensor3,int,bool,Tensor3> orient_adj_tris(double* pts_ptr,
     }
     assert(obs_clicks != -1);
 
-    // bool src_misordered = (pair1.second + 1) % 3 == pair2.second;
-    // if (src_misordered) {
-    //     std::cout << "SRC" << std::endl;
-    // }
     int src_clicks = -1;
     bool src_flip = false;
     if (positive_mod(pair1.second + 1, 3) == pair2.second) {
@@ -617,8 +222,8 @@ std::tuple<int,Tensor3,int,bool,Tensor3> orient_adj_tris(double* pts_ptr,
     }
     assert(src_clicks != -1);
 
-    auto obs_rot = rotate_tri(obs_clicks);
-    auto src_rot = rotate_tri(src_clicks);
+    auto obs_rot = rotation_idxs<3>(obs_clicks);
+    auto src_rot = rotation_idxs<3>(src_clicks);
     if (src_flip) {
         std::swap(src_rot[0], src_rot[1]);
     }
@@ -798,8 +403,8 @@ std::array<double,81> sub_basis(const std::array<double,81>& I,
 
 // TODO: Duplicated with derotate_adj_mat in fast_assembly.cpp, refactor, fix.
 void derotate(int obs_clicks, int src_clicks, bool src_flip, double* out_start, double* in_start) {
-    auto obs_derot = rotate_tri(-obs_clicks);
-    auto src_derot = rotate_tri(-src_clicks);
+    auto obs_derot = rotation_idxs<3>(-obs_clicks);
+    auto src_derot = rotation_idxs<3>(-src_clicks);
     if (src_flip) {
         std::swap(src_derot[0], src_derot[1]);
     }
@@ -887,37 +492,15 @@ NPArray<double> adjacent_lookup_from_standard(
 }
 
 PYBIND11_MODULE(fast_lookup, m) {
-    m.def("barycentric_evalnd", barycentric_evalnd_py); 
-    
-    m.def("get_edge_lens", get_edge_lens);
-    m.def("get_longest_edge", get_longest_edge);
-    m.def("get_origin_vertex", get_origin_vertex);
-    m.def("relabel", relabel);
-    m.def("check_bad_tri", check_bad_tri);
-    m.def("rotation_matrix", rotation_matrix);
-    m.def("translate", translate_pyshim);
-    m.def("rotate1_to_xaxis", rotate1_to_xaxis_pyshim);
-    m.def("rotate2_to_xyplane", rotate2_to_xyplane_pyshim);
-    m.def("full_standardize_rotate", full_standardize_rotate_pyshim);
-    m.def("scale", scale_pyshim);
+    expose_edge_adj_separate(m);
 
-    py::class_<StandardizeResult>(m, "StandardizeResult");
-    m.def("standardize", standardize_pyshim);
-
-
-    m.def("transform_from_standard", transform_from_standard_pyshim);
-    m.def("sub_basis", sub_basis);
-
-    
     m.def("coincident_lookup_pts", coincident_lookup_pts);
     m.def("coincident_lookup_from_standard", coincident_lookup_from_standard);
     m.def("adjacent_lookup_from_standard", adjacent_lookup_from_standard);
 
-    m.def("get_split_pt", get_split_pt);
-    m.def("xyhat_from_pt", xyhat_from_pt);
-    m.def("separate_tris", separate_tris_pyshim);
     m.def("triangle_internal_angles", triangle_internal_angles);
     m.def("get_adjacent_phi", get_adjacent_phi);
+    m.def("sub_basis", sub_basis);
     m.def("find_va_rotations", find_va_rotations);
 
     py::class_<VertexAdjacentSubTris>(m, "VertexAdjacentSubTris")

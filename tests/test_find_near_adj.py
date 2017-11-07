@@ -3,7 +3,7 @@ import numpy as np
 import tectosaur.mesh.mesh_gen as mesh_gen
 from tectosaur.mesh.find_near_adj import *
 
-from tectosaur.util.test_decorators import golden_master,flatten
+from tectosaur.util.test_decorators import golden_master
 
 import logging
 logger = logging.getLogger(__name__)
@@ -21,10 +21,6 @@ def test_find_adjacents():
     assert(ea.size == 4)
     assert(np.all(va.flatten() == (0, 2, 0, 0, 2, 0, 0, 0)))
     assert(np.all(ea.flatten() == (0, 1, 1, 0)))
-
-def test_rotate_tri():
-    assert(rotate_tri(1) == [1, 2, 0])
-    assert(rotate_tri(2) == [2, 0, 1])
 
 def test_nearfield():
     corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
