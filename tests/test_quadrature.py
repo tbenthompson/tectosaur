@@ -3,17 +3,6 @@ from tectosaur.nearfield.limit import richardson_quad
 
 import numpy as np
 
-def test_richardson_quad():
-    gauss_q = gaussxw(11)
-    q = richardson_quad(
-        2 ** np.linspace(0, -5, 5),
-        False,
-        lambda e: map_to(sinh_transform(gauss_q, -1, e), [0, 1])
-    )
-    f = lambda x: 2 * x[:, 1] / (x[:, 0] ** 2 + x[:, 1] ** 2)
-    res = quadrature(f, q)
-    np.testing.assert_almost_equal(np.pi, res, 4)
-
 def test_richardson10():
     h = np.array([1.0, 0.1, 0.01])
     q = richardson_quad(h, False, lambda h: (np.array([0.0]), np.array([1.0])))
@@ -27,24 +16,10 @@ def test_log_richardson():
     est = np.sum(vals * q[1])
     np.testing.assert_almost_equal(est, 0.0)
 
-
 def test_gauss():
     est = quadrature(lambda x: x ** 7, map_to(gaussxw(4), [0, 1]))
     exact = 1.0 / 8.0
     np.testing.assert_almost_equal(est, exact)
-
-def test_sinh():
-    eps = 0.01
-    q = map_to(sinh_transform(gaussxw(12), -1, eps), [0, 1])
-    est = quadrature(lambda x: 1.0 / (x ** 2 + eps ** 2), q)
-    exact = 156.079666010823330
-    np.testing.assert_almost_equal(est, exact, 3)
-
-def test_aimi_diligenti():
-    q = aimi_diligenti(gaussxw(12), 7, 7)
-    est = quadrature(lambda x: np.log(1 - x) * np.log(x + 1), q)
-    exact = -1.10155082811
-    np.testing.assert_almost_equal(est, exact, 6)
 
 def test_gauss2d_tri1():
     q = gauss2d_tri(2)

@@ -23,65 +23,6 @@ def map_to(qr, interval):
 def quadrature(f, qr):
     return sum(f(qr[0]) * qr[1])
 
-# Sinh transform for integrals of the form \int_{-1}^1 f(x)<F12>
-# check that the b-distance(eps) is being computed properly, i think it should
-# be in transformed coordinates rather than the [-1,1] initial domain
-def sinh_transform(quad_rule, a, b, iterated = False):
-    n_q = len(quad_rule[0])
-    mu_0 = 0.5 * (np.arcsinh((1.0 + a) / b) + np.arcsinh((1.0 - a) / b))
-    eta_0 = 0.5 * (np.arcsinh((1.0 + a) / b) - np.arcsinh((1.0 - a) / b))
-
-    start_q = quad_rule
-    if iterated:
-        xs = np.empty(n_q)
-        ws = np.empty(n_q)
-        a_1 = eta_0 / mu_0
-        b_1 = np.pi / (2 * mu_0)
-        mu_1 = 0.5 * (np.arcsinh((1.0 + a_1) / b_1) + np.arcsinh((1.0 - a_1) / b_1))
-        eta_1 = 0.5 * (np.arcsinh((1.0 + a_1) / b_1) - np.arcsinh((1.0 - a_1) / b_1));
-        for i in range(n_q):
-            u = quad_rule[0][i]
-            xs[i] = a_1 + b_1 * np.sinh(mu_1 * u - eta_1);
-            jacobian = b_1 * mu_1 * np.cosh(mu_1 * u - eta_1);
-            ws[i] = quad_rule[1][i] * jacobian;
-        start_q = (xs, ws)
-
-    x = np.empty(n_q)
-    w = np.empty(n_q)
-    for i in range(n_q):
-        s = start_q[0][i]
-        x[i] = a + b * np.sinh(mu_0 * s - eta_0)
-        jacobian = b * mu_0 * np.cosh(mu_0 * s - eta_0)
-        w[i] = start_q[1][i] * jacobian
-    return np.array(x), np.array(w)
-
-def aimi_diligenti(quad_rule, p, q):
-    n_q = len(quad_rule[0])
-    x = np.zeros(n_q)
-    w = np.zeros(n_q)
-    n_transform_quad = int(np.floor((p + q) / 2.0)) ** 2
-    transform_quad = gaussxw(n_transform_quad)
-    for i in range(n_q):
-        t = (quad_rule[0][i] + 1.0) / 2.0
-        F = factorial(p + q - 1) / (factorial(p - 1) * factorial(q - 1))
-        x[i] = 2 * F * quadrature(
-            lambda us: [u ** (p - 1) * (1 - u) ** (q - 1) for u in us],
-            map_to(transform_quad, [0, t])
-        ) - 1.0
-        w[i] = quad_rule[1][i] * F * t ** (p - 1) * (1 - t) ** (q - 1)
-    return x, w
-
-def poly_transform01(quad_rule):
-    n_q = len(quad_rule[0])
-    x = np.empty(n_q)
-    w = np.empty(n_q)
-    for i in range(n_q):
-        s = (quad_rule[0][i] + 1.0) / 2.0
-        x[i] = 2.0 * (-s**2 * (2 * s - 3)) - 1.0
-        J = -2 * s * (2 * s - 3) - 2 * s ** 2
-        w[i] = quad_rule[1][i] * J
-    return np.array(x), np.array(w)
-
 def gauss2d_rect(N):
     qg = gaussxw(N)
 
