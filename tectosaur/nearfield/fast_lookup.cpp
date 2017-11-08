@@ -31,6 +31,7 @@ py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
     auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);
     std::vector<StandardizeResult> standard_tris(n_tris);
 
+    std::string bad_tri = "";
 #pragma omp parallel for
     for (size_t i = 0; i < n_tris; i++) {
         Tensor3 tri;
@@ -40,7 +41,15 @@ py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
             }
         }
 
-        auto standard_tri_info = standardize(tri, ${table_min_internal_angle}, true);
+        StandardizeResult standard_tri_info;
+        // OpenMP doesn't play well with exceptions, so we grab any bad triangle
+        // exceptions and rethrow them later.
+        try {
+            standard_tri_info = standardize(tri, ${table_min_internal_angle}, true);
+        } catch (const BadTriangleException& e) {
+            #pragma omp critical
+            bad_tri = e.what();
+        }
         standard_tris[i] = standard_tri_info;
 
         double A = standard_tri_info.tri[2][0];
@@ -53,6 +62,9 @@ py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
         out_ptr[i * 3] = Ahat;
         out_ptr[i * 3 + 1] = Bhat;
         out_ptr[i * 3 + 2] = prhat;
+    }
+    if (bad_tri != "") {
+        throw BadTriangleException(bad_tri);
     }
 
     return py::make_tuple(out, standard_tris);
@@ -369,7 +381,6 @@ void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
 
 
 PYBIND11_MODULE(fast_lookup, m) {
-    py::register_exception<BadTriangleException>(m, "BadTriangleException");
     py::class_<EdgeAdjacentLookupTris>(m, "EdgeAdjacentLookupTris")
         .NPARRAYPROP(EdgeAdjacentLookupTris, pts);
     py::class_<VertexAdjacentSubTris>(m, "VertexAdjacentSubTris")

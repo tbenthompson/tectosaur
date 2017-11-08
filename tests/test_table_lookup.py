@@ -80,6 +80,7 @@ def coincident_lookup_helper(K, correct_digits, n_tests = 10):
 
     results = []
     for i in range(n_tests):
+        print('try again')
         try:
             A = np.random.rand(1)[0] * 0.5
             B = np.random.rand(1)[0]
@@ -106,7 +107,7 @@ def coincident_lookup_helper(K, correct_digits, n_tests = 10):
             )
             results.append(op.mat)
         except standardize.BadTriangleException as e:
-            print("Bad tri: " + str(e.code))
+            print("Bad tri: " + str(e))
     return np.array(results)
 
 @golden_master(4)
