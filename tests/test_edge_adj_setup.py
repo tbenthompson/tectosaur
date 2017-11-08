@@ -1,32 +1,31 @@
 import numpy as np
-from tectosaur.util.geometry import tri_pt, linear_basis_tri, random_rotation
+import tectosaur.util.geometry as geometry
 from tectosaur.nearfield.table_params import table_min_internal_angle, min_angle_isoceles_height
 
-from tectosaur.nearfield.standardize import standardize, BadTriangleError
-
 from tectosaur.util.cpp import imp
-edge_adj_separate = imp('tectosaur.nearfield.edge_adj_separate')
+standardize = imp('tectosaur.nearfield.standardize')
+edge_adj_setup = imp('tectosaur.nearfield.edge_adj_setup')
 
 def test_xyhat_from_pt_simple():
     P = np.array([0.5,0.5,0.0])
     T = np.array([[0,0,0],[1,0,0],[0,1,0]])
-    xyhat = edge_adj_separate.xyhat_from_pt(P.tolist(), T.tolist())
+    xyhat = edge_adj_setup.xyhat_from_pt(P.tolist(), T.tolist())
     np.testing.assert_almost_equal(xyhat, [0.5, 0.5])
 
 def test_xyhat_from_pt_harder():
     P = np.array([0,2.0,0.0])
     T = np.array([[0,2,0],[0,3,0],[0,2,1]])
-    xyhat = edge_adj_separate.xyhat_from_pt(P.tolist(), T.tolist())
+    xyhat = edge_adj_setup.xyhat_from_pt(P.tolist(), T.tolist())
     np.testing.assert_almost_equal(xyhat, [0.0, 0.0])
 
     P = np.array([0,2.5,0.5])
     T = np.array([[0,2,0],[0,3,0],[0,2,1]])
-    xyhat = edge_adj_separate.xyhat_from_pt(P.tolist(), T.tolist())
+    xyhat = edge_adj_setup.xyhat_from_pt(P.tolist(), T.tolist())
     np.testing.assert_almost_equal(xyhat, [0.5, 0.5])
 
     P = np.array([0,3.0,0.5])
     T = np.array([[0,2,0],[0,4,0],[0,2,1]])
-    xyhat = edge_adj_separate.xyhat_from_pt(P.tolist(), T.tolist())
+    xyhat = edge_adj_setup.xyhat_from_pt(P.tolist(), T.tolist())
     np.testing.assert_almost_equal(xyhat, [0.5, 0.5])
 
 def test_xyhat_from_pt_random():
@@ -34,23 +33,23 @@ def test_xyhat_from_pt_random():
         xhat = np.random.rand(1)[0]
         yhat = np.random.rand(1)[0] * (1 - xhat)
         T = np.random.rand(3,3)
-        P = tri_pt(linear_basis_tri(xhat, yhat), T)
-        xhat2, yhat2 = edge_adj_separate.xyhat_from_pt(P.tolist(), T.tolist())
+        P = geometry.tri_pt(geometry.linear_basis_tri(xhat, yhat), T)
+        xhat2, yhat2 = edge_adj_setup.xyhat_from_pt(P.tolist(), T.tolist())
         np.testing.assert_almost_equal(xhat, xhat2)
         np.testing.assert_almost_equal(yhat, yhat2)
 
 def test_get_split_pt():
     tri = [[0,0,0],[1,0,0],[0.4,0.8,0.0]]
-    split_pt = edge_adj_separate.get_split_pt(tri)
+    split_pt = edge_adj_setup.get_split_pt(tri)
     np.testing.assert_almost_equal(split_pt, [0.5, min_angle_isoceles_height, 0.0])
 
 def test_get_split_pt_rotated():
     for i in range(50):
-        R = random_rotation()
+        R = geometry.random_rotation()
         scale = np.random.rand(1) * 10.0
         tri = np.array([[0,0,0],[1,0,0],[np.random.rand(1)[0] * 0.5,np.random.rand(1)[0],0.0]])
         rot_tri = scale * R.dot(tri.T).T
-        split_pt = edge_adj_separate.get_split_pt(rot_tri.tolist())
+        split_pt = edge_adj_setup.get_split_pt(rot_tri.tolist())
         rot_correct = scale * R.dot([0.5, min_angle_isoceles_height, 0.0])
         np.testing.assert_almost_equal(split_pt, rot_correct)
 
@@ -64,16 +63,16 @@ def test_separate():
 
         # ensure the random triangles are legal triangles
         try:
-            standardize(obs_tri.tolist(), 20, True)
-            standardize(src_tri.tolist(), 20, True)
-        except BadTriangleError:
+            standardize.standardize(obs_tri.tolist(), 20, True)
+            standardize.standardize(src_tri.tolist(), 20, True)
+        except standardize.BadTriangleException:
             continue
 
-        pts, obs_set, src_set, obs_basis_tris, src_basis_tris = edge_adj_separate.separate_tris(
+        pts, obs_set, src_set, obs_basis_tris, src_basis_tris = edge_adj_setup.separate_tris(
             obs_tri.tolist(), src_tri.tolist()
         )
-        obs0_angles = fast_lookup.triangle_internal_angles(np.array(pts)[obs_set[0]].tolist())
-        src0_angles = fast_lookup.triangle_internal_angles(np.array(pts)[src_set[0]].tolist())
+        obs0_angles = geometry.triangle_internal_angles(np.array(pts)[obs_set[0]].tolist())
+        src0_angles = geometry.triangle_internal_angles(np.array(pts)[src_set[0]].tolist())
 
         np.testing.assert_almost_equal(obs0_angles[0], np.deg2rad(table_min_internal_angle))
         np.testing.assert_almost_equal(obs0_angles[1], np.deg2rad(table_min_internal_angle))

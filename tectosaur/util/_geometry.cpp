@@ -13,4 +13,5 @@ PYBIND11_MODULE(_geometry, m) {
     m.def("vec_angle", vec_angle);
     m.def("get_edge_lens", get_edge_lens);
     m.def("get_longest_edge", get_longest_edge);
+    m.def("triangle_internal_angles", triangle_internal_angles);
 }

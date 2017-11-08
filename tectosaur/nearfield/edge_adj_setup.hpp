@@ -13,3 +13,7 @@ struct SeparateTriResult {
     std::array<std::array<Vec2,3>,3> src_basis_tri;
 };
 SeparateTriResult separate_tris(const Tensor3& obs_tri, const Tensor3& src_tri);
+
+double get_adjacent_phi(const Tensor3& obs_tri, const Tensor3& src_tri);
+std::tuple<int,Tensor3,int,bool,Tensor3> orient_adj_tris(double* pts_ptr,
+        long* tris_ptr, int tri_idx1, int tri_idx2);

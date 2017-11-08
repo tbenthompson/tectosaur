@@ -5,6 +5,7 @@ _geometry = cppimport.cppimport('tectosaur.util._geometry')
 get_edge_lens = _geometry.get_edge_lens
 get_longest_edge = _geometry.get_longest_edge
 vec_angle = _geometry.vec_angle
+triangle_internal_angles = _geometry.triangle_internal_angles
 
 def random_rotation():
     axis = np.random.rand(3) * 2 - 1.0

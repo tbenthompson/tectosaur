@@ -5,7 +5,7 @@ cfg['dependencies'].extend([
     '../include/pybind11_nparray.hpp',
     '../include/vec_tensor.hpp',
     '../include/math_tools.hpp',
-    '_standardize.hpp',
+    'standardize.hpp',
 ])
 
 from tectosaur.kernels import kernels
@@ -23,7 +23,7 @@ from tectosaur.kernels import kernels
  check that triangle internal angles are greater than 20 degrees
 */
 
-#include "_standardize.hpp"
+#include "standardize.hpp"
 #include <pybind11/stl.h>
 
 namespace py = pybind11;
@@ -210,6 +210,10 @@ py::tuple scale_pyshim(const Tensor3& tri) {
     return py::make_tuple(out.first, out.second);
 }
 
+struct BadTriangleException: public std::runtime_error {
+    using std::runtime_error::runtime_error; 
+};
+
 StandardizeResult standardize(const Tensor3& tri, double angle_lim, bool should_relabel) {
     std::array<int,3> labels;
     Tensor3 relabeled;
@@ -228,6 +232,9 @@ StandardizeResult standardize(const Tensor3& tri, double angle_lim, bool should_
     auto rot_out = full_standardize_rotate(trans_out.first);
     auto scale_out = scale(rot_out.first);
     int code = check_bad_tri(scale_out.first, angle_lim);
+    if (should_relabel && code != 0) {
+        throw BadTriangleException(std::to_string(code));
+    }
     return {
         code, scale_out.first, labels, trans_out.second, rot_out.second, scale_out.second
     };
@@ -304,7 +311,7 @@ std::array<double,81> transform_from_standard_pyshim(const std::array<double,81>
     return transform_from_standard(I, get_kernel_props(K), sm, labels, translation, R, scale);
 }
 
-PYBIND11_MODULE(_standardize, m) {
+PYBIND11_MODULE(standardize, m) {
     m.def("get_edge_lens", get_edge_lens);
     m.def("get_longest_edge", get_longest_edge);
     m.def("get_origin_vertex", get_origin_vertex);
@@ -318,4 +325,5 @@ PYBIND11_MODULE(_standardize, m) {
     py::class_<StandardizeResult>(m, "StandardizeResult");
     m.def("standardize", standardize_pyshim);
     m.def("transform_from_standard", transform_from_standard_pyshim);
+    py::register_exception<BadTriangleException>(m, "BadTriangleException");
 }
