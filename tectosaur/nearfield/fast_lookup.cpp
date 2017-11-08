@@ -1,7 +1,6 @@
 <%
 from tectosaur.util.build_cfg import setup_module
 setup_module(cfg)
-cfg['sources'].extend(['edge_adj_separate.cpp'])
 cfg['dependencies'].extend([
     '../include/pybind11_nparray.hpp',
     '../include/vec_tensor.hpp',
@@ -9,10 +8,9 @@ cfg['dependencies'].extend([
     '_standardize.hpp',
     'edge_adj_separate.hpp',
 ])
-cfg['compiler_args'].extend(['-Wl,--unresolved-symbols=ignore-all'])
 
-from tectosaur.nearfield.table_params import min_angle_isoceles_height,\
-     table_min_internal_angle, minlegalA, minlegalB, maxlegalA, maxlegalB, min_intersect_angle
+from tectosaur.nearfield.table_params import table_min_internal_angle,\
+         minlegalA, minlegalB, maxlegalA, maxlegalB, min_intersect_angle
 
 from tectosaur.kernels import kernels
 %>
@@ -42,21 +40,16 @@ py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
 
 #pragma omp parallel for
     for (size_t i = 0; i < n_tris; i++) {
-        //TIC;
         Tensor3 tri;
         for (int d1 = 0; d1 < 3; d1++) {
             for (int d2 = 0; d2 < 3; d2++) {
                 tri[d1][d2] = tri_pts_ptr[i * 9 + d1 * 3 + d2];
             }
         }
-        //TOC("copy tri");
 
-        //TIC2;
         auto standard_tri_info = standardize(tri, ${table_min_internal_angle}, true);
         standard_tris[i] = standard_tri_info;
-        //TOC("standardize");
 
-        //TIC2;
         double A = standard_tri_info.tri[2][0];
         double B = standard_tri_info.tri[2][1];
 
@@ -282,7 +275,7 @@ py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
         ea.src_flips[i] = std::get<3>(oriented);
         auto src_tri = std::get<4>(oriented);
 
-        auto sep_res = separate_tris(ea.obs_tris[i], src_tri, ${min_angle_isoceles_height});
+        auto sep_res = separate_tris(ea.obs_tris[i], src_tri);
 
         ea.obs_basis[i] = sep_res.obs_basis_tri[0];
         ea.src_basis[i] = sep_res.src_basis_tri[0];
@@ -492,8 +485,6 @@ NPArray<double> adjacent_lookup_from_standard(
 }
 
 PYBIND11_MODULE(fast_lookup, m) {
-    expose_edge_adj_separate(m);
-
     m.def("coincident_lookup_pts", coincident_lookup_pts);
     m.def("coincident_lookup_from_standard", coincident_lookup_from_standard);
     m.def("adjacent_lookup_from_standard", adjacent_lookup_from_standard);

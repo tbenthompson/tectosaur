@@ -1,8 +1,10 @@
 import numpy as np
 
-#TODO: Should this module even exist? Can it be deleted and spread out? Or should it simply be a shim over the C++ variants of each of these functions?
 import cppimport
 _geometry = cppimport.cppimport('tectosaur.util._geometry')
+get_edge_lens = _geometry.get_edge_lens
+get_longest_edge = _geometry.get_longest_edge
+vec_angle = _geometry.vec_angle
 
 def random_rotation():
     axis = np.random.rand(3) * 2 - 1.0
@@ -13,30 +15,6 @@ def random_rotation():
 
 def projection(V, b):
     return (V.dot(b) * b) / (np.linalg.norm(b) ** 2)
-
-#TODO: Duplicated with standardize c++ stuff
-def vec_angle(v1, v2):
-    v1L = np.linalg.norm(v1)
-    v2L = np.linalg.norm(v2)
-    v1d2 = v1.dot(v2)
-    arg = min(max(v1d2 / (v1L * v2L),-1),1)
-    return np.arccos(arg)
-
-#TODO: Duplicated with standardize c++ stuff
-def get_edge_lens(tri):
-    L0 = np.sum((tri[1,:] - tri[0,:])**2)
-    L1 = np.sum((tri[2,:] - tri[1,:])**2)
-    L2 = np.sum((tri[2,:] - tri[0,:])**2)
-    return L0, L1, L2
-
-#TODO: Duplicated with standardize c++ stuff
-def get_longest_edge(lens):
-    if lens[0] >= lens[1] and lens[0] >= lens[2]:
-        return 0
-    elif lens[1] >= lens[0] and lens[1] >= lens[2]:
-        return 1
-    elif lens[2] >= lens[0] and lens[2] >= lens[1]:
-        return 2
 
 def linear_basis_tri(xhat, yhat):
     return np.array([1.0 - xhat - yhat, xhat, yhat])

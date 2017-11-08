@@ -7,38 +7,27 @@ cfg['dependencies'].extend([
     '../include/math_tools.hpp',
     '_standardize.hpp',
 ])
-cfg['compiler_args'].extend(['-Wl,--unresolved-symbols=ignore-all'])
 
 from tectosaur.kernels import kernels
 %>
+
+/*
+ THE PLAN!
+ Find longest edge
+ relabel to put that longest edge as the 0-1 edge
+ flip to put the 2 vertex closer to the 0 vertex than the 1 vertex
+ translate 0 vertex to origin
+ rotate 1 vertex to be at (A, 0, 0) and store rotation
+ rotate 2 vertex to be at (B, C, 0) and store rotation
+ scale triangle so that 1 vertex is at (1, 0, 0) and store scale factor
+ check that triangle internal angles are greater than 20 degrees
+*/
 
 #include "_standardize.hpp"
 #include <pybind11/stl.h>
 
 namespace py = pybind11;
 //TODO: Can the pyshim functions be written with fancy C++14 templating and such?
-
-Vec3 get_edge_lens(const Tensor3& tri) {
-    Vec3 out;
-    for (int d = 0; d < 3; d++) {
-        out[d] = 0.0;
-        for (int c = 0; c < 3; c++) {
-            auto delta = tri[(d + 1) % 3][c] - tri[d][c];
-            out[d] += delta * delta;
-        }
-    }
-    return out;
-}
-
-int get_longest_edge(const Vec3& lens) {
-    if (lens[0] >= lens[1] && lens[0] >= lens[2]) {
-        return 0;
-    } else if (lens[1] >= lens[0] && lens[1] >= lens[2]) {
-        return 1;
-    } else {// if (lens[2] >= lens[0] && lens[2] >= lens[1]) {
-        return 2;
-    }
-}
 
 int get_origin_vertex(const Vec3& lens) {
     auto longest = get_longest_edge(lens);
@@ -315,7 +304,7 @@ std::array<double,81> transform_from_standard_pyshim(const std::array<double,81>
     return transform_from_standard(I, get_kernel_props(K), sm, labels, translation, R, scale);
 }
 
-void expose_standardize(py::module& m) {
+PYBIND11_MODULE(_standardize, m) {
     m.def("get_edge_lens", get_edge_lens);
     m.def("get_longest_edge", get_longest_edge);
     m.def("get_origin_vertex", get_origin_vertex);
@@ -329,8 +318,4 @@ void expose_standardize(py::module& m) {
     py::class_<StandardizeResult>(m, "StandardizeResult");
     m.def("standardize", standardize_pyshim);
     m.def("transform_from_standard", transform_from_standard_pyshim);
-}
-
-PYBIND11_MODULE(_standardize, m) {
-    expose_standardize(m);
 }

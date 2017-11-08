@@ -11,8 +11,8 @@ import tectosaur.util.gpu as gpu
 from tectosaur.nearfield.pairs_integrator import PairsIntegrator
 from tectosaur.nearfield.table_params import *
 
-from cppimport import cppimport
-fast_lookup = cppimport("tectosaur.nearfield.fast_lookup")
+from tectosaur.util.cpp import imp
+fast_lookup = imp('tectosaur.nearfield.fast_lookup')
 
 def lookup_interpolation_gpu(table_limits, table_log_coeffs,
         interp_pts, interp_wts, pts, float_type):

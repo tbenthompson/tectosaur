@@ -10,4 +10,7 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(_geometry, m) {
     m.def("rotation_matrix", rotation_matrix);
+    m.def("vec_angle", vec_angle);
+    m.def("get_edge_lens", get_edge_lens);
+    m.def("get_longest_edge", get_longest_edge);
 }

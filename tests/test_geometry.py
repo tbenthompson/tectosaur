@@ -1,11 +1,11 @@
 from tectosaur.util.geometry import *
 
 def test_longest_edge():
-    assert(get_longest_edge(get_edge_lens(np.array([[0,0,0],[1,0,0],[0.5,0.5,0]]))) == 0)
-    assert(get_longest_edge(get_edge_lens(np.array([[0,0,0],[0.5,0.5,0],[1,0,0]]))) == 2)
+    assert(get_longest_edge(get_edge_lens([[0,0,0],[1,0,0],[0.5,0.5,0]])) == 0)
+    assert(get_longest_edge(get_edge_lens([[0,0,0],[0.5,0.5,0],[1,0,0]])) == 2)
 
 def test_vec_angle180():
-    np.testing.assert_almost_equal(vec_angle(np.array([1,1]),np.array([-1,-1])), np.pi)
+    np.testing.assert_almost_equal(vec_angle([1,1,0],[-1,-1,0]), np.pi)
 
 def test_tri_normal():
     tri = [[0,0,0],[1,0,0],[0,1,0]]

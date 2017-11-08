@@ -137,3 +137,26 @@ inline double vec_angle(const Vec3& v1, const Vec3& v2) {
     }
     return acos(arg);
 }
+
+inline Vec3 get_edge_lens(const Tensor3& tri) {
+    Vec3 out;
+    for (int d = 0; d < 3; d++) {
+        out[d] = 0.0;
+        for (int c = 0; c < 3; c++) {
+            auto delta = tri[(d + 1) % 3][c] - tri[d][c];
+            out[d] += delta * delta;
+        }
+    }
+    return out;
+}
+
+inline int get_longest_edge(const Vec3& lens) {
+    if (lens[0] >= lens[1] && lens[0] >= lens[2]) {
+        return 0;
+    } else if (lens[1] >= lens[0] && lens[1] >= lens[2]) {
+        return 1;
+    } else {// if (lens[2] >= lens[0] && lens[2] >= lens[1]) {
+        return 2;
+    }
+}
+
