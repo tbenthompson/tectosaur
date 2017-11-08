@@ -4,8 +4,8 @@ from tectosaur.util.timer import Timer
 
 import tectosaur.util.profile
 
-from cppimport import cppimport
-fast_find_nearfield = cppimport('tectosaur.mesh.fast_find_nearfield')
+from tectosaur.util.cpp import imp
+fast_find_nearfield = imp('tectosaur.mesh.fast_find_nearfield')
 
 split_adjacent_close = fast_find_nearfield.split_adjacent_close
 

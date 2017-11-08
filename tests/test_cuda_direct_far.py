@@ -1,5 +1,4 @@
 import time
-import cppimport
 import numpy as np
 
 from tectosaur.farfield import farfield_pts_direct, get_gpu_module

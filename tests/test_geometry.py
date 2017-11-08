@@ -1,5 +1,9 @@
 from tectosaur.util.geometry import *
 
+def test_internal_angles():
+    angles = triangle_internal_angles([[0,0,0],[1,0,0],[0,1,0]])
+    np.testing.assert_almost_equal(angles, [np.pi / 2, np.pi / 4, np.pi / 4])
+
 def test_longest_edge():
     assert(get_longest_edge(get_edge_lens([[0,0,0],[1,0,0],[0.5,0.5,0]])) == 0)
     assert(get_longest_edge(get_edge_lens([[0,0,0],[0.5,0.5,0],[1,0,0]])) == 2)

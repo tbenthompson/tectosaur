@@ -3,8 +3,8 @@ from tectosaur.util.quadrature import gauss2d_tri
 import numpy as np
 import scipy.sparse
 
-from cppimport import cppimport
-_mass_op = cppimport("tectosaur.ops._mass_op")
+from tectosaur.util.cpp import imp
+_mass_op = imp("tectosaur.ops._mass_op")
 
 class MassOp:
     def __init__(self, nq, pts, tris):

@@ -2,7 +2,6 @@ import pytest
 import numpy as np
 
 import tectosaur.util.geometry as geometry
-from tectosaur.nearfield.standardize import standardize, BadTriangleError
 import tectosaur.nearfield.nearfield_op as nearfield_op
 from tectosaur.nearfield.interpolate import to_interval
 from tectosaur.ops.dense_integral_op import DenseIntegralOp
@@ -23,20 +22,6 @@ def test_find_va_rotations():
 
     res = fast_lookup.find_va_rotations([1,5,3],[2,4,3])
     np.testing.assert_equal(res, [[2,0,1],[2,0,1]])
-
-def test_adjacent_phi():
-    rho = 0.2
-    for i in range(10):
-        phi = np.random.rand(1)[0] * 2 * np.pi
-        out = fast_lookup.get_adjacent_phi(
-            [[0,0,0],[1,0,0],[0.5,rho,0.0]],
-            [[0,0,0],[1,0,0],[0.5,rho*np.cos(phi),rho*np.sin(phi)]],
-        )
-        np.testing.assert_almost_equal(out, phi)
-
-def test_internal_angles():
-    angles = fast_lookup.triangle_internal_angles([[0,0,0],[1,0,0],[0,1,0]])
-    np.testing.assert_almost_equal(angles, [np.pi / 2, np.pi / 4, np.pi / 4])
 
 def interp_pts_wts_test(pts, wts, f):
     fvs = f(pts)
@@ -120,7 +105,7 @@ def coincident_lookup_helper(K, correct_digits, n_tests = 10):
                 pts, tris, float_type
             )
             results.append(op.mat)
-        except BadTriangleError as e:
+        except standardize.BadTriangleException as e:
             print("Bad tri: " + str(e.code))
     return np.array(results)
 
@@ -253,36 +238,6 @@ def adj_flipping_experiment():
     CG *= -1
     import ipdb
     ipdb.set_trace()
-
-def test_orient_simple():
-    pts = np.array([[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0], [0.5, -0.5, 0.0]])
-    tris = np.array([[0,1,2], [1,0,3]])
-    result = fast_lookup.orient_adj_tris(pts, tris, 0, 1)
-    assert(result[0] == 0)
-    np.testing.assert_almost_equal(result[1], pts[tris[0]])
-    assert(result[2] == 0)
-    assert(not result[3])
-    np.testing.assert_almost_equal(result[4], pts[tris[1]])
-
-def test_orient_rot():
-    pts = np.array([[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0], [0.5, -0.5, 0.0]])
-    tris = np.array([[1,2,0], [1,0,3]])
-    result = fast_lookup.orient_adj_tris(pts, tris, 0, 1)
-    assert(result[0] == 2)
-    np.testing.assert_almost_equal(result[1], pts[[0,1,2]])
-    assert(result[2] == 0)
-    assert(not result[3])
-    np.testing.assert_almost_equal(result[4], pts[tris[1]])
-
-def test_orient_flip():
-    pts = np.array([[0, 0, 0], [1, 0, 0], [0.5, 0.5, 0], [0.5, -0.5, 0.0]])
-    tris = np.array([[0,1,2], [0,1,3]])
-    result = fast_lookup.orient_adj_tris(pts, tris, 0, 1)
-    assert(result[0] == 0);
-    np.testing.assert_almost_equal(result[1], pts[tris[0]])
-    assert(result[2] == 0);
-    assert(result[3])
-    np.testing.assert_almost_equal(result[4], pts[[1,0,3]])
 
 if __name__ == "__main__":
     adj_flipping_experiment()

@@ -5,27 +5,20 @@ cfg['dependencies'].extend([
     '../include/pybind11_nparray.hpp',
     '../include/vec_tensor.hpp',
     '../include/math_tools.hpp',
-    '_standardize.hpp',
-    'edge_adj_separate.hpp',
+    'standardize.hpp',
+    'edge_adj_setup.hpp',
 ])
 
 from tectosaur.nearfield.table_params import table_min_internal_angle,\
          minlegalA, minlegalB, maxlegalA, maxlegalB, min_intersect_angle
-
-from tectosaur.kernels import kernels
 %>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include "include/pybind11_nparray.hpp"
 #include "include/vec_tensor.hpp"
 #include "include/math_tools.hpp"
-#include "_standardize.hpp"
+#include "standardize.hpp"
 #include "edge_adj_setup.hpp"
-
-//TODO: In general, this is some of the most disgusting code in tectosaur. This
-// whole mess needs to be treated as some legacy crap and cleaned up. That said,
-// it works... So don't break anything. Lots of golden master tests and slow 
-// refactoring. Maybe not anytime soon...
 
 namespace py = pybind11;
 
@@ -102,15 +95,6 @@ NPArray<double> coincident_lookup_from_standard(
 }
 
 
-struct VertexAdjacentSubTris {
-    std::vector<std::array<double,3>> pts;
-    std::vector<int> original_pair_idx;
-    std::vector<std::array<size_t,3>> tris;
-    std::vector<std::array<size_t,4>> pairs;
-    std::vector<std::array<std::array<double,2>,3>> obs_basis;
-    std::vector<std::array<std::array<double,2>,3>> src_basis;
-};
-
 struct EdgeAdjacentLookupTris {
     std::vector<std::array<double,2>> pts;
     std::vector<Tensor3> obs_tris;
@@ -131,6 +115,94 @@ struct EdgeAdjacentLookupTris {
     {}
 };
 
+struct VertexAdjacentSubTris {
+    std::vector<std::array<double,3>> pts;
+    std::vector<int> original_pair_idx;
+    std::vector<std::array<size_t,3>> tris;
+    std::vector<std::array<size_t,4>> pairs;
+    std::vector<std::array<std::array<double,2>,3>> obs_basis;
+    std::vector<std::array<std::array<double,2>,3>> src_basis;
+};
+
+std::array<std::array<int,3>,2> find_va_rotations(const std::array<int,3>& ot,
+    const std::array<int,3>& st) 
+{
+    int ot_clicks = 0;
+    int st_clicks = 0;
+    bool matching_vert = false;
+    for (int d1 = 0; d1 < 3; d1++) {
+        for (int d2 = 0; d2 < 3; d2++) {
+            matching_vert = st[d1] == ot[d2];
+            if (matching_vert) {
+                st_clicks = d1;
+                ot_clicks = d2;
+                break;
+            }
+        }
+        if (matching_vert) {
+            break;
+        }
+    }
+
+    return {rotation_idxs<3>(ot_clicks), rotation_idxs<3>(st_clicks)};
+}
+
+std::array<double,81> sub_basis(const std::array<double,81>& I,
+        const std::array<std::array<double,2>,3>& obs_basis_tri,
+        const std::array<std::array<double,2>,3>& src_basis_tri)
+{
+    std::array<double,81> out{};
+    for (int ob1 = 0; ob1 < 3; ob1++) {
+    for (int sb1 = 0; sb1 < 3; sb1++) {
+    for (int ob2 = 0; ob2 < 3; ob2++) {
+    for (int sb2 = 0; sb2 < 3; sb2++) {
+        auto x = obs_basis_tri[ob2][0];
+        auto y = obs_basis_tri[ob2][1];
+        auto obv = linear_basis_tri(x, y)[ob1];
+
+        x = src_basis_tri[sb2][0];
+        y = src_basis_tri[sb2][1];
+        auto sbv = linear_basis_tri(x, y)[sb1];
+
+        (void)x;(void)y;
+
+        for (int d1 = 0; d1 < 3; d1++) {
+        for (int d2 = 0; d2 < 3; d2++) {
+            auto out_idx = ob1 * 27 + d1 * 9 + sb1 * 3 + d2;
+            auto in_idx = ob2 * 27 + d1 * 9 + sb2 * 3 + d2;
+            out[out_idx] += I[in_idx] * obv * sbv;
+        }
+        }
+    }
+    }
+    }
+    }
+    return out;
+}
+
+void derotate(int obs_clicks, int src_clicks, bool src_flip, double* out_start, double* in_start) {
+    auto obs_derot = rotation_idxs<3>(-obs_clicks);
+    auto src_derot = rotation_idxs<3>(-src_clicks);
+    if (src_flip) {
+        std::swap(src_derot[0], src_derot[1]);
+    }
+    for (int b1 = 0; b1 < 3; b1++) {
+        for (int b2 = 0; b2 < 3; b2++) {
+            for (int d1 = 0; d1 < 3; d1++) {
+                for (int d2 = 0; d2 < 3; d2++) {
+                    auto out_idx = b1 * 27 + d1 * 9 + b2 * 3 + d2;
+                    auto in_idx = obs_derot[b1] * 27 + d1 * 9 + src_derot[b2] * 3 + d2;
+                    auto val = in_start[in_idx];
+                    if (src_flip) {
+                        val *= -1;
+                    }
+#pragma omp atomic
+                    out_start[out_idx] += val;
+                }
+            }
+        }
+    }
+}
 
 py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
     NPArray<long> ea_tri_indices, double pr, bool flip_symmetry) 
@@ -230,96 +302,6 @@ py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
     return py::make_tuple(va, ea);
 }
 
-double basis_fnc(double x, double y, int idx) {
-    if (idx == 0) {
-        return 1 - x - y;
-    } else if (idx == 1) {
-        return x;
-    } else {
-        return y;
-    }
-}
-
-std::array<double,81> sub_basis(const std::array<double,81>& I,
-        const std::array<std::array<double,2>,3>& obs_basis_tri,
-        const std::array<std::array<double,2>,3>& src_basis_tri)
-{
-    std::array<double,81> out{};
-    for (int ob1 = 0; ob1 < 3; ob1++) {
-    for (int sb1 = 0; sb1 < 3; sb1++) {
-    for (int ob2 = 0; ob2 < 3; ob2++) {
-    for (int sb2 = 0; sb2 < 3; sb2++) {
-        auto x = obs_basis_tri[ob2][0];
-        auto y = obs_basis_tri[ob2][1];
-        auto obv = basis_fnc(x, y, ob1);
-
-        x = src_basis_tri[sb2][0];
-        y = src_basis_tri[sb2][1];
-        auto sbv = basis_fnc(x, y, sb1);
-
-        (void)x;(void)y;
-
-        for (int d1 = 0; d1 < 3; d1++) {
-        for (int d2 = 0; d2 < 3; d2++) {
-            auto out_idx = ob1 * 27 + d1 * 9 + sb1 * 3 + d2;
-            auto in_idx = ob2 * 27 + d1 * 9 + sb2 * 3 + d2;
-            out[out_idx] += I[in_idx] * obv * sbv;
-        }
-        }
-    }
-    }
-    }
-    }
-    return out;
-}
-
-// TODO: Duplicated with derotate_adj_mat in fast_assembly.cpp, refactor, fix.
-void derotate(int obs_clicks, int src_clicks, bool src_flip, double* out_start, double* in_start) {
-    auto obs_derot = rotation_idxs<3>(-obs_clicks);
-    auto src_derot = rotation_idxs<3>(-src_clicks);
-    if (src_flip) {
-        std::swap(src_derot[0], src_derot[1]);
-    }
-    for (int b1 = 0; b1 < 3; b1++) {
-        for (int b2 = 0; b2 < 3; b2++) {
-            for (int d1 = 0; d1 < 3; d1++) {
-                for (int d2 = 0; d2 < 3; d2++) {
-                    auto out_idx = b1 * 27 + d1 * 9 + b2 * 3 + d2;
-                    auto in_idx = obs_derot[b1] * 27 + d1 * 9 + src_derot[b2] * 3 + d2;
-                    auto val = in_start[in_idx];
-                    if (src_flip) {
-                        val *= -1;
-                    }
-#pragma omp atomic
-                    out_start[out_idx] += val;
-                }
-            }
-        }
-    }
-}
-
-void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
-    const VertexAdjacentSubTris& va, const EdgeAdjacentLookupTris& ea) 
-{
-    size_t n_integrals = Iv.request().shape[0];    
-    auto Iv_ptr = as_ptr<double>(Iv);
-    auto out_ptr = as_ptr<double>(out);
-#pragma omp parallel for
-    for (size_t i = 0; i < n_integrals; i++) {
-        std::array<double,81> this_integral;
-        for (int j = 0; j < 81; j++) {
-            this_integral[j] = Iv_ptr[i * 81 + j];
-        }
-        auto res = sub_basis(this_integral, va.obs_basis[i], va.src_basis[i]);
-
-        int out_idx = va.original_pair_idx[i];
-        derotate(
-            ea.obs_clicks[out_idx], ea.src_clicks[out_idx], ea.src_flips[out_idx],
-            &out_ptr[out_idx * 81], res.data()
-        );
-    }
-}
-
 NPArray<double> adjacent_lookup_from_standard(
     NPArray<double> interp_vals, NPArray<double> log_coeffs,
     EdgeAdjacentLookupTris ea, std::string kernel, double sm)
@@ -363,43 +345,43 @@ NPArray<double> adjacent_lookup_from_standard(
     return out;
 }
 
-std::array<std::array<int,3>,2> find_va_rotations(const std::array<int,3>& ot,
-    const std::array<int,3>& st) 
+void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
+    const VertexAdjacentSubTris& va, const EdgeAdjacentLookupTris& ea) 
 {
-    int ot_clicks = 0;
-    int st_clicks = 0;
-    bool matching_vert = false;
-    for (int d1 = 0; d1 < 3; d1++) {
-        for (int d2 = 0; d2 < 3; d2++) {
-            matching_vert = st[d1] == ot[d2];
-            if (matching_vert) {
-                st_clicks = d1;
-                ot_clicks = d2;
-                break;
-            }
+    size_t n_integrals = Iv.request().shape[0];    
+    auto Iv_ptr = as_ptr<double>(Iv);
+    auto out_ptr = as_ptr<double>(out);
+#pragma omp parallel for
+    for (size_t i = 0; i < n_integrals; i++) {
+        std::array<double,81> this_integral;
+        for (int j = 0; j < 81; j++) {
+            this_integral[j] = Iv_ptr[i * 81 + j];
         }
-        if (matching_vert) {
-            break;
-        }
-    }
+        auto res = sub_basis(this_integral, va.obs_basis[i], va.src_basis[i]);
 
-    return {rotation_idxs<3>(ot_clicks), rotation_idxs<3>(st_clicks)};
+        int out_idx = va.original_pair_idx[i];
+        derotate(
+            ea.obs_clicks[out_idx], ea.src_clicks[out_idx], ea.src_flips[out_idx],
+            &out_ptr[out_idx * 81], res.data()
+        );
+    }
 }
 
+
 PYBIND11_MODULE(fast_lookup, m) {
-    m.def("coincident_lookup_pts", coincident_lookup_pts);
-    m.def("coincident_lookup_from_standard", coincident_lookup_from_standard);
-    m.def("adjacent_lookup_from_standard", adjacent_lookup_from_standard);
-
-
+    py::register_exception<BadTriangleException>(m, "BadTriangleException");
     py::class_<EdgeAdjacentLookupTris>(m, "EdgeAdjacentLookupTris")
         .NPARRAYPROP(EdgeAdjacentLookupTris, pts);
-    m.def("adjacent_lookup_pts", adjacent_lookup_pts);
-
     py::class_<VertexAdjacentSubTris>(m, "VertexAdjacentSubTris")
         .NPARRAYPROP(VertexAdjacentSubTris, pts)
         .NPARRAYPROP(VertexAdjacentSubTris, tris)
         .NPARRAYPROP(VertexAdjacentSubTris, pairs);
+
+    m.def("coincident_lookup_pts", coincident_lookup_pts);
+    m.def("coincident_lookup_from_standard", coincident_lookup_from_standard);
+    m.def("adjacent_lookup_pts", adjacent_lookup_pts);
+    m.def("adjacent_lookup_from_standard", adjacent_lookup_from_standard);
+
     m.def("sub_basis", sub_basis);
     m.def("find_va_rotations", find_va_rotations);
     m.def("vert_adj_subbasis", vert_adj_subbasis);

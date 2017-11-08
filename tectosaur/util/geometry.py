@@ -1,7 +1,7 @@
 import numpy as np
 
-import cppimport
-_geometry = cppimport.cppimport('tectosaur.util._geometry')
+from tectosaur.util.cpp import imp
+_geometry = imp('tectosaur.util._geometry')
 get_edge_lens = _geometry.get_edge_lens
 get_longest_edge = _geometry.get_longest_edge
 vec_angle = _geometry.vec_angle

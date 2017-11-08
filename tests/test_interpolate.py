@@ -1,8 +1,8 @@
 import numpy as np
 
 from tectosaur.nearfield.interpolate import *
-from cppimport import cppimport
-fast_lookup = cppimport("tectosaur.nearfield.fast_lookup")
+from tectosaur.util.cpp import imp
+fast_lookup = imp("tectosaur.nearfield.fast_lookup")
 
 def ptswts3d(N):
     pts1d = cheb(-1,1,N)

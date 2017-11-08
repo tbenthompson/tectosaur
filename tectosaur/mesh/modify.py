@@ -1,8 +1,8 @@
 import numpy as np
-import cppimport
 import scipy.spatial
 
-fast_modify = cppimport.imp('tectosaur.mesh.fast_modify')
+from tectosaur.util.cpp import imp
+fast_modify = imp('tectosaur.mesh.fast_modify')
 
 def remove_duplicate_pts(m, threshold = None):
     dim = m[0].shape[1]

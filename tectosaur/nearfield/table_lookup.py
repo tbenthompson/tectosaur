@@ -12,6 +12,8 @@ from tectosaur.nearfield.pairs_integrator import PairsIntegrator
 from tectosaur.nearfield.table_params import *
 
 from tectosaur.util.cpp import imp
+standardize = imp('tectosaur.nearfield.standardize')
+edge_adj_setup = imp('tectosaur.nearfield.edge_adj_setup')
 fast_lookup = imp('tectosaur.nearfield.fast_lookup')
 
 def lookup_interpolation_gpu(table_limits, table_log_coeffs,

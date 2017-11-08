@@ -23,6 +23,7 @@ from tectosaur.kernels import kernels
  check that triangle internal angles are greater than 20 degrees
 */
 
+#include "include/math_tools.hpp"
 #include "standardize.hpp"
 #include <pybind11/stl.h>
 
@@ -68,14 +69,6 @@ std::pair<Tensor3,std::array<int,3>> relabel(
 py::tuple relabel_shim(const Tensor3& tri, int ov, int longest_edge) {
     auto out = relabel(tri, ov, longest_edge);
     return py::make_tuple(out.first, out.second);
-}
-
-double lawcos(double a, double b, double c) {
-    return acos((a*a + b*b - c*c) / (2*a*b));
-}
-
-double rad2deg(double radians) {
-    return radians * 180 / M_PI;
 }
 
 int check_bad_tri(const Tensor3& tri, double angle_lim) {
@@ -209,10 +202,6 @@ py::tuple scale_pyshim(const Tensor3& tri) {
     auto out = scale(tri);
     return py::make_tuple(out.first, out.second);
 }
-
-struct BadTriangleException: public std::runtime_error {
-    using std::runtime_error::runtime_error; 
-};
 
 StandardizeResult standardize(const Tensor3& tri, double angle_lim, bool should_relabel) {
     std::array<int,3> labels;

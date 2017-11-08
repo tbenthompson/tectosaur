@@ -6,8 +6,8 @@ from tectosaur.kernels import kernels
 
 from tectosaur.fmm.surrounding_surf import surrounding_surf
 
-from cppimport import cppimport
-traversal_ext = cppimport("tectosaur.fmm.traversal_wrapper")
+from tectosaur.util.cpp import imp
+traversal_ext = imp("tectosaur.fmm.traversal_wrapper")
 
 def get_dim_module(dim):
     return traversal_ext.two if dim == 2 else traversal_ext.three

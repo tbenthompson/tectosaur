@@ -1,8 +1,8 @@
 import scipy.sparse
 import numpy as np
 
-import cppimport
-fast_sparse = cppimport.cppimport("tectosaur.util.fast_sparse")
+from tectosaur.util.cpp import imp
+fast_sparse = imp("tectosaur.util.fast_sparse")
 
 def get_mv_fnc(base_name, dtype, blocksize):
     fnc_name = base_name + str(blocksize)

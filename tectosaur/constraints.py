@@ -1,8 +1,8 @@
 import scipy.sparse
 import numpy as np
 
-from cppimport import cppimport
-fast_constraints = cppimport('tectosaur.fast_constraints')
+from tectosaur.util.cpp import imp
+fast_constraints = imp('tectosaur.fast_constraints')
 
 for k in dir(fast_constraints):
     locals()[k] = getattr(fast_constraints, k)
