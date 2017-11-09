@@ -56,7 +56,6 @@ def coincident_lookup_helper(K, correct_digits, n_tests = 10):
 
     results = []
     for i in range(n_tests):
-        print('try again')
         try:
             A = np.random.rand(1)[0] * 0.5
             B = np.random.rand(1)[0]
@@ -88,7 +87,7 @@ def coincident_lookup_helper(K, correct_digits, n_tests = 10):
 
 @golden_master(4)
 def test_coincident_fast_lookup(request, kernel):
-    return coincident_lookup_helper(kernel, 5, 1)
+    return coincident_lookup_helper(kernel, 5, 3)
 
 @slow
 @golden_master(4)
