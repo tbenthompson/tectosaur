@@ -76,10 +76,7 @@ def coincident_lookup_helper(K, correct_digits, n_tests = 10):
             else:
                 tris = np.array([[0,1,2]])
 
-            op = DenseIntegralOp(
-                10, 3, 10, 3.0, K, params,
-                pts, tris, float_type
-            )
+            op = DenseIntegralOp(10, 3, 10, 3.0, K, params, pts, tris, float_type)
             results.append(op.mat)
         except standardize.BadTriangleException as e:
             print("Bad tri: " + str(e))

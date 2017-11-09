@@ -1,8 +1,11 @@
 import numpy as np
+import tectosaur.util.gpu as gpu
 
+#TODO: Replicated in math_tools.hpp
 def to_interval(a, b, x):
     return a + (b - a) * (x + 1.0) / 2.0
 
+#TODO: Replicated in math_tools.hpp
 def from_interval(a, b, x):
     return ((x - a) / (b - a)) * 2.0 - 1.0
 
@@ -26,31 +29,48 @@ def cheblob_wts(a, b, n):
     wts[-1] *= 0.5
     return wts
 
-def barycentric_eval(pts, wts, vals, x_hat):
-    denom = 0.0
-    numer = 0.0
+# pts should be shaped (n,p)
+# wts should be shaped (n,)
+# vals should be shaped (n,q)
+# xhat should be shaped (m,p)
+# output is shaped (m,q)
+# n is the number of interpolation pts
+# m is the number of evaluation pts
+# p is the number of input dimensions
+# q is the number of output dimensions
+def barycentric_evalnd(pts, wts, vals, xhat, float_type):
+    n_interp_pts, n_input_dims = pts.shape
+    n_eval_pts = xhat.shape[0]
+    n_output_dims = vals.shape[1]
 
-    for p,w,v in zip(pts, wts, vals):
-        p = np.where(np.abs(x_hat - p) < 1e-15, p + np.finfo(float).eps, p)
-        kernel = w / np.prod(x_hat - p)
-        denom += kernel
-        numer += kernel * v
-    return numer / denom
+    block_size = 128
+    gpu_cfg = dict(
+        np_float_type = float_type,
+        float_type = gpu.np_to_c_type(float_type),
+        block_size = block_size,
+        n_input_dims = n_input_dims
+    )
+    module = gpu.load_gpu('nearfield/interpolate_kernel.cl', tmpl_args = gpu_cfg)
+    fnc = module.interpolate
 
-def barycentric_evalnd(pts, wts, vals, xhat):
-    dist_list = []
-    for d in range(pts.shape[1]):
-        dist = np.tile(xhat[:,d,np.newaxis], (1,pts.shape[0]))\
-            - np.tile(pts[:,d], (xhat.shape[0],1))
+    gpu_pts = gpu.to_gpu(pts, float_type)
+    gpu_wts = gpu.to_gpu(wts, float_type)
+    gpu_vals = gpu.to_gpu(vals, float_type)
+    gpu_xhat = gpu.to_gpu(xhat, float_type)
 
-        dist[dist == 0] = np.finfo(float).eps
-        dist_list.append(dist)
+    gpu_result = gpu.empty_gpu((n_eval_pts, n_output_dims), float_type)
 
-    K = wts / np.prod(np.array(dist_list), axis = 0)
-    denom = np.sum(K, axis = 1)
-    denom = np.where(denom != 0, denom, np.finfo(float).eps)
-    interp_vals = (K.dot(vals) / denom)
-    return interp_vals
+    n_threads = int(np.ceil(n_eval_pts / block_size))
+
+    fnc(
+        gpu_result,
+        np.int32(n_interp_pts), np.int32(n_eval_pts), np.int32(n_output_dims),
+        gpu_pts, gpu_wts, gpu_vals, gpu_xhat,
+        grid = (n_threads, 1, 1),
+        block = (block_size, 1, 1)
+    )
+
+    return gpu_result.get()
 
 if __name__ == '__main__':
     # test_barycentric_interp()

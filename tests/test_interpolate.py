@@ -1,8 +1,14 @@
 import numpy as np
-
 from tectosaur.nearfield.interpolate import *
-# from tectosaur.util.cpp import imp
-# fast_lookup = imp("tectosaur.nearfield.fast_lookup")
+
+def test_barycentric_1d():
+    pts = np.array(cheblob(-1, 1, 3))[:,np.newaxis]
+    wts = np.array(cheblob_wts(-1, 1, 3))
+    xs = np.linspace(-1, 1, 20)[:,np.newaxis]
+    f = lambda x: x ** 2
+    vals = f(pts)
+    result = barycentric_evalnd(pts, wts, vals, xs, np.float64)
+    np.testing.assert_almost_equal(result, xs ** 2)
 
 def ptswts3d(N):
     pts1d = cheb(-1,1,N)
@@ -20,22 +26,12 @@ def interp_tester(test_pts):
     vals = f(pts)[:, np.newaxis]
 
     correct = f(test_pts)
-    interp_vals = np.empty(test_pts.shape[0])
-    for j in range(test_pts.shape[0]):
-        interp_vals[j] = fast_lookup.barycentric_evalnd(pts, wts, vals, test_pts[j,:])
+    interp_vals = barycentric_evalnd(
+        pts.copy(), wts.copy(), vals.copy(), test_pts.copy(),
+        np.float64
+    )
     log_err = np.log10(np.abs(np.max(correct - interp_vals.flatten())))
     assert(np.log10(np.abs(np.max(correct - interp_vals.flatten()))) < -3)
-
-def test_barycentric_1d():
-    pts = np.array(cheblob(-1, 1, 3))
-    wts = np.array(cheblob_wts(-1, 1, 3))
-    xs = np.linspace(-1, 1, 20)
-    f = lambda x: x ** 2
-    vals = f(pts)
-    print(pts, wts, vals)
-    for xhat in xs:
-        result = barycentric_eval(pts, wts, vals, xhat)
-        np.testing.assert_almost_equal(result, xhat ** 2)
 
 def test_barycentric_interp3d():
     ne = 30
