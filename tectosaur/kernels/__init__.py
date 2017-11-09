@@ -13,6 +13,9 @@ class Kernel:
     constants_code = attr.ib()
     vector_code = attr.ib()
     tensor_code = attr.ib()
+    co_table_filename = attr.ib(default = None)
+    adj_table_filename = attr.ib(default = None)
+
 
 elasticU = Kernel(
     'elasticU3', 3, 3, False, False, -3, 1, False,
@@ -44,7 +47,9 @@ elasticU = Kernel(
     Karr[6] = Q2*Dz*Dx;
     Karr[7] = Q2*Dz*Dy;
     Karr[8] = Q2*Dz*Dz + Q1;
-    '''
+    ''',
+    co_table_filename = 'elasticU_25_0.010000_16_0.000000_8_13_8_coincidenttable.npy',
+    adj_table_filename = 'elasticU_25_0.010000_16_0.000000_7_8_adjacenttable.npy'
 )
 
 TA_const_code = '''
@@ -122,12 +127,16 @@ def TA_tensor_code(k_name):
 
 elasticT = Kernel(
     'elasticT3', 3, 3, False, True, -2, 0, True,
-    TA_const_code, TA_vector_code('T'), TA_tensor_code('T')
+    TA_const_code, TA_vector_code('T'), TA_tensor_code('T'),
+    co_table_filename = 'elasticT_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy',
+    adj_table_filename = 'elasticT_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
 )
 
 elasticA = Kernel(
     'elasticA3', 3, 3, True, False, -2, 0, True,
-    TA_const_code, TA_vector_code('A'), TA_tensor_code('A')
+    TA_const_code, TA_vector_code('A'), TA_tensor_code('A'),
+    co_table_filename = 'elasticA_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy',
+    adj_table_filename = 'elasticA_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
 )
 
 elasticH = Kernel(
@@ -207,7 +216,9 @@ elasticH = Kernel(
     Karr[6] = nsrcz*NTx + nobsz*MTx + Dorz*DTx;
     Karr[7] = nsrcz*NTy + nobsz*MTy + Dorz*DTy;
     Karr[8] = nsrcz*NTz + nobsz*MTz + Dorz*DTz + ST;
-    '''
+    ''',
+    co_table_filename = 'elasticH_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy',
+    adj_table_filename = 'elasticH_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
 )
 
 laplace2S = Kernel(
@@ -295,3 +306,6 @@ elastic_kernels = make_kernel_dict([
 kernels = dict(one_kernels)
 kernels.update(laplace_kernels)
 kernels.update(elastic_kernels)
+
+adjacent_tables = dict(
+)

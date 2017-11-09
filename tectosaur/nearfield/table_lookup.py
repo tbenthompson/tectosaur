@@ -8,6 +8,8 @@ from tectosaur.nearfield.pairs_integrator import PairsIntegrator
 from tectosaur.nearfield.table_params import *
 
 from tectosaur.util.cpp import imp
+
+from tectosaur.kernels import kernels
 standardize = imp('tectosaur.nearfield.standardize')
 edge_adj_setup = imp('tectosaur.nearfield.edge_adj_setup')
 fast_lookup = imp('tectosaur.nearfield.fast_lookup')
@@ -19,16 +21,9 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
     out = out.reshape((-1, 2, 81))
     return out[:,0,:], out[:,1,:]
 
-def coincident_table(kernel, params, pts, tris, float_type):
+def coincident_table(K, params, pts, tris, float_type):
     t = Timer(prefix = 'coincident')
-    if kernel is 'elasticU3':
-        filename = 'elasticU_25_0.010000_16_0.000000_8_13_8_coincidenttable.npy'
-    elif kernel is 'elasticT3':
-        filename = 'elasticT_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy'
-    elif kernel is 'elasticA3':
-        filename = 'elasticA_25_0.000000_3_0.000000_12_13_7_coincidenttable.npy'
-    elif kernel is 'elasticH3':
-        filename = 'elasticH_100_0.003125_6_0.000001_12_17_9_coincidenttable.npy'
+    filename = kernels[K].co_table_filename
     filepath = get_data_filepath(filename)
 
     tableparams = filename.split('_')
@@ -59,28 +54,19 @@ def coincident_table(kernel, params, pts, tris, float_type):
 
     # 3) Transform to real space
     out = fast_lookup.coincident_lookup_from_standard(
-        standard_tris, interp_vals, log_coeffs, kernel, params[0]
+        standard_tris, interp_vals, log_coeffs, K, params[0]
     ).reshape((-1, 3, 3, 3, 3))
     t.report("from standard")
 
 
     return out
 
-def adjacent_table(nq_va, kernel, params, pts, tris, ea_tri_indices, float_type):
+def adjacent_table(nq_va, K, params, pts, tris, ea_tri_indices, float_type):
     if ea_tri_indices.shape[0] == 0:
         return np.zeros((0,3,3,3,3))
 
-    flip_symmetry = False
-    if kernel is 'elasticU3':
-        filename = 'elasticU_25_0.010000_16_0.000000_7_8_adjacenttable.npy'
-        flip_symmetry = True
-    elif kernel is 'elasticT3':
-        filename = 'elasticT_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
-    elif kernel is 'elasticA3':
-        filename = 'elasticA_25_0.000000_3_0.000000_16_7_adjacenttable.npy'
-    elif kernel is 'elasticH3':
-        filename = 'elasticH_50_0.010000_200_0.000000_14_6_adjacenttable.npy'
-        flip_symmetry = True
+    flip_symmetry = not kernels[K].flip_negate
+    filename = kernels[K].adj_table_filename
     filepath = get_data_filepath(filename)
 
     t = Timer(prefix = 'adjacent')
@@ -106,12 +92,12 @@ def adjacent_table(nq_va, kernel, params, pts, tris, ea_tri_indices, float_type)
     t.report("interpolation")
 
     out = fast_lookup.adjacent_lookup_from_standard(
-        interp_vals, log_coeffs, ea, kernel, params[0]
+        interp_vals, log_coeffs, ea, K, params[0]
     ).reshape((-1, 3, 3, 3, 3))
 
     t.report("from standard")
 
-    pairs_int = PairsIntegrator(kernel, params, float_type, 1, 1, va.pts, va.tris)
+    pairs_int = PairsIntegrator(K, params, float_type, 1, 1, va.pts, va.tris)
     Iv = pairs_int.vert_adj(nq_va, va.pairs)
     t.report('vert adj subpairs')
 
