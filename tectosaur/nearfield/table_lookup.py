@@ -1,13 +1,9 @@
-import os
-
-import time
 import numpy as np
 
 from tectosaur import get_data_filepath
 from tectosaur.util.timer import Timer
-import tectosaur.nearfield.limit as limit
-import tectosaur.util.gpu as gpu
 
+from tectosaur.nearfield.interpolate import barycentric_evalnd
 from tectosaur.nearfield.pairs_integrator import PairsIntegrator
 from tectosaur.nearfield.table_params import *
 
@@ -18,49 +14,10 @@ fast_lookup = imp('tectosaur.nearfield.fast_lookup')
 
 def lookup_interpolation_gpu(table_limits, table_log_coeffs,
         interp_pts, interp_wts, pts, float_type):
-
-    t = Timer(silent = True)
-    block_size = 128
-
-    gpu_cfg = dict(
-        np_float_type = float_type,
-        float_type = gpu.np_to_c_type(float_type),
-        block_size = block_size
-    )
-    module = gpu.load_gpu('nearfield/table_lookup.cl', tmpl_args = gpu_cfg)
-    dims = interp_pts.shape[1]
-    fnc = getattr(module, 'lookup_interpolation' + str(dims))
-
-    t.report("load module")
-
-    n_tris = pts.shape[0]
-
-    gpu_table_limits = gpu.to_gpu(table_limits, float_type)
-    gpu_table_log_coeffs = gpu.to_gpu(table_log_coeffs, float_type)
-    gpu_interp_pts = gpu.to_gpu(interp_pts, float_type)
-    gpu_interp_wts = gpu.to_gpu(interp_wts, float_type)
-    gpu_pts = gpu.to_gpu(pts, float_type)
-
-    gpu_result = gpu.empty_gpu(n_tris * 81 * 2, float_type)
-
-    n_threads = int(np.ceil(n_tris / block_size))
-
-    fnc(
-        gpu_result,
-        np.int32(n_tris),
-        np.int32(gpu_interp_pts.shape[0]),
-        gpu_table_limits,
-        gpu_table_log_coeffs,
-        gpu_interp_pts,
-        gpu_interp_wts,
-        gpu_pts,
-        grid = (n_threads, 1, 1),
-        block = (block_size, 1, 1)
-    )
-
-    out = gpu_result.get().reshape((n_tris, 81, 2))
-    t.report("run interpolation for " + str(n_tris) + " tris")
-    return out[:, :, 0], out[:, :, 1]
+    vals = np.hstack((table_limits, table_log_coeffs)).copy()
+    out = barycentric_evalnd(interp_pts.copy(), interp_wts.copy(), vals.copy(), pts.copy(), float_type)
+    out = out.reshape((-1, 2, 81))
+    return out[:,0,:], out[:,1,:]
 
 def coincident_table(kernel, params, pts, tris, float_type):
     t = Timer(prefix = 'coincident')

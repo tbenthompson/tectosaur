@@ -16,9 +16,9 @@ def ptswts3d(N):
     pts = np.array([X.ravel(), Y.ravel(), Z.ravel()]).T
     wts1d = cheb_wts(-1,1,N)
     wts = np.outer(wts1d, np.outer(wts1d, wts1d)).ravel()
-    return pts, wts
+    return pts.copy(), wts.copy()
 
-def interp_tester(test_pts):
+def interp_tester_one_output_dim(test_pts):
     N = 10
     pts, wts = ptswts3d(N)
 
@@ -27,19 +27,32 @@ def interp_tester(test_pts):
 
     correct = f(test_pts)
     interp_vals = barycentric_evalnd(
-        pts.copy(), wts.copy(), vals.copy(), test_pts.copy(),
+        pts, wts, vals, test_pts,
         np.float64
     )
     log_err = np.log10(np.abs(np.max(correct - interp_vals.flatten())))
     assert(np.log10(np.abs(np.max(correct - interp_vals.flatten()))) < -3)
 
-def test_barycentric_interp3d():
-    ne = 30
-    xs = np.linspace(-1, 1, ne)
+def pts_grid(N):
+    xs = np.linspace(-1, 1, N)
     xe,ye,ze = np.meshgrid(xs, xs, xs)
-    xhat = np.array([xe.ravel(), ye.ravel(), ze.ravel()]).T
-    interp_tester(xhat)
+    xhat = np.array([xe.ravel(), ye.ravel(), ze.ravel()]).T.copy()
+    return xhat
+
+def test_barycentric_interp3d():
+    xhat = pts_grid(30)
+    interp_tester_one_output_dim(xhat)
 
 def test_barycentric_degeneracy():
     pts, _ = ptswts3d(10)
-    interp_tester(pts[:1,:])
+    interp_tester_one_output_dim(pts[:1,:])
+
+def test_multiple_output_dims():
+    pts, wts = ptswts3d(10)
+    xhat = pts_grid(30)
+    f = lambda xs: np.array([np.cos(xs[:,0]) * xs[:,1], np.sin(xs[:,2])]).T.copy()
+    vals = f(pts)
+    out = barycentric_evalnd(pts, wts, vals, xhat, np.float64)
+    correct = f(xhat)
+    np.testing.assert_almost_equal(correct, out)
+
