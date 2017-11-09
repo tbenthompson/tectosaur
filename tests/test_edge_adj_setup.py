@@ -10,11 +10,19 @@ def test_adjacent_phi():
     rho = 0.2
     for i in range(10):
         phi = np.random.rand(1)[0] * 2 * np.pi
-        out = edge_adj_setup.get_adjacent_phi(
+        out = edge_adj_setup.calc_adjacent_phi(
             [[0,0,0],[1,0,0],[0.5,rho,0.0]],
             [[0,0,0],[1,0,0],[0.5,rho*np.cos(phi),rho*np.sin(phi)]],
         )
         np.testing.assert_almost_equal(out, phi)
+
+def test_adjacent_phihat():
+    from tectosaur.nearfield.table_params import min_intersect_angle
+    f = edge_adj_setup.calc_adjacent_phihat
+    np.testing.assert_almost_equal(f(np.pi / 2.0, False), -0.5625)
+    np.testing.assert_almost_equal(f(3 * np.pi / 2.0, False), 0.5625)
+    np.testing.assert_almost_equal(f(np.pi / 2.0, True), -0.125)
+    np.testing.assert_almost_equal(f(3 * np.pi / 2.0, True), -0.125)
 
 def test_xyhat_from_pt_simple():
     P = np.array([0.5,0.5,0.0])

@@ -8,7 +8,7 @@ cfg['dependencies'].extend([
     'edge_adj_setup.hpp',
 ])
 
-from tectosaur.nearfield.table_params import min_angle_isoceles_height
+from tectosaur.nearfield.table_params import min_angle_isoceles_height, min_intersect_angle
 %>
 
 #include "include/math_tools.hpp"
@@ -101,7 +101,7 @@ py::tuple separate_tris_pyshim(const Tensor3& obs_tri, const Tensor3& src_tri) {
     );
 }
 
-double get_adjacent_phi(const Tensor3& obs_tri, const Tensor3& src_tri) {
+double calc_adjacent_phi(const Tensor3& obs_tri, const Tensor3& src_tri) {
     auto p = sub(obs_tri[1], obs_tri[0]);
     auto L1 = sub(obs_tri[2], obs_tri[0]);
     auto L2 = sub(src_tri[2], src_tri[0]);
@@ -119,6 +119,21 @@ double get_adjacent_phi(const Tensor3& obs_tri, const Tensor3& src_tri) {
     } else {
         return 2 * M_PI - phi;
     }
+}
+
+double calc_adjacent_phihat(double phi, bool flip_symmetry) {
+    double phi_max = M_PI;
+    if (flip_symmetry) {
+        if (phi > M_PI) {
+            phi = 2 * M_PI - phi;
+        }
+        assert(${min_intersect_angle} <= phi && phi <= M_PI);
+    } else {
+        phi_max = 2 * M_PI - ${min_intersect_angle};
+        assert(${min_intersect_angle} <= phi && phi <= 2 * M_PI - ${min_intersect_angle});
+    }
+
+    return from_interval(${min_intersect_angle}, phi_max, phi);
 }
 
 std::tuple<int,Tensor3,int,bool,Tensor3> orient_adj_tris(double* pts_ptr,
@@ -205,6 +220,7 @@ PYBIND11_MODULE(edge_adj_setup, m) {
     m.def("get_split_pt", get_split_pt);
     m.def("xyhat_from_pt", xyhat_from_pt);
     m.def("separate_tris", separate_tris_pyshim);
-    m.def("get_adjacent_phi", get_adjacent_phi);
+    m.def("calc_adjacent_phi", calc_adjacent_phi);
+    m.def("calc_adjacent_phihat", calc_adjacent_phihat);
     m.def("orient_adj_tris", orient_adj_tris_shim);
 }

@@ -2,11 +2,6 @@
 #include <pybind11/pybind11.h>
 #include "include/vec_tensor.hpp"
 
-int get_origin_vertex(const Vec3& lens);
-std::pair<Tensor3,std::array<int,3>> relabel(const Tensor3& tri, int ov, int longest_edge);
-
-int check_bad_tri(const Tensor3& tri, double angle_lim);
-
 struct StandardizeResult {
     int bad_tri_code;
     Tensor3 tri;

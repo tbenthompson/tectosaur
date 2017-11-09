@@ -65,8 +65,8 @@ def test_vert_adj_separate_bases():
     pairs_int = nearfield_op.PairsIntegrator('elasticH3', params, np.float32, 1, 1, pts, sep_tris)
     I0 = pairs_int.vert_adj(nq, np.array([[0,2,0,0],[1,3,0,0]]))
 
-    from tectosaur.nearfield.table_lookup import fast_lookup
-    I1 = np.array([fast_lookup.sub_basis(
+    from tectosaur.nearfield._table_lookup import sub_basis
+    I1 = np.array([sub_basis(
         I0[i].flatten().tolist(), obs_basis_tris[i].tolist(), src_basis_tris[i].tolist()
     ) for i in range(2)]).reshape((2,3,3,3,3))
     np.testing.assert_almost_equal(I[0], I1[0] + I1[1], 6)

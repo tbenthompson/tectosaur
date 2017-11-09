@@ -14,13 +14,13 @@ from tectosaur.util.test_decorators import golden_master, slow, kernel
 float_type = np.float64
 
 def test_find_va_rotations():
-    res = fast_lookup.find_va_rotations([1,3,5],[2,3,4])
+    res = find_va_rotations([1,3,5],[2,3,4])
     np.testing.assert_equal(res, [[1,2,0],[1,2,0]])
 
-    res = fast_lookup.find_va_rotations([3,1,5],[2,3,4])
+    res = find_va_rotations([3,1,5],[2,3,4])
     np.testing.assert_equal(res, [[0,1,2],[1,2,0]])
 
-    res = fast_lookup.find_va_rotations([1,5,3],[2,4,3])
+    res = find_va_rotations([1,5,3],[2,4,3])
     np.testing.assert_equal(res, [[2,0,1],[2,0,1]])
 
 def test_sub_basis():
@@ -33,21 +33,21 @@ def test_sub_basis():
         input = np.ones(81).tolist()
         tri1area = np.linalg.norm(geometry.tri_normal(np.hstack((tri1, np.zeros((3,1))))))
         tri2area = np.linalg.norm(geometry.tri_normal(np.hstack((tri2, np.zeros((3,1))))))
-        I1 = np.array(fast_lookup.sub_basis(input, tri1, full_tri))
-        I2 = np.array(fast_lookup.sub_basis(input, tri2, full_tri))
+        I1 = np.array(sub_basis(input, tri1, full_tri))
+        I2 = np.array(sub_basis(input, tri2, full_tri))
         result = tri1area * I1 + tri2area * I2
         np.testing.assert_almost_equal(result, 1.0)
 
 def test_sub_basis_identity():
     A = np.random.rand(81).tolist()
-    B = fast_lookup.sub_basis(
+    B = sub_basis(
         A, [[0,0],[1,0],[0,1]], [[0,0],[1,0],[0,1]]
     )
     np.testing.assert_almost_equal(A, B)
 
 def test_sub_basis_rotation():
     A = np.random.rand(81).reshape((3,3,3,3))
-    B = fast_lookup.sub_basis(A.flatten().tolist(), [[0,0],[1,0],[0,1]], [[0,1],[0,0],[1,0]])
+    B = sub_basis(A.flatten().tolist(), [[0,0],[1,0],[0,1]], [[0,1],[0,0],[1,0]])
     np.testing.assert_almost_equal(A[:,:,[1,2,0],:], np.array(B).reshape((3,3,3,3)))
 
 def coincident_lookup_helper(K, correct_digits, n_tests = 10):

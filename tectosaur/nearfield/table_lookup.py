@@ -12,7 +12,8 @@ from tectosaur.util.cpp import imp
 from tectosaur.kernels import kernels
 standardize = imp('tectosaur.nearfield.standardize')
 edge_adj_setup = imp('tectosaur.nearfield.edge_adj_setup')
-fast_lookup = imp('tectosaur.nearfield.fast_lookup')
+_table_lookup = imp('tectosaur.nearfield._table_lookup')
+locals().update({k:v for k, v in _table_lookup.__dict__.items() if not k.startswith('__')})
 
 def lookup_interpolation_gpu(table_limits, table_log_coeffs,
         interp_pts, interp_wts, pts, float_type):
@@ -43,7 +44,7 @@ def coincident_table(K, params, pts, tris, float_type):
 
     # Shift to a three step process
     # 1) Get interpolation points
-    pts, standard_tris = fast_lookup.coincident_lookup_pts(tri_pts, params[1])
+    pts, standard_tris = coincident_lookup_pts(tri_pts, params[1])
     t.report("get pts")
 
     # 2) Perform interpolation --> GPU!
@@ -53,7 +54,7 @@ def coincident_table(K, params, pts, tris, float_type):
     t.report("interpolate")
 
     # 3) Transform to real space
-    out = fast_lookup.coincident_lookup_from_standard(
+    out = coincident_lookup_from_standard(
         standard_tris, interp_vals, log_coeffs, K, params[0]
     ).reshape((-1, 3, 3, 3, 3))
     t.report("from standard")
@@ -83,7 +84,7 @@ def adjacent_table(nq_va, K, params, pts, tris, ea_tri_indices, float_type):
     table_log_coeffs = table_data[:,:,1]
     t.report("load table")
 
-    va, ea = fast_lookup.adjacent_lookup_pts(pts, tris, ea_tri_indices, params[1], flip_symmetry)
+    va, ea = adjacent_lookup_pts(pts, tris, ea_tri_indices, params[1], flip_symmetry)
     t.report("get pts")
 
     interp_vals, log_coeffs = lookup_interpolation_gpu(
@@ -91,7 +92,7 @@ def adjacent_table(nq_va, K, params, pts, tris, ea_tri_indices, float_type):
     )
     t.report("interpolation")
 
-    out = fast_lookup.adjacent_lookup_from_standard(
+    out = adjacent_lookup_from_standard(
         interp_vals, log_coeffs, ea, K, params[0]
     ).reshape((-1, 3, 3, 3, 3))
 
@@ -101,7 +102,7 @@ def adjacent_table(nq_va, K, params, pts, tris, ea_tri_indices, float_type):
     Iv = pairs_int.vert_adj(nq_va, va.pairs)
     t.report('vert adj subpairs')
 
-    fast_lookup.vert_adj_subbasis(out, Iv, va, ea);
+    vert_adj_subbasis(out, Iv, va, ea);
     t.report('vert adj subbasis')
 
     return out

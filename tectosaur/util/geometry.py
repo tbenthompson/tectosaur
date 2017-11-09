@@ -2,10 +2,7 @@ import numpy as np
 
 from tectosaur.util.cpp import imp
 _geometry = imp('tectosaur.util._geometry')
-get_edge_lens = _geometry.get_edge_lens
-get_longest_edge = _geometry.get_longest_edge
-vec_angle = _geometry.vec_angle
-triangle_internal_angles = _geometry.triangle_internal_angles
+locals().update({k:v for k, v in _geometry.__dict__.items() if not k.startswith('__')})
 
 def random_rotation():
     axis = np.random.rand(3) * 2 - 1.0

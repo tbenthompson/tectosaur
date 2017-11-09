@@ -31,6 +31,9 @@ py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
     auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);
     std::vector<StandardizeResult> standard_tris(n_tris);
 
+    // OpenMP doesn't play well with exceptions, so we grab any bad triangle
+    // exceptions and rethrow them later.
+    // TODO: Once this doesn't use OpenMP anymore, this can be gotten rid of
     std::string bad_tri = "";
 #pragma omp parallel for
     for (size_t i = 0; i < n_tris; i++) {
@@ -42,8 +45,6 @@ py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
         }
 
         StandardizeResult standard_tri_info;
-        // OpenMP doesn't play well with exceptions, so we grab any bad triangle
-        // exceptions and rethrow them later.
         try {
             standard_tri_info = standardize(tri, ${table_min_internal_angle}, true);
         } catch (const BadTriangleException& e) {
@@ -294,19 +295,9 @@ py::tuple adjacent_lookup_pts(NPArray<double> pts, NPArray<long> tris,
             }
         }
 
-        auto phi = get_adjacent_phi(ea.obs_tris[i], src_tri);
-        double phi_max = M_PI;
-        if (flip_symmetry) {
-            if (phi > M_PI) {
-                phi = 2 * M_PI - phi;
-            }
-            assert(${min_intersect_angle} <= phi && phi <= M_PI);
-        } else {
-            phi_max = 2 * M_PI - ${min_intersect_angle};
-            assert(${min_intersect_angle} <= phi && phi <= 2 * M_PI - ${min_intersect_angle});
-        }
+        auto phi = calc_adjacent_phi(ea.obs_tris[i], src_tri);
 
-        auto phihat = from_interval(${min_intersect_angle}, phi_max, phi);
+        auto phihat = calc_adjacent_phihat(phi, flip_symmetry);
         auto prhat = from_interval(0, 0.5, pr); 
         ea.pts[i][0] = phihat;
         ea.pts[i][1] = prhat;
@@ -380,7 +371,7 @@ void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
 }
 
 
-PYBIND11_MODULE(fast_lookup, m) {
+PYBIND11_MODULE(_table_lookup, m) {
     py::class_<EdgeAdjacentLookupTris>(m, "EdgeAdjacentLookupTris")
         .NPARRAYPROP(EdgeAdjacentLookupTris, pts);
     py::class_<VertexAdjacentSubTris>(m, "VertexAdjacentSubTris")
