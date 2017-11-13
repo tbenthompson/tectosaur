@@ -1,4 +1,4 @@
-<%
+<check_xyhat(%
 from tectosaur.util.build_cfg import setup_module
 setup_module(cfg)
 cfg['dependencies'].extend([

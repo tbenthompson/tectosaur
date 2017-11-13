@@ -219,6 +219,7 @@ py::tuple orient_adj_tris_shim(NPArray<double> pts, NPArray<long> tris,
 PYBIND11_MODULE(edge_adj_setup, m) {
     m.def("get_split_pt", get_split_pt);
     m.def("xyhat_from_pt", xyhat_from_pt);
+    m.def("check_xyhat", check_xyhat);
     m.def("separate_tris", separate_tris_pyshim);
     m.def("calc_adjacent_phi", calc_adjacent_phi);
     m.def("calc_adjacent_phihat", calc_adjacent_phihat);
