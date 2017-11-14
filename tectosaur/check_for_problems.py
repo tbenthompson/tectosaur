@@ -113,3 +113,10 @@ def check_for_intersections(m):
     bad_pairs.extend(check_for_intersections_ea(pts, tris, ea))
 
     return np.array(bad_pairs)
+
+def check_for_problems(m):
+    intersections = check_for_intersections(m)
+    slivers = check_for_slivers(m)
+    short_tris = check_tris_tall_enough(m)
+    sharp_angles = check_min_adj_angle(m)
+    return intersections, sliver, short_tris, sharp_angles
