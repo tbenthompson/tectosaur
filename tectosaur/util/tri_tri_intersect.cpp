@@ -3,13 +3,18 @@ from tectosaur.util.build_cfg import setup_module
 setup_module(cfg)
 %>
 
+/*
+ * Modified by T. Ben Thompson to use either double or single
+ * precision.
+ */
+
 /* Triangle/triangle intersection test routine,
  * by Tomas Moller, 1997.
  * See article "A Fast Triangle-Triangle Intersection Test",
  * Journal of Graphics Tools, 2(2), 1997
  *
- * int tri_tri_intersect(float V0[3],float V1[3],float V2[3],
- *                         float U0[3],float U1[3],float U2[3])
+ * int tri_tri_intersect(Real V0[3],Real V1[3],Real V2[3],
+ *                         Real U0[3],Real U1[3],Real U2[3])
  *
  * parameters: vertices of triangle 1: V0,V1,V2
  *             vertices of triangle 2: U0,U1,U2
@@ -18,6 +23,9 @@ setup_module(cfg)
  */
 
 #include <math.h>
+#include <limits>
+
+#define Real double
 
 
 /* if USE_EPSILON_TEST is true then we do a check: 
@@ -25,7 +33,7 @@ setup_module(cfg)
    else no check is done (which is less robust)
 */
 #define USE_EPSILON_TEST TRUE  
-#define EPSILON 0.000001
+#define EPSILON std::numeric_limits<Real>::epsilon()
 
 
 /* some macros */
@@ -45,7 +53,7 @@ setup_module(cfg)
 #define SORT(a,b)       \
              if(a>b)    \
              {          \
-               float c; \
+               Real c; \
                c=a;     \
                a=b;     \
                b=c;     \
@@ -57,27 +65,27 @@ setup_module(cfg)
 
 
 #define COMPUTE_INTERVALS(VV0,VV1,VV2,D0,D1,D2,D0D1,D0D2,isect0,isect1) \
-  if(D0D1>0.0f)                                         \
+  if(D0D1>0.0)                                         \
   {                                                     \
     /* here we know that D0D2<=0.0 */                   \
     /* that is D0, D1 are on the same side, D2 on the other or on the plane */ \
     ISECT(VV2,VV0,VV1,D2,D0,D1,isect0,isect1);          \
   }                                                     \
-  else if(D0D2>0.0f)                                    \
+  else if(D0D2>0.0)                                    \
   {                                                     \
     /* here we know that d0d1<=0.0 */                   \
     ISECT(VV1,VV0,VV2,D1,D0,D2,isect0,isect1);          \
   }                                                     \
-  else if(D1*D2>0.0f || D0!=0.0f)                       \
+  else if(D1*D2>0.0 || D0!=0.0)                       \
   {                                                     \
     /* here we know that d0d1<=0.0 or that D0!=0.0 */   \
     ISECT(VV0,VV1,VV2,D0,D1,D2,isect0,isect1);          \
   }                                                     \
-  else if(D1!=0.0f)                                     \
+  else if(D1!=0.0)                                     \
   {                                                     \
     ISECT(VV1,VV0,VV2,D1,D0,D2,isect0,isect1);          \
   }                                                     \
-  else if(D2!=0.0f)                                     \
+  else if(D2!=0.0)                                     \
   {                                                     \
     ISECT(VV2,VV0,VV1,D2,D0,D1,isect0,isect1);          \
   }                                                     \
@@ -114,7 +122,7 @@ setup_module(cfg)
 
 #define EDGE_AGAINST_TRI_EDGES(V0,V1,U0,U1,U2) \
 {                                              \
-  float Ax,Ay,Bx,By,Cx,Cy,e,d,f;               \
+  Real Ax,Ay,Bx,By,Cx,Cy,e,d,f;               \
   Ax=V1[i0]-V0[i0];                            \
   Ay=V1[i1]-V0[i1];                            \
   /* test edge U0,U1 against V0,V1 */          \
@@ -127,7 +135,7 @@ setup_module(cfg)
 
 #define POINT_IN_TRI(V0,U0,U1,U2)           \
 {                                           \
-  float a,b,c,d0,d1,d2;                     \
+  Real a,b,c,d0,d1,d2;                     \
   /* is T1 completly inside T2? */          \
   /* check if V0 is inside tri(U0,U1,U2) */ \
   a=U1[i1]-U0[i1];                          \
@@ -150,10 +158,10 @@ setup_module(cfg)
   }                                         \
 }
 
-int coplanar_tri_tri(float N[3],float V0[3],float V1[3],float V2[3],
-                     float U0[3],float U1[3],float U2[3])
+int coplanar_tri_tri(Real N[3],Real V0[3],Real V1[3],Real V2[3],
+                     Real U0[3],Real U1[3],Real U2[3])
 {
-   float A[3];
+   Real A[3];
    short i0,i1;
    /* first project onto an axis-aligned plane, that maximizes the area */
    /* of the triangles, compute indices: i0,i1. */
@@ -200,19 +208,19 @@ int coplanar_tri_tri(float N[3],float V0[3],float V1[3],float V2[3],
 }
 
 
-int tri_tri_intersect(float V0[3],float V1[3],float V2[3],
-                      float U0[3],float U1[3],float U2[3])
+int tri_tri_intersect(Real V0[3],Real V1[3],Real V2[3],
+                      Real U0[3],Real U1[3],Real U2[3])
 {
-  float E1[3],E2[3];
-  float N1[3],N2[3],d1,d2;
-  float du0,du1,du2,dv0,dv1,dv2;
-  float D[3];
-  float isect1[2], isect2[2];
-  float du0du1,du0du2,dv0dv1,dv0dv2;
+  Real E1[3],E2[3];
+  Real N1[3],N2[3],d1,d2;
+  Real du0,du1,du2,dv0,dv1,dv2;
+  Real D[3];
+  Real isect1[2], isect2[2];
+  Real du0du1,du0du2,dv0dv1,dv0dv2;
   short index;
-  float vp0,vp1,vp2;
-  float up0,up1,up2;
-  float b,c,max;
+  Real vp0,vp1,vp2;
+  Real up0,up1,up2;
+  Real b,c,max;
 
   /* compute plane equation of triangle(V0,V1,V2) */
   SUB(E1,V1,V0);
@@ -235,7 +243,7 @@ int tri_tri_intersect(float V0[3],float V1[3],float V2[3],
   du0du1=du0*du1;
   du0du2=du0*du2;
 
-  if(du0du1>0.0f && du0du2>0.0f) /* same sign on all of them + not equal 0 ? */
+  if(du0du1>0.0 && du0du2>0.0) /* same sign on all of them + not equal 0 ? */
     return 0;                    /* no intersection occurs */
 
   /* compute plane of triangle (U0,U1,U2) */
@@ -259,7 +267,7 @@ int tri_tri_intersect(float V0[3],float V1[3],float V2[3],
   dv0dv1=dv0*dv1;
   dv0dv2=dv0*dv2;
         
-  if(dv0dv1>0.0f && dv0dv2>0.0f) /* same sign on all of them + not equal 0 ? */
+  if(dv0dv1>0.0 && dv0dv2>0.0) /* same sign on all of them + not equal 0 ? */
     return 0;                    /* no intersection occurs */
 
   /* compute direction of intersection line */
@@ -300,18 +308,10 @@ int tri_tri_intersect(float V0[3],float V1[3],float V2[3],
 #include "include/vec_tensor.hpp"
 namespace py = pybind11;
 
-std::array<float,3> to_float(const Vec3& v) {
-    std::array<float,3> out;
-    for (int d = 0; d < 3; d++) {
-        out[d] = static_cast<float>(v[d]);
-    }
-    return out;
-}
-
-bool tri_tri_intersect_wrapper(const Tensor3& tri1, const Tensor3& tri2) {
+bool tri_tri_intersect_wrapper(Tensor3 tri1, Tensor3 tri2) {
     return tri_tri_intersect(
-        to_float(tri1[0]).data(), to_float(tri1[1]).data(), to_float(tri1[2]).data(),
-        to_float(tri2[0]).data(), to_float(tri2[1]).data(), to_float(tri2[2]).data()
+        tri1[0].data(), tri1[1].data(), tri1[2].data(),
+        tri2[0].data(), tri2[1].data(), tri2[2].data()
     );
 }
 
