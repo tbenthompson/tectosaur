@@ -48,6 +48,7 @@ def traction_bie(sm, pr, m, input, solve_for, op_type):
     # Why am I not able to get the same accuracy with the traction BIE as I am
     # with the displacement BIE? Is there something wrong with how I calculate things?
     # Maybe with the traction inputs?
+    # TODO: MAYBE THIS IS RELATED TO HIGH ERROR IN THE H OPERATOR?
     selfop = MassOp(3, m[0], m[1])
     selfop.mat *= -1
 
