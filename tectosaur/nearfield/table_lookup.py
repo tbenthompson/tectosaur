@@ -22,7 +22,10 @@ def lookup_interpolation_gpu(table_limits, table_log_coeffs,
     out = out.reshape((-1, 2, 81))
     return out[:,0,:], out[:,1,:]
 
-def coincident_table(K, params, pts, tris, float_type):
+def coincident_table(K, params, tri_pts, float_type):
+    if tri_pts.shape[0] == 0:
+        return np.empty((0, 3, 3, 3, 3))
+
     t = Timer(prefix = 'coincident')
     filename = kernels[K].co_table_filename
     filepath = get_data_filepath(filename)
@@ -35,8 +38,6 @@ def coincident_table(K, params, pts, tris, float_type):
 
     interp_pts, interp_wts = coincident_interp_pts_wts(n_A, n_B, n_pr)
 
-    tri_pts = pts[tris]
-
     table_data = np.load(filepath)
     table_limits = table_data[:,:,0]
     table_log_coeffs = table_data[:,:,1]
@@ -44,12 +45,12 @@ def coincident_table(K, params, pts, tris, float_type):
 
     # Shift to a three step process
     # 1) Get interpolation points
-    pts, standard_tris = coincident_lookup_pts(tri_pts, params[1])
+    lookup_pts, standard_tris = coincident_lookup_pts(tri_pts, params[1])
     t.report("get pts")
 
     # 2) Perform interpolation --> GPU!
     interp_vals, log_coeffs = lookup_interpolation_gpu(
-        table_limits, table_log_coeffs, interp_pts, interp_wts, pts, float_type
+        table_limits, table_log_coeffs, interp_pts, interp_wts, lookup_pts, float_type
     )
     t.report("interpolate")
 

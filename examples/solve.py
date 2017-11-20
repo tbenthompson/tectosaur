@@ -4,9 +4,8 @@ import scipy.sparse.linalg
 
 from tectosaur.util.timer import Timer
 from tectosaur.constraints import build_constraint_matrix
-
-import logging
-logger = logging.getLogger(__name__)
+from tectosaur.util.logging import setup_root_logger
+logger = setup_root_logger(__name__)
 
 # master-slave constrained direct solves look like:
 # Kˆ uˆ = ˆf, in which Kˆ = TT K T, ˆf = TT (f − K g).
@@ -42,14 +41,7 @@ def iterative_solve(iop, constraints, rhs = None, tol = 1e-8):
     def mv(v):
         iter[0] += 1
         logger.debug('iteration # ' + str(iter[0]))
-        t = Timer(logger = logger)
-        cm_res = cm.dot(v)
-        t.report('constraint matrix multiply')
-        iop_res = iop.dot(cm_res)
-        t.report('integral operator multiply')
-        out = cmT.dot(iop_res)
-        t.report('constraint matrix transpose multiply')
-        return out
+        return cmT.dot(iop.dot(cm.dot(v)))
 
     # P = sparse.linalg.spilu(cmT.dot(iop.nearfield_no_correction_dot(cm)))
     timer.report("Build preconditioner")

@@ -37,9 +37,6 @@ void query_helper(std::vector<long>& out,
         for (size_t i = obs_node.start; i < obs_node.end; i++) {
             auto orig_idx_i = obs_tree.orig_idxs[i];
             for (size_t j = src_node.start; j < src_node.end; j++) {
-                if (&obs_node == &src_node && i == j) { //TODO: Get rid of this!
-                    continue;
-                }
                 auto orig_idx_j = src_tree.orig_idxs[j];
                 auto pt_touching_sep = obs_radius_ptr[i] + src_radius_ptr[j];
                 auto pt_limit = std::pow(pt_touching_sep * threshold, 2);
@@ -151,6 +148,7 @@ std::array<std::vector<long>,3> split_adjacent_close(long* close_pairs,
         auto idx2 = close_pairs[i * 2 + 1];
         std::pair<long,long> pair1 = {-1,-1};
         std::pair<long,long> pair2 = {-1,-1};
+        bool coincident = false;
         for (int d1 = 0; d1 < 3; d1++) {
             for (int d2 = 0; d2 < 3; d2++) {
                 if (tris[idx1 * 3 + d1] != tris[idx2 * 3 + d2]) {
@@ -158,10 +156,15 @@ std::array<std::vector<long>,3> split_adjacent_close(long* close_pairs,
                 }
                 if (pair1.first == -1) {
                     pair1 = {d1, d2};
-                } else {
+                } else if (pair2.first == -1) {
                     pair2 = {d1, d2};
+                } else {
+                    coincident = true;
                 }
             }
+        }
+        if (coincident) {
+            continue;
         }
         if (pair1.first == -1) {
             out[0].insert(out[0].end(), {idx1, idx2});

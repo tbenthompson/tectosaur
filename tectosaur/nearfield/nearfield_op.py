@@ -12,31 +12,55 @@ import tectosaur.util.sparse as sparse
 import tectosaur.util.gpu as gpu
 
 def to_sparse_mat(entries, pairs, shape):
-    bcoo = sparse.BCOOMatrix(pairs[:, 0], pairs[:, 1], entries.reshape((-1, 9, 9)), shape)
+    if entries.shape[0] == 0:
+        entries = np.empty((0, 9, 9))
+    else:
+        entries = entries.reshape((-1, 9, 9))
+    bcoo = sparse.BCOOMatrix(pairs[:, 0], pairs[:, 1], entries, shape)
     return bcoo
 
 def build_nearfield(shape, *mats):
     return [to_sparse_mat(*m, shape) for m in mats]
 
-class NearfieldIntegralOp:
-    def __init__(self, nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, kernel, params, pts, tris, float_type):
+def setup_co(obs_subset, src_subset):
+    co_tris = np.intersect1d(obs_subset, src_subset)
+    co_indices = []
+    for t in co_tris:
+        co_indices.append([
+            np.where(obs_subset == t)[0][0],
+            np.where(src_subset == t)[0][0]
+        ])
+    co_indices = np.array(co_indices)
+    if co_indices.shape[0] == 0:
+        co_indices = np.empty((0, 2), dtype = np.int)
+    return co_tris, co_indices
 
-        n = tris.shape[0] * 9
-        self.shape = (n, n)
+class NearfieldIntegralOp:
+    def __init__(self, pts, tris, obs_subset, src_subset,
+            nq_vert_adjacent, nq_far, nq_near, near_threshold,
+            kernel, params, float_type):
+
+        n_obs_dofs = obs_subset.shape[0] * 9
+        n_src_dofs = src_subset.shape[0] * 9
+        self.shape = (n_obs_dofs, n_src_dofs)
 
         timer = Timer(tabs = 1)
         pairs_int = PairsIntegrator(kernel, params, float_type, nq_far, nq_near, pts, tris)
         timer.report('setup pairs integrator')
 
-        co_mat = coincident_table(kernel, params, pts, tris, float_type)
+        co_tris, co_indices = setup_co(obs_subset, src_subset)
+        co_mat = coincident_table(kernel, params, pts[tris[co_tris]], float_type)
         timer.report("Coincident")
-        co_indices = np.vstack([np.arange(tris.shape[0]) for i in [0,1]]).T
         co_mat_correction = pairs_int.correction(co_indices, True)
         timer.report("Coincident correction")
 
-        close_or_touch_pairs = find_near_adj.find_close_or_touching(pts, tris, near_threshold)
-        nearfield_pairs, va, ea = find_near_adj.split_adjacent_close(close_or_touch_pairs, tris)
+        close_or_touch_pairs = find_near_adj.find_close_or_touching(
+            pts, tris[obs_subset], pts, tris[src_subset], near_threshold
+        )
+        nearfield_pairs, va, ea = find_near_adj.split_adjacent_close(
+            close_or_touch_pairs, tris
+        )
+        print(nearfield_pairs.shape, va.shape, ea.shape)
         timer.report("Find nearfield/adjacency")
 
         ea_mat_rot = adjacent_table(nq_vert_adjacent, kernel, params, pts, tris, ea, float_type)
@@ -78,3 +102,9 @@ class NearfieldIntegralOp:
 
     def nearfield_no_correction_dot(self, v):
         return sum(arr.dot(v) for arr in self.mat_no_correction)
+
+    def to_dense(self):
+        return sum([mat.to_bsr().to_scipy().todense() for mat in self.mat])
+
+    def no_correction_to_dense(self):
+        return sum([mat.to_bsr().to_scipy().todense() for mat in self.mat_no_correction])

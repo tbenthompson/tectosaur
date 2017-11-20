@@ -150,7 +150,7 @@ class FMMEvaluator:
         for arr in ['out', 'm_check', 'multipoles', 'l_check', 'locals']:
             getattr(self, arr).fill(0)
 
-    async def eval(self, input_vals, should_log_timing = True):
+    async def eval(self, input_vals, should_log_timing = False):
         self.kernel_evs = dict()
 
         self.prep_data_for_eval(input_vals)

@@ -77,7 +77,7 @@ def test_okada(n_surf, n_fault = None):
     timer = Timer()
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth, n_surf, n_fault)
 
-    mesh_gen.plot_mesh3d(*all_mesh)
+    # mesh_gen.plot_mesh3d(*all_mesh)
     timer.report('make meshes')
     logger.info('n_elements: ' + str(all_mesh[1].shape[0]))
 

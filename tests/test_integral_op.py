@@ -10,6 +10,7 @@ import tectosaur.ops.mass_op as mass_op
 
 import tectosaur.util.quadrature as quad
 import tectosaur.mesh.mesh_gen as mesh_gen
+import tectosaur.mesh.modify as modify
 
 from tectosaur.interior import interior_integral
 
@@ -22,6 +23,37 @@ import logging
 logger = logging.getLogger(__name__)
 
 float_type = np.float32
+
+def setup_two_meshes(offset, n = 11):
+    # n -- just leave as 11
+    #offset -- Use 2.0 for only one vert adj overlap, 2.2 for nearfield, or 100 for only farfield
+    obs_mesh = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    src_pts = obs_mesh[0].copy()
+    src_pts[:,0] += offset
+    src_pts[:,2] += offset
+    src_mesh = (src_pts, obs_mesh[1].copy())
+    combined = modify.concat(obs_mesh, src_mesh)
+    obs_subset = np.arange(obs_mesh[1].shape[0])
+    src_subset = obs_subset + obs_mesh[1].shape[0]
+    return combined, obs_subset, src_subset
+
+def test_op_subset():
+    m, obs_subset, src_subset = setup_two_meshes(2.0)
+    k = 'elasticH3'
+    params = [1.0, 0.25]
+
+    all_tris = np.arange(m[1].shape[0])
+    full_op = nearfield_op.NearfieldIntegralOp(
+        m[0], m[1], all_tris, all_tris,
+        7, 4, 3, 2.0, k, params, float_type,
+    ).to_dense()
+    subset_op = nearfield_op.NearfieldIntegralOp(
+        m[0], m[1], obs_subset, src_subset,
+        7, 4, 3, 2.0, k, params, float_type,
+    ).to_dense()
+    assert(subset_op.shape == (1800, 1800))
+    np.testing.assert_almost_equal(full_op[:1800,1800:], subset_op)
+
 
 @golden_master()
 def test_farfield_two_tris(request):
@@ -106,6 +138,14 @@ def test_full_integral_op_nofmm(request, kernel):
 @golden_master(digits = 7)
 def test_full_integral_op_fmm(request):
     return full_integral_op_tester('elasticU3', True, n = 30)
+
+@golden_master(digits = 7)
+def test_full_integral_op_nofmm_fast(request):
+    m = mesh_gen.make_rect(5, 5, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    dense_op = dense_integral_op.DenseIntegralOp(
+        5, 3, 3, 2.0, 'elasticU3', [1.0, 0.25], m[0], m[1], float_type
+    )
+    return dense_op.mat
 
 def check_simple(q, digits):
     est = quad.quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q)

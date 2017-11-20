@@ -120,8 +120,9 @@ class SparseIntegralOp:
             kernel, params, pts, tris, float_type, farfield_op_type = None):
 
         self.nearfield = NearfieldIntegralOp(
+            pts, tris, np.arange(tris.shape[0]), np.arange(tris.shape[0]),
             nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, kernel, params, pts, tris, float_type
+            near_threshold, kernel, params, float_type
         )
 
         far_quad2d = gauss2d_tri(nq_far)
