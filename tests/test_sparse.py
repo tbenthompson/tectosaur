@@ -24,33 +24,44 @@ def test_dense_bsrmv():
     np.testing.assert_almost_equal(out, correct)
 
 def dense_to_coo(A, blocksize):
-    assert(A.shape[0] == A.shape[1])
     assert(A.shape[0] % blocksize == 0)
+    assert(A.shape[1] % blocksize == 0)
     n_block_rows = A.shape[0] // blocksize
+    n_block_cols = A.shape[1] // blocksize
     data = np.swapaxes(
-        A.reshape((n_block_rows,blocksize,n_block_rows,blocksize)), 1, 2
+        A.reshape((n_block_rows,blocksize,n_block_cols,blocksize)), 1, 2
     ).reshape((-1, blocksize, blocksize)).copy()
-    rc = np.arange(n_block_rows)
-    rows = np.tile(rc[:,np.newaxis], (1, n_block_rows)).flatten().copy()
-    cols = np.tile(rc[np.newaxis, :], (n_block_rows, 1)).flatten().copy()
+    rows = np.tile(np.arange(n_block_rows)[:,np.newaxis], (1, n_block_cols)).flatten().copy()
+    cols = np.tile(np.arange(n_block_cols)[np.newaxis, :], (n_block_rows, 1)).flatten().copy()
     return rows, cols, data
 
-def test_dense_to_coo():
-    A = np.random.rand(100,100)
-    rows, cols, data = dense_to_coo(A, 4)
+def dense_to_coo_tester(shape):
+    A = np.random.rand(*shape)
+    bs = 4
+    rows, cols, data = dense_to_coo(A, bs)
     A_re = np.empty(A.shape)
     for i in range(rows.shape[0]):
-        A_re[(4*rows[i]):(4*rows[i]+4), (4*cols[i]):(4*cols[i]+4)] = data[i]
+        A_re[(bs*rows[i]):(bs*rows[i]+bs), (bs*cols[i]):(bs*cols[i]+bs)] = data[i]
     np.testing.assert_almost_equal(A, A_re)
 
-def test_dense_bcoomv():
-    A = np.random.rand(100,100)
+def test_dense_to_coo():
+    dense_to_coo_tester((100, 100))
+    dense_to_coo_tester((60, 100))
+    dense_to_coo_tester((100, 60))
+
+def dense_bcoomv_tester(shape):
+    A = np.random.rand(*shape)
     x = np.random.rand(A.shape[1])
     correct = A.dot(x)
     rows, cols, data = dense_to_coo(A, 4)
     A_bcoo = sparse.BCOOMatrix(rows, cols, data, A.shape)
     out = A_bcoo.dot(x)
     np.testing.assert_almost_equal(out, correct)
+
+def test_dense_bcoomv():
+    dense_bcoomv_tester((100, 100))
+    dense_bcoomv_tester((60, 100))
+    dense_bcoomv_tester((100, 60))
 
 def test_to_bsr():
     A = np.random.rand(100,100)
@@ -60,7 +71,6 @@ def test_to_bsr():
     np.testing.assert_almost_equal(A_bcoo.dot(x), A.dot(x))
     A_bsr = A_bcoo.to_bsr()
     np.testing.assert_almost_equal(A_bsr.dot(x), A.dot(x))
-
 
 def benchmark_bsrmv():
     from tectosaur.util.timer import Timer

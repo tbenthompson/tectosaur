@@ -27,7 +27,7 @@ class BCOOMatrix:
         return self.data.shape[1]
 
     def dot(self, v):
-        out = np.zeros(self.shape[1], dtype = self.dtype)
+        out = np.zeros(self.shape[0], dtype = self.dtype)
         fnc = get_mv_fnc('bcoomv', self.dtype, self.blocksize)
         fnc(self.rows, self.cols, self.data, v.astype(self.dtype), out)
         return out
