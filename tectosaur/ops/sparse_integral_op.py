@@ -3,6 +3,8 @@ import attr
 import numpy as np
 import scipy.sparse
 
+import taskloaf as tsk
+
 from tectosaur.farfield import farfield_pts_direct
 
 import tectosaur.fmm.fmm as fmm
@@ -114,7 +116,6 @@ class FMMFarfieldBuilder:
             self.order, self.mac, self.pts_per_cell
         )
 
-import taskloaf as tsk
 class SparseIntegralOp:
     def __init__(self, nq_vert_adjacent, nq_far, nq_near, near_threshold,
             kernel, params, pts, tris, float_type, farfield_op_type = None,
@@ -132,16 +133,22 @@ class SparseIntegralOp:
         )
 
         far_quad2d = gauss2d_tri(nq_far)
-        self.interp_galerkin_mat, quad_pts, quad_ns = \
-            interp_galerkin_mat(pts[tris], far_quad2d)
-        self.interp_galerkin_mat = self.interp_galerkin_mat.tocsr()
+
+        self.obs_interp_galerkin_mat, obs_quad_pts, obs_quad_ns = \
+            interp_galerkin_mat(pts[tris[obs_subset]], far_quad2d)
+        self.src_interp_galerkin_mat, src_quad_pts, src_quad_ns = \
+            interp_galerkin_mat(pts[tris[src_subset]], far_quad2d)
+
+        self.obs_interp_galerkin_mat = self.obs_interp_galerkin_mat.tocsr()
+        self.src_interp_galerkin_mat = self.src_interp_galerkin_mat.tocsr()
+
         self.shape = self.nearfield.shape
 
         if farfield_op_type is None:
             farfield_op_type = DirectFarfield
 
         self.farfield_op = farfield_op_type(
-            kernel, params, quad_pts, quad_ns, quad_pts, quad_ns, float_type
+            kernel, params, obs_quad_pts, obs_quad_ns, src_quad_pts, src_quad_ns, float_type
         )
         self.gpu_nearfield = None
 
@@ -172,8 +179,9 @@ class SparseIntegralOp:
     async def farfield_dot(self, v):
         t = Timer()
         logger.debug("start farfield_dot")
-        interp_v = self.interp_galerkin_mat.dot(v).flatten()
+        interp_v = self.src_interp_galerkin_mat.dot(v).flatten()
         nbody_result = await self.farfield_op.dot(interp_v)
-        out = self.interp_galerkin_mat.T.dot(nbody_result)
+        #TODO: pre-transpose
+        out = self.obs_interp_galerkin_mat.T.dot(nbody_result)
         t.report('farfield_dot')
         return out

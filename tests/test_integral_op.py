@@ -24,11 +24,11 @@ logger = logging.getLogger(__name__)
 
 float_type = np.float32
 
-def test_op_subset():
+def build_subset_mesh():
     n = 10
     m = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     n_tris = m[1].shape[0]
-    overlap = 4
+    overlap = n_tris // 2
     obs_subset = np.arange(n_tris // 2)
     src_subset = np.arange(n_tris // 2 - overlap, n_tris)
     obs_range = [0, (obs_subset[-1] + 1) * 9]
@@ -42,10 +42,12 @@ def test_op_subset():
     # plt.triplot(m[0][:,0], m[0][:,2], m[1][src_subset], 'r-')
     # plt.show()
 
+    return m, obs_subset, src_subset, obs_range, src_range
+
+def test_op_subset_dense():
+    m, obs_subset, src_subset, obs_range, src_range = build_subset_mesh()
     k = 'elasticH3'
     params = [1.0, 0.25]
-
-    all_tris = np.arange(m[1].shape[0])
     subset_op = dense_integral_op.DenseIntegralOp(
         7, 4, 3, 2.0, k, params, m[0], m[1], float_type,
         obs_subset = obs_subset,
@@ -57,6 +59,21 @@ def test_op_subset():
     subfull = full_op[obs_range[0]:obs_range[1],src_range[0]:src_range[1]]
     np.testing.assert_almost_equal(subfull, subset_op)
 
+def test_op_subset_sparse():
+    m, obs_subset, src_subset, obs_range, src_range = build_subset_mesh()
+    k = 'elasticH3'
+    params = [1.0, 0.25]
+    subset_op = sparse_integral_op.SparseIntegralOp(
+        7, 4, 3, 2.0, k, params, m[0], m[1], float_type,
+        obs_subset = obs_subset,
+        src_subset = src_subset,
+    )
+    y2 = subset_op.dot(np.ones(subset_op.shape[1]))
+    full_op = sparse_integral_op.SparseIntegralOp(
+        7, 4, 3, 2.0, k, params, m[0], m[1], float_type,
+    )
+    y1 = full_op.dot(np.ones(full_op.shape[1]))
+    np.testing.assert_almost_equal(y1[obs_range[0]:obs_range[1]], y2)
 
 @golden_master()
 def test_farfield_two_tris(request):

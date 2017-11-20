@@ -107,8 +107,6 @@ class NearfieldIntegralOp:
         )
         timer.report("Assemble uncorrected matrix")
 
-        self.gpu_mat = None
-
     def dot(self, v):
         return sum(arr.dot(v) for arr in self.mat)
 
