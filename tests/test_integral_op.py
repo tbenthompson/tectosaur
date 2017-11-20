@@ -24,35 +24,38 @@ logger = logging.getLogger(__name__)
 
 float_type = np.float32
 
-def setup_two_meshes(offset, n = 11):
-    # n -- just leave as 11
-    #offset -- Use 2.0 for only one vert adj overlap, 2.2 for nearfield, or 100 for only farfield
-    obs_mesh = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
-    src_pts = obs_mesh[0].copy()
-    src_pts[:,0] += offset
-    src_pts[:,2] += offset
-    src_mesh = (src_pts, obs_mesh[1].copy())
-    combined = modify.concat(obs_mesh, src_mesh)
-    obs_subset = np.arange(obs_mesh[1].shape[0])
-    src_subset = obs_subset + obs_mesh[1].shape[0]
-    return combined, obs_subset, src_subset
-
 def test_op_subset():
-    m, obs_subset, src_subset = setup_two_meshes(2.0)
+    n = 10
+    m = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    n_tris = m[1].shape[0]
+    overlap = 4
+    obs_subset = np.arange(n_tris // 2)
+    src_subset = np.arange(n_tris // 2 - overlap, n_tris)
+    obs_range = [0, (obs_subset[-1] + 1) * 9]
+    src_range = [src_subset[0] * 9, (src_subset[-1] + 1) * 9]
+
+    # import matplotlib.pyplot as plt
+    # plt.figure()
+    # plt.triplot(m[0][:,0], m[0][:,2], m[1], 'k-')
+    # plt.figure()
+    # plt.triplot(m[0][:,0], m[0][:,2], m[1][obs_subset], 'b-')
+    # plt.triplot(m[0][:,0], m[0][:,2], m[1][src_subset], 'r-')
+    # plt.show()
+
     k = 'elasticH3'
     params = [1.0, 0.25]
 
     all_tris = np.arange(m[1].shape[0])
-    full_op = nearfield_op.NearfieldIntegralOp(
-        m[0], m[1], all_tris, all_tris,
-        7, 4, 3, 2.0, k, params, float_type,
-    ).to_dense()
-    subset_op = nearfield_op.NearfieldIntegralOp(
-        m[0], m[1], obs_subset, src_subset,
-        7, 4, 3, 2.0, k, params, float_type,
-    ).to_dense()
-    assert(subset_op.shape == (1800, 1800))
-    np.testing.assert_almost_equal(full_op[:1800,1800:], subset_op)
+    subset_op = dense_integral_op.DenseIntegralOp(
+        7, 4, 3, 2.0, k, params, m[0], m[1], float_type,
+        obs_subset = obs_subset,
+        src_subset = src_subset,
+    ).mat
+    full_op = dense_integral_op.DenseIntegralOp(
+        7, 4, 3, 2.0, k, params, m[0], m[1], float_type,
+    ).mat
+    subfull = full_op[obs_range[0]:obs_range[1],src_range[0]:src_range[1]]
+    np.testing.assert_almost_equal(subfull, subset_op)
 
 
 @golden_master()

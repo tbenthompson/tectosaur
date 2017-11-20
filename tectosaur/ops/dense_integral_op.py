@@ -43,17 +43,24 @@ def farfield_tris(kernel, params, pts, obs_tris, src_tris, n_q, float_type):
 
 class DenseIntegralOp(DenseOp):
     def __init__(self, nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, kernel, params, pts, tris, float_type):
+            near_threshold, kernel, params, pts, tris, float_type,
+            obs_subset = None, src_subset = None):
+
+        if obs_subset is None:
+            obs_subset = np.arange(tris.shape[0])
+        if src_subset is None:
+            src_subset = np.arange(tris.shape[0])
+
         self.float_type = float_type
 
         nearfield = NearfieldIntegralOp(
-            pts, tris, np.arange(tris.shape[0]), np.arange(tris.shape[0]),
+            pts, tris, obs_subset, src_subset,
             nq_vert_adjacent, nq_far, nq_near,
             near_threshold, kernel, params, float_type
         ).no_correction_to_dense()
 
         farfield = farfield_tris(
-            kernel, params, pts, tris, tris, nq_far, float_type
+            kernel, params, pts, tris[obs_subset], tris[src_subset], nq_far, float_type
         ).reshape(nearfield.shape)
 
         self.mat = np.where(np.abs(nearfield) > 0, nearfield, farfield)

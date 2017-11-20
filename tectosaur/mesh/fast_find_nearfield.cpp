@@ -140,7 +140,7 @@ std::vector<long> query_ball_points(
 }
 
 std::array<std::vector<long>,3> split_adjacent_close(long* close_pairs,
-    size_t n_pairs, long* tris)
+    size_t n_pairs, long* tris_A, long* tris_B)
 {
     std::array<std::vector<long>,3> out;
     for (size_t i = 0; i < n_pairs; i++) {
@@ -151,7 +151,7 @@ std::array<std::vector<long>,3> split_adjacent_close(long* close_pairs,
         bool coincident = false;
         for (int d1 = 0; d1 < 3; d1++) {
             for (int d2 = 0; d2 < 3; d2++) {
-                if (tris[idx1 * 3 + d1] != tris[idx2 * 3 + d2]) {
+                if (tris_A[idx1 * 3 + d1] != tris_B[idx2 * 3 + d2]) {
                     continue;
                 }
                 if (pair1.first == -1) {
@@ -236,12 +236,13 @@ PYBIND11_MODULE(fast_find_nearfield,m) {
         });
     
     m.def("split_adjacent_close",
-        [] (NPArray<long> close_pairs, NPArray<long> tris) {
+        [] (NPArray<long> close_pairs, NPArray<long> trisA, NPArray<long> trisB) {
             auto close_pairs_ptr = as_ptr<long>(close_pairs);
-            auto tris_ptr = as_ptr<long>(tris);
+            auto trisA_ptr = as_ptr<long>(trisA);
+            auto trisB_ptr = as_ptr<long>(trisB);
             auto n_pairs = close_pairs.request().shape[0];
 
-            auto out = split_adjacent_close(close_pairs_ptr, n_pairs, tris_ptr);
+            auto out = split_adjacent_close(close_pairs_ptr, n_pairs, trisA_ptr, trisB_ptr);
             return py::make_tuple(
                 array_from_vector(out[0], {out[0].size() / 2, 2}),
                 array_from_vector(out[1], {out[1].size() / 4, 4}),
