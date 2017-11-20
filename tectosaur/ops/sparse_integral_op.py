@@ -80,18 +80,20 @@ class FMMFarfield:
         cfg = fmm.make_config(kernel, params, 1.1, mac, order, float_type)
 
         # TODO: different obs and src pts
-        self.tree = fmm.make_tree(obs_pts.copy(), cfg, pts_per_cell)
-        self.orig_idxs = np.array(self.tree.orig_idxs)
+        self.obs_tree = fmm.make_tree(obs_pts.copy(), cfg, pts_per_cell)
+        self.src_tree = fmm.make_tree(src_pts.copy(), cfg, pts_per_cell)
+        self.obs_orig_idxs = np.array(self.obs_tree.orig_idxs)
+        self.src_orig_idxs = np.array(self.src_tree.orig_idxs)
         self.fmm_obj = fmm.FMM(
-            self.tree, obs_ns[self.orig_idxs].copy(),
-            self.tree, src_ns[self.orig_idxs].copy(), cfg
+            self.obs_tree, obs_ns[self.obs_orig_idxs].copy(),
+            self.src_tree, src_ns[self.src_orig_idxs].copy(), cfg
         )
         fmm.report_interactions(self.fmm_obj)
         self.evaluator = fmm.FMMEvaluator(self.fmm_obj)
 
     async def dot(self, v):
         t = Timer()
-        input_tree = v.reshape((-1,3))[self.orig_idxs,:].reshape(-1)
+        input_tree = v.reshape((-1,3))[self.src_orig_idxs,:].reshape(-1)
         t.report('to tree space')
 
         fmm_out = await self.evaluator.eval(input_tree.copy())
@@ -99,7 +101,7 @@ class FMMFarfield:
         t.report('fmm eval')
 
         to_orig = np.empty_like(fmm_out)
-        to_orig[self.orig_idxs,:] = fmm_out
+        to_orig[self.obs_orig_idxs,:] = fmm_out
         to_orig = to_orig.flatten()
         t.report('to output space')
         return to_orig

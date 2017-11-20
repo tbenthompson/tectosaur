@@ -21,6 +21,10 @@ class CombinedMesh:
     def get_name_idx(self, name):
         return self.names.index(name)
 
+    def get_piece_tri_idxs(self, name):
+        idx = self.get_name_idx(name)
+        return np.arange(self.start[idx], self.past_end[idx])
+
     def get_piece_tris(self, name):
         idx = self.get_name_idx(name)
         return self.tris[self.start[idx]:self.past_end[idx]]
