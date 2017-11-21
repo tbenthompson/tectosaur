@@ -9,8 +9,8 @@ tri_tri_intersect = imp('tectosaur.util.tri_tri_intersect')
 
 def check_min_adj_angle(m, ea = None):
     pts, tris = m
-    close_or_touch_pairs = find_near_adj.find_close_or_touching(pts, tris, 2.0)
-    nearfield_pairs, va, ea = find_near_adj.split_adjacent_close(close_or_touch_pairs, tris)
+    close_or_touch_pairs = find_near_adj.find_close_or_touching(pts, tris, pts, tris, 2.0)
+    nearfield_pairs, va, ea = find_near_adj.split_adjacent_close(close_or_touch_pairs, tris, tris)
     bad_pairs = []
     lower_lim = min_intersect_angle
     upper_lim = (2 * np.pi - min_intersect_angle)
@@ -93,8 +93,8 @@ def check_for_intersections_ea(pts, tris, ea):
 
 def check_for_intersections(m):
     pts, tris = m
-    close_or_touch_pairs = find_near_adj.find_close_or_touching(pts, tris, 2.0)
-    nearfield_pairs, va, ea = find_near_adj.split_adjacent_close(close_or_touch_pairs, tris)
+    close_or_touch_pairs = find_near_adj.find_close_or_touching(pts, tris, pts, tris, 2.0)
+    nearfield_pairs, va, ea = find_near_adj.split_adjacent_close(close_or_touch_pairs, tris, tris)
 
     bad_pairs = []
 
@@ -119,4 +119,4 @@ def check_for_problems(m):
     slivers = check_for_slivers(m)
     short_tris = check_tris_tall_enough(m)
     sharp_angles = check_min_adj_angle(m)
-    return intersections, sliver, short_tris, sharp_angles
+    return intersections, slivers, short_tris, sharp_angles
