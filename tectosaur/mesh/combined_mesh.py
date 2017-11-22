@@ -12,39 +12,37 @@ class CombinedMesh:
         self.start = bounds[:-1]
         self.past_end = bounds[1:]
 
-    def n_total_tris(self):
-        return self.past_end[-1]
-
-    def n_dofs(self):
-        return self.n_total_tris() * 9
-
-    def get_name_idx(self, name):
+    def _get_name_idx(self, name):
         return self.names.index(name)
 
+    def get_start(self, name):
+        return self.start[self._get_name_idx(name)]
+
+    def get_past_end(self, name):
+        return self.past_end[self._get_name_idx(name)]
+
+    def n_tris(self, name = None):
+        if name is None:
+            return self.past_end[-1]
+        else:
+            idx = self._get_name_idx(name)
+            return self.past_end[idx] - self.start[idx]
+
+    def n_dofs(self, name = None):
+        return self.n_tris(name) * 9
+
     def get_piece_tri_idxs(self, name):
-        idx = self.get_name_idx(name)
+        idx = self._get_name_idx(name)
         return np.arange(self.start[idx], self.past_end[idx])
 
     def get_piece_tris(self, name):
-        idx = self.get_name_idx(name)
+        idx = self._get_name_idx(name)
         return self.tris[self.start[idx]:self.past_end[idx]]
 
     def get_piece_pt_idxs(self, name):
         return np.unique(self.get_piece_tris(name))
 
-    def get_start(self, name):
-        return self.start[self.get_name_idx(name)]
+    def get_vector_subset(self, v, name):
+        idx = self._get_name_idx(name)
+        return v[(9 * self.start[idx]):(9 * self.past_end[idx])]
 
-    def get_past_end(self, name):
-        return self.past_end[self.get_name_idx(name)]
-
-    def extract_pts_vals(self, name, soln):
-        idx = self.get_name_idx(name)
-        dof_vals = soln.reshape((-1, 3, 3))
-        all_pt_vals = np.empty_like(self.pts)
-        all_pt_vals[self.get_piece_tris(name)] = dof_vals[self.start[idx]:self.past_end[idx]]
-
-        pt_idxs = self.get_piece_pt_idxs(name)
-        piece_pts = self.pts[pt_idxs]
-        piece_pt_vals = all_pt_vals[pt_idxs]
-        return piece_pts, piece_pt_vals
