@@ -42,7 +42,7 @@ class CombinedMesh:
     def get_piece_pt_idxs(self, name):
         return np.unique(self.get_piece_tris(name))
 
-    def get_vector_subset(self, v, name):
+    def get_dofs(self, v, name):
         idx = self._get_name_idx(name)
         return v[(9 * self.start[idx]):(9 * self.past_end[idx])]
 

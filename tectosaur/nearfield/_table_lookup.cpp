@@ -35,7 +35,7 @@ py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
     // exceptions and rethrow them later.
     // TODO: Once this doesn't use OpenMP anymore, this can be gotten rid of
     std::string bad_tri = "";
-#pragma omp parallel for
+// #pragma omp parallel for
     for (size_t i = 0; i < n_tris; i++) {
         Tensor3 tri;
         for (int d1 = 0; d1 < 3; d1++) {
@@ -48,7 +48,7 @@ py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
         try {
             standard_tri_info = standardize(tri, ${table_min_internal_angle}, true);
         } catch (const BadTriangleException& e) {
-            #pragma omp critical
+            // #pragma omp critical
             bad_tri = e.what();
         }
         standard_tris[i] = standard_tri_info;

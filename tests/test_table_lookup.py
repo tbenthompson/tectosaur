@@ -212,6 +212,34 @@ def adj_flipping_experiment():
     import ipdb
     ipdb.set_trace()
 
+@profile
+def benchmark_co_lookup_pts():
+    from tectosaur.mesh.mesh_gen import make_rect
+    from tectosaur.nearfield.table_lookup import coincident_lookup_pts
+    n = 400
+    corners = [[-1, -1, 0], [-1, 1, 0], [1, 1, 0], [1, -1, 0]]
+    m = make_rect(n, n, corners)
+    tri_pts = m[0][m[1]]
+    n_chunks = 2
+    chunk_bounds = np.linspace(0, tri_pts.shape[0], n_chunks + 1)
+    import taskloaf as tsk
+    t = Timer(just_print = True)
+    async def submit():
+        for j in range(5):
+            results = []
+            for i in range(n_chunks):
+                s, e = np.ceil(chunk_bounds[i:(i+2)]).astype(np.int)
+                def T(s,e):
+                    print(s,e)
+                    return coincident_lookup_pts(tri_pts[s:e], 0.25)
+                results.append(tsk.task(lambda s = s, e = e: T(s,e), to = i))
+            for i in range(n_chunks)[::-1]:
+                await results[i]
+
+    tsk.cluster(n_chunks, submit)
+    t.report('')
+
 if __name__ == "__main__":
-    adj_flipping_experiment()
+    benchmark_co_lookup_pts()
+    # adj_flipping_experiment()
     # adj_theta_dependence_experiment()
