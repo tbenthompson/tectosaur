@@ -49,6 +49,7 @@ Vec2 least_squares_helper(const Vec3& a, const Vec3& b, const Vec3& c) {
     return cramers_rule({ada, adb}, {adb, bdb}, {adc, bdc});
 }
 
+// TODO: Move this to a central geometry module
 Vec2 xyhat_from_pt(const Vec3& pt, const Tensor3& tri) {
     auto v1 = sub(tri[1], tri[0]);
     auto v2 = sub(tri[2], tri[0]);
