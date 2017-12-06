@@ -91,7 +91,7 @@ def check_if_crosses_fault(tri1, tri2, fault_touching_pts, fault_tris):
 
     return False
 
-def continuity_constraints(surface_tris, fault_tris):
+def continuity_constraints(surface_tris, fault_tris, tensor_dim = 3):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
 
@@ -129,9 +129,9 @@ def continuity_constraints(surface_tris, fault_tris):
                 if crosses:
                     continue
 
-                for d in range(3):
-                    independent_dof = independent_tri_idx * 9 + independent[1] * 3 + d
-                    dependent_dof = dependent_tri_idx * 9 + dependent[1] * 3 + d
+                for d in range(tensor_dim):
+                    independent_dof = (independent_tri_idx * 3 + independent[1]) * tensor_dim + d
+                    dependent_dof = (dependent_tri_idx * 3 + dependent[1]) * tensor_dim + d
                     if dependent_dof <= independent_dof:
                         continue
                     diff = 0.0
