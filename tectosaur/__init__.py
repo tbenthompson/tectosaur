@@ -1,3 +1,7 @@
+import cppimport
+import ctypes
+cppimport.set_rtld_flags(ctypes.RTLD_GLOBAL)
+
 import os
 
 source_dir = os.path.dirname(os.path.realpath(__file__))

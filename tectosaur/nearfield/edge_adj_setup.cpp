@@ -1,6 +1,8 @@
+/*cppimport
 <%
 from tectosaur.util.build_cfg import setup_module
 setup_module(cfg)
+cfg['parallel'] = False
 cfg['dependencies'].extend([
     '../include/pybind11_nparray.hpp',
     '../include/vec_tensor.hpp',
@@ -10,6 +12,7 @@ cfg['dependencies'].extend([
 
 from tectosaur.nearfield.table_params import min_angle_isoceles_height, min_intersect_angle
 %>
+*/
 
 #include "include/math_tools.hpp"
 #include "include/pybind11_nparray.hpp"
