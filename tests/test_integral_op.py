@@ -199,6 +199,18 @@ def test_mass_op():
     np.testing.assert_almost_equal(op.mat[0,0], exact00)
     np.testing.assert_almost_equal(op.mat[0,3], exact03)
 
+def test_mass_tensor_dim():
+    m = mesh_gen.make_rect(2, 2, [[0,0,0],[1,0,0],[1,1,0],[0,1,0]])
+    op1 = mass_op.MassOp(3, m[0], m[1], tensor_dim = 1)
+    op3 = mass_op.MassOp(3, m[0], m[1])
+    x = np.random.rand(op3.shape[1]).reshape((-1,3,3))
+    x[:,:,1] = 0
+    x[:,:,2] = 0
+    y3 = op3.dot(x.flatten())
+    y1 = op1.dot(x[:,:,0].flatten())
+    np.testing.assert_almost_equal(y1, y3.reshape((-1,3,3))[:,:,0].flatten())
+
+
 @golden_master()
 def test_interior(request):
     np.random.seed(10)

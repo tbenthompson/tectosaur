@@ -7,7 +7,7 @@ from tectosaur.util.cpp import imp
 _mass_op = imp("tectosaur.ops._mass_op")
 
 class MassOp:
-    def __init__(self, nq, pts, tris):
+    def __init__(self, nq, pts, tris, tensor_dim = 3):
         qx, qw = gauss2d_tri(nq)
 
         tri_pts = pts[tris]
@@ -21,9 +21,9 @@ class MassOp:
             for b2 in range(3):
                 basis_factors.append(np.sum(qw * (basis[:,b1]*basis[:,b2])))
         basis_factors = np.array(basis_factors)
-        rows, cols, vals = _mass_op.build_op(basis_factors, jacobians)
+        rows, cols, vals = _mass_op.build_op(basis_factors, jacobians, tensor_dim)
 
-        n_rows = tris.shape[0] * 9
+        n_rows = tris.shape[0] * 3 * tensor_dim
         self.shape = (n_rows, n_rows)
         self.mat = scipy.sparse.csr_matrix((vals, (rows, cols)), shape = self.shape)
 

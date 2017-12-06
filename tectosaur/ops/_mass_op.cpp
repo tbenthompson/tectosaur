@@ -8,9 +8,9 @@ cfg['dependencies'] += ['../include/pybind11_nparray.hpp']
 
 namespace py = pybind11;
 
-py::tuple build_op(NPArray<double> basis_factors, NPArray<double> jacobians) {
+py::tuple build_op(NPArray<double> basis_factors, NPArray<double> jacobians, int tensor_dim) {
     size_t n_tris = jacobians.request().shape[0];
-    size_t n_entries = n_tris * 27;
+    size_t n_entries = n_tris * 9 * tensor_dim;
 
     auto basis_factors_ptr = as_ptr<double>(basis_factors);
     auto jacobians_ptr = as_ptr<double>(jacobians);
@@ -27,10 +27,10 @@ py::tuple build_op(NPArray<double> basis_factors, NPArray<double> jacobians) {
         for (size_t b1 = 0; b1 < 3; b1++) {
             for (size_t b2 = 0; b2 < 3; b2++) {
                 double entry = jacobians_ptr[i] * basis_factors_ptr[b1 * 3 + b2];
-                for (size_t d = 0; d < 3; d++) {
-                    size_t idx = i * 27 + b1 * 9 + b2 * 3 + d;
-                    rows_ptr[idx] = i * 9 + b1 * 3 + d;    
-                    cols_ptr[idx] = i * 9 + b2 * 3 + d;    
+                for (int d = 0; d < tensor_dim; d++) {
+                    size_t idx = (i * 9 + b1 * 3 + b2) * tensor_dim + d;
+                    rows_ptr[idx] = (i * 3 + b1) * tensor_dim + d;    
+                    cols_ptr[idx] = (i * 3 + b2) * tensor_dim + d;    
                     vals_ptr[idx] = entry;
                 }
             }
