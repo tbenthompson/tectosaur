@@ -55,6 +55,9 @@ class CombinedMesh:
         idx = self._get_name_idx(name)
         return self.tris[self.start[idx]:self.end[idx]]
 
+    def get_tri_pts(self, name):
+        return self.pts[self.get_tris(name)]
+
     def get_pt_idxs(self, name):
         return np.unique(self.get_tris(name))
 
