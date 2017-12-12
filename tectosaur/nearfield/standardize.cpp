@@ -300,6 +300,7 @@ std::array<double,81> transform_from_standard_pyshim(const std::array<double,81>
     return transform_from_standard(I, get_kernel_props(K), sm, labels, translation, R, scale);
 }
 
+PYBIND11_MAKE_OPAQUE(std::vector<StandardizeResult>);
 PYBIND11_MODULE(standardize, m) {
     m.def("get_edge_lens", get_edge_lens);
     m.def("get_longest_edge", get_longest_edge);
@@ -312,6 +313,7 @@ PYBIND11_MODULE(standardize, m) {
     m.def("full_standardize_rotate", full_standardize_rotate_pyshim);
     m.def("scale", scale_pyshim);
     py::class_<StandardizeResult>(m, "StandardizeResult");
+    py::class_<std::vector<StandardizeResult>>(m, "ListStandardizeResult");
     m.def("standardize", standardize_pyshim);
     m.def("transform_from_standard", transform_from_standard_pyshim);
     py::register_exception<BadTriangleException>(m, "BadTriangleException");

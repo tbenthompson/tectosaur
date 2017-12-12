@@ -31,11 +31,7 @@ py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
     auto* out_ptr = reinterpret_cast<double*>(out.request().ptr);
     std::vector<StandardizeResult> standard_tris(n_tris);
 
-    // OpenMP doesn't play well with exceptions, so we grab any bad triangle
-    // exceptions and rethrow them later.
-    // TODO: Once this doesn't use OpenMP anymore, this can be gotten rid of
-    std::string bad_tri = "";
-// #pragma omp parallel for
+    // #pragma omp parallel for
     for (size_t i = 0; i < n_tris; i++) {
         Tensor3 tri;
         for (int d1 = 0; d1 < 3; d1++) {
@@ -44,17 +40,10 @@ py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
             }
         }
 
-        StandardizeResult standard_tri_info;
-        try {
-            standard_tri_info = standardize(tri, ${table_min_internal_angle}, true);
-        } catch (const BadTriangleException& e) {
-            // #pragma omp critical
-            bad_tri = e.what();
-        }
-        standard_tris[i] = standard_tri_info;
+        standard_tris[i] = standardize(tri, ${table_min_internal_angle}, true);
 
-        double A = standard_tri_info.tri[2][0];
-        double B = standard_tri_info.tri[2][1];
+        double A = standard_tris[i].tri[2][0];
+        double B = standard_tris[i].tri[2][1];
 
         double Ahat = from_interval(${minlegalA}, ${maxlegalA}, A);
         double Bhat = from_interval(${minlegalB}, ${maxlegalB}, B);
@@ -63,9 +52,6 @@ py::tuple coincident_lookup_pts(NPArray<double> tri_pts, double pr) {
         out_ptr[i * 3] = Ahat;
         out_ptr[i * 3 + 1] = Bhat;
         out_ptr[i * 3 + 2] = prhat;
-    }
-    if (bad_tri != "") {
-        throw BadTriangleException(bad_tri);
     }
 
     return py::make_tuple(out, standard_tris);
@@ -371,6 +357,7 @@ void vert_adj_subbasis(NPArray<double> out, NPArray<double> Iv,
 }
 
 
+PYBIND11_MAKE_OPAQUE(std::vector<StandardizeResult>);
 PYBIND11_MODULE(_table_lookup, m) {
     py::class_<EdgeAdjacentLookupTris>(m, "EdgeAdjacentLookupTris")
         .NPARRAYPROP(EdgeAdjacentLookupTris, pts);

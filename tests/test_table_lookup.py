@@ -216,30 +216,89 @@ def adj_flipping_experiment():
 def benchmark_co_lookup_pts():
     from tectosaur.mesh.mesh_gen import make_rect
     from tectosaur.nearfield.table_lookup import coincident_lookup_pts
-    n = 400
+    n = 600
     corners = [[-1, -1, 0], [-1, 1, 0], [1, 1, 0], [1, -1, 0]]
     m = make_rect(n, n, corners)
     tri_pts = m[0][m[1]]
+    import pickle
+    t = Timer(just_print = True)
+    np.save('abc.npy', tri_pts)
+    t.report('save')
+    tp = np.load('abc.npy')
+    t.report('load')
+    d = pickle.dumps(tri_pts)
+    t.report('pickle')
+    pickle.loads(d)
+    t.report('unpickle')
+    import ctypes
+    c_double_p = ctypes.POINTER(ctypes.c_double)
+    d2 = tri_pts.ctypes.data_as(c_double_p)
+    t.report('access ptr')
+    new_array = np.ctypeslib.as_array(d2, shape=tri_pts.shape)
+    t.report('new array from ptr')
+
+
+
     n_chunks = 2
     chunk_bounds = np.linspace(0, tri_pts.shape[0], n_chunks + 1)
     import taskloaf as tsk
-    t = Timer(just_print = True)
     async def submit():
+        from pyinstrument import Profiler
+
+        def start_profiler():
+            profiler = Profiler()
+            profiler.start()
+            return profiler
+
+        def stop_profiler(profiler, i):
+            profiler.stop()
+            print('profile for core: ' + str(i))
+            print(profiler.output_text(unicode=True, color=True))
+
+        prof_tsks = [tsk.task(start_profiler, to = i) for i in range(1, n_chunks)]
+        for pt in prof_tsks:
+            await pt
+        profiler = start_profiler()
+
+        t = Timer(just_print = True)
         for j in range(5):
             results = []
             for i in range(n_chunks):
                 s, e = np.ceil(chunk_bounds[i:(i+2)]).astype(np.int)
                 def T(s,e):
-                    print(s,e)
-                    return coincident_lookup_pts(tri_pts[s:e], 0.25)
+                    print('start ', s,e)
+                    tri_pts = np.load('abc.npy')
+                    out = coincident_lookup_pts(tri_pts[s:e], 0.25)
+                    print('finish ', s,e)
+                    return None
+                    # return out
                 results.append(tsk.task(lambda s = s, e = e: T(s,e), to = i))
             for i in range(n_chunks)[::-1]:
                 await results[i]
+        t.report('')
 
-    tsk.cluster(n_chunks, submit)
+        stop_profiler(profiler, 0)
+        for _i, pt in enumerate(prof_tsks):
+            i = _i + 1
+            await pt.then(lambda x, i = i: stop_profiler(x, i), to = i)
+
+
+    tsk.cluster(n_chunks, submit, runner = lambda n,f: tsk.localrun(n,f,pin = True))
+
+def benchmark_numpy_pickle():
+    #TODO: cloudpickle dumps numpy arrays very slowly, should be solvable!
+    # from cloudpickle import dumps, loads
+    from pickle import dumps, loads
+    n = 10000000
+    x = np.random.rand(n)
+    t = Timer(just_print = True)
+    a = dumps(x)
+    t.report('')
+    b = loads(a)
     t.report('')
 
 if __name__ == "__main__":
+    # benchmark_numpy_pickle()
     benchmark_co_lookup_pts()
     # adj_flipping_experiment()
     # adj_theta_dependence_experiment()

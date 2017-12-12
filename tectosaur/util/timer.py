@@ -9,7 +9,7 @@ class Timer(object):
         self.start = time.time()
         self.prefix = prefix
         self.logger = logger
-        if self.logger is None:
+        if not just_print and self.logger is None:
             self.logger = tct_log.get_caller_logger()
 
     def write(self, text):
