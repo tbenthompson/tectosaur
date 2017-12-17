@@ -10,10 +10,13 @@ from tectosaur.nearfield.table_params import *
 from tectosaur.util.cpp import imp
 
 from tectosaur.kernels import kernels
-standardize = imp('tectosaur.nearfield.standardize')
-edge_adj_setup = imp('tectosaur.nearfield.edge_adj_setup')
-_table_lookup = imp('tectosaur.nearfield._table_lookup')
-locals().update({k:v for k, v in _table_lookup.__dict__.items() if not k.startswith('__')})
+
+import cppimport.import_hook
+
+import tectosaur.nearfield.standardize
+import tectosaur.nearfield.edge_adj_setup
+from tectosaur.nearfield._table_lookup import coincident_lookup_pts, coincident_lookup_from_standard,\
+    adjacent_lookup_pts, adjacent_lookup_from_standard
 
 def lookup_interpolation_gpu(table_limits, table_log_coeffs,
         interp_pts, interp_wts, pts, float_type):

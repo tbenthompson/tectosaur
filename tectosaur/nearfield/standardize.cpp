@@ -1,3 +1,4 @@
+/*cppimport
 <%
 from tectosaur.util.build_cfg import setup_module
 setup_module(cfg)
@@ -7,9 +8,11 @@ cfg['dependencies'].extend([
     '../include/math_tools.hpp',
     'standardize.hpp',
 ])
+cfg['parallel'] = False
 
 from tectosaur.kernels import kernels
 %>
+*/
 
 /*
  THE PLAN!

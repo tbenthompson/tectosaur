@@ -1,3 +1,4 @@
+/*cppimport
 <%
 from tectosaur.util.build_cfg import setup_module
 setup_module(cfg)
@@ -8,10 +9,12 @@ cfg['dependencies'].extend([
     'standardize.hpp',
     'edge_adj_setup.hpp',
 ])
+cfg['parallel'] = False
 
 from tectosaur.nearfield.table_params import table_min_internal_angle,\
          minlegalA, minlegalB, maxlegalA, maxlegalB, min_intersect_angle
 %>
+*/
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include "include/pybind11_nparray.hpp"
