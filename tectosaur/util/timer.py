@@ -1,6 +1,8 @@
 import tectosaur.util.logging as tct_log
 import time
 
+#TODO: This has gotten WAY too complex. Replace with the simplified timer in
+# taskloaf, or just import that one!
 class Timer(object):
     def __init__(self, just_print = False, tabs = 0, silent = False, prefix = "", logger = None):
         self.just_print = just_print

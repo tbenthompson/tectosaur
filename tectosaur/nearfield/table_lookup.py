@@ -16,7 +16,7 @@ import cppimport.import_hook
 import tectosaur.nearfield.standardize
 import tectosaur.nearfield.edge_adj_setup
 from tectosaur.nearfield._table_lookup import coincident_lookup_pts, coincident_lookup_from_standard,\
-    adjacent_lookup_pts, adjacent_lookup_from_standard
+    adjacent_lookup_pts, adjacent_lookup_from_standard, vert_adj_subbasis
 
 def lookup_interpolation_gpu(table_limits, table_log_coeffs,
         interp_pts, interp_wts, pts, float_type):
