@@ -68,7 +68,7 @@ class DirectFarfield:
         else:
             self.gpu_src_ns = gpu.to_gpu(src_ns, float_type)
 
-    async def dot(self, v):
+    async def dot(self, tsk_w, v):
         return farfield_pts_direct(
             self.kernel, self.gpu_obs_pts, self.gpu_obs_ns,
             self.gpu_src_pts, self.gpu_src_ns, v, self.params, self.float_type
@@ -91,12 +91,12 @@ class FMMFarfield:
         fmm.report_interactions(self.fmm_obj)
         self.evaluator = fmm.FMMEvaluator(self.fmm_obj)
 
-    async def dot(self, v):
+    async def dot(self, tsk_w, v):
         t = Timer()
         input_tree = v.reshape((-1,3))[self.src_orig_idxs,:].reshape(-1)
         t.report('to tree space')
 
-        fmm_out = await self.evaluator.eval(input_tree.copy())
+        fmm_out = await self.evaluator.eval(tsk_w, input_tree.copy())
         fmm_out = fmm_out.reshape((-1, 3))
         t.report('fmm eval')
 
@@ -164,25 +164,27 @@ class SparseIntegralOp:
     async def nearfield_no_correction_dot(self, v):
         return self.nearfield.nearfield_no_correction_dot(v)
 
-    async def async_dot(self, v):
-        async def call_farfield():
-            return (await self.farfield_dot(v))
-        async def call_nearfield():
+    async def async_dot(self, tsk_w, v):
+        async def call_farfield(tsk_w):
+            return (await self.farfield_dot(tsk_w, v))
+        async def call_nearfield(tsk_w):
             return (await self.nearfield_dot(v))
-        near_t = tsk.task(call_nearfield)
-        far_t = tsk.task(call_farfield)
+        near_t = tsk.task(tsk_w, call_nearfield)
+        far_t = tsk.task(tsk_w, call_farfield)
         far_out = await far_t
         near_out = await near_t
         return near_out + far_out
 
     def dot(self, v):
-        return tsk.run(self.async_dot(v))
+        async def wrapper(tsk_w):
+            return await self.async_dot(tsk_w, v)
+        return tsk.run(wrapper)
 
-    async def farfield_dot(self, v):
+    async def farfield_dot(self, tsk_w, v):
         t = Timer()
         logger.debug("start farfield_dot")
         interp_v = self.src_interp_galerkin_mat.dot(v).flatten()
-        nbody_result = await self.farfield_op.dot(interp_v)
+        nbody_result = await self.farfield_op.dot(tsk_w, interp_v)
         #TODO: pre-transpose
         out = self.obs_interp_galerkin_mat.T.dot(nbody_result)
         t.report('farfield_dot')

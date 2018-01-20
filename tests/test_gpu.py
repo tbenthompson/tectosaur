@@ -44,7 +44,7 @@ def test_simple_module():
 def test_async_get():
     R = np.random.rand(10)
     gpu_R = gpu.to_gpu(R, np.float32)
-    async def f():
-        return await gpu.get(gpu_R)
-    R2 = taskloaf.run(f())
+    async def f(w):
+        return await gpu.get(w, gpu_R)
+    R2 = taskloaf.run(f)
     np.testing.assert_almost_equal(R, R2)

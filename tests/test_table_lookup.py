@@ -6,6 +6,8 @@ import tectosaur.nearfield.nearfield_op as nearfield_op
 from tectosaur.nearfield.interpolate import to_interval
 from tectosaur.ops.dense_integral_op import DenseIntegralOp
 
+import tectosaur.nearfield.standardize as standardize
+from tectosaur.nearfield._table_lookup import find_va_rotations, sub_basis
 from tectosaur.nearfield.table_lookup import *
 from tectosaur.nearfield.table_params import min_angle_isoceles_height
 
@@ -212,73 +214,143 @@ def adj_flipping_experiment():
     import ipdb
     ipdb.set_trace()
 
+
+import time
+import taskloaf as tsk
+def master_print(w, *args):
+    if w.addr == 0:
+        print(*args)
+
+import taskloaf as tsk
+import taskloaf.shmem
+import taskloaf.profile
+import time
+from tectosaur.mesh.mesh_gen import make_rect
+from tectosaur.nearfield.table_lookup import coincident_lookup_pts
+import mpi4py
+import struct
+import capnp
+import msg_capnp
+
+import asyncio
+import uvloop
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
+async def T(w, args):
+    m = msg_capnp.Msg.from_bytes(args)
+    with taskloaf.shmem.Shmem(m.smfilename) as sm:
+        sb = m.sb
+        eb = m.eb
+        st = m.st
+        master_print(w, 'reset st', w.st - st)
+        w.st = st
+        # print(time.time() - w.st, w.addr, sb, eb)
+        start_time = time.time() - st
+        master_print(w, 'start', w.addr, time.time() - st)
+        # This allows zero-copy reads from the incoming data.
+
+        tri_pts2 = np.frombuffer(memoryview(sm.mem)[sb:eb]).reshape((-1,3,3))
+        master_print(w, 'startfnc', w.addr, time.time() - st)
+
+        out_inner_chunks = []
+        # This inner_chunking is done so that the taskloaf worker can respond to
+        # messages while work is being done. (Cooperative multitasking)
+        inner_chunk_size = 5000
+        master_print(
+            w, 'n_inner_chunks: ',
+            int(np.ceil(tri_pts2.shape[0] / inner_chunk_size))
+        )
+        for i in range(0, tri_pts2.shape[0], inner_chunk_size):
+            inner_chunk = tri_pts2[i:(i + inner_chunk_size)]
+            def f(w, inner_chunk = inner_chunk):
+                return coincident_lookup_pts(inner_chunk, 0.25)
+            out_inner_chunks.append(await tsk.task(w, f))
+        master_print(w, 'finish', w.addr, time.time() - st)
+        return start_time
+
+# A first attempt at doing a really good parallelization of a simple
+# embarassingly function using taskloaf. As a baseline (with n = 2000):
+# single threaded time = 4.5 seconds
+# OpenMP with OMP_NUM_THREADS=80
+# 19/12/17 @ 5:15PM, current best including data transfer = 0.714s
+# 19/12/17 @ 5:15PM, current best without data transfer = 0.13s
 @profile
 def benchmark_co_lookup_pts():
-    import taskloaf as tsk
-    from tectosaur.mesh.mesh_gen import make_rect
-    from tectosaur.nearfield.table_lookup import coincident_lookup_pts
-    n = 600
-    corners = [[-1, -1, 0], [-1, 1, 0], [1, 1, 0], [1, -1, 0]]
-    m = make_rect(n, n, corners)
-    tri_pts = m[0][m[1]]
+    n_cores = mpi4py.MPI.COMM_WORLD.Get_size()
 
-    # import pickle
-    # t = Timer(just_print = True)
-    # np.save('abc.npy', tri_pts)
-    # t.report('save')
-    # tp = np.load('abc.npy')
-    # t.report('load')
-    # d = pickle.dumps(tri_pts)
-    # t.report('pickle')
-    # pickle.loads(d)
-    # t.report('unpickle')
-    # import ctypes
-    # c_double_p = ctypes.POINTER(ctypes.c_double)
-    # d2 = tri_pts.ctypes.data_as(c_double_p)
-    # t.report('access ptr')
-    # new_array = np.ctypeslib.as_array(d2, shape=tri_pts.shape)
-    # t.report('new array from ptr')
-
-    n_chunks = 2
-    chunk_bounds = np.linspace(0, tri_pts.shape[0], n_chunks + 1)
     async def submit(w):
+        n_chunks = n_cores
 
-        r = w.memory.put(tri_pts)
-        t = Timer(just_print = True)
-        async with tsk.Profiler(w, range(n_chunks)):
-            for j in range(5):
-                results = []
-                for i in range(n_chunks):
-                    s, e = np.ceil(chunk_bounds[i:(i+2)]).astype(np.int)
-                    async def T(w, s = s, e = e):
-                        print('start ', s,e)
-                        tri_pts = await tsk.remote_get(r)
-                        # tri_pts = np.load('abc.npy')
-                        out = coincident_lookup_pts(tri_pts[s:e], 0.25)
-                        print('finish ', s,e)
-                        return None
-                        # return out
-                    results.append(tsk.task(w, T, to = i))
-                for i in range(n_chunks)[::-1]:
-                    await results[i]
-        t.report('done')
+        # async with tsk.Profiler(w, range(n_chunks)):
+        # n = 4000
+        # corners = [[-1, -1, 0], [-1, 1, 0], [1, 1, 0], [1, -1, 0]]
+        # m = make_rect(n, n, corners)
+        # tri_pts = m[0][m[1]]
+        # np.save('tripts.npy', tri_pts)
+        tri_pts = np.load('tripts.npy')
+        # time.sleep(2.0)
+        chunk_bounds = np.linspace(0, tri_pts.shape[0], n_chunks + 1)
 
-    tsk.cluster(n_chunks, submit, tsk.mpirun)#lambda n,f: tsk.localrun(n,f,pin = True))
+        t2 = Timer(just_print = True)
+        with taskloaf.shmem.alloc_shmem(tri_pts) as sm_filepath:
+            ratio = tri_pts.nbytes / tri_pts.shape[0]
+            for k in range(10):
+                T_dref = w.memory.put(serialized = taskloaf.serialize.dumps(T))
+                st = time.time()
+                w.st = time.time()
+                super_chunks = 8
+                super_chunk_size = n_chunks // super_chunks
+                super_results = []
+                async def super_chunk_fnc(w, super_chunk_start_b):
+                    super_chunk_start = taskloaf.serialize.loads(w, super_chunk_start_b)
+                    m = msg_capnp.Msg.new_message()
+                    m.smfilename = sm_filepath
+                    m.st = float(st)
 
-def benchmark_numpy_pickle():
-    #TODO: cloudpickle dumps numpy arrays very slowly, should be solvable!
-    # from cloudpickle import dumps, loads
-    from pickle import dumps, loads
-    n = 10000000
-    x = np.random.rand(n)
-    t = Timer(just_print = True)
-    a = dumps(x)
-    t.report('')
-    b = loads(a)
-    t.report('')
+                    results = []
+                    for sub_i in range(super_chunk_size):
+                        i = super_chunk_start + sub_i
+                        s, e = np.ceil(chunk_bounds[i:(i+2)]).astype(np.int)
+                        sb = s * ratio
+                        eb = e * ratio
+                        m.sb = int(sb)
+                        m.eb = int(eb)
+                        results.append(tsk.task(w, T_dref, m.to_bytes(), to = i % n_cores))
+                    m.clear_write_flag()
+                    to_start = time.time() - st
+                    master_print(w, 'waiting', to_start)
+                    out = []
+                    for res in results:
+                        out.append(await res)
+                    return out
+                super_dref = w.memory.put(
+                    serialized = taskloaf.serialize.dumps(super_chunk_fnc)
+                )
+
+                async with taskloaf.profile.Profiler(w, range(1)):
+                    t = Timer(just_print = True)
+                    assert(n_chunks % super_chunks == 0)
+                    for super_idx in range(super_chunks):
+                        super_chunk_start = super_idx * super_chunk_size
+                        dref = w.memory.put(value = taskloaf.serialize.dumps(super_chunk_start))
+                        super_results.append(tsk.task(
+                            w, super_dref, dref, to = super_idx * n_cores // super_chunks
+                        ))
+                    # print(
+                    #     'longest start:',
+                    #     np.max([await super_results[i] for i in range(super_chunks)])
+                    # )
+                    t.report('done')
+                    print('')
+                    print('')
+                    print('')
+                    print('')
+                    print('')
+        t2.report('done full')
+
+    tsk.cluster(n_cores, submit, tsk.mpiexisting)#lambda n,f: tsk.localrun(n,f,pin = False))
 
 if __name__ == "__main__":
-    # benchmark_numpy_pickle()
     benchmark_co_lookup_pts()
     # adj_flipping_experiment()
     # adj_theta_dependence_experiment()

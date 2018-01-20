@@ -71,7 +71,9 @@ def run_full(n, pts_builder, mac, order, kernel, params,
     t.report('setup fmm')
 
     evaluator = fmm.FMMEvaluator(fmm_obj)
-    est = tsk.run(evaluator.eval(np.ones(fmm_obj.n_input)))
+    async def f(w):
+        return await evaluator.eval(w, np.ones(fmm_obj.n_input))
+    est = tsk.run(f)
     t.report('eval fmm')
 
     return (
