@@ -22,3 +22,7 @@ dist
 !tectosaur/data/*.npy
 
 *.nvprof
+
+.ipynb_checkpoints
+.pytest_cache
+tags

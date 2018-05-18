@@ -162,10 +162,16 @@ def find_free_edges(tris):
 def free_edge_constraints(tris):
     free_edges = find_free_edges(tris)
     cs = []
+    pt_idxs = set()
     for tri_idx, edge_idx in free_edges:
         for v in range(2):
+            pt_idxs.add(tris[tri_idx][(edge_idx + v) % 3])
+    for i, t in enumerate(tris):
+        for v in range(3):
+            if t[v] not in pt_idxs:
+                continue
             for d in range(3):
-                dof = tri_idx * 9 + ((edge_idx + v) % 3) * 3 + d
+                dof = i * 9 + v * 3 + d
                 cs.append(ConstraintEQ([Term(1.0, dof)], 0.0))
     return cs
 

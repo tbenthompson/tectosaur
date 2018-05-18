@@ -22,6 +22,7 @@ struct ArrayMaker {
     {
         pybind11::handle c_object;
         //TODO: This could be causing some memory leaks. Think about that...
+        //https://stackoverflow.com/questions/44659924/returning-numpy-arrays-via-pybind11
         if (buffer_ptr != nullptr) {
             #if PY_MAJOR_VERSION >= 3
                 c_object = PyCapsule_New(buffer_ptr, nullptr, nullptr);

@@ -68,7 +68,7 @@ def test_okada(n_surf, n_fault = None):
     pr = 0.25
     k_params = [sm, pr]
     fault_L = 1.0
-    top_depth = 0.0
+    top_depth = -0.0
     load_soln = False
     float_type = np.float32
     if n_fault is None:
@@ -83,6 +83,9 @@ def test_okada(n_surf, n_fault = None):
 
     if not load_soln:
 
+        cs = build_constraints(surface_tris, fault_tris, all_mesh[0])
+        timer.report("Constraints")
+
         T_op = SparseIntegralOp(
             6, 2, 5, 2.0,
             'elasticT3', k_params, all_mesh[0], all_mesh[1],
@@ -91,11 +94,20 @@ def test_okada(n_surf, n_fault = None):
         )
         timer.report("Integrals")
 
-        cs = build_constraints(surface_tris, fault_tris, all_mesh[0])
-        timer.report("Constraints")
-
         mass_op = MassOp(3, all_mesh[0], all_mesh[1])
         iop = SumOp([T_op, mass_op])
+        timer.report('mass op/sum op')
+
+        # iop = SumOp([SparseIntegralOp(
+        #     8, 3, 6, 3.0,
+        #     'elasticH3', k_params, all_mesh[0], all_mesh[1],
+        #     float_type,
+        #     farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
+        # )])
+        # timer.report("Integrals")
+
+        # mass_op = MassOp(3, all_mesh[0], all_mesh[1])
+        # iop = SumOp([T_op, mass_op])
         timer.report('mass op/sum op')
 
         soln = iterative_solve(iop, cs, tol = 1e-6)
@@ -119,7 +131,7 @@ def test_okada(n_surf, n_fault = None):
             soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-    # plot_results(obs_pts, surface_tris, u, vals)
+    plot_results(obs_pts, surface_tris, u, vals)
     results_xsec(all_mesh[0], surface_tris, soln)
     # plot_interior_displacement(k_params, all_mesh, soln, float_type)
     # plot_interior_displacement2(k_params, all_mesh, soln, float_type)

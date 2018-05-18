@@ -19,6 +19,23 @@ from tectosaur.util.timer import Timer
 import logging
 logger = logging.getLogger(__name__)
 
+# Handy wrapper for creating an integral op
+def make_integral_op(pts, tris, k_name, k_params, cfg, obs_subset, src_subset):
+    if cfg['use_fmm']:
+        farfield = FMMFarfieldBuilder(
+            cfg['fmm_order'], cfg['fmm_mac'], cfg['pts_per_cell']
+        )
+    else:
+        farfield = None
+    return SparseIntegralOp(
+        cfg['quad_vertadj_order'], cfg['quad_far_order'],
+        cfg['quad_near_order'], cfg['quad_near_threshold'],
+        k_name, k_params, pts, tris, cfg['float_type'],
+        farfield_op_type = farfield,
+        obs_subset = obs_subset,
+        src_subset = src_subset
+    )
+
 def interp_galerkin_mat(tri_pts, quad_rule):
     nt = tri_pts.shape[0]
     qx, qw = quad_rule
@@ -171,7 +188,7 @@ class SparseIntegralOp:
             return (await self.nearfield_dot(v))
         near_t = tsk.task(tsk_w, call_nearfield)
         far_t = tsk.task(tsk_w, call_farfield)
-        far_out = await far_t
+        far_out = 1 * (await far_t)
         near_out = await near_t
         return near_out + far_out
 

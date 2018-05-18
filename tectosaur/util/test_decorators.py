@@ -30,7 +30,7 @@ def golden_master(digits = 6):
         def wrapper(request, *args, **kwargs):
             result = test_fnc(request, *args, **kwargs)
             test_name = request.node.name
-            filename = 'tests/golden_masters/' + test_name + '.npy'
+            filename = os.path.join('tests', 'golden_masters', test_name + '.npy')
             if save:
                 np.save(filename, result)
             correct = np.load(filename)

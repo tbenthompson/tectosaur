@@ -2,6 +2,14 @@ import numpy as np
 from tectosaur.mesh.modify import remove_duplicate_pts
 import tectosaur.util.geometry as geometry
 
+def refine_n(m, n):
+    if n == 0:
+        return m
+    elif n == 1:
+        return refine(m)
+    else:
+        return refine_n(refine(m), n - 1)
+
 def refine(m):
     pts, tris = m
     c0 = pts[tris[:,0]]

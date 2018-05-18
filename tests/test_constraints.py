@@ -91,11 +91,23 @@ def test_find_free_edges():
     for e in [(0,0), (0,2), (1,1), (1,2)]:
         assert(e in free_es)
 
+def simple_rect_mesh(n):
+    corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
+    return mesh_gen.make_rect(n, n, corners)
+
 def test_free_edge_constraints():
-    cs = free_edge_constraints([[0,1,2],[0,2,3],[0,3,4],[0,4,1]])
+    m = simple_rect_mesh(3)
+    cs = free_edge_constraints(m[1])
     dofs = [c.terms[0].dof for c in cs]
-    assert(0 not in dofs)
-    assert(len(dofs) == 8 * 3)
+    tri_pts = m[0][m[1]].reshape((-1,3))
+    xyz_near_origin = np.abs(tri_pts[:,:]) < 0.1
+    near_origin = np.logical_and(xyz_near_origin[:,0], xyz_near_origin[:,1])
+    correct_pt_idxs = np.where(np.logical_not(near_origin))[0]
+    correct_dofs = set((
+        np.tile(correct_pt_idxs * 3, (3,1)) + np.array([0,1,2])[:,np.newaxis]
+    ).reshape(-1).tolist())
+    assert(correct_dofs == set(dofs))
+    assert(len(dofs) == 18 * 3)
 
 def test_composite():
     cs1 = [ConstraintEQ([Term(1, 0)], 2)]
@@ -108,8 +120,7 @@ def test_composite():
 
 def test_redundant_continuity():
     n = 13
-    corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
-    m = mesh_gen.make_rect(n, n, corners)
+    m = simple_rect_mesh(n)
     cs = continuity_constraints(m[1], np.array([]))
     n_total_dofs = m[1].size * 3
     rows, cols, vals, rhs, n_unique_cs = fast_constraints.build_constraint_matrix(cs, n_total_dofs)
@@ -120,8 +131,7 @@ def test_redundant_continuity():
 
 def test_faulted_continuity():
     n = 3
-    corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
-    m = mesh_gen.make_rect(n, n, corners)
+    m = simple_rect_mesh(n)
     fault_corners = [[-1.0, 0.0, 0.0], [-1.0, 0.0, -1.0], [1.0, 0.0, -1.0], [1.0, 0.0, 0.0]]
     m2 = mesh_gen.make_rect(n, n, fault_corners)
     all_mesh = mesh_modify.concat(m, m2)
