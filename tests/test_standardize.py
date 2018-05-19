@@ -1,4 +1,5 @@
 import numpy as np
+import cppimport.import_hook
 from tectosaur.nearfield.standardize import *
 from tectosaur.util.geometry import tri_pt, linear_basis_tri
 from tectosaur.util.test_decorators import slow, kernel
@@ -31,6 +32,12 @@ def test_rotate2():
     np.testing.assert_almost_equal(out2,
         [[0,0,0],[np.sqrt(3),0,0],[np.sqrt(1 + 1.0 / 3), np.sqrt(2.0 / 3.0), 0]])
 
+def test_rotate2_negative_y():
+    tri = [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 0.0, 2.0]]
+    out, R2 = rotate2_to_xyplane(tri)
+    np.testing.assert_almost_equal(R2, [[1,0,0], [0,0,1], [0,-1,0]])
+    np.testing.assert_almost_equal(out, [[0,0,0], [2,0,0], [0,2,0]])
+
 def test_scale():
     out,factor = scale([[0,0,0],[np.sqrt(3),0,0],[np.sqrt(1 + 1.0 / 3), np.sqrt(2.0 / 3.0), 0]])
     np.testing.assert_almost_equal(factor, 1.0 / np.sqrt(3))
@@ -45,6 +52,13 @@ def test_standardize():
     code, out,_,_,_,_ = standardize([[0,0,0],[1,0.0,0],[0.0,0.5,0]], 20, True)
     assert(code == 0);
     np.testing.assert_almost_equal(out, [[0,0,0],[1.0,0.0,0],[0.2,0.4,0]])
+
+def test_xz_vs_xy_plane():
+    tri1 = [[1, -1,  0], [-1, -1, 0], [1, 1, 0]]
+    tri2 = [[1, 0, -1], [-1, 0, -1], [1, 0, 1]]
+    code, out, labels, trans, R, scale = standardize(tri1, 20, True)
+    code2, out2, labels2, trans2, R2, scale2 = standardize(tri2, 20, True)
+    np.testing.assert_almost_equal(out, out2)
 
 # To test whether the standardization procedure and the transform_from_standard function
 # are working properly, I compare the results of a direct integration with the results

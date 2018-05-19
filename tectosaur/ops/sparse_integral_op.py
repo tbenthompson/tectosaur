@@ -188,7 +188,7 @@ class SparseIntegralOp:
             return (await self.nearfield_dot(v))
         near_t = tsk.task(tsk_w, call_nearfield)
         far_t = tsk.task(tsk_w, call_farfield)
-        far_out = 1 * (await far_t)
+        far_out = await far_t
         near_out = await near_t
         return near_out + far_out
 

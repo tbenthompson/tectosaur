@@ -51,6 +51,9 @@ def coincident_table(K, params, tri_pts, float_type):
     lookup_pts, standard_tris = coincident_lookup_pts(tri_pts, params[1])
     t.report("get pts")
 
+    # assert(np.all(np.max(lookup_pts, axis = 0) <= 1.0))
+    # assert(np.all(np.min(lookup_pts, axis = 0) >= -1.0))
+
     # 2) Perform interpolation --> GPU!
     interp_vals, log_coeffs = lookup_interpolation_gpu(
         table_limits, table_log_coeffs, interp_pts, interp_wts, lookup_pts, float_type

@@ -93,6 +93,7 @@ def test_coincident_fast_lookup(request, kernel):
 def test_coincident_lookup(request, kernel):
     return coincident_lookup_helper(kernel, 5)
 
+
 def adjacent_lookup_helper(K, correct_digits, n_tests = 10):
     np.random.seed(973)
 
@@ -269,7 +270,7 @@ async def T(w, args):
         return start_time
 
 # A first attempt at doing a really good parallelization of a simple
-# embarassingly function using taskloaf. As a baseline (with n = 2000):
+# embarassingly parallel function using taskloaf. As a baseline (with n = 2000):
 # single threaded time = 4.5 seconds
 # OpenMP with OMP_NUM_THREADS=80
 # 19/12/17 @ 5:15PM, current best including data transfer = 0.714s

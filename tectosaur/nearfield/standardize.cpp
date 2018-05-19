@@ -21,7 +21,7 @@ from tectosaur.kernels import kernels
  flip to put the 2 vertex closer to the 0 vertex than the 1 vertex
  translate 0 vertex to origin
  rotate 1 vertex to be at (A, 0, 0) and store rotation
- rotate 2 vertex to be at (B, C, 0) and store rotation
+ rotate 2 vertex to be at (B, C, 0) with C > 0 and store rotation
  scale triangle so that 1 vertex is at (1, 0, 0) and store scale factor
  check that triangle internal angles are greater than 20 degrees
 */
@@ -170,6 +170,12 @@ std::pair<Tensor3,Tensor3> rotate2_to_xyplane(const Tensor3& tri) {
         theta = -acos(ydot2);
         rot_mat = rotation_matrix(xaxis, theta);
         out_tri = transpose(mult(rot_mat, transpose(tri)));
+    }
+
+    if (out_tri[2][1] < 0) {
+        Tensor3 flip_y_mat = rotation_matrix(xaxis, M_PI);
+        out_tri = transpose(mult(flip_y_mat, transpose(out_tri)));
+        rot_mat = mult(flip_y_mat, rot_mat);
     }
     return {out_tri, rot_mat};
 }
