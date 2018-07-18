@@ -1,6 +1,5 @@
 import numpy as np
 import scipy.linalg
-from math import factorial
 from tectosaur.util.tri_gauss import get_tri_gauss
 
 # Derives the n-point gauss quadrature rule

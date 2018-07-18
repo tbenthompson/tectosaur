@@ -18,6 +18,7 @@ from tectosaur.interior import interior_integral
 from tectosaur.ops.sparse_integral_op import SparseIntegralOp, FMMFarfieldBuilder
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.sum_op import SumOp
+from tectosaur.check_for_problems import check_for_problems
 
 from solve import iterative_solve, direct_solve
 
@@ -63,7 +64,38 @@ def make_meshes(fault_L, top_depth, n_surf, n_fault):
     fault_tris = all_mesh[1][surface[1].shape[0]:]
     return all_mesh, surface_tris, fault_tris
 
-def test_okada(n_surf, n_fault = None):
+def build_and_solve(all_mesh, surface_tris, fault_tris, k_params, float_type, timer):
+    cs = build_constraints(surface_tris, fault_tris, all_mesh[0])
+    timer.report("Constraints")
+
+    T_op = SparseIntegralOp(
+        6, 2, 5, 2.0,
+        'elasticT3', k_params, all_mesh[0], all_mesh[1],
+        float_type,
+        farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
+    )
+    timer.report("Integrals")
+
+    mass_op = MassOp(3, all_mesh[0], all_mesh[1])
+    iop = SumOp([T_op, mass_op])
+    timer.report('mass op/sum op')
+
+    # iop = SumOp([SparseIntegralOp(
+    #     8, 3, 6, 3.0,
+    #     'elasticH3', k_params, all_mesh[0], all_mesh[1],
+    #     float_type,
+    #     farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
+    # )])
+    # timer.report("Integrals")
+
+    # mass_op = MassOp(3, all_mesh[0], all_mesh[1])
+    # iop = SumOp([T_op, mass_op])
+    timer.report('mass op/sum op')
+
+    soln = iterative_solve(iop, cs, tol = 1e-6)
+    return soln
+
+def test_okada(n_surf, n_fault = None, build_and_solve = build_and_solve):
     sm = 1.0
     pr = 0.25
     k_params = [sm, pr]
@@ -76,41 +108,22 @@ def test_okada(n_surf, n_fault = None):
 
     timer = Timer()
     all_mesh, surface_tris, fault_tris = make_meshes(fault_L, top_depth, n_surf, n_fault)
+    mesh_gen.plot_mesh3d(*all_mesh)
 
-    # mesh_gen.plot_mesh3d(*all_mesh)
+    np.save('okada_mesh.npy', all_mesh)
+    intersections, slivers, short_tris, sharp_angles = check_for_problems(all_mesh)
+    import ipdb
+    ipdb.set_trace()
+
     timer.report('make meshes')
     logger.info('n_elements: ' + str(all_mesh[1].shape[0]))
 
     if not load_soln:
-
-        cs = build_constraints(surface_tris, fault_tris, all_mesh[0])
-        timer.report("Constraints")
-
-        T_op = SparseIntegralOp(
-            6, 2, 5, 2.0,
-            'elasticT3', k_params, all_mesh[0], all_mesh[1],
-            float_type,
-            farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
+        soln = build_and_solve(
+            all_mesh, surface_tris, fault_tris,
+            k_params, float_type, timer
         )
-        timer.report("Integrals")
 
-        mass_op = MassOp(3, all_mesh[0], all_mesh[1])
-        iop = SumOp([T_op, mass_op])
-        timer.report('mass op/sum op')
-
-        # iop = SumOp([SparseIntegralOp(
-        #     8, 3, 6, 3.0,
-        #     'elasticH3', k_params, all_mesh[0], all_mesh[1],
-        #     float_type,
-        #     farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
-        # )])
-        # timer.report("Integrals")
-
-        # mass_op = MassOp(3, all_mesh[0], all_mesh[1])
-        # iop = SumOp([T_op, mass_op])
-        timer.report('mass op/sum op')
-
-        soln = iterative_solve(iop, cs, tol = 1e-6)
         # soln = direct_solve(iop, cs)
         timer.report("Solve")
 
@@ -131,16 +144,18 @@ def test_okada(n_surf, n_fault = None):
             soln, vals, obs_pts, surface_tris, fault_L, top_depth, sm, pr = pickle.load(f)
 
     u = okada_exact(obs_pts, fault_L, top_depth, sm, pr)
-    plot_results(obs_pts, surface_tris, u, vals)
-    results_xsec(all_mesh[0], surface_tris, soln)
+    # plot_results(obs_pts, surface_tris, u, vals)
+    results_xsec(all_mesh[0], surface_tris, soln, u)
     # plot_interior_displacement(k_params, all_mesh, soln, float_type)
     # plot_interior_displacement2(k_params, all_mesh, soln, float_type)
     return print_error(obs_pts, u, vals)
 
-def results_xsec(pts, surface_tris, soln):
+def results_xsec(pts, surface_tris, soln, okada_soln):
+    np.save('okada_data.npy', [pts, surface_tris, soln, okada_soln])
     xsec_pts = []
     xsec_idxs = []
     xsec_vals = []
+    # xsec_vals_okada = []
     for i in range(surface_tris.shape[0]):
         for pt_idx in range(3):
             p = pts[surface_tris[i,pt_idx],:]
@@ -148,11 +163,14 @@ def results_xsec(pts, surface_tris, soln):
                 continue
             xsec_pts.append(p)
             xsec_vals.append([soln[i * 9 + pt_idx * 3 + d] for d in range(3)])
+            # xsec_vals_okada.append([okada_soln[i * 9 + pt_idx * 3 + d] for d in range(3)])
             xsec_idxs.append([i * 9 + pt_idx * 3 + d for d in range(3)])
     xsec_pts = np.array(xsec_pts)
     xsec_vals = np.array(xsec_vals)
     print(xsec_pts)
     plt.plot(xsec_pts[:,1], xsec_vals[:,0], 'o-')
+    # plt.plot(xsec_pts[:,1], xsec_vals_okada[:,0], 'o-')
+    # plt.savefig('okada_xsec.pdf', bbox_inches = 'tight')
     plt.show()
 
 def plot_interior_displacement2(k_params, all_mesh, soln, float_type):
@@ -271,6 +289,7 @@ def print_error(pts, correct, est):
 
 if __name__ == '__main__':
     t = Timer()
+    # python examples/okada.py 61 7
     if len(sys.argv) == 3:
         test_okada(int(sys.argv[1]), n_fault = int(sys.argv[2]))
     else:

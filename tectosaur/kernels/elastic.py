@@ -57,6 +57,8 @@ def T(i, j):
     )
     return result
 
+def TS(i, j);
+
 def A(i, j):
     AC1 = -1 / (8 * sp.pi * (1 - nu))
     AC2 = 1 - 2 * nu

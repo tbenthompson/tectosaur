@@ -34,7 +34,7 @@ def test_check_for_intersections_va():
     ])
     tris = np.array([[0,1,2],[0,3,4],[0,5,6]])
     bad_pairs = problems.check_for_intersections((pts, tris))
-    assert(np.all(bad_pairs == [(0,1)]))
+    assert(np.all(bad_pairs == [(0,1), (1, 0)]))
 
 def test_check_for_intersections_va_inplane():
     pts = np.array([
@@ -43,7 +43,7 @@ def test_check_for_intersections_va_inplane():
     ])
     tris = np.array([[0,1,2],[0,3,4]])
     bad_pairs = problems.check_for_intersections((pts, tris))
-    assert(np.all(bad_pairs == [(0,1)]))
+    assert(np.all(bad_pairs == [(0,1), (1,0)]))
 
 def test_check_for_intersections_ea():
     pts = np.array([
@@ -73,3 +73,10 @@ def test_check_tris_tall_enough():
     bad_tris = problems.check_tris_tall_enough((pts, tris))
     assert(bad_tris == [2, 4])
 
+def test_check_okada():
+    m = np.load('tests/okada_mesh.npy')
+    intersections, slivers, short, sharp = problems.check_for_problems(m)
+    assert(len(slivers) == 0)
+    assert(len(short) == 0)
+    assert(intersections.shape[0] == 0)
+    assert(sharp.shape[0] == 0)

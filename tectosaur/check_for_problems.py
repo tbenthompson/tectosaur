@@ -15,9 +15,9 @@ def check_min_adj_angle(m, ea = None):
     lower_lim = min_intersect_angle
     upper_lim = (2 * np.pi - min_intersect_angle)
     for pair in ea:
-        obs_tri = pts[tris[pair[0]]]
-        src_tri = pts[tris[pair[1]]]
-        phi = edge_adj_setup.calc_adjacent_phi(obs_tri.tolist(), src_tri.tolist())
+        obs_clicks, obs_tri, src_clicks, src_flip, src_tri = \
+            edge_adj_setup.orient_adj_tris(pts, tris, pair[0], pair[1])
+        phi = edge_adj_setup.calc_adjacent_phi(obs_tri, src_tri)
         if lower_lim <= phi <= upper_lim:
             continue
         bad_pairs.append(pair)
@@ -61,17 +61,23 @@ def check_for_intersections_nearfield(pts, tris, nearfield_pairs):
 def check_for_intersections_va(pts, tris, va):
     if va.shape[0] == 0:
         return []
-    unique_va = np.unique(np.hstack((np.sort(va[:,:2], axis = 1), va[:,2:])), axis = 0)
     bad_pairs = []
-    for pair in unique_va:
+    for pair in va:
+
+        assert(tris[pair[0]][pair[2]] == tris[pair[1]][pair[3]])
+
         tri1 = pts[tris[pair[0]]]
 
-        for edge in [1,2]:
-            shared_pt_tri1 = pair[2]
-            tri1[0] += (tri1[edge] - tri1[0]) * 0.01
+        for edge in range(3):
+            if edge == pair[2]:
+                continue
+            tri1_moved = tri1.copy()
+            tri1_moved[pair[2]] += (tri1[edge] - tri1[pair[2]]) * 0.001
 
-            tri2 = pts[tris[pair[1]]].tolist()
-            I = tri_tri_intersect.tri_tri_intersect(tri1.tolist(), tri2)
+            tri2 = pts[tris[pair[1]]]
+            I = tri_tri_intersect.tri_tri_intersect(
+                tri1_moved.tolist(), tri2.tolist()
+            )
             if I:
                 bad_pairs.append(pair[:2])
                 break
