@@ -2,10 +2,11 @@ import numpy as np
 import tectosaur.mesh.find_near_adj as find_near_adj
 from tectosaur.nearfield.table_params import table_min_internal_angle, min_intersect_angle
 
-from tectosaur.util.cpp import imp
-edge_adj_setup = imp('tectosaur.nearfield.edge_adj_setup')
-standardize = imp('tectosaur.nearfield.standardize')
-tri_tri_intersect = imp('tectosaur.util.tri_tri_intersect')
+import cppimport.import_hook
+import tectosaur.nearfield.edge_adj_setup as edge_adj_setup
+import tectosaur.nearfield.standardize as standardize
+import tectosaur.util.tri_tri_intersect as tri_tri_intersect
+import tectosaur._check_for_problems as _check_for_problems
 
 def check_min_adj_angle(m, ea = None):
     pts, tris = m
@@ -21,7 +22,7 @@ def check_min_adj_angle(m, ea = None):
         if lower_lim <= phi <= upper_lim:
             continue
         bad_pairs.append(pair)
-    return np.array(bad_pairs)
+    return np.array(bad_pairs, dtype = np.int64)
 
 def check_for_slivers(m):
     pts, tris = m
@@ -32,7 +33,7 @@ def check_for_slivers(m):
             out = standardize.standardize(t_list, table_min_internal_angle, True)
         except standardize.BadTriangleException as e:
             bad_tris.append(i)
-    return bad_tris
+    return np.array(bad_tris, dtype = np.int64)
 
 def check_tris_tall_enough(m):
     pts, tris = m
@@ -43,7 +44,7 @@ def check_tris_tall_enough(m):
         xyhat = edge_adj_setup.xyhat_from_pt(split_pt, t_list)
         if not edge_adj_setup.check_xyhat(xyhat):
             bad_tris.append(i)
-    return bad_tris
+    return np.array(bad_tris, dtype = np.int64)
 
 def check_for_intersections_nearfield(pts, tris, nearfield_pairs):
     if nearfield_pairs.shape[0] == 0:
@@ -86,9 +87,8 @@ def check_for_intersections_va(pts, tris, va):
 def check_for_intersections_ea(pts, tris, ea):
     if ea.shape[0] == 0:
         return []
-    unique_ea = np.unique(np.hstack((np.sort(ea[:,:2], axis = 1), ea[:,2:])), axis = 0)
     bad_pairs = []
-    for pair in unique_ea:
+    for pair in ea:
         for d in range(3):
             if tris[pair[0],d] in tris[pair[1]]:
                 continue
@@ -97,6 +97,9 @@ def check_for_intersections_ea(pts, tris, ea):
                 bad_pairs.append(pair)
     return bad_pairs
 
+import logging
+logger = logging.getLogger(__name__)
+from tectosaur.util.timer import Timer
 def check_for_intersections(m):
     pts, tris = m
     close_or_touch_pairs = find_near_adj.find_close_or_touching(pts, tris, pts, tris, 2.0)
@@ -104,9 +107,11 @@ def check_for_intersections(m):
 
     bad_pairs = []
 
+    t = Timer(output_fnc = logger.info)
     # Three situations:
     # 1) Nearfield pair is intersection
     bad_pairs.extend(check_for_intersections_nearfield(pts, tris, nearfield_pairs))
+    t.report('nearfield')
 
     # 2) Vertex adjacent pair actually intersects beyond just the vertex
     # We can test for this by moving the shared vertex short distance
@@ -114,15 +119,23 @@ def check_for_intersections(m):
     # an intersection, then the triangles intersect at locations besides
     # just the shared vertex.
     bad_pairs.extend(check_for_intersections_va(pts, tris, va))
+    t.report('va')
 
     # 3) Edge adjacent pair is actually coincident. <-- Easy!
     bad_pairs.extend(check_for_intersections_ea(pts, tris, ea))
+    t.report('ea')
 
-    return np.array(bad_pairs)
+    return np.array(bad_pairs, dtype = np.int64)
 
-def check_for_problems(m):
+
+def check_for_problems(m, check = False):
     intersections = check_for_intersections(m)
     slivers = check_for_slivers(m)
     short_tris = check_tris_tall_enough(m)
     sharp_angles = check_min_adj_angle(m)
+    if check and (intersections.shape[0] > 0
+        or slivers.shape[0] > 0
+        or short_tris.shape[0] > 0
+        or sharp_angles.shape[0] > 0):
+        raise Exception('Mesh has problems. Run with check = False to see the issues.')
     return intersections, slivers, short_tris, sharp_angles

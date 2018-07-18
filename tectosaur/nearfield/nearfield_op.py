@@ -11,6 +11,9 @@ from tectosaur.util.timer import Timer
 import tectosaur.util.sparse as sparse
 import tectosaur.util.gpu as gpu
 
+import logging
+logger = logging.getLogger(__name__)
+
 def to_dof_space(tri_indices, obs_subset, src_subset):
     dof_space_indices = []
     for pair in tri_indices:
@@ -51,7 +54,7 @@ class NearfieldIntegralOp:
         n_src_dofs = src_subset.shape[0] * 9
         self.shape = (n_obs_dofs, n_src_dofs)
 
-        timer = Timer(tabs = 1)
+        timer = Timer(output_fnc = logger.debug, tabs = 1)
         pairs_int = PairsIntegrator(kernel, params, float_type, nq_far, nq_near, pts, tris)
         timer.report('setup pairs integrator')
 

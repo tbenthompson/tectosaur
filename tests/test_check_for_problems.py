@@ -14,7 +14,7 @@ def test_check_for_slivers():
     pts = np.array([[0,0,0], [1,0,0]] + [[a,b,0] for a,b in ts])
     tris = np.array([[0, 1, 2 + i] for i in range(len(ts))])
     bad_tris = problems.check_for_slivers((pts, tris))
-    assert(bad_tris == [2, 4])
+    assert(np.all(bad_tris == [(2, 4)]))
 
 # Also check for almost intersections where the triangles are really close?
 def test_check_for_intersections_nearfield():
@@ -52,7 +52,7 @@ def test_check_for_intersections_ea():
     ])
     tris = np.array([[0,1,2],[0,1,3],[0,1,4]])
     bad_pairs = problems.check_for_intersections((pts, tris))
-    assert(np.all(bad_pairs == [(0,2)]))
+    assert(np.all(bad_pairs == [(0,2), (2,0)]))
 
 def test_check_for_min_edge_adj_angle():
     pts = np.array([[0,0,0],[1,0,0],[0.5,0.5,0],[0.5, 0.4, 0.1],[0.5,-0.5,0.0]])
@@ -71,7 +71,7 @@ def test_check_tris_tall_enough():
     pts = np.array([[0,0,0], [1,0,0]] + [[a,b,0] for a,b in ts])
     tris = np.array([[0, 1, 2 + i] for i in range(len(ts))])
     bad_tris = problems.check_tris_tall_enough((pts, tris))
-    assert(bad_tris == [2, 4])
+    assert(np.all(bad_tris == [(2, 4)]))
 
 def test_check_okada():
     m = np.load('tests/okada_mesh.npy')

@@ -124,7 +124,7 @@ def compile_module(tmpl, tmpl_name, save_code, tmpl_args):
 
     code = template_with_mako(tmpl, tmpl_args)
 
-    t = Timer()
+    t = Timer(output_fnc = logger.debug)
     logger.debug('start compiling ' + tmpl_name)
 
     if save_code:

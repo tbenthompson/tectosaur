@@ -109,7 +109,7 @@ class FMMFarfield:
         self.evaluator = fmm.FMMEvaluator(self.fmm_obj)
 
     async def dot(self, tsk_w, v):
-        t = Timer()
+        t = Timer(output_fnc = logger.debug)
         input_tree = v.reshape((-1,3))[self.src_orig_idxs,:].reshape(-1)
         t.report('to tree space')
 
@@ -172,7 +172,7 @@ class SparseIntegralOp:
         self.gpu_nearfield = None
 
     async def nearfield_dot(self, v):
-        t = Timer()
+        t = Timer(output_fnc = logger.debug)
         logger.debug("start nearfield_dot")
         out = self.nearfield.dot(v)
         t.report("nearfield_dot")
@@ -198,7 +198,7 @@ class SparseIntegralOp:
         return tsk.run(wrapper)
 
     async def farfield_dot(self, tsk_w, v):
-        t = Timer()
+        t = Timer(output_fnc = logger.debug)
         logger.debug("start farfield_dot")
         interp_v = self.src_interp_galerkin_mat.dot(v).flatten()
         nbody_result = await self.farfield_op.dot(tsk_w, interp_v)
