@@ -33,31 +33,38 @@ from tectosaur.util.logging import setup_root_logger
 logger = setup_root_logger(__name__)
 
 class Okada:
-    def __init__(self, n_surf, n_fault, build_and_solve = None):
+    def __init__(self, n_surf, n_fault, top_depth = 0.0, fault_L = 1.0):
         log_level = logging.INFO
         tectosaur.logger.setLevel(log_level)
         solve.logger.setLevel(log_level)
         logger.setLevel(log_level)
         self.k_params = [1.0, 0.25]
-        self.fault_L = 1.0
-        self.top_depth = -0.0
+        self.fault_L = fault_L
+        self.top_depth = top_depth
         self.load_soln = False
         self.float_type = np.float32
         self.n_surf = n_surf
         self.n_fault = n_fault#max(2, n_surf // 5)
-        if build_and_solve is None:
-            build_and_solve = build_and_solve_T
-        self.build_and_solve = build_and_solve
         self.all_mesh, self.surface_tris, self.fault_tris = make_meshes(
             self.fault_L, self.top_depth, self.n_surf, self.n_fault
         )
         logger.info('n_elements: ' + str(self.all_mesh[1].shape[0]))
-        # mesh_gen.plot_mesh3d(*all_mesh)
-        _,_,_,_ = check_for_problems(self.all_mesh, check = True)
 
-    def run(self):
+        self.n_surf_tris = self.surface_tris.shape[0]
+        self.n_fault_tris = self.fault_tris.shape[0]
+        self.n_tris = self.all_mesh[1].shape[0]
+        self.surf_tri_idxs = np.arange(self.n_surf_tris)
+        self.fault_tri_idxs = np.arange(self.n_surf_tris, self.n_tris)
+        self.n_surf_dofs = self.n_surf_tris * 9
+        self.n_dofs = self.n_tris * 9
+        # mesh_gen.plot_mesh3d(*all_mesh)
+        # _,_,_,_ = check_for_problems(self.all_mesh, check = True)
+
+    def run(self, build_and_solve = None):
+        if build_and_solve is None:
+            build_and_solve = build_and_solve_T
         if not self.load_soln:
-            soln = self.build_and_solve(self)
+            soln = build_and_solve(self)
             np.save('okada.npy', soln)
         else:
             soln = np.load('okada.npy')
@@ -245,12 +252,12 @@ def build_and_solve_T(data):
     iop = SumOp([T_op, mass_op])
     timer.report('mass op/sum op')
 
-
     soln = solve.iterative_solve(iop, cs, tol = 1e-6)
     timer.report("Solve")
     return soln
 
 def build_and_solve_H(data):
+    timer = Timer(output_fnc = logger.debug)
     cs = build_constraints(data.surface_tris, data.fault_tris, data.all_mesh[0])
     timer.report("Constraints")
 
@@ -267,15 +274,17 @@ def build_and_solve_H(data):
     return soln
 
 def main():
-    t = Timer(output_fnc = logger.debug)
+    t = Timer(output_fnc = logger.info)
     obj = Okada(int(sys.argv[1]), n_fault = int(sys.argv[2]))
     soln = obj.run()
+    t.report('tectosaur')
     okada_soln = obj.okada_exact()
+    t.report('okada')
     # obj.xsec_plot(soln, okada_soln)
     # obj.plot_interior_displacement(soln)
     obj.print_error(soln, okada_soln)
+    t.report('check')
     # obj.plot_results(soln, okada_soln)
-    t.report('okada')
 
 if __name__ == '__main__':
     main()

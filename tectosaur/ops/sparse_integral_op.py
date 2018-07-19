@@ -85,7 +85,7 @@ class DirectFarfield:
         else:
             self.gpu_src_ns = gpu.to_gpu(src_ns, float_type)
 
-    async def dot(self, tsk_w, v):
+    async def async_dot(self, tsk_w, v):
         return farfield_pts_direct(
             self.kernel, self.gpu_obs_pts, self.gpu_obs_ns,
             self.gpu_src_pts, self.gpu_src_ns, v, self.params, self.float_type
@@ -108,7 +108,7 @@ class FMMFarfield:
         fmm.report_interactions(self.fmm_obj)
         self.evaluator = fmm.FMMEvaluator(self.fmm_obj)
 
-    async def dot(self, tsk_w, v):
+    async def async_dot(self, tsk_w, v):
         t = Timer(output_fnc = logger.debug)
         input_tree = v.reshape((-1,3))[self.src_orig_idxs,:].reshape(-1)
         t.report('to tree space')
@@ -123,6 +123,11 @@ class FMMFarfield:
         t.report('to output space')
         return to_orig
 
+    def dot(self, v):
+        async def wrapper(tsk_w):
+            return await self.async_dot(tsk_w, v)
+        return tsk.run(wrapper)
+
 @attr.s()
 class FMMFarfieldBuilder:
     order = attr.ib()
@@ -134,6 +139,50 @@ class FMMFarfieldBuilder:
             kernel, params, obs_pts, obs_ns, src_pts, src_ns, float_type,
             self.order, self.mac, self.pts_per_cell
         )
+
+class FarfieldOp:
+    def __init__(self, nq_far, kernel, params, pts, tris, float_type,
+            farfield_op_type = None, obs_subset = None, src_subset = None):
+        far_quad2d = gauss2d_tri(nq_far)
+        self.obs_interp_galerkin_mat, obs_quad_pts, obs_quad_ns = \
+            interp_galerkin_mat(pts[tris[obs_subset]], far_quad2d)
+        self.src_interp_galerkin_mat, src_quad_pts, src_quad_ns = \
+            interp_galerkin_mat(pts[tris[src_subset]], far_quad2d)
+
+        self.obs_interp_galerkin_mat = self.obs_interp_galerkin_mat.tocsr()
+        self.src_interp_galerkin_mat = self.src_interp_galerkin_mat.tocsr()
+
+        if farfield_op_type is None:
+            farfield_op_type = DirectFarfield
+
+        self.farfield_op = farfield_op_type(
+            kernel, params, obs_quad_pts, obs_quad_ns, src_quad_pts, src_quad_ns, float_type
+        )
+        self.shape = (obs_subset.shape[0] * 9, src_subset.shape[0] * 9)
+
+    async def async_dot(self, tsk_w, v):
+        t = Timer(output_fnc = logger.debug)
+        logger.debug("start farfield_dot")
+        interp_v = self.src_interp_galerkin_mat.dot(v).flatten()
+        nbody_result = await self.farfield_op.async_dot(tsk_w, interp_v)
+        #TODO: pre-transpose
+        out = self.obs_interp_galerkin_mat.T.dot(nbody_result)
+        t.report('farfield_dot')
+        return out
+
+    def dot(self, v):
+        async def wrapper(tsk_w):
+            return await self.async_dot(tsk_w, v)
+        return tsk.run(wrapper)
+
+    def nearfield_dot(self, v):
+        return self.dot(v)
+
+    def nearfield_no_correction_dot(self, v):
+        return self.dot(v)
+
+    def farfield_dot(self, v):
+        return self.dot(v)
 
 class SparseIntegralOp:
     def __init__(self, nq_vert_adjacent, nq_far, nq_near, near_threshold,
@@ -151,24 +200,12 @@ class SparseIntegralOp:
             near_threshold, kernel, params, float_type
         )
 
-        far_quad2d = gauss2d_tri(nq_far)
-
-        self.obs_interp_galerkin_mat, obs_quad_pts, obs_quad_ns = \
-            interp_galerkin_mat(pts[tris[obs_subset]], far_quad2d)
-        self.src_interp_galerkin_mat, src_quad_pts, src_quad_ns = \
-            interp_galerkin_mat(pts[tris[src_subset]], far_quad2d)
-
-        self.obs_interp_galerkin_mat = self.obs_interp_galerkin_mat.tocsr()
-        self.src_interp_galerkin_mat = self.src_interp_galerkin_mat.tocsr()
+        self.farfield = FarfieldOp(
+            nq_far, kernel, params, pts, tris, float_type, farfield_op_type,
+            obs_subset = obs_subset, src_subset = src_subset
+        )
 
         self.shape = self.nearfield.shape
-
-        if farfield_op_type is None:
-            farfield_op_type = DirectFarfield
-
-        self.farfield_op = farfield_op_type(
-            kernel, params, obs_quad_pts, obs_quad_ns, src_quad_pts, src_quad_ns, float_type
-        )
         self.gpu_nearfield = None
 
     async def nearfield_dot(self, v):
@@ -198,11 +235,4 @@ class SparseIntegralOp:
         return tsk.run(wrapper)
 
     async def farfield_dot(self, tsk_w, v):
-        t = Timer(output_fnc = logger.debug)
-        logger.debug("start farfield_dot")
-        interp_v = self.src_interp_galerkin_mat.dot(v).flatten()
-        nbody_result = await self.farfield_op.dot(tsk_w, interp_v)
-        #TODO: pre-transpose
-        out = self.obs_interp_galerkin_mat.T.dot(nbody_result)
-        t.report('farfield_dot')
-        return out
+        return (await self.farfield.async_dot(tsk_w, v))
