@@ -1,7 +1,9 @@
+/*cppimport
 <%
 from tectosaur.util.build_cfg import setup_module
 setup_module(cfg)
 %>
+*/
 
 /*
 *         

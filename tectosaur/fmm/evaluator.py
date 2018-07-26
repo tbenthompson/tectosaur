@@ -183,7 +183,8 @@ class FMMEvaluator:
 
         l2p_ev = self.gpu_l2p(d2e_evs[-1])
 
-        result = await gpu.get(tsk_w, self.out)
+        # result = await gpu.get(tsk_w, self.out)
+        result = self.out.get()
 
         if should_log_timing:
             self.log_timing()

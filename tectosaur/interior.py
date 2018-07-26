@@ -4,7 +4,7 @@ from tectosaur.util.quadrature import gauss2d_tri
 import tectosaur.util.gpu as gpu
 
 import tectosaur.fmm.fmm as fmm
-from tectosaur.ops.sparse_integral_op import interp_galerkin_mat
+from tectosaur.ops.sparse_farfield_op import interp_galerkin_mat
 from tectosaur.farfield import farfield_pts_direct
 import tectosaur.mesh.find_near_adj as find_near_adj
 

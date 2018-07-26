@@ -4,6 +4,9 @@ def dn(dim):
 %>
 
 <%def name="geometry_fncs()">
+
+CONSTANT Real basis_gradient[3][2] = {{-1.0, -1.0}, {1.0, 0.0}, {0.0, 1.0}};
+
 WITHIN_KERNEL void vec_cross(Real x[3], Real y[3], Real out[3]) {
     out[0] = x[1] * y[2] - x[2] * y[1];
     out[1] = x[2] * y[0] - x[0] * y[2];
@@ -60,6 +63,23 @@ Real ${prefix}_jacobian = ${prefix}_normal_length;
 Real ${prefix}b[3] = {
     1 - ${prefix}xhat - ${prefix}yhat, ${prefix}xhat, ${prefix}yhat
 };
+</%def>
+
+<%def name="surf_curl(prefix)">
+Real ${prefix}_surf_curl[3][3];
+{
+    Real g1[3];
+    Real g2[3];
+    sub(${prefix}_tri[1], ${prefix}_tri[0], g1);
+    sub(${prefix}_tri[2], ${prefix}_tri[0], g2);
+    for (int k = 0; k < 3; k++) {
+        for (int s = 0; s < 3; s++) {
+            ${prefix}_surf_curl[k][s] = (
+                basis_gradient[k][0] * g2[s] - basis_gradient[k][1] * g1[s]
+            ) / ${prefix}_jacobian;
+        }
+    }
+}
 </%def>
 
 <%def name="pts_from_basis(pt_pfx,basis_pfx,tri_name,ndims)">

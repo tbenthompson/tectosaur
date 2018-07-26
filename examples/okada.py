@@ -22,7 +22,8 @@ from tectosaur.constraint_builders import continuity_constraints, \
     constant_bc_constraints, free_edge_constraints
 from tectosaur.util.timer import Timer
 from tectosaur.interior import interior_integral
-from tectosaur.ops.sparse_integral_op import SparseIntegralOp, FMMFarfieldBuilder
+from tectosaur.ops.sparse_integral_op import SparseIntegralOp
+from tectosaur.ops.sparse_farfield_op import PtToPtFMMFarfieldOp
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.sum_op import SumOp
 from tectosaur.check_for_problems import check_for_problems
@@ -91,10 +92,10 @@ class Okada:
                 u[i, :] = uv
         return u
 
-    def xsec_plot(self, soln, okada_soln):
+    def xsec_plot(self, solns, okada_soln = None, show = True):
         xsec_pts = []
         xsec_idxs = []
-        xsec_vals = []
+        xsec_vals = [[] for j in range(len(solns))]
         xsec_vals_okada = []
         for i in range(self.surface_tris.shape[0]):
             for pt_idx in range(3):
@@ -102,18 +103,25 @@ class Okada:
                 if np.abs(p[0]) > 0.001:
                     continue
                 xsec_pts.append(p)
-                xsec_vals.append([soln[i * 9 + pt_idx * 3 + d] for d in range(3)])
-                xsec_vals_okada.append([
-                    okada_soln[self.all_mesh[1][i,pt_idx]][d] for d in range(3)
-                ])
+                for j in range(len(solns)):
+                    xsec_vals[j].append([solns[j][i * 9 + pt_idx * 3 + d] for d in range(3)])
+                if okada_soln is not None:
+                    xsec_vals_okada.append([
+                        okada_soln[self.all_mesh[1][i,pt_idx]][d] for d in range(3)
+                    ])
                 xsec_idxs.append([i * 9 + pt_idx * 3 + d for d in range(3)])
         xsec_pts = np.array(xsec_pts)
         xsec_vals = np.array(xsec_vals)
         xsec_vals_okada = np.array(xsec_vals_okada)
-        plt.plot(xsec_pts[:,1], xsec_vals[:,0], 'o-')
-        plt.plot(xsec_pts[:,1], xsec_vals_okada[:,0], 'o-')
+        plt.figure()
+        for j in range(len(solns)):
+            plt.plot(xsec_pts[:,1], xsec_vals[j,:,0], 'o-', label = str(j))
+        if okada_soln is not None:
+            plt.plot(xsec_pts[:,1], xsec_vals_okada[:,0], 'o-', label = 'okada')
         # plt.savefig('okada_xsec.pdf', bbox_inches = 'tight')
-        plt.show()
+        plt.legend()
+        if show:
+            plt.show()
 
     def plot_interior_displacement(self, soln):
         nxy = 40
@@ -244,7 +252,7 @@ def build_and_solve_T(data):
         6, 2, 5, 2.0,
         'elasticT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
         data.float_type,
-        farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
+        farfield_op_type = PtToPtFMMFarfieldOp(150, 3.0, 450)
     )
     timer.report("Integrals")
 
@@ -265,7 +273,7 @@ def build_and_solve_H(data):
         8, 3, 6, 3.0,
         'elasticH3', data.k_params, data.all_mesh[0], data.all_mesh[1],
         data.float_type,
-        farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
+        farfield_op_type = PtToPtFMMFarfieldOp(150, 3.0, 450)
     )])
     timer.report("Integrals")
 
@@ -280,7 +288,7 @@ def main():
     t.report('tectosaur')
     okada_soln = obj.okada_exact()
     t.report('okada')
-    # obj.xsec_plot(soln, okada_soln)
+    obj.xsec_plot([soln], okada_soln)
     # obj.plot_interior_displacement(soln)
     obj.print_error(soln, okada_soln)
     t.report('check')
