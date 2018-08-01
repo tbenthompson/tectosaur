@@ -32,6 +32,9 @@ def jacobians(unscaled_normals):
 def tri_area(tri):
     return np.linalg.norm(unscaled_normals(tri[np.newaxis,:,:]), axis = 1) / 2.0
 
+def normalize(vs):
+    return vs / np.linalg.norm(vs, axis = 1)[:, np.newaxis]
+
 #TODO: Replace tri_pt with this.
 def element_pt(basis, el):
     return np.array([

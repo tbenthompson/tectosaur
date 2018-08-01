@@ -224,35 +224,16 @@ elasticH = Kernel(
 )
 
 elasticRT = Kernel(
-    'elasticRT3', 3, 3, False, False, -3, 1, False,
+    'elasticRT3', 3, 3, False, True, -3, 1, False,
     '''
-    const Real G = params[0];
     const Real nu = params[1];
-    const Real CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
-    const Real CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
     ''',
+
     '''
-    Real invr = rsqrt(r2);
-    Real Q1 = CsU0 * invr;
-    Real Q2 = CsU1 * invr / r2;
-    Real ddi = Dx*inx + Dy*iny + Dz*inz;
-    sumx += Q1*inx + Q2*Dx*ddi;
-    sumy += Q1*iny + Q2*Dy*ddi;
-    sumz += Q1*inz + Q2*Dz*ddi;
+
     ''',
+
     '''
-    Real invr = rsqrt(r2);
-    Real Q1 = CsU0 * invr;
-    Real Q2 = CsU1 * invr / r2;
-    Karr[0] = Q2*Dx*Dx + Q1;
-    Karr[1] = Q2*Dx*Dy;
-    Karr[2] = Q2*Dx*Dz;
-    Karr[3] = Q2*Dy*Dx;
-    Karr[4] = Q2*Dy*Dy + Q1;
-    Karr[5] = Q2*Dy*Dz;
-    Karr[6] = Q2*Dz*Dx;
-    Karr[7] = Q2*Dz*Dy;
-    Karr[8] = Q2*Dz*Dz + Q1;
     ''',
     surf_curl_obs = False,
     surf_curl_src = True

@@ -66,6 +66,8 @@ Real ${prefix}b[3] = {
 </%def>
 
 <%def name="surf_curl(prefix)">
+// The output is indexed as:
+// _surf_curl[basis_idx][curl_component]
 Real ${prefix}_surf_curl[3][3];
 {
     Real g1[3];

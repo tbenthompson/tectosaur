@@ -40,13 +40,13 @@ def build_constraints(surface_tris, fault_tris, pts):
     slip_pts = np.zeros(pts.shape[0])
     # slip_pts[fault_tris] = np.log10(np.abs(slip[:,:,0]))
     slip_pts[fault_tris] = slip[:,:,0]
-    plt.tricontourf(pts[:,0], pts[:,2], fault_tris, slip_pts)
-    plt.triplot(pts[:,0], pts[:,2], fault_tris)
-    dof_pts = pts[fault_tris]
-    plt.xlim([np.min(dof_pts[:,:,0]), np.max(dof_pts[:,:,0])])
-    plt.ylim([np.min(dof_pts[:,:,2]), np.max(dof_pts[:,:,2])])
-    plt.colorbar()
-    plt.show()
+    # plt.tricontourf(pts[:,0], pts[:,2], fault_tris, slip_pts)
+    # plt.triplot(pts[:,0], pts[:,2], fault_tris)
+    # dof_pts = pts[fault_tris]
+    # plt.xlim([np.min(dof_pts[:,:,0]), np.max(dof_pts[:,:,0])])
+    # plt.ylim([np.min(dof_pts[:,:,2]), np.max(dof_pts[:,:,2])])
+    # plt.colorbar()
+    # plt.show()
 
 
     cs.extend(all_bc_constraints(
@@ -96,15 +96,18 @@ def build_and_solve_T(data):
         src_subset = data.fault_tri_idxs
     )
     T_op_fault_to_surf2 = TriToTriDirectFarfieldOp(
-        2, 'elasticT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
+        2, 'elasticRT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
         data.float_type, obs_subset = data.surf_tri_idxs,
         src_subset = data.fault_tri_idxs
     )
 
-    # slip = get_fault_slip(data.all_mesh[0], data.fault_tris).reshape(-1)
-    # A = T_op_fault_to_surf.dot(slip).reshape((-1,3,3))
-    # B = T_op_fault_to_surf2.dot(slip).reshape((-1,3,3))
-    # ratio = A / B
+    slip = get_fault_slip(data.all_mesh[0], data.fault_tris).reshape(-1)
+    A = T_op_fault_to_surf.dot(slip).reshape((-1,3,3))
+    B = T_op_fault_to_surf2.dot(slip).reshape((-1,3,3))
+    ratio = A / B
+    print(ratio)
+    import ipdb
+    ipdb.set_trace()
 
     # import ipdb
     # ipdb.set_trace()
