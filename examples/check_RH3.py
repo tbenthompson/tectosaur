@@ -20,29 +20,33 @@ import solve
 from tectosaur.util.logging import setup_root_logger
 logger = setup_root_logger(__name__)
 
-def build_constraints(surface_tris, fault_tris, pts):
-    n_surf_tris = surface_tris.shape[0]
-    n_fault_tris = fault_tris.shape[0]
-
-    cs = continuity_constraints(surface_tris, fault_tris)
-
+def get_fault_slip(pts, fault_tris):
     dof_pts = pts[fault_tris]
     x = dof_pts[:,:,0]
     z = dof_pts[:,:,2]
     mean_z = np.mean(z)
     slip = np.zeros((fault_tris.shape[0], 3, 3))
     slip[:,:,0] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
-    # slip[:,:,0] = np.exp(-(x ** 2 + ((z - mean_z) * 2.0) ** 2) * 8.0)
+    # slip[:,:,0] = np.exp(-(x ** 2 + ((z - mean_z) * 2.0) ** 2) * 16.0)
+    return slip
 
-    # slip_pts = np.zeros(pts.shape[0])
-    # # slip_pts[fault_tris] = np.log10(np.abs(slip[:,:,0]))
-    # slip_pts[fault_tris] = slip[:,:,0]
-    # plt.tricontourf(pts[:,0], pts[:,2], fault_tris, slip_pts)
-    # plt.triplot(pts[:,0], pts[:,2], fault_tris)
-    # plt.xlim([np.min(dof_pts[:,:,0]), np.max(dof_pts[:,:,0])])
-    # plt.ylim([np.min(dof_pts[:,:,2]), np.max(dof_pts[:,:,2])])
-    # plt.colorbar()
-    # plt.show()
+def build_constraints(surface_tris, fault_tris, pts):
+    n_surf_tris = surface_tris.shape[0]
+    n_fault_tris = fault_tris.shape[0]
+
+    cs = continuity_constraints(surface_tris, fault_tris)
+    slip = get_fault_slip(pts, fault_tris)
+
+    slip_pts = np.zeros(pts.shape[0])
+    # slip_pts[fault_tris] = np.log10(np.abs(slip[:,:,0]))
+    slip_pts[fault_tris] = slip[:,:,0]
+    plt.tricontourf(pts[:,0], pts[:,2], fault_tris, slip_pts)
+    plt.triplot(pts[:,0], pts[:,2], fault_tris)
+    dof_pts = pts[fault_tris]
+    plt.xlim([np.min(dof_pts[:,:,0]), np.max(dof_pts[:,:,0])])
+    plt.ylim([np.min(dof_pts[:,:,2]), np.max(dof_pts[:,:,2])])
+    plt.colorbar()
+    plt.show()
 
 
     cs.extend(all_bc_constraints(
@@ -92,10 +96,18 @@ def build_and_solve_T(data):
         src_subset = data.fault_tri_idxs
     )
     T_op_fault_to_surf2 = TriToTriDirectFarfieldOp(
-        2, 'elasticRT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
+        2, 'elasticT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
         data.float_type, obs_subset = data.surf_tri_idxs,
         src_subset = data.fault_tri_idxs
     )
+
+    # slip = get_fault_slip(data.all_mesh[0], data.fault_tris).reshape(-1)
+    # A = T_op_fault_to_surf.dot(slip).reshape((-1,3,3))
+    # B = T_op_fault_to_surf2.dot(slip).reshape((-1,3,3))
+    # ratio = A / B
+
+    # import ipdb
+    # ipdb.set_trace()
 
     iop = CompositeOp(
         (mass_op, 0, 0),
@@ -116,13 +128,10 @@ def build_and_solve_T(data):
     )
 
 def main():
-    obj = Okada(61, 20, top_depth = -0.65)
+    obj = Okada(41, 10, top_depth = -1.75)
     soln, soln2 = obj.run(build_and_solve = build_and_solve_T)
     # okada_soln = obj.okada_exact()
-    obj.xsec_plot([soln * 4, soln2], okada_soln = None)
-    import ipdb
-    ipdb.set_trace()
-    # obj.xsec_plot(soln2, okada_soln = None)
+    obj.xsec_plot([soln, soln2], okada_soln = None)
 
 if __name__ == "__main__":
     main()

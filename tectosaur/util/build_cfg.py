@@ -21,7 +21,7 @@ def setup_module(cfg):
     turn_off_strict_prototypes()
     setup_pybind11(cfg)
     cfg['compiler_args'] += compiler_args
-    cfg['parallel'] = True
+    cfg['parallel'] = False #TODO: Why is parallel building broken?
     cfg['linker_args'] += linker_args
     cfg['include_dirs'] += [tectosaur.source_dir]
     cfg['dependencies'] += [os.path.join(tectosaur.source_dir, 'util', 'build_cfg.py')]

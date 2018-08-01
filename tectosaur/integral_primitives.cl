@@ -72,10 +72,11 @@ Real ${prefix}_surf_curl[3][3];
     Real g2[3];
     sub(${prefix}_tri[1], ${prefix}_tri[0], g1);
     sub(${prefix}_tri[2], ${prefix}_tri[0], g2);
-    for (int k = 0; k < 3; k++) {
+    for (int basis_idx = 0; basis_idx < 3; basis_idx++) {
         for (int s = 0; s < 3; s++) {
-            ${prefix}_surf_curl[k][s] = (
-                basis_gradient[k][0] * g2[s] - basis_gradient[k][1] * g1[s]
+            ${prefix}_surf_curl[basis_idx][s] = (
+                + basis_gradient[basis_idx][0] * g2[s] 
+                - basis_gradient[basis_idx][1] * g1[s]
             ) / ${prefix}_jacobian;
         }
     }
