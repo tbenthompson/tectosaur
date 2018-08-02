@@ -27,7 +27,7 @@ def get_fault_slip(pts, fault_tris):
     mean_z = np.mean(z)
     slip = np.zeros((fault_tris.shape[0], 3, 3))
     slip[:,:,0] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
-    # slip[:,:,0] = np.exp(-(x ** 2 + ((z - mean_z) * 2.0) ** 2) * 16.0)
+    # slip[:,:,0] = np.exp(-(x ** 2 + ((z - mean_z) * 2.0) ** 2) * 8.0)
     return slip
 
 def build_constraints(surface_tris, fault_tris, pts):
@@ -37,9 +37,9 @@ def build_constraints(surface_tris, fault_tris, pts):
     cs = continuity_constraints(surface_tris, fault_tris)
     slip = get_fault_slip(pts, fault_tris)
 
-    slip_pts = np.zeros(pts.shape[0])
-    # slip_pts[fault_tris] = np.log10(np.abs(slip[:,:,0]))
-    slip_pts[fault_tris] = slip[:,:,0]
+    # slip_pts = np.zeros(pts.shape[0])
+    # # slip_pts[fault_tris] = np.log10(np.abs(slip[:,:,0]))
+    # slip_pts[fault_tris] = slip[:,:,0]
     # plt.tricontourf(pts[:,0], pts[:,2], fault_tris, slip_pts)
     # plt.triplot(pts[:,0], pts[:,2], fault_tris)
     # dof_pts = pts[fault_tris]
@@ -106,11 +106,6 @@ def build_and_solve_T(data):
     B = T_op_fault_to_surf2.dot(slip).reshape((-1,3,3))
     ratio = A / B
     print(ratio)
-    import ipdb
-    ipdb.set_trace()
-
-    # import ipdb
-    # ipdb.set_trace()
 
     iop = CompositeOp(
         (mass_op, 0, 0),

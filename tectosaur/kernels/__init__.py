@@ -227,6 +227,9 @@ elasticRT = Kernel(
     'elasticRT3', 3, 3, False, True, -3, 1, False,
     '''
     const Real nu = params[1];
+    const Real CsRT0 = -1.0 / (8.0 * M_PI * (1.0 - nu));
+    const Real CsRT1 = -(1 - 2 * nu) / (8.0 * M_PI * (1.0 - nu));
+    const Real CsRT2 = -1.0 / (4 * M_PI);
     ''',
 
     '''
@@ -322,7 +325,7 @@ elastic_kernels = make_kernel_dict([
 ])
 
 regularized_elastic_kernels = make_kernel_dict([
-    elasticRT
+    elasticRT,
 ])
 
 kernels = dict(one_kernels)

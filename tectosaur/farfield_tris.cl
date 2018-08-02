@@ -25,7 +25,7 @@ void farfield_tris${K.name}(
     int n_obs, int n_src, int n_quad_pts)
 {
     <%
-        dofs_per_tri = K.spatial_dim * K.tensor_dim
+        dofs_per_el = K.spatial_dim * K.tensor_dim
     %>
     const int obs_tri_idx = get_global_id(0);
     const int obs_tri_rot_clicks = 0;
@@ -40,8 +40,8 @@ void farfield_tris${K.name}(
         ${prim.surf_curl("obs")}
         % endif
 
-        Real sum[${dofs_per_tri}];
-        for (int k = 0; k < ${dofs_per_tri}; k++) {
+        Real sum[${dofs_per_el}];
+        for (int k = 0; k < ${dofs_per_el}; k++) {
             sum[k] = 0.0;
         }
 
@@ -54,9 +54,9 @@ void farfield_tris${K.name}(
             ${prim.surf_curl("src")}
             % endif
 
-            Real in[${dofs_per_tri}];
-            for (int k = 0; k < ${dofs_per_tri}; k++) {
-                in[k] = input[j * ${dofs_per_tri} + k];
+            Real in[${dofs_per_el}];
+            for (int k = 0; k < ${dofs_per_el}; k++) {
+                in[k] = input[j * ${dofs_per_el} + k];
             }
 
             for (int iq = 0; iq < n_quad_pts; iq++) {
@@ -80,7 +80,46 @@ void farfield_tris${K.name}(
                 Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
                 Real factor = obs_jacobian * src_jacobian * quadw;
 
-                % if K.name != 'elasticRT3':
+                % if K.name == 'elasticRT3':
+                    Real invr = rsqrt(r2);
+                    Real invr3 = invr * invr * invr;
+                    Real Q1 = CsRT1 * invr;
+                    Real Q2 = CsRT0 * invr3;
+                    Real Q3 = CsRT2 * invr3;
+                    Real Q3nD = Q3 * (nsrcx * Dx + nsrcy * Dy + nsrcz * Dz);
+                    % for d_obs in range(3):
+                    % for d_src in range(3):
+                    for (int b_obs = 0; b_obs < 3; b_obs++) {
+                    for (int b_src = 0; b_src < 3; b_src++) {
+                        Real Kval = 0.0;
+                        % for Ij in range(3):
+                        {
+                            Real A = Q1 * ${e[Ij][d_obs][d_src]};
+                            Real B = 0.0; 
+                            % for Ip in range(3):
+                                B += ${e[Ij][Ip][d_src]} * D${dn(Ip)};
+                            % endfor
+                            B = Q2 * D${dn(d_obs)} * B;
+                            Kval += src_surf_curl[b_src][${Ij}] * (A + B);
+                        }
+                        % endfor
+
+                        sum[b_obs * 3 + ${d_obs}] += (
+                            Kval * factor * obsb[b_obs]
+                            * in[b_src * 3 + ${d_src}]
+                        );
+
+                        %if d_obs == d_src:
+                        sum[b_obs * 3 + ${d_obs}] += (
+                            Q3nD * factor * obsb[b_obs] * srcb[b_src]
+                            * in[b_src * 3 + ${d_src}]
+                        );
+                        % endif
+                    }
+                    }
+                    % endfor
+                    % endfor
+                % else:
                     Real Karr[9];
                     ${K.tensor_code}
 
@@ -102,50 +141,11 @@ void farfield_tris${K.name}(
                     }
                     }
                     }
-                % else:
-                    const Real CsRT0 = -(1 - 2 * nu) / (8.0 * M_PI * (1.0 - nu));
-                    const Real CsRT1 = -1.0 / (4 * M_PI);
-                    Real invr = rsqrt(r2);
-                    Real Q1 = CsRT0 * invr;
-                    Real Q2 = Q1 / r2;
-                    Real Q3 = CsRT1 * invr / r2;
-                    Real Q3nD = Q3 * (nsrcx * Dx + nsrcy * Dy + nsrcz * Dz);
-                    % for d_obs in range(3):
-                    % for d_src in range(3):
-                    for (int b_obs = 0; b_obs < 3; b_obs++) {
-                    for (int b_src = 0; b_src < 3; b_src++) {
-                        Real Kval = 0.0;
-                        % for Ij in range(3):
-                        {
-                            Real A = Q1 * ${e[Ij][d_obs][d_src]};
-                            Real B = 0.0; 
-                            % for Ip in range(3):
-                                B += ${e[Ij][Ip][d_src]} * D${dn(Ip)};
-                            % endfor
-                            B = Q2 * D${dn(d_obs)} * B;
-                            Kval += src_surf_curl[b_src][${Ij}] * (A + B);
-                        }
-                        % endfor
-
-                        sum[b_obs * 3 + ${d_obs}] += 2.0 * (
-                            Kval * factor * obsb[b_obs]
-                            * in[b_src * 3 + ${d_src}]
-                        );
-                        % if d_obs == d_src:
-                            sum[b_obs * 3 + ${d_obs}] += (
-                                Q3nD * factor * obsb[b_obs] * srcb[b_src]
-                                * in[b_src * 3 + ${d_src}]
-                            );
-                        % endif
-                    }
-                    }
-                    % endfor
-                    % endfor
                 % endif
             }
         }
-        for (int k = 0; k < ${dofs_per_tri}; k++) {
-            result[obs_tri_idx * ${dofs_per_tri} + k] = sum[k];
+        for (int k = 0; k < ${dofs_per_el}; k++) {
+            result[obs_tri_idx * ${dofs_per_el} + k] = sum[k];
         }
     }
 }
