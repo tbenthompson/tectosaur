@@ -95,16 +95,16 @@ class NearfieldIntegralOp:
 
         self.mat = build_nearfield(
             self.shape,
-            (1 * (co_mat - co_mat_correction), co_dofs),
-            (1 * (ea_mat_rot - ea_mat_correction), ea_dofs[:,:2]),
+            (co_mat - co_mat_correction, co_dofs),
+            (ea_mat_rot - ea_mat_correction, ea_dofs[:,:2]),
             (va_mat_rot - va_mat_correction, va_dofs[:,:2]),
             (nearfield_mat - nearfield_correction, nearfield_pairs_dofs)
         )
         timer.report("Assemble matrix")
         self.mat_no_correction = build_nearfield(
             self.shape,
-            (1 * co_mat, co_dofs),
-            (1 * ea_mat_rot, ea_dofs[:,:2]),
+            (co_mat, co_dofs),
+            (ea_mat_rot, ea_dofs[:,:2]),
             (va_mat_rot, va_dofs[:,:2]),
             (nearfield_mat, nearfield_pairs_dofs),
         )

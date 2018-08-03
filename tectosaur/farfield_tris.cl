@@ -74,11 +74,37 @@ void farfield_tris${K.name}(
                     )}
                 % endfor
 
+                % if K.surf_curl_src:
+                    Real src_surf_curl[3][3];
+                    for (int Ij = 0; Ij < 3; Ij++) {
+                        for (int d = 0; d < 3; d++) {
+                            src_surf_curl[d][Ij] = 0.0;
+                            for (int b_src = 0; b_src < 3; b_src++) {
+                                src_surf_curl[d][Ij] += 
+                                    bsrc_surf_curl[b_src][Ij]
+                                    * in[b_src * 3 + d];
+                            }
+                        }
+                    }
+                % endif
+
                 Real Dx = yx - xx;
                 Real Dy = yy - xy; 
                 Real Dz = yz - xz;
                 Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
+
+                if (r2 == 0.0) {
+                    continue;
+                }
+
                 Real factor = obs_jacobian * src_jacobian * quadw;
+                % for d in range(3):
+                    Real sum${dn(d)} = 0.0;
+                    Real in${dn(d)} = 0.0;
+                    for (int b_src = 0; b_src < 3; b_src++) {
+                        in${dn(d)} += in[b_src * 3 + ${d}] * srcb[b_src];
+                    }
+                % endfor
 
                 % if K.name == 'elasticRT3':
                     Real invr = rsqrt(r2);
@@ -87,61 +113,37 @@ void farfield_tris${K.name}(
                     Real Q2 = CsRT0 * invr3;
                     Real Q3 = CsRT2 * invr3;
                     Real Q3nD = Q3 * (nsrcx * Dx + nsrcy * Dy + nsrcz * Dz);
+
+
+
                     % for d_obs in range(3):
                     % for d_src in range(3):
-                    for (int b_obs = 0; b_obs < 3; b_obs++) {
-                    for (int b_src = 0; b_src < 3; b_src++) {
-                        Real Kval = 0.0;
-                        % for Ij in range(3):
-                        {
-                            Real A = Q1 * ${e[Ij][d_obs][d_src]};
-                            Real B = 0.0; 
-                            % for Ip in range(3):
-                                B += ${e[Ij][Ip][d_src]} * D${dn(Ip)};
-                            % endfor
-                            B = Q2 * D${dn(d_obs)} * B;
-                            Kval += src_surf_curl[b_src][${Ij}] * (A + B);
-                        }
+                    % for Ij in range(3):
+                    {
+                        Real A = Q1 * ${e[Ij][d_obs][d_src]};
+                        Real B = 0.0; 
+                        % for Ip in range(3):
+                            B += ${e[Ij][Ip][d_src]} * D${dn(Ip)};
                         % endfor
-
-                        sum[b_obs * 3 + ${d_obs}] += (
-                            Kval * factor * obsb[b_obs]
-                            * in[b_src * 3 + ${d_src}]
-                        );
-
-                        %if d_obs == d_src:
-                        sum[b_obs * 3 + ${d_obs}] += (
-                            Q3nD * factor * obsb[b_obs] * srcb[b_src]
-                            * in[b_src * 3 + ${d_src}]
-                        );
-                        % endif
-                    }
+                        B = Q2 * D${dn(d_obs)} * B;
+                        sum${dn(d_obs)} += (A + B) * src_surf_curl[${d_src}][${Ij}];;
                     }
                     % endfor
                     % endfor
+                    % endfor
+
+                    % for d in range(3):
+                        sum${dn(d)} += Q3nD * in${dn(d)};
+                    % endfor
+
                 % else:
-                    Real Karr[9];
-                    ${K.tensor_code}
-
-                    if (r2 == 0.0) {
-                        continue;
-                    }
-
-                    for (int b_obs = 0; b_obs < 3; b_obs++) {
-                    for (int d_obs = 0; d_obs < 3; d_obs++) {
-                    for (int b_src = 0; b_src < 3; b_src++) {
-                    for (int d_src = 0; d_src < 3; d_src++) {
-                        Real val = (
-                            factor *
-                            obsb[b_obs] * srcb[b_src] * Karr[d_obs * 3 + d_src] *
-                            in[b_src * 3 + d_src]
-                        );
-                        sum[b_obs * 3 + d_obs] += val;
-                    }
-                    }
-                    }
-                    }
+                    ${K.vector_code}
                 % endif
+                for (int b_obs = 0; b_obs < 3; b_obs++) {
+                    % for d_obs in range(3):
+                    sum[b_obs * 3 + ${d_obs}] += factor * obsb[b_obs] * sum${dn(d_obs)};
+                    % endfor
+                }
             }
         }
         for (int k = 0; k < ${dofs_per_el}; k++) {

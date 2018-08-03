@@ -67,8 +67,8 @@ Real ${prefix}b[3] = {
 
 <%def name="surf_curl(prefix)">
 // The output is indexed as:
-// _surf_curl[basis_idx][curl_component]
-Real ${prefix}_surf_curl[3][3];
+// b{prefix}_surf_curl[basis_idx][curl_component]
+Real b${prefix}_surf_curl[3][3];
 {
     Real g1[3];
     Real g2[3];
@@ -76,7 +76,7 @@ Real ${prefix}_surf_curl[3][3];
     sub(${prefix}_tri[2], ${prefix}_tri[0], g2);
     for (int basis_idx = 0; basis_idx < 3; basis_idx++) {
         for (int s = 0; s < 3; s++) {
-            ${prefix}_surf_curl[basis_idx][s] = (
+            b${prefix}_surf_curl[basis_idx][s] = (
                 + basis_gradient[basis_idx][0] * g2[s] 
                 - basis_gradient[basis_idx][1] * g1[s]
             ) / ${prefix}_jacobian;

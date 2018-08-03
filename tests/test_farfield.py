@@ -38,7 +38,9 @@ def test_tri_tri_farfield():
     out2 = T2.dot(in_vals)
     np.testing.assert_almost_equal(out1, out2)
 
-def test_regularized_T_farfield():
+def regularized_tester(K):
+    full_K_name = f'elastic{K}3'
+    full_RK_name = f'elasticR{K}3'
     m, surf1_idxs, surf2_idxs = make_meshes()
     T1, T2 = [
         C(
@@ -58,7 +60,8 @@ def test_regularized_T_farfield():
         return a * np.exp(-((x - b) ** 2) / (2 * c ** 2))
     dist = np.linalg.norm(dof_pts.reshape(-1,3), axis = 1)
     slip = np.zeros((dof_pts.shape[0] * 3, 3))
-    slip[:,0] = gaussian(0.2, 0.0, 0.3, dist)
+    for d in range(3):
+        slip[:,d] = gaussian(0.1 * d, 0.0, 0.3, dist)
 
     should_plot = False
     if should_plot:
@@ -72,8 +75,10 @@ def test_regularized_T_farfield():
     slip_flat = slip.flatten()
     out1 = T1.dot(slip_flat)
     out2 = T2.dot(slip_flat)
-    np.testing.assert_almost_equal(out1, out2)
+    np.testing.assert_almost_equal(out1, out2, 6)
 
+def test_regularized_T_farfield():
+    regularized_tester('A')
 
 def timing(n, runtime, name, flops):
     print("for " + name)

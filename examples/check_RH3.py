@@ -27,6 +27,8 @@ def get_fault_slip(pts, fault_tris):
     mean_z = np.mean(z)
     slip = np.zeros((fault_tris.shape[0], 3, 3))
     slip[:,:,0] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
+    slip[:,:,1] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
+    slip[:,:,2] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
     # slip[:,:,0] = np.exp(-(x ** 2 + ((z - mean_z) * 2.0) ** 2) * 8.0)
     return slip
 
@@ -90,11 +92,22 @@ def build_and_solve_T(data):
     )
     mass_op = MassOp(3, data.all_mesh[0], data.all_mesh[1])
 
-    T_op_fault_to_surf = PtToPtDirectFarfieldOp(
-        2, 'elasticT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
-        data.float_type, obs_subset = data.surf_tri_idxs,
-        src_subset = data.fault_tri_idxs
+    T_op_fault_to_surf = SparseIntegralOp(
+        6, 2, 5, near_threshold,
+        'elasticT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
+        data.float_type,
+        farfield_op_type = PtToPtDirectFarfieldOp,
+        obs_subset = data.surf_tri_idxs,
+        src_subset = data.fault_tri_idxs,
     )
+    # T_op_fault_to_surf2 = SparseIntegralOp(
+    #     6, 2, 5, near_threshold,
+    #     'elasticRT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
+    #     data.float_type,
+    #     farfield_op_type = TriToTriDirectFarfieldOp,
+    #     obs_subset = data.surf_tri_idxs,
+    #     src_subset = data.fault_tri_idxs,
+    # )
     T_op_fault_to_surf2 = TriToTriDirectFarfieldOp(
         2, 'elasticRT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
         data.float_type, obs_subset = data.surf_tri_idxs,

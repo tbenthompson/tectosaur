@@ -244,7 +244,7 @@ elasticRT = Kernel(
 
 laplace2S = Kernel(
     'laplaceS2', 2, 1, False, False, 'log', 0, False, '',
-    None,
+    '''''',
     '''
     Karr[0] = log(sqrt(r2)) / (2.0 * M_PI);
     '''
@@ -252,7 +252,7 @@ laplace2S = Kernel(
 
 laplace2D = Kernel(
     'laplaceD2', 2, 1, False, True, -3, 0, False, '',
-    None,
+    '''''',
     '''
     Real r = sqrt(r2);
     Real rn = nsrcx * Dx + nsrcy * Dy;
@@ -262,7 +262,7 @@ laplace2D = Kernel(
 
 laplace2H = Kernel(
     'laplaceH2', 2, 1, True, True, -2, 0, False, '',
-    None,
+    '''''',
     '''
     Real rn = nsrcx * Dx + nsrcy * Dy;
     Real rm = nobsx * Dx + nobsy * Dy;
@@ -276,7 +276,7 @@ laplace3S = Kernel(
     '''
     Real C = 1.0 / (4.0 * M_PI);
     ''',
-    None,
+    '''''',
     '''
     Karr[0] = rsqrt(r2) * C;
     '''
@@ -284,7 +284,7 @@ laplace3S = Kernel(
 
 laplace3D = Kernel(
     'laplaceD3', 3, 1, False, True, -2, 0, False, '',
-    None,
+    '''''',
     '''
     Real r = sqrt(r2);
     Real rn = nsrcx * Dx + nsrcy * Dy + nsrcz * Dz;
@@ -294,7 +294,7 @@ laplace3D = Kernel(
 
 laplace3H = Kernel(
     'laplaceH3', 3, 1, True, True, -1, 0, False, '',
-    None,
+    '''''',
     '''
     Real r = sqrt(r2);
     Real rn = nsrcx * Dx + nsrcy * Dy + nsrcz * Dz;
@@ -304,8 +304,8 @@ laplace3H = Kernel(
     '''
 )
 
-one2 = Kernel('one2', 2, 1, False, False, -4, 0, False, '', None, 'Karr[0] = 1.0;')
-one3 = Kernel('one3', 3, 1, False, False, -4, 0, False, '', None, 'Karr[0] = 1.0;')
+one2 = Kernel('one2', 2, 1, False, False, -4, 0, False, '', '''''', 'Karr[0] = 1.0;')
+one3 = Kernel('one3', 3, 1, False, False, -4, 0, False, '', '''''', 'Karr[0] = 1.0;')
 
 def make_kernel_dict(ks):
     return {K.name: K for K in ks}
