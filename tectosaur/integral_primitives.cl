@@ -3,6 +3,8 @@ def dn(dim):
     return ['x', 'y', 'z'][dim]
 %>
 
+<%namespace name="kernels" file="kernels/kernels.cl"/>
+
 <%def name="geometry_fncs()">
 
 CONSTANT Real basis_gradient[3][2] = {{-1.0, -1.0}, {1.0, 0.0}, {0.0, 1.0}};
@@ -46,7 +48,7 @@ for (int c = 0; c < 3; c++) {
 }
 </%def>
 
-<%def name="tri_info(prefix,normal_prefix, need_normal)">
+<%def name="tri_info(prefix, normal_prefix, need_normal, need_surf_curl)">
 Real ${prefix}_unscaled_normal[3];
 get_unscaled_normal(${prefix}_tri, ${prefix}_unscaled_normal);
 Real ${prefix}_normal_length = magnitude(${prefix}_unscaled_normal);
@@ -57,6 +59,9 @@ Real ${prefix}_jacobian = ${prefix}_normal_length;
         ${prefix}_unscaled_normal[${dim}] / ${prefix}_normal_length;
     % endfor
 % endif
+% if need_surf_curl:
+    ${surf_curl_basis(prefix)}
+% endif
 </%def>
 
 <%def name="basis(prefix)">
@@ -65,7 +70,7 @@ Real ${prefix}b[3] = {
 };
 </%def>
 
-<%def name="surf_curl(prefix)">
+<%def name="surf_curl_basis(prefix)">
 // The output is indexed as:
 // b{prefix}_surf_curl[basis_idx][curl_component]
 Real b${prefix}_surf_curl[3][3];
@@ -99,7 +104,9 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 </%def>
 
 <%def name="call_vector_code(K)">
-% if K.vector_code is None:
+% if hasattr(kernels, K.name + '_vector'):
+    ${getattr(kernels, K.name + '_vector')()}
+% elif K.vector_code is None:
     Real Karr[${K.tensor_dim} * ${K.tensor_dim}];
     ${K.tensor_code}
     % for d1 in range(K.tensor_dim):
@@ -109,6 +116,33 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
     % endfor
 % else:
     ${K.vector_code}
+% endif
+</%def>
+
+<%def name="call_tensor_code(K)">
+% if hasattr(kernels, K.name + '_tensor'):
+    ${getattr(kernels, K.name + '_tensor')()}
+% else:
+    Real Karr[9];
+    ${K.tensor_code}
+    obsb[0] *= quadw;
+    obsb[1] *= quadw;
+    obsb[2] *= quadw;
+
+    int idx = 0;
+    for (int b_obs = 0; b_obs < 3; b_obs++) {
+    for (int d_obs = 0; d_obs < 3; d_obs++) {
+    for (int b_src = 0; b_src < 3; b_src++) {
+    for (int d_src = 0; d_src < 3; d_src++, idx++) {
+        Real val = obsb[b_obs] * srcb[b_src] * Karr[d_obs * 3 + d_src];
+        Real y = val - kahanC[idx];
+        Real t = result_temp[idx] + y;
+        kahanC[idx] = (t - result_temp[idx]) - y;
+        result_temp[idx] = t;
+    }
+    }
+    }
+    }
 % endif
 </%def>
 

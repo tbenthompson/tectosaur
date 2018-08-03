@@ -18,7 +18,6 @@ class Kernel:
     surf_curl_obs = attr.ib(default = False)
     surf_curl_src = attr.ib(default = False)
 
-
 elasticU = Kernel(
     'elasticU3', 3, 3, False, False, -3, 1, False,
     '''
@@ -231,13 +230,7 @@ elasticRT = Kernel(
     const Real CsRT1 = -(1 - 2 * nu) / (8.0 * M_PI * (1.0 - nu));
     const Real CsRT2 = -1.0 / (4 * M_PI);
     ''',
-
-    '''
-
-    ''',
-
-    '''
-    ''',
+    '', '',
     surf_curl_obs = False,
     surf_curl_src = True
 )

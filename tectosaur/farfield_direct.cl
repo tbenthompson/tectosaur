@@ -113,5 +113,11 @@ void farfield_pts${K.name}(
 ${prim.geometry_fncs()}
 
 % for name,K in kernels.items():
-${farfield_pts(K)}
+    // If the surface curl is used for the kernel, then knowledge of the entire
+    // triangle is necessary and so that kernel can't be used in for a point to
+    // point operation.
+    % if K.surf_curl_obs or K.surf_curl_src:
+        <% continue %>
+    % endif
+    ${farfield_pts(K)}
 % endfor

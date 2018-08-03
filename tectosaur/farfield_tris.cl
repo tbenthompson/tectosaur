@@ -3,9 +3,6 @@ from tectosaur.kernels import kernels
 K = kernels['elasticT3']
 def dn(dim):
     return ['x', 'y', 'z'][dim]
-
-e = [[[int((i - j) * (j - k) * (k - i) / 2) for k in range(3)]
-    for j in range(3)] for i in range(3)]
 %>
 
 ${cluda_preamble}
@@ -35,10 +32,7 @@ void farfield_tris${K.name}(
 
     if (obs_tri_idx < n_obs) {
         ${prim.get_triangle("obs_tri", "obs_tris")}
-        ${prim.tri_info("obs", "nobs", K.needs_obsn)}
-        % if K.surf_curl_obs:
-        ${prim.surf_curl("obs")}
-        % endif
+        ${prim.tri_info("obs", "nobs", K.needs_obsn, K.surf_curl_obs)}
 
         Real sum[${dofs_per_el}];
         for (int k = 0; k < ${dofs_per_el}; k++) {
@@ -49,10 +43,7 @@ void farfield_tris${K.name}(
             const int src_tri_idx = j;
             const int src_tri_rot_clicks = 0;
             ${prim.get_triangle("src_tri", "src_tris")}
-            ${prim.tri_info("src", "nsrc", K.needs_srcn)}
-            % if K.surf_curl_src:
-            ${prim.surf_curl("src")}
-            % endif
+            ${prim.tri_info("src", "nsrc", K.needs_srcn, K.surf_curl_src)}
 
             Real in[${dofs_per_el}];
             for (int k = 0; k < ${dofs_per_el}; k++) {
@@ -74,20 +65,6 @@ void farfield_tris${K.name}(
                     )}
                 % endfor
 
-                % if K.surf_curl_src:
-                    Real src_surf_curl[3][3];
-                    for (int Ij = 0; Ij < 3; Ij++) {
-                        for (int d = 0; d < 3; d++) {
-                            src_surf_curl[d][Ij] = 0.0;
-                            for (int b_src = 0; b_src < 3; b_src++) {
-                                src_surf_curl[d][Ij] += 
-                                    bsrc_surf_curl[b_src][Ij]
-                                    * in[b_src * 3 + d];
-                            }
-                        }
-                    }
-                % endif
-
                 Real Dx = yx - xx;
                 Real Dy = yy - xy; 
                 Real Dz = yz - xz;
@@ -106,39 +83,8 @@ void farfield_tris${K.name}(
                     }
                 % endfor
 
-                % if K.name == 'elasticRT3':
-                    Real invr = rsqrt(r2);
-                    Real invr3 = invr * invr * invr;
-                    Real Q1 = CsRT1 * invr;
-                    Real Q2 = CsRT0 * invr3;
-                    Real Q3 = CsRT2 * invr3;
-                    Real Q3nD = Q3 * (nsrcx * Dx + nsrcy * Dy + nsrcz * Dz);
+                ${prim.call_vector_code(K)}
 
-
-
-                    % for d_obs in range(3):
-                    % for d_src in range(3):
-                    % for Ij in range(3):
-                    {
-                        Real A = Q1 * ${e[Ij][d_obs][d_src]};
-                        Real B = 0.0; 
-                        % for Ip in range(3):
-                            B += ${e[Ij][Ip][d_src]} * D${dn(Ip)};
-                        % endfor
-                        B = Q2 * D${dn(d_obs)} * B;
-                        sum${dn(d_obs)} += (A + B) * src_surf_curl[${d_src}][${Ij}];;
-                    }
-                    % endfor
-                    % endfor
-                    % endfor
-
-                    % for d in range(3):
-                        sum${dn(d)} += Q3nD * in${dn(d)};
-                    % endfor
-
-                % else:
-                    ${K.vector_code}
-                % endif
                 for (int b_obs = 0; b_obs < 3; b_obs++) {
                     % for d_obs in range(3):
                     sum[b_obs * 3 + ${d_obs}] += factor * obsb[b_obs] * sum${dn(d_obs)};

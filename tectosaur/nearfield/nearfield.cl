@@ -2,7 +2,7 @@
 from tectosaur.nearfield.pairs_integrator import pairs_func_name
 from tectosaur.kernels import elastic_kernels, kernels
 
-K = elastic_kernels[kernel_name]
+K = kernels[kernel_name]
 
 def dn(dim):
     return ['x', 'y', 'z'][dim]
@@ -15,8 +15,8 @@ ${cluda_preamble}
 <%namespace name="prim" file="../integral_primitives.cl"/>
 
 <%def name="integrate_pair(K, check0)">
-    ${prim.tri_info("obs", "nobs", K.needs_obsn)}
-    ${prim.tri_info("src", "nsrc", K.needs_srcn)}
+    ${prim.tri_info("obs", "nobs", K.needs_obsn, K.surf_curl_obs)}
+    ${prim.tri_info("src", "nsrc", K.needs_srcn, K.surf_curl_src)}
 
     Real result_temp[81];
     Real kahanC[81];
@@ -54,26 +54,7 @@ ${cluda_preamble}
         }
         % endif
 
-        Real Karr[9];
-        ${K.tensor_code}
-        obsb[0] *= quadw;
-        obsb[1] *= quadw;
-        obsb[2] *= quadw;
-
-        int idx = 0;
-        for (int b_obs = 0; b_obs < 3; b_obs++) {
-        for (int d_obs = 0; d_obs < 3; d_obs++) {
-        for (int b_src = 0; b_src < 3; b_src++) {
-        for (int d_src = 0; d_src < 3; d_src++, idx++) {
-            Real val = obsb[b_obs] * srcb[b_src] * Karr[d_obs * 3 + d_src];
-            Real y = val - kahanC[idx];
-            Real t = result_temp[idx] + y;
-            kahanC[idx] = (t - result_temp[idx]) - y;
-            result_temp[idx] = t;
-        }
-        }
-        }
-        }
+        ${prim.call_tensor_code(K)}
     }
 </%def>
 
