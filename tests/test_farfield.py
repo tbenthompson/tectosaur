@@ -8,9 +8,7 @@ from tectosaur.util.geometry import normalize
 from tectosaur.mesh.mesh_gen import make_rect
 from tectosaur.mesh.modify import concat
 
-def make_meshes():
-    n_m = 8
-    sep = 2
+def make_meshes(n_m = 8, sep = 2):
     m1 = make_rect(n_m, n_m, [
         [-1, 0, 1], [-1, 0, -1],
         [1, 0, -1], [1, 0, 1]
@@ -37,48 +35,6 @@ def test_tri_tri_farfield():
     out1 = T1.dot(in_vals)
     out2 = T2.dot(in_vals)
     np.testing.assert_almost_equal(out1, out2)
-
-def regularized_tester(K):
-    full_K_name = f'elastic{K}3'
-    full_RK_name = f'elasticR{K}3'
-    m, surf1_idxs, surf2_idxs = make_meshes()
-    T1, T2 = [
-        C(
-            2, K, [1.0,0.25], m[0], m[1],
-            np.float32, obs_subset = surf1_idxs,
-            src_subset = surf2_idxs
-        ) for C, K in [
-            (PtToPtDirectFarfieldOp, 'elasticT3'),
-            (TriToTriDirectFarfieldOp, 'elasticRT3')
-        ]
-    ]
-
-    dof_pts = m[0][m[1][surf2_idxs]]
-    dof_pts[:,:,1] -= dof_pts[0,0,1]
-
-    def gaussian(a, b, c, x):
-        return a * np.exp(-((x - b) ** 2) / (2 * c ** 2))
-    dist = np.linalg.norm(dof_pts.reshape(-1,3), axis = 1)
-    slip = np.zeros((dof_pts.shape[0] * 3, 3))
-    for d in range(3):
-        slip[:,d] = gaussian(0.1 * d, 0.0, 0.3, dist)
-
-    should_plot = False
-    if should_plot:
-        import matplotlib.pyplot as plt
-        pts_slip = np.zeros(m[0].shape[0])
-        pts_slip[m[1][surf2_idxs]] = slip[:,0].reshape((-1,3))
-        plt.tricontourf(m[0][:,0], m[0][:,2], m[1], np.log10(np.abs(pts_slip) + 1e-12))
-        plt.colorbar()
-        plt.show()
-
-    slip_flat = slip.flatten()
-    out1 = T1.dot(slip_flat)
-    out2 = T2.dot(slip_flat)
-    np.testing.assert_almost_equal(out1, out2, 6)
-
-def test_regularized_T_farfield():
-    regularized_tester('A')
 
 def timing(n, runtime, name, flops):
     print("for " + name)

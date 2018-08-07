@@ -235,6 +235,28 @@ elasticRT = Kernel(
     surf_curl_src = True
 )
 
+elasticRA = Kernel(
+    'elasticRA3', 3, 3, True, False, -3, 1, False,
+    '''
+    const Real nu = params[1];
+    const Real CsRT0 = -1.0 / (8.0 * M_PI * (1.0 - nu));
+    const Real CsRT1 = -(1 - 2 * nu) / (8.0 * M_PI * (1.0 - nu));
+    const Real CsRT2 = -1.0 / (4 * M_PI);
+    ''',
+    '', '',
+    surf_curl_obs = True,
+    surf_curl_src = False
+)
+
+elasticRH = Kernel(
+    'elasticRH3', 3, 3, True, True, -3, 1, False,
+    '''
+    ''',
+    '', '',
+    surf_curl_obs = True,
+    surf_curl_src = True
+)
+
 laplace2S = Kernel(
     'laplaceS2', 2, 1, False, False, 'log', 0, False, '',
     '''''',
@@ -319,6 +341,8 @@ elastic_kernels = make_kernel_dict([
 
 regularized_elastic_kernels = make_kernel_dict([
     elasticRT,
+    elasticRA,
+    elasticRH,
 ])
 
 kernels = dict(one_kernels)
