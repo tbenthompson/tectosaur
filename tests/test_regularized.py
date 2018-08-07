@@ -1,15 +1,15 @@
 import numpy as np
 from test_farfield import make_meshes
 from tectosaur.ops.sparse_integral_op import SparseIntegralOp
-from tectosaur.ops.sparse_farfield_op import TriToTriDirectFarfieldOp
-from tectosaur.ops.sparse_farfield_op import PtToPtDirectFarfieldOp
-from tectosaur.ops.mass_op import MassOp
+from tectosaur.ops.sparse_farfield_op import \
+        TriToTriDirectFarfieldOp, PtToPtDirectFarfieldOp, PtToPtFMMFarfieldOp
 
 def regularized_tester(K, sep, continuity):
+    n_m = 20
     full_K_name = f'elastic{K}3'
     full_RK_name = f'elasticR{K}3'
-    m, surf1_idxs, surf2_idxs = make_meshes(n_m = 8, sep = sep)
-    op1, op2 = [
+    m, surf1_idxs, surf2_idxs = make_meshes(n_m = n_m, sep = sep)
+    ops = [
         # SparseIntegralOp(
         #     6, 2, 5, 2.0, K, [1.0, 0.25], m[0], m[1],
         #     np.float32, farfield_op_type = C, obs_subset = surf1_idxs,
@@ -22,10 +22,10 @@ def regularized_tester(K, sep, continuity):
             src_subset = surf2_idxs
         ) for C, Kn in [
             (PtToPtDirectFarfieldOp, full_K_name),
-            (TriToTriDirectFarfieldOp, full_RK_name)
+            (TriToTriDirectFarfieldOp, full_RK_name),
+            # (PtToPtFMMFarfieldOp(150, 2.5, 5), full_K_name)
         ]
     ]
-    mass_op = MassOp(3, m[0], m[1])
 
     dof_pts = m[0][m[1][surf2_idxs]]
     dof_pts[:,:,1] -= dof_pts[0,0,1]
@@ -39,8 +39,7 @@ def regularized_tester(K, sep, continuity):
 
 
     slip_flat = slip.flatten()
-    out1 = op1.dot(slip_flat)
-    out2 = op2.dot(slip_flat)
+    outs = [o.dot(slip_flat) for o in ops]
 
     should_plot = False
     def plot_at_pts(idxs, f):
@@ -56,8 +55,8 @@ def regularized_tester(K, sep, continuity):
         out2[np.isinf(out2)] = 1e-10
         out2[np.abs(out2) < 1e-30] = 1e-10
 
-        plot_at_pts(surf1_idxs, np.log10(np.abs(out1.reshape(-1,3,3)[:,:,1]) + 1e-40))
-        plot_at_pts(surf1_idxs, np.log10(np.abs(out2.reshape(-1,3,3)[:,:,1]) + 1e-40))
+        for o in ops:
+            plot_at_pts(surf1_idxs, np.log10(np.abs(o.reshape(-1,3,3)[:,:,1]) + 1e-40))
 
     if continuity:
         from tectosaur.constraint_builders import continuity_constraints, \
@@ -65,19 +64,20 @@ def regularized_tester(K, sep, continuity):
         from tectosaur.constraints import build_constraint_matrix
         cs = continuity_constraints(m[1][surf1_idxs], np.array([]))
         cs.extend(free_edge_constraints(m[1][surf1_idxs]))
-        cm, c_rhs = build_constraint_matrix(cs, out2.shape[0])
-        out1 = cm.T.dot(out1)
-        out2 = cm.T.dot(out2)
+        cm, c_rhs = build_constraint_matrix(cs, outs[0].shape[0])
+        final_outs = [cm.T.dot(v) for v in outs]
+    else:
+        final_outs = outs
 
-    print(out1 / out2)
-
-    np.testing.assert_almost_equal(out1, out2, 6)
+    for i in range(len(outs)):
+        print(outs[0] / outs[i])
+        np.testing.assert_almost_equal(outs[0], outs[i], 6)
 
 def test_regularized_T_farfield():
-    regularized_tester('T', 2.0, False)
+    regularized_tester('T', 4.0, False)
 
 def test_regularized_A_farfield():
-    regularized_tester('A', 2.0, True)
+    regularized_tester('A', 4.0, True)
 
 def test_regularized_H_farfield():
     regularized_tester('H', 4.0, True)
