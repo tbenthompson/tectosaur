@@ -84,7 +84,7 @@ def dn(dim):
         for (int b_src = 0; b_src < 3; b_src++) {
         for (int b_obs = 0; b_obs < 3; b_obs++) {
             int idx = b_obs * 27 + ${d_obs} * 9 + b_src * 3 + ${d_src};
-            result_temp[idx] += Kval 
+            result_temp[idx] -= Kval 
                 * bobs_surf_curl[b_obs][${It}] 
                 * bsrc_surf_curl[b_src][${Im}];;
         }

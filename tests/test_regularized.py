@@ -92,4 +92,4 @@ def test_regularized_A_farfield():
     regularized_tester('A', 2.0, True)
 
 def test_regularized_H_farfield():
-    regularized_tester('H', 2.0, True)
+    regularized_tester('H', 4.0, True)
