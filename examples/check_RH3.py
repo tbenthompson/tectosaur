@@ -58,23 +58,14 @@ def build_constraints(surface_tris, fault_tris, pts):
 
     return cs
 
-def any_nearfield(data, obs_subset, src_subset, near_threshold):
-    pts, tris = data.all_mesh
-    close_or_touch_pairs = find_near_adj.find_close_or_touching(
-        pts, tris[obs_subset], pts, tris[src_subset], near_threshold
-    )
-    nearfield_pairs_dofs, va_dofs, ea_dofs = find_near_adj.split_adjacent_close(
-        close_or_touch_pairs, tris[obs_subset], tris[src_subset]
-    )
-    return nearfield_pairs_dofs.shape[0] > 0
-
 def build_and_solve_T(data):
     allow_nearfield = True
     near_threshold = 2.0
     if not allow_nearfield:
         if any_nearfield(
-                data, data.surf_tri_idxs,
-                data.fault_tri_idxs, near_threshold
+                data.all_mesh[0], data.all_mesh[1],
+                data.surf_tri_idxs, data.fault_tri_idxs,
+                near_threshold
                 ):
             raise Exception("nearfield interactions not allowed!")
         else:

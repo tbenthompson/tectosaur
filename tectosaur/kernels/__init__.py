@@ -251,6 +251,11 @@ elasticRA = Kernel(
 elasticRH = Kernel(
     'elasticRH3', 3, 3, True, True, -3, 1, False,
     '''
+    const Real G = params[0];
+    const Real nu = params[1];
+    const Real CsRH0 = -G / (8.0 * M_PI * (1 - nu));
+    const Real CsRH1 = 2 * (1 - nu);
+    const Real CsRH2 = 4 * nu;
     ''',
     '', '',
     surf_curl_obs = True,

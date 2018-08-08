@@ -26,40 +26,78 @@ def dn(dim):
     Real Gimk = A + Q2 * D${dn(p)} * B;
 </%def>
 
-<%def name="elasticRT3_tensor()">
-    ${elasticRTA3_setup('src')}
-
+<%def name="elasticRTA3_tensor(L, R)">
     % for d_obs in range(3):
-    for (int b_src = 0; b_src < 3; b_src++) {
     % for d_src in range(3):
+    <%
+        L_d = d_obs if L == 'obs' else d_src
+        R_d = d_src if L == 'obs' else d_obs
+    %>
+    for (int b_${R} = 0; b_${R} < 3; b_${R}++) {
     {
         Real Kval = 0.0;
         %for Ij in range(3):
         {
-            Real A = Q1 * ${e[Ij][d_obs][d_src]};
-            Real B = 0.0;
-            % for Ip in range(3):
-                B += ${e[Ij][Ip][d_src]} * D${dn(Ip)};
-            % endfor
-            B = Q2 * D${dn(d_obs)} * B;
-            Kval += (A + B) * bsrc_surf_curl[b_src][${Ij}];
+            ${Gimk(L_d, Ij, R_d)}
+            Kval += Gimk * b${R}_surf_curl[b_${R}][${Ij}];
         }
         % endfor
         % if d_obs == d_src:
-            Kval += Q3nD * srcb[b_src];
+            Kval += Q3nD * ${R}b[b_${R}] * ${1 if L == 'obs' else -1};
         % endif
-        for (int b_obs = 0; b_obs < 3; b_obs++) {
-            Real val = quadw * obsb[b_obs] * Kval;
+        for (int b_${L} = 0; b_${L} < 3; b_${L}++) {
+            Real val = quadw * ${L}b[b_${L}] * Kval;
             int idx = b_obs * 27 + ${d_obs} * 9 + b_src * 3 + ${d_src};
             result_temp[idx] += val;
         }
     }
-    % endfor
     }
+    % endfor
+    % endfor
+</%def>
+
+<%def name="elasticRT3_tensor()">
+    ${elasticRTA3_setup('src')}
+    ${elasticRTA3_tensor('obs', 'src')}
+</%def>
+
+<%def name="elasticRA3_tensor()">
+    ${elasticRTA3_setup('obs')}
+    ${elasticRTA3_tensor('src', 'obs')}
+</%def>
+
+<%def name="elasticRH3_tensor()">
+    const Real invr2 = 1.0 / r2;
+    const Real invr = sqrt(invr2);
+    % for d_obs in range(3):
+    % for d_src in range(3):
+    % for It in range(3):
+    % for Im in range(3):
+    {
+        //k is d_obs, j is d_src, 
+        Real Kval = quadw * CsRH0 * invr * (
+            -2 * D${dn(d_obs)} * D${dn(d_src)} * invr2 * ${kronecker[It][Im]}
+            + CsRH1 * ${kronecker[d_obs][It] * kronecker[d_src][Im]}
+            + CsRH2 * ${kronecker[d_obs][Im] * kronecker[d_src][It]}
+            - 2 * ${kronecker[d_obs][d_src] * kronecker[It][Im]}
+        );
+        for (int b_src = 0; b_src < 3; b_src++) {
+        for (int b_obs = 0; b_obs < 3; b_obs++) {
+            int idx = b_obs * 27 + ${d_obs} * 9 + b_src * 3 + ${d_src};
+            result_temp[idx] += Kval 
+                * bobs_surf_curl[b_obs][${It}] 
+                * bsrc_surf_curl[b_src][${Im}];;
+        }
+        }
+    }
+    % endfor
+    % endfor
+    % endfor
     % endfor
 </%def>
 
 <%def name="elasticRT3_vector()">
+//TODO: refactor out
     Real src_surf_curl[3][3];
     for (int Ij = 0; Ij < 3; Ij++) {
         for (int d = 0; d < 3; d++) {
@@ -125,9 +163,6 @@ def dn(dim):
         }
     }
 
-    const Real G = params[0];
-    const Real nu = params[1];
-    const Real CsRH0 = -G / (8.0 * M_PI);
     const Real invr2 = 1.0 / r2;
     const Real invr = sqrt(invr2);
     % for d_obs in range(3):

@@ -80,7 +80,7 @@ class DenseIntegralOp(DenseOp):
         return self.mat.dot(v)
 
     def dot(self, v):
-        if gpu.cuda_backend:
-            return self.gpu_dot(v)
-        else:
-            return self.np_dot(v)
+        # if gpu.cuda_backend:
+        #     return self.gpu_dot(v)
+        # else:
+        return self.np_dot(v)

@@ -1,31 +1,42 @@
 import numpy as np
 from test_farfield import make_meshes
 from tectosaur.ops.sparse_integral_op import SparseIntegralOp
+from tectosaur.ops.dense_integral_op import DenseIntegralOp
 from tectosaur.ops.sparse_farfield_op import \
         TriToTriDirectFarfieldOp, PtToPtDirectFarfieldOp, PtToPtFMMFarfieldOp
+from tectosaur.nearfield.nearfield_op import any_nearfield
 
 def regularized_tester(K, sep, continuity):
-    n_m = 20
+    n_m = 8
     full_K_name = f'elastic{K}3'
     full_RK_name = f'elasticR{K}3'
     m, surf1_idxs, surf2_idxs = make_meshes(n_m = n_m, sep = sep)
+    near_threshold = 2.0
+    if any_nearfield(m[0], m[1], surf1_idxs, surf2_idxs, near_threshold):
+        print('there are nearfield interactions')
+
     ops = [
-        # SparseIntegralOp(
-        #     6, 2, 5, 2.0, K, [1.0, 0.25], m[0], m[1],
-        #     np.float32, farfield_op_type = C, obs_subset = surf1_idxs,
-        #     src_subset = surf2_idxs
-        # ) for C, K in [
-        C(
-            2, Kn, [1.0, 0.25], m[0], m[1],
-            np.float32,
-            obs_subset = surf1_idxs,
+        SparseIntegralOp(
+            6, 2, 5, 2.0, Kn, [1.0, 0.25], m[0], m[1],
+            np.float32, farfield_op_type = C, obs_subset = surf1_idxs,
             src_subset = surf2_idxs
         ) for C, Kn in [
             (PtToPtDirectFarfieldOp, full_K_name),
             (TriToTriDirectFarfieldOp, full_RK_name),
-            # (PtToPtFMMFarfieldOp(150, 2.5, 5), full_K_name)
+            (PtToPtFMMFarfieldOp(150, 2.5, 5), full_K_name)
         ]
     ]
+    ops.append(DenseIntegralOp(
+        6, 2, 5, 2.0, full_RK_name, [1.0, 0.25], m[0], m[1],
+        np.float32, obs_subset = surf1_idxs,
+        src_subset = surf2_idxs
+    ))
+        # C(
+        #     2, Kn, [1.0, 0.25], m[0], m[1],
+        #     np.float32,
+        #     obs_subset = surf1_idxs,
+        #     src_subset = surf2_idxs
+        # ) for C, Kn in [
 
     dof_pts = m[0][m[1][surf2_idxs]]
     dof_pts[:,:,1] -= dof_pts[0,0,1]
@@ -69,15 +80,16 @@ def regularized_tester(K, sep, continuity):
     else:
         final_outs = outs
 
-    for i in range(len(outs)):
-        print(outs[0] / outs[i])
-        np.testing.assert_almost_equal(outs[0], outs[i], 6)
+    for i in range(len(final_outs)):
+        for j in range(i + 1, len(final_outs)):
+            print(i,j,final_outs[i] / final_outs[j])
+            np.testing.assert_almost_equal(final_outs[i], final_outs[j], 6)
 
 def test_regularized_T_farfield():
-    regularized_tester('T', 4.0, False)
+    regularized_tester('T', 2.0, False)
 
 def test_regularized_A_farfield():
-    regularized_tester('A', 4.0, True)
+    regularized_tester('A', 2.0, True)
 
 def test_regularized_H_farfield():
-    regularized_tester('H', 4.0, True)
+    regularized_tester('H', 2.0, True)

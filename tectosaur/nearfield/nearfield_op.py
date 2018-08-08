@@ -14,6 +14,15 @@ import tectosaur.util.gpu as gpu
 import logging
 logger = logging.getLogger(__name__)
 
+def any_nearfield(pts, tris, obs_subset, src_subset, near_threshold):
+    close_or_touch_pairs = find_near_adj.find_close_or_touching(
+        pts, tris[obs_subset], pts, tris[src_subset], near_threshold
+    )
+    nearfield_pairs_dofs, va_dofs, ea_dofs = find_near_adj.split_adjacent_close(
+        close_or_touch_pairs, tris[obs_subset], tris[src_subset]
+    )
+    return nearfield_pairs_dofs.shape[0] > 0
+
 def to_dof_space(tri_indices, obs_subset, src_subset):
     dof_space_indices = []
     for pair in tri_indices:
