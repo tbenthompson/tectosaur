@@ -54,6 +54,89 @@ def build_nearfield(shape, *mats):
         out.append(bcoo)
     return out
 
+class RegularizedNearfieldIntegralOp:
+    def __init__(self, pts, tris, obs_subset, src_subset,
+            nq_vert_adjacent, nq_far, nq_near, near_threshold,
+            kernel, params, float_type):
+
+        nq_coincident = 10
+        nq_edge_adj = 10
+
+        n_obs_dofs = obs_subset.shape[0] * 9
+        n_src_dofs = src_subset.shape[0] * 9
+        self.shape = (n_obs_dofs, n_src_dofs)
+
+        timer = Timer(output_fnc = logger.debug, tabs = 1)
+        pairs_int = PairsIntegrator(kernel, params, float_type, nq_far, nq_near, pts, tris)
+        timer.report('setup pairs integrator')
+
+        co_tris = np.intersect1d(obs_subset, src_subset)
+        co_indices = np.array([co_tris, co_tris]).T.copy()
+        co_dofs = to_dof_space(co_indices, obs_subset, src_subset)
+
+        # co_mat = coincident_table(kernel, params, pts[tris[co_tris]], float_type)
+        co_mat = pairs_int.coincident(nq_coincident, co_indices)
+
+        timer.report("Coincident")
+        co_mat_correction = pairs_int.correction(co_indices, True)
+        timer.report("Coincident correction")
+
+        close_or_touch_pairs = find_near_adj.find_close_or_touching(
+            pts, tris[obs_subset], pts, tris[src_subset], near_threshold
+        )
+        nearfield_pairs_dofs, va_dofs, ea_dofs = find_near_adj.split_adjacent_close(
+            close_or_touch_pairs, tris[obs_subset], tris[src_subset]
+        )
+        nearfield_pairs = to_tri_space(nearfield_pairs_dofs, obs_subset, src_subset)
+        va = to_tri_space(va_dofs, obs_subset, src_subset)
+        ea = to_tri_space(ea_dofs, obs_subset, src_subset)
+        timer.report("Find nearfield/adjacency")
+
+        # ea_mat_rot = adjacent_table(nq_vert_adjacent, 'elasticT3', params, pts, tris, ea, float_type)
+        ea_mat_rot = pairs_int.edge_adj(nq_edge_adj, ea)
+        timer.report("Edge adjacent")
+        ea_mat_correction = pairs_int.correction(ea, False)
+        timer.report("Edge adjacent correction")
+
+        va_mat_rot = pairs_int.vert_adj(nq_vert_adjacent, va)
+        timer.report("Vert adjacent")
+        va_mat_correction = pairs_int.correction(va[:,:2], False)
+        timer.report("Vert adjacent correction")
+
+        nearfield_mat = pairs_int.nearfield(nearfield_pairs)
+        timer.report("Nearfield")
+        nearfield_correction = pairs_int.correction(nearfield_pairs, False)
+        timer.report("Nearfield correction")
+
+        self.mat = build_nearfield(
+            self.shape,
+            (co_mat - co_mat_correction, co_dofs),
+            (ea_mat_rot - ea_mat_correction, ea_dofs[:,:2]),
+            (va_mat_rot - va_mat_correction, va_dofs[:,:2]),
+            (nearfield_mat - nearfield_correction, nearfield_pairs_dofs)
+        )
+        timer.report("Assemble matrix")
+        self.mat_no_correction = build_nearfield(
+            self.shape,
+            (co_mat, co_dofs),
+            (ea_mat_rot, ea_dofs[:,:2]),
+            (va_mat_rot, va_dofs[:,:2]),
+            (nearfield_mat, nearfield_pairs_dofs),
+        )
+        timer.report("Assemble uncorrected matrix")
+
+    def dot(self, v):
+        return sum(arr.dot(v) for arr in self.mat)
+
+    def nearfield_no_correction_dot(self, v):
+        return sum(arr.dot(v) for arr in self.mat_no_correction)
+
+    def to_dense(self):
+        return sum([mat.to_bsr().to_scipy().todense() for mat in self.mat])
+
+    def no_correction_to_dense(self):
+        return sum([mat.to_bsr().to_scipy().todense() for mat in self.mat_no_correction])
+
 class NearfieldIntegralOp:
     def __init__(self, pts, tris, obs_subset, src_subset,
             nq_vert_adjacent, nq_far, nq_near, near_threshold,

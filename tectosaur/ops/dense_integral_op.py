@@ -1,6 +1,7 @@
 import numpy as np
 
-from tectosaur.nearfield.nearfield_op import NearfieldIntegralOp
+from tectosaur.nearfield.nearfield_op import NearfieldIntegralOp, \
+    RegularizedNearfieldIntegralOp
 from tectosaur.nearfield.pairs_integrator import get_gpu_module
 from tectosaur.util.quadrature import gauss4d_tri
 from tectosaur.ops.dense_op import DenseOp
@@ -84,3 +85,35 @@ class DenseIntegralOp(DenseOp):
         #     return self.gpu_dot(v)
         # else:
         return self.np_dot(v)
+
+#TODO: combine with the non-regularized one, figure out the seams
+class RegularizedDenseIntegralOp(DenseOp):
+    def __init__(self, nq_vert_adjacent, nq_far, nq_near,
+            near_threshold, kernel, params, pts, tris, float_type,
+            obs_subset = None, src_subset = None):
+
+        if obs_subset is None:
+            obs_subset = np.arange(tris.shape[0])
+        if src_subset is None:
+            src_subset = np.arange(tris.shape[0])
+
+        self.float_type = float_type
+
+        nearfield = RegularizedNearfieldIntegralOp(
+            pts, tris, obs_subset, src_subset,
+            nq_vert_adjacent, nq_far, nq_near,
+            near_threshold, kernel, params, float_type
+        ).no_correction_to_dense()
+
+        farfield = farfield_tris(
+            kernel, params, pts, tris[obs_subset], tris[src_subset], nq_far, float_type
+        ).reshape(nearfield.shape)
+
+        self.mat = np.where(np.abs(nearfield) > 0, nearfield, farfield)
+        #TODO: fix and use a non-hacky way of deciding when to use the nearfield!
+        self.mat[np.isnan(self.mat)] = 0.0
+        self.shape = self.mat.shape
+        self.gpu_mat = None
+
+    def dot(self, v):
+        return self.mat.dot(v)

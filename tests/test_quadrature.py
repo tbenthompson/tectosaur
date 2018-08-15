@@ -1,5 +1,6 @@
 from tectosaur.util.quadrature import *
 from tectosaur.nearfield.limit import richardson_quad
+from tectosaur.nearfield.triangle_rules import *
 
 import numpy as np
 
@@ -47,3 +48,34 @@ def test_gauss4d_tri():
 
     result = quadrature(lambda x: (x[:,0] * x[:,1] * x[:,2] * x[:,3]) ** 2, q)
     np.testing.assert_almost_equal(result, 1.0 / (180.0 ** 2), 10)
+
+def check_simple(q, digits):
+    est = quadrature(lambda p: 1.0, q)
+    np.testing.assert_almost_equal(est, 0.25, digits)
+
+    est = quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q)
+    correct = 1.0 / 576.0
+    np.testing.assert_almost_equal(est, correct, digits)
+
+    est = quadrature(lambda p: p[:,0]**6*p[:,1]*p[:,3], q)
+    correct = 1.0 / 3024.0
+    np.testing.assert_almost_equal(est, correct, digits)
+
+    est = quadrature(lambda p: p[:,0]*p[:,2]**6*p[:,3], q)
+    correct = 1.0 / 3024.0
+    np.testing.assert_almost_equal(est, correct, digits)
+
+def test_vertex_adjacent_simple():
+    nq = 8
+    q = vertex_adj_quad(nq, nq, nq)
+    check_simple(q, 7)
+
+def test_coincident_simple():
+    nq = 5
+    q = coincident_quad(nq * 8, nq, nq)
+    check_simple(q, 7)
+
+def test_edge_adj_simple():
+    nq = 5
+    q = edge_adj_quad(nq * 8, nq, nq)
+    check_simple(q, 7)

@@ -48,3 +48,72 @@ def vertex_adj_quad(n_theta, n_beta, n_alpha):
     theta_p_integral()
     return np.array(pts), np.array(wts)
 
+def coincident_quad(n_theta, n_rho, n_outer):
+    q_theta = quad.gaussxw(n_theta)
+    q_rho = quad.gaussxw(n_rho)
+    q_outer = quad.gauss2d_tri(n_outer)
+
+    theta_lims = [
+        lambda x, y: -np.arctan(y / (1 - x)),
+        lambda x, y: np.pi - np.arctan((1 - y) / x),
+        lambda x, y: np.pi + np.arctan(y / x),
+    ]
+    rho_lims = [
+        lambda x, y, t: (1 - y - x) / (np.cos(t) + np.sin(t)),
+        lambda x, y, t: -x / np.cos(t),
+        lambda x, y, t: -y / np.sin(t)
+    ]
+
+    pts = []
+    wts = []
+    for I in range(3):
+        for (obsxhat, obsyhat), wouter in zip(*q_outer):
+            T1 = theta_lims[I](obsxhat, obsyhat)
+            T2 = theta_lims[(I + 1) % 3](obsxhat, obsyhat)
+            if T2 < T1:
+                T2 += 2 * np.pi
+            for theta, wtheta in zip(*quad.map_to(q_theta, [T1, T2])):
+                Rmax = rho_lims[I](obsxhat, obsyhat, theta)
+                for rho, wrho in zip(*quad.map_to(q_rho, [0, Rmax])):
+                    w = wouter * wrho * wtheta * rho
+                    srcxhat = obsxhat + rho * np.cos(theta)
+                    srcyhat = obsyhat + rho * np.sin(theta)
+                    pts.append((obsxhat, obsyhat, srcxhat, srcyhat))
+                    wts.append(w)
+
+    return np.array(pts), np.array(wts)
+
+
+def edge_adj_quad(n_theta, n_rho, n_outer):
+    q_theta = quad.gaussxw(n_theta)
+    q_rho = quad.gaussxw(n_rho)
+    q_outer = quad.gauss2d_tri(n_outer)
+
+    theta_lims = [
+        lambda x: 0,
+        lambda x: np.pi - np.arctan(1 / (1 - x)),
+        lambda x: np.pi
+    ]
+    rho_lims = [
+        lambda x, t: x / (np.cos(t) + np.sin(t)),
+        lambda x, t: -(1 - x) / np.cos(t)
+    ]
+
+    pts = []
+    wts = []
+    for I in range(2):
+        for (obsxhat, obsyhat), wouter in zip(*q_outer):
+            T1 = theta_lims[I](obsxhat)
+            T2 = theta_lims[I + 1](obsxhat)
+            for theta, wtheta in zip(*quad.map_to(q_theta, [T1, T2])):
+                Rmax = rho_lims[I](obsxhat, theta)
+                for rho, wrho in zip(*quad.map_to(q_rho, [0, Rmax])):
+                    w = wouter * wrho * wtheta * rho
+
+                    srcxhat = rho * np.cos(theta) + (1 - obsxhat)
+                    srcyhat = rho * np.sin(theta)
+
+                    pts.append((obsxhat, obsyhat, srcxhat, srcyhat))
+                    wts.append(w)
+
+    return np.array(pts), np.array(wts)

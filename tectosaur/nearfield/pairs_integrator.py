@@ -77,3 +77,13 @@ class PairsIntegrator:
         q = triangle_rules.vertex_adj_quad(nq[0], nq[1], nq[2])
         gpu_q = self.quad_to_gpu(q)
         return self.pairs_quad(integrator, gpu_q, pairs_list)
+
+    def coincident(self, nq, pairs_list):
+        q = triangle_rules.coincident_quad(nq, nq, nq)
+        co_q = self.quad_to_gpu(q)
+        return self.pairs_quad(self.get_gpu_fnc(True), co_q, pairs_list)
+
+    def edge_adj(self, nq, pairs_list):
+        q = triangle_rules.edge_adj_quad(nq, nq, nq)
+        co_q = self.quad_to_gpu(q)
+        return self.pairs_quad(self.get_gpu_fnc(True), co_q, pairs_list)

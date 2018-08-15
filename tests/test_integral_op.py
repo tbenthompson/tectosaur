@@ -167,24 +167,6 @@ def test_full_integral_op_nofmm_fast(request):
     )
     return dense_op.mat
 
-def check_simple(q, digits):
-    est = quad.quadrature(lambda p: p[:,0]*p[:,1]*p[:,2]*p[:,3], q)
-    correct = 1.0 / 576.0
-    np.testing.assert_almost_equal(est, correct, digits)
-
-    est = quad.quadrature(lambda p: p[:,0]**6*p[:,1]*p[:,3], q)
-    correct = 1.0 / 3024.0
-    np.testing.assert_almost_equal(est, correct, digits)
-
-    est = quad.quadrature(lambda p: p[:,0]*p[:,2]**6*p[:,3], q)
-    correct = 1.0 / 3024.0
-    np.testing.assert_almost_equal(est, correct, digits)
-
-def test_vertex_adjacent_simple():
-    nq = 8
-    q = triangle_rules.vertex_adj_quad(nq, nq, nq)
-    check_simple(q, 7)
-
 def test_mass_op():
     m = mesh_gen.make_rect(2, 2, [[0,0,0],[1,0,0],[1,1,0],[0,1,0]])
     op = mass_op.MassOp(3, m[0], m[1])
