@@ -88,8 +88,8 @@ class DenseIntegralOp(DenseOp):
 
 #TODO: combine with the non-regularized one, figure out the seams
 class RegularizedDenseIntegralOp(DenseOp):
-    def __init__(self, nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, kernel, params, pts, tris, float_type,
+    def __init__(self, nq_coincident, nq_edge_adj, nq_vert_adjacent, nq_far, nq_near,
+            near_threshold, K_near_name, K_far_name, params, pts, tris, float_type,
             obs_subset = None, src_subset = None):
 
         if obs_subset is None:
@@ -101,12 +101,12 @@ class RegularizedDenseIntegralOp(DenseOp):
 
         nearfield = RegularizedNearfieldIntegralOp(
             pts, tris, obs_subset, src_subset,
-            nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, kernel, params, float_type
+            nq_coincident, nq_edge_adj, nq_vert_adjacent, nq_far, nq_near,
+            near_threshold, K_near_name, K_far_name, params, float_type
         ).no_correction_to_dense()
 
         farfield = farfield_tris(
-            kernel, params, pts, tris[obs_subset], tris[src_subset], nq_far, float_type
+            K_far_name, params, pts, tris[obs_subset], tris[src_subset], nq_far, float_type
         ).reshape(nearfield.shape)
 
         self.mat = np.where(np.abs(nearfield) > 0, nearfield, farfield)

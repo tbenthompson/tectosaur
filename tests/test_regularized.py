@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from test_farfield import make_meshes
-from tectosaur.ops.sparse_integral_op import SparseIntegralOp
+from tectosaur.ops.sparse_integral_op import SparseIntegralOp, RegularizedSparseIntegralOp
 from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
 from tectosaur.ops.sparse_farfield_op import \
         TriToTriDirectFarfieldOp, PtToPtDirectFarfieldOp, PtToPtFMMFarfieldOp
@@ -32,7 +32,7 @@ def plot_fnc(m, surf1_idxs, surf2_idxs, slip, outs):
 
     for d in range(3):
         for o in outs:
-            plot_at_pts(surf1_idxs, np.abs(o.reshape(-1,3,3)[:,:,d] + 1e-40))
+            plot_at_pts(surf1_idxs, o.reshape(-1,3,3)[:,:,d])
         plt.show()
 
 
@@ -46,6 +46,9 @@ def regularized_tester(K, sep, continuity, mass_op_factor = 0.0):
         surf2_idxs = surf1_idxs
 
     near_threshold = 2.0
+    nq_near = 5
+    nq_far = 2
+
     if any_nearfield(m[0], m[1], surf1_idxs, surf2_idxs, near_threshold):
         nearfield = True
     else:
@@ -61,39 +64,46 @@ def regularized_tester(K, sep, continuity, mass_op_factor = 0.0):
             args[1] = full_RK_name
             return TriToTriDirectFarfieldOp(*args)
         sparse_ops.extend([
+            # unregularized FMM
             (PtToPtFMMFarfieldOp(150, 2.5, 5), full_K_name),
+            #
             (change_K_tri_tri, full_K_name)
         ])
 
-    nq_near = 5
+
+    # Sparse, maybe regularized
     ops = [
         SparseIntegralOp(
-            6, 2, nq_near, 2.0, Kn, [1.0, 0.25], m[0], m[1],
+            6, nq_far, nq_near, near_threshold, Kn, [1.0, 0.25], m[0], m[1],
             np.float32, farfield_op_type = C, obs_subset = surf1_idxs,
             src_subset = surf2_idxs
         ) for C, Kn in sparse_ops
     ]
+
+    # Dense regularized
     ops.append(SumOp([
         RegularizedDenseIntegralOp(
-            6, 2, nq_near, 2.0, full_RK_name, [1.0, 0.25], m[0], m[1],
-            np.float32, obs_subset = surf1_idxs,
-            src_subset = surf2_idxs
+            10, 10, 6, nq_far, nq_near, near_threshold, full_RK_name, full_RK_name,
+            [1.0, 0.25], m[0], m[1], np.float32,
+            obs_subset = surf1_idxs, src_subset = surf2_idxs
         ),
         MultOp(MassOp(3, m[0], m[1][surf1_idxs]), mass_op_factor)
     ]))
 
-    # def change_K_tri_tri(*args):
-    #     args = list(args)
-    #     args[1] = full_K_name
-    #     return PtToPtFMMFarfieldOp(150, 2.5, 5)
-    # ops.append(SumOp([
-    #     RegularizedDenseIntegralOp(
-    #         6, 2, nq_near, 2.0, full_RK_name, [1.0, 0.25], m[0], m[1],
-    #         np.float32, obs_subset = surf1_idxs,
-    #         src_subset = surf2_idxs
-    #     ),
-    #     MultOp(MassOp(3, m[0], m[1][surf1_idxs]), mass_op_factor)
-    # ]))
+    # Sparse regularized nearfield, FMM farfield
+    ops.append(SumOp([
+        RegularizedSparseIntegralOp(
+            10, 10, 6, nq_far, nq_near, near_threshold, full_RK_name, full_K_name,
+            [1.0, 0.25], m[0], m[1],
+            np.float32,
+            TriToTriDirectFarfieldOp,
+            # PtToPtFMMFarfieldOp(150, 2.5, 5),
+            obs_subset = surf1_idxs, src_subset = surf2_idxs
+        ),
+        MultOp(MassOp(3, m[0], m[1][surf1_idxs]), mass_op_factor)
+    ]))
+
+    print('built ops')
 
     dof_pts = m[0][m[1][surf2_idxs]]
     dof_pts[:,:,1] -= dof_pts[0,0,1]
@@ -104,7 +114,6 @@ def regularized_tester(K, sep, continuity, mass_op_factor = 0.0):
     slip = np.zeros((dof_pts.shape[0] * 3, 3))
     for d in range(3):
         slip[:,d] = gaussian(0.1 * (d + 1), 0.0, 0.3, dist)
-
 
     slip_flat = slip.flatten()
     outs = [o.dot(slip_flat) for o in ops]
