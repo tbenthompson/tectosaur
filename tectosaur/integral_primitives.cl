@@ -38,30 +38,61 @@ WITHIN_KERNEL int positive_mod(int i, int n) {
 }
 </%def>
 
-<%def name="get_triangle(name, tris)">
-Real ${name}[3][3];
-for (int c = 0; c < 3; c++) {
-    int pt_idx = ${tris}[3 * ${name}_idx + positive_mod(c + ${name}_rot_clicks, 3)];
-    for (int d = 0; d < 3; d++) {
-        ${name}[c][d] = pts[pt_idx * 3 + d];
-    }
-}
-</%def>
-
-<%def name="tri_info(prefix, normal_prefix, need_normal, need_surf_curl)">
-Real ${prefix}_unscaled_normal[3];
-get_unscaled_normal(${prefix}_tri, ${prefix}_unscaled_normal);
-Real ${prefix}_normal_length = magnitude(${prefix}_unscaled_normal);
-Real ${prefix}_jacobian = ${prefix}_normal_length;
+<%def name="decl_tri_info(name, need_normal, need_surf_curl)">
+Real ${name}_tri[3][3];
+Real ${name}_unscaled_normal[3];
+Real ${name}_normal_length;
+Real ${name}_jacobian;
 % if need_normal:
     % for dim in range(3):
-    Real ${normal_prefix}${dn(dim)} = 
-        ${prefix}_unscaled_normal[${dim}] / ${prefix}_normal_length;
+        Real n${name}${dn(dim)};
     % endfor
 % endif
 % if need_surf_curl:
-    ${surf_curl_basis(prefix)}
+    Real b${name}_surf_curl[3][3];
 % endif
+</%def>
+
+<%def name="tri_info(name, tris, need_normal, need_surf_curl)">
+for (int c = 0; c < 3; c++) {
+    int pt_idx = ${tris}[
+        3 * ${name}_tri_idx + positive_mod(c + ${name}_tri_rot_clicks, 3)
+    ];
+    for (int d = 0; d < 3; d++) {
+        ${name}_tri[c][d] = pts[pt_idx * 3 + d];
+    }
+}
+get_unscaled_normal(${name}_tri, ${name}_unscaled_normal);
+${name}_normal_length = magnitude(${name}_unscaled_normal);
+${name}_jacobian = ${name}_normal_length;
+% if need_normal:
+    % for dim in range(3):
+    n${name}${dn(dim)} = 
+        ${name}_unscaled_normal[${dim}] / ${name}_normal_length;
+    % endfor
+% endif
+% if need_surf_curl:
+    ${surf_curl_basis(name)}
+% endif
+</%def>
+
+<%def name="surf_curl_basis(name)">
+// The output is indexed as:
+// b{name}_surf_curl[basis_idx][curl_component]
+{
+    Real g1[3];
+    Real g2[3];
+    sub(${name}_tri[1], ${name}_tri[0], g1);
+    sub(${name}_tri[2], ${name}_tri[0], g2);
+    for (int basis_idx = 0; basis_idx < 3; basis_idx++) {
+        for (int s = 0; s < 3; s++) {
+            b${name}_surf_curl[basis_idx][s] = (
+                + basis_gradient[basis_idx][0] * g2[s] 
+                - basis_gradient[basis_idx][1] * g1[s]
+            ) / ${name}_jacobian;
+        }
+    }
+}
 </%def>
 
 <%def name="basis(prefix)">
@@ -70,25 +101,6 @@ Real ${prefix}b[3] = {
 };
 </%def>
 
-<%def name="surf_curl_basis(prefix)">
-// The output is indexed as:
-// b{prefix}_surf_curl[basis_idx][curl_component]
-Real b${prefix}_surf_curl[3][3];
-{
-    Real g1[3];
-    Real g2[3];
-    sub(${prefix}_tri[1], ${prefix}_tri[0], g1);
-    sub(${prefix}_tri[2], ${prefix}_tri[0], g2);
-    for (int basis_idx = 0; basis_idx < 3; basis_idx++) {
-        for (int s = 0; s < 3; s++) {
-            b${prefix}_surf_curl[basis_idx][s] = (
-                + basis_gradient[basis_idx][0] * g2[s] 
-                - basis_gradient[basis_idx][1] * g1[s]
-            ) / ${prefix}_jacobian;
-        }
-    }
-}
-</%def>
 
 <%def name="pts_from_basis(pt_pfx,basis_pfx,tri_name,ndims)">
 % for dim in range(ndims):

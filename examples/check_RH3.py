@@ -14,49 +14,11 @@ from tectosaur.ops.composite_op import CompositeOp
 from tectosaur.ops.sum_op import SumOp
 from tectosaur.util.timer import Timer
 
-from okada import Okada
+from okada import Okada, build_constraints, abs_fault_slip
 import solve
 
 from tectosaur.util.logging import setup_root_logger
 logger = setup_root_logger(__name__)
-
-def get_fault_slip(pts, fault_tris):
-    dof_pts = pts[fault_tris]
-    x = dof_pts[:,:,0]
-    z = dof_pts[:,:,2]
-    mean_z = np.mean(z)
-    slip = np.zeros((fault_tris.shape[0], 3, 3))
-    slip[:,:,0] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
-    slip[:,:,1] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
-    slip[:,:,2] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
-    # slip[:,:,0] = np.exp(-(x ** 2 + ((z - mean_z) * 2.0) ** 2) * 8.0)
-    return slip
-
-def build_constraints(surface_tris, fault_tris, pts):
-    n_surf_tris = surface_tris.shape[0]
-    n_fault_tris = fault_tris.shape[0]
-
-    cs = continuity_constraints(surface_tris, fault_tris)
-    slip = get_fault_slip(pts, fault_tris)
-
-    # slip_pts = np.zeros(pts.shape[0])
-    # # slip_pts[fault_tris] = np.log10(np.abs(slip[:,:,0]))
-    # slip_pts[fault_tris] = slip[:,:,0]
-    # plt.tricontourf(pts[:,0], pts[:,2], fault_tris, slip_pts)
-    # plt.triplot(pts[:,0], pts[:,2], fault_tris)
-    # dof_pts = pts[fault_tris]
-    # plt.xlim([np.min(dof_pts[:,:,0]), np.max(dof_pts[:,:,0])])
-    # plt.ylim([np.min(dof_pts[:,:,2]), np.max(dof_pts[:,:,2])])
-    # plt.colorbar()
-    # plt.show()
-
-
-    cs.extend(all_bc_constraints(
-        n_surf_tris, n_surf_tris + n_fault_tris, slip.flatten()
-    ))
-    # cs.extend(free_edge_constraints(surface_tris))
-
-    return cs
 
 def build_and_solve_T(data):
     allow_nearfield = True
@@ -71,7 +33,10 @@ def build_and_solve_T(data):
         else:
             print('good. all interactions are farfield.')
 
-    cs = build_constraints(data.surface_tris, data.fault_tris, data.all_mesh[0])
+    cs = build_constraints(
+        data.surface_tris, data.fault_tris, data.all_mesh[0],
+        abs_fault_slip
+    )
     op_type = SparseIntegralOp
     # op_type = DenseIntegralOp
 

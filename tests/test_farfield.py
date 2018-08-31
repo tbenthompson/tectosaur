@@ -8,12 +8,15 @@ from tectosaur.util.geometry import normalize
 from tectosaur.mesh.mesh_gen import make_rect
 from tectosaur.mesh.modify import concat
 
-def make_meshes(n_m = 8, sep = 2):
+def make_meshes(n_m = 8, sep = 2, n_m2 = None):
+    if n_m2 is None:
+        n_m2 = n_m
+
     m1 = make_rect(n_m, n_m, [
         [-1, 0, 1], [-1, 0, -1],
         [1, 0, -1], [1, 0, 1]
     ])
-    m2 = make_rect(n_m, n_m, [
+    m2 = make_rect(n_m2, n_m2, [
         [-1, sep, 1], [-1, sep, -1],
         [1, sep, -1], [1, sep, 1]
     ])

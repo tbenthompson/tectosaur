@@ -19,12 +19,16 @@ import tectosaur.mesh.modify as mesh_modify
 import tectosaur.mesh.mesh_gen as mesh_gen
 import tectosaur.constraints as constraints
 from tectosaur.constraint_builders import continuity_constraints, \
-    constant_bc_constraints, free_edge_constraints
+    all_bc_constraints, free_edge_constraints
 from tectosaur.util.timer import Timer
 from tectosaur.interior import interior_integral
-from tectosaur.ops.sparse_integral_op import SparseIntegralOp
-from tectosaur.ops.sparse_farfield_op import PtToPtFMMFarfieldOp
+from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
+from tectosaur.ops.sparse_integral_op import SparseIntegralOp, \
+    RegularizedSparseIntegralOp
+from tectosaur.ops.sparse_farfield_op import PtToPtFMMFarfieldOp, \
+    PtToPtDirectFarfieldOp, TriToTriDirectFarfieldOp
 from tectosaur.ops.mass_op import MassOp
+from tectosaur.ops.neg_op import MultOp
 from tectosaur.ops.sum_op import SumOp
 from tectosaur.check_for_problems import check_for_problems
 
@@ -34,8 +38,10 @@ from tectosaur.util.logging import setup_root_logger
 logger = setup_root_logger(__name__)
 
 class Okada:
-    def __init__(self, n_surf, n_fault, top_depth = 0.0, fault_L = 1.0):
+    def __init__(self, n_surf, n_fault, top_depth = 0.0, fault_L = 1.0, verbose = False):
         log_level = logging.INFO
+        if verbose:
+            log_level = logging.DEBUG
         tectosaur.logger.setLevel(log_level)
         solve.logger.setLevel(log_level)
         logger.setLevel(log_level)
@@ -58,8 +64,10 @@ class Okada:
         self.fault_tri_idxs = np.arange(self.n_surf_tris, self.n_tris)
         self.n_surf_dofs = self.n_surf_tris * 9
         self.n_dofs = self.n_tris * 9
-        # mesh_gen.plot_mesh3d(*all_mesh)
         # _,_,_,_ = check_for_problems(self.all_mesh, check = True)
+
+    def plot_mesh(self):
+        mesh_gen.plot_mesh3d(*self.all_mesh)
 
     def run(self, build_and_solve = None):
         if build_and_solve is None:
@@ -217,7 +225,7 @@ def make_fault(L, top_depth, n_fault):
 
 def make_meshes(fault_L, top_depth, n_surf, n_fault):
     t = Timer(output_fnc = logger.debug)
-    surf_w = 10
+    surf_w = 5
     surface = make_free_surface(surf_w, n_surf)
     t.report('make free surface')
     fault = make_fault(fault_L, top_depth, n_fault)
@@ -243,6 +251,70 @@ def build_constraints(surface_tris, fault_tris, pts):
 
     return cs
 
+def ones_fault_slip(pts, fault_tris):
+    slip = np.zeros((fault_tris.shape[0], 3, 3))
+    slip[:,:,0] = 1.0
+    return slip
+
+def abs_fault_slip(pts, fault_tris):
+    dof_pts = pts[fault_tris]
+    x = dof_pts[:,:,0]
+    z = dof_pts[:,:,2]
+    mean_z = np.mean(z)
+    slip = np.zeros((fault_tris.shape[0], 3, 3))
+    # slip[:,:,0] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
+    # slip[:,:,1] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
+    # slip[:,:,2] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
+    slip[:,:,0] = np.exp(-(x ** 2 + ((z - mean_z) * 2.0) ** 2) * 8.0)
+
+    slip_pts = np.zeros(pts.shape[0])
+    # slip_pts[fault_tris] = np.log10(np.abs(slip[:,:,0]))
+    slip_pts[fault_tris] = slip[:,:,0]
+    plt.tricontourf(pts[:,0], pts[:,2], fault_tris, slip_pts)
+    plt.triplot(pts[:,0], pts[:,2], fault_tris)
+    dof_pts = pts[fault_tris]
+    plt.xlim([np.min(dof_pts[:,:,0]), np.max(dof_pts[:,:,0])])
+    plt.ylim([np.min(dof_pts[:,:,2]), np.max(dof_pts[:,:,2])])
+    plt.colorbar()
+    plt.show()
+
+    return slip
+
+def build_constraints(surface_tris, fault_tris, pts, slip_fnc = ones_fault_slip):
+    n_surf_tris = surface_tris.shape[0]
+    n_fault_tris = fault_tris.shape[0]
+
+    cs = continuity_constraints(surface_tris, fault_tris)
+    slip = slip_fnc(pts, fault_tris)
+    cs.extend(all_bc_constraints(
+        n_surf_tris, n_surf_tris + n_fault_tris, slip.flatten()
+    ))
+    return cs
+
+def build_and_solve_T_regularized(data):
+    timer = Timer(output_fnc = logger.debug)
+    cs = build_constraints(
+        data.surface_tris, data.fault_tris, data.all_mesh[0]
+    )
+    timer.report("Constraints")
+
+    T_op = RegularizedSparseIntegralOp(
+        6, 6, 6, 2, 4, 2.0,
+        'elasticRT3', 'elasticRT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
+        data.float_type,
+        # farfield_op_type = PtToPtFMMFarfieldOp(150, 3.0, 450)
+        farfield_op_type = TriToTriDirectFarfieldOp
+    )
+    timer.report("Integrals")
+
+    mass_op = MultOp(MassOp(3, data.all_mesh[0], data.all_mesh[1]), 0.5)
+    iop = SumOp([T_op, mass_op])
+    timer.report('mass op/sum op')
+
+    soln = solve.iterative_solve(iop, cs, tol = 1e-5)
+    timer.report("Solve")
+    return soln
+
 def build_and_solve_T(data):
     timer = Timer(output_fnc = logger.debug)
     cs = build_constraints(data.surface_tris, data.fault_tris, data.all_mesh[0])
@@ -259,6 +331,24 @@ def build_and_solve_T(data):
     mass_op = MassOp(3, data.all_mesh[0], data.all_mesh[1])
     iop = SumOp([T_op, mass_op])
     timer.report('mass op/sum op')
+
+    soln = solve.iterative_solve(iop, cs, tol = 1e-6)
+    timer.report("Solve")
+    return soln
+
+def build_and_solve_H_regularized(data):
+    timer = Timer(output_fnc = logger.debug)
+    cs = build_constraints(data.surface_tris, data.fault_tris, data.all_mesh[0])
+    timer.report("Constraints")
+
+    iop = SumOp([RegularizedSparseIntegralOp(
+        10, 10, 8, 3, 6, 3.0,
+        'elasticRH3', 'elasticRH3',
+        data.k_params, data.all_mesh[0], data.all_mesh[1], data.float_type,
+        farfield_op_type = TriToTriDirectFarfieldOp
+        # farfield_op_type = PtToPtFMMFarfieldOp(150, 3.0, 450)
+    )])
+    timer.report("Integrals")
 
     soln = solve.iterative_solve(iop, cs, tol = 1e-6)
     timer.report("Solve")
@@ -283,12 +373,19 @@ def build_and_solve_H(data):
 
 def main():
     t = Timer(output_fnc = logger.info)
-    obj = Okada(int(sys.argv[1]), n_fault = int(sys.argv[2]))
-    soln = obj.run()
+    obj = Okada(
+        int(sys.argv[1]), n_fault = int(sys.argv[2]),
+        top_depth = 0.0, verbose = True
+    )
+    obj.plot_mesh()
+    soln = obj.run(build_and_solve = build_and_solve_T)
+    soln2 = obj.run(build_and_solve = build_and_solve_T_regularized)
     t.report('tectosaur')
     okada_soln = obj.okada_exact()
+
+    # np.save('okada_soln_for_plot.npy', [obj.all_mesh, obj.surface_tris, obj.fault_tris, soln, okada_soln])
     t.report('okada')
-    obj.xsec_plot([soln], okada_soln)
+    obj.xsec_plot([soln, soln2], okada_soln)
     # obj.plot_interior_displacement(soln)
     obj.print_error(soln, okada_soln)
     t.report('check')

@@ -15,9 +15,6 @@ ${cluda_preamble}
 <%namespace name="prim" file="../integral_primitives.cl"/>
 
 <%def name="integrate_pair(K, check0)">
-    ${prim.tri_info("obs", "nobs", K.needs_obsn, K.surf_curl_obs)}
-    ${prim.tri_info("src", "nsrc", K.needs_srcn, K.surf_curl_src)}
-
     Real result_temp[81];
     Real kahanC[81];
 
@@ -79,8 +76,10 @@ void ${pairs_func_name(check0)}(GLOBAL_MEM Real* result,
     const int src_tri_idx = pairs_list[pair_idx * 2 + 1];
     const int obs_tri_rot_clicks = 0;
     const int src_tri_rot_clicks = 0;
-    ${prim.get_triangle("obs_tri", "tris")}
-    ${prim.get_triangle("src_tri", "tris")}
+    ${prim.decl_tri_info("obs", K.needs_obsn, K.surf_curl_obs)}
+    ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
+    ${prim.tri_info("obs", "tris", K.needs_obsn, K.surf_curl_obs)}
+    ${prim.tri_info("src", "tris", K.needs_srcn, K.surf_curl_src)}
     ${integrate_pair(K, check0)}
     
     for (int iresult = 0; iresult < 81; iresult++) {
@@ -102,8 +101,10 @@ void ${pairs_func_name(check0)}_vert_adj(GLOBAL_MEM Real* result,
     const int src_tri_idx = pairs_list[pair_idx * 4 + 1];
     const int obs_tri_rot_clicks = pairs_list[pair_idx * 4 + 2];
     const int src_tri_rot_clicks = pairs_list[pair_idx * 4 + 3];
-    ${prim.get_triangle("obs_tri", "tris")}
-    ${prim.get_triangle("src_tri", "tris")}
+    ${prim.decl_tri_info("obs", K.needs_obsn, K.surf_curl_obs)}
+    ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
+    ${prim.tri_info("obs", "tris", K.needs_obsn, K.surf_curl_obs)}
+    ${prim.tri_info("src", "tris", K.needs_srcn, K.surf_curl_src)}
     ${integrate_pair(K, False)}
     
     for (int b1 = 0; b1 < 3; b1++) {
@@ -135,8 +136,10 @@ void farfield_tris(GLOBAL_MEM Real* result,
     const int src_tri_idx = get_global_id(1);
     const int obs_tri_rot_clicks = 0;
     const int src_tri_rot_clicks = 0;
-    ${prim.get_triangle("obs_tri", "obs_tris")}
-    ${prim.get_triangle("src_tri", "src_tris")}
+    ${prim.decl_tri_info("obs", K.needs_obsn, K.surf_curl_obs)}
+    ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
+    ${prim.tri_info("obs", "obs_tris", K.needs_obsn, K.surf_curl_obs)}
+    ${prim.tri_info("src", "src_tris", K.needs_srcn, K.surf_curl_src)}
     ${integrate_pair(K, check0 = False)}
 
     for (int b_obs = 0; b_obs < 3; b_obs++) {
