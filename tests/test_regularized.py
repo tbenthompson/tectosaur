@@ -67,7 +67,7 @@ def regularized_tester(K, sep, continuity, mass_op_factor = 0.0, which = None):
     if which is None:
         raise Exception('select some operators!')
 
-    n_m = 8
+    n_m = 30
     full_K_name = f'elastic{K}3'
     full_RK_name = f'elasticR{K}3'
     m, surf1_idxs, surf2_idxs = make_meshes(n_m = n_m, sep = sep)
