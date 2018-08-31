@@ -166,22 +166,40 @@ def test_regularized_H_farfield():
     regularized_tester('H', 4.0, True, which = ['tri_farfield_regularized'])
 
 def test_regularized_T_nearfield():
-    regularized_tester('T', 0.4, False)
+    regularized_tester(
+        'T', 0.4, False,
+        which = ['dense_regularized', 'sparse_regularized']
+    )
 
 def test_regularized_A_nearfield():
-    regularized_tester('A', 0.4, True)
+    regularized_tester(
+        'A', 0.4, True,
+        which = ['dense_regularized', 'sparse_regularized']
+    )
 
 def test_regularized_H_nearfield():
-    regularized_tester('H', 0.4, True)
+    regularized_tester(
+        'H', 0.4, True,
+        which = ['dense_regularized', 'sparse_regularized']
+    )
 
 def test_regularized_T_self():
-    regularized_tester('T', 0.0, False, -0.5)
+    regularized_tester(
+        'T', 0.0, False, -0.5,
+        which = ['dense_regularized', 'sparse_regularized']
+    )
 
 def test_regularized_A_self():
-    regularized_tester('A', 0.0, True, 0.5)
+    regularized_tester(
+        'A', 0.0, True, 0.5,
+        which = ['dense_regularized', 'sparse_regularized']
+    )
 
 def test_regularized_H_self():
-    regularized_tester('H', 0.0, True)
+    regularized_tester(
+        'H', 0.0, True,
+        which = ['dense_regularized', 'sparse_regularized']
+    )
 
 def test_benchmark_far_tris():
     n = 100

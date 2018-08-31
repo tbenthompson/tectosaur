@@ -6,6 +6,8 @@ import tectosaur.nearfield.limit as limit
 
 import tectosaur.ops.dense_integral_op as dense_integral_op
 import tectosaur.ops.sparse_integral_op as sparse_integral_op
+from tectosaur.ops.sparse_farfield_op import PtToPtDirectFarfieldOp, \
+    PtToPtFMMFarfieldOp
 import tectosaur.ops.mass_op as mass_op
 
 import tectosaur.util.quadrature as quad
@@ -65,12 +67,14 @@ def test_op_subset_sparse():
     params = [1.0, 0.25]
     subset_op = sparse_integral_op.SparseIntegralOp(
         7, 4, 3, 2.0, k, params, m[0], m[1], float_type,
+        farfield_op_type = PtToPtDirectFarfieldOp,
         obs_subset = obs_subset,
         src_subset = src_subset,
     )
     y2 = subset_op.dot(np.ones(subset_op.shape[1]))
     full_op = sparse_integral_op.SparseIntegralOp(
         7, 4, 3, 2.0, k, params, m[0], m[1], float_type,
+        farfield_op_type = PtToPtDirectFarfieldOp
     )
     y1 = full_op.dot(np.ones(full_op.shape[1]))
     np.testing.assert_almost_equal(y1[obs_range[0]:obs_range[1]], y2)
@@ -137,9 +141,9 @@ def full_integral_op_tester(k, use_fmm, n = 5):
         x = np.ones(dense_op.shape[1])
         dense_res = dense_op.dot(x)
         if use_fmm:
-            farfield_op_type = sparse_integral_op.FMMFarfieldBuilder(100, 3.0, 300)
+            farfield_op_type = PtToPtFMMFarfieldOp(100, 3.0, 300)
         else:
-            farfield_op_type = None
+            farfield_op_type = PtToPtDirectFarfieldOp
         sparse_op = sparse_integral_op.SparseIntegralOp(
             5, 3, 3, 2.0, k, params, m[0], m[1],
             float_type, farfield_op_type
