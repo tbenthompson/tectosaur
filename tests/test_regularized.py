@@ -90,6 +90,24 @@ def regularized_tester(K, sep, continuity, mass_op_factor = 0.0, which = None):
             src_subset = surf2_idxs
         )
 
+    def change_K_tri_tri(to):
+        def f(*args, to = to):
+            args = list(args)
+            args[1] = to
+            return TriToTriDirectFarfieldOp(*args)
+        return f
+
+    def add_sparse_reg(farfield_K, farfield_type):
+        ops.append(SumOp([
+            RegularizedSparseIntegralOp(
+                10, 10, 6, nq_far, nq_near, near_threshold, full_RK_name,
+                farfield_K, [1.0, 0.25], m[0], m[1],
+                np.float32, farfield_type,
+                obs_subset = surf1_idxs, src_subset = surf2_idxs
+            ),
+            MultOp(MassOp(3, m[0], m[1][surf1_idxs]), mass_op_factor)
+        ]))
+
     ops = [
         sparse_unregularized(PtToPtDirectFarfieldOp, full_K_name)
     ]
@@ -98,11 +116,7 @@ def regularized_tester(K, sep, continuity, mass_op_factor = 0.0, which = None):
         ops.append(sparse_unregularized(PtToPtFMMFarfieldOp(150, 2.5, 5), full_K_name))
 
     if 'tri_farfield_regularized' in which:
-        def change_K_tri_tri(*args):
-            args = list(args)
-            args[1] = full_RK_name
-            return TriToTriDirectFarfieldOp(*args)
-        ops.append(sparse_unregularized(change_K_tri_tri, full_K_name))
+        ops.append(sparse_unregularized(change_K_tri_tri(full_RK_name), full_K_name))
 
     if 'dense_regularized' in which:
         ops.append(SumOp([
@@ -114,19 +128,14 @@ def regularized_tester(K, sep, continuity, mass_op_factor = 0.0, which = None):
             MultOp(MassOp(3, m[0], m[1][surf1_idxs]), mass_op_factor)
         ]))
 
-    # Sparse regularized nearfield, FMM farfield
     if 'sparse_regularized' in which:
-        ops.append(SumOp([
-            RegularizedSparseIntegralOp(
-                10, 10, 6, nq_far, nq_near, near_threshold, full_RK_name, full_K_name,
-                [1.0, 0.25], m[0], m[1],
-                np.float32,
-                TriToTriDirectFarfieldOp,
-                # PtToPtFMMFarfieldOp(150, 2.5, 5),
-                obs_subset = surf1_idxs, src_subset = surf2_idxs
-            ),
-            MultOp(MassOp(3, m[0], m[1][surf1_idxs]), mass_op_factor)
-        ]))
+        add_sparse_reg(full_RK_name, TriToTriDirectFarfieldOp)
+
+    if 'sparse_regularized_fmm' in which:
+        add_sparse_reg(full_K_name, PtToPtFMMFarfieldOp(150, 2.5, 5))
+
+    if 'sparse_regularized_but_unregularized_far':
+        add_sparse_reg(full_K_name, change_K_tri_tri(full_K_name))
 
     print('built ops')
 
@@ -147,7 +156,7 @@ def regularized_tester(K, sep, continuity, mass_op_factor = 0.0, which = None):
         plot_outs = outs
         final_outs = outs
 
-    should_plot = False
+    should_plot = True
     if should_plot:
         plot_fnc(m, surf1_idxs, surf2_idxs, x, plot_outs)
 
@@ -186,7 +195,11 @@ def test_regularized_H_nearfield():
 def test_regularized_T_self():
     regularized_tester(
         'T', 0.0, False, -0.5,
-        which = ['dense_regularized', 'sparse_regularized']
+        which = [
+            'dense_regularized', 'sparse_regularized',
+            # 'sparse_regularized_fmm',
+            # 'sparse_regularized_but_unregularized_far'
+        ]
     )
 
 def test_regularized_A_self():
@@ -230,44 +243,6 @@ def test_benchmark_far_tris():
     for j in range(n):
         op2.dot(x_flat)
     t.report('dot pts')
-
-def test_fun():
-    n_m = 10
-    sep = 0.05
-    n_m2 = 10
-    full_K_name = f'elasticT3'
-    full_RK_name = f'elasticRT3'
-    m, surf1_idxs, surf2_idxs = make_meshes(n_m = n_m, sep = sep, n_m2 = n_m2)
-    mass_op_factor = 0.0
-
-    do_self = False
-    if do_self:
-        surf2_idxs = surf1_idxs
-        mass_op_factor = -0.5
-
-    op1 = SparseIntegralOp(
-        6, 3, 5, 2.0, full_K_name, [1.0, 0.25], m[0], m[1], np.float32,
-        TriToTriDirectFarfieldOp,
-        obs_subset = surf1_idxs, src_subset = surf2_idxs
-    )
-
-    op2 = SumOp([
-        RegularizedSparseIntegralOp(
-            10, 10, 6, 3, 5, 2.0, full_RK_name, full_K_name,
-            [1.0, 0.25], m[0], m[1],
-            np.float32, TriToTriDirectFarfieldOp,
-            obs_subset = surf1_idxs, src_subset = surf2_idxs
-        ),
-        MultOp(MassOp(3, m[0], m[1][surf1_idxs]), mass_op_factor)
-    ])
-
-    x = x_ones_field(m, surf1_idxs, surf2_idxs)
-    # x = build_x_field(m, surf1_idxs, surf2_idxs)
-
-    y1 = op1.dot(x.flatten())
-    y2 = op2.dot(x.flatten())
-    print(y1, y2)
-    plot_fnc(m, surf1_idxs, surf2_idxs, x.reshape((-1,3)), [y1, y2])
 
 if __name__ == "__main__":
     test_benchmark_far_tris()

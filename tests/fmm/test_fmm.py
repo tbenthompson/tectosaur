@@ -105,7 +105,8 @@ def check_kernel(K, obs_pts, obs_ns, src_pts, src_ns, est,
 
 def test_ones(dim):
     K = 'one' + str(dim)
-    obs_pts, _, src_pts, _, est = run_full(5000, rand_pts(dim), 0.5, 1, K, [])
+    obs_pts, _, src_pts, _, est = run_full(5, rand_pts(dim), 0.5, 1, K, [])
+    # check_kernel(K, *run_full(5, rand_pts(dim), 0.5, 1, K, []), accuracy = 10)
     assert(np.all(np.abs(est - np.array(src_pts, copy = False).shape[0]) < 1e-3))
 
 import pytest

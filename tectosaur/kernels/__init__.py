@@ -324,8 +324,8 @@ laplace3H = Kernel(
     '''
 )
 
-one2 = Kernel('one2', 2, 1, False, False, -4, 0, False, '', '''''', 'Karr[0] = 1.0;')
-one3 = Kernel('one3', 3, 1, False, False, -4, 0, False, '', '''''', 'Karr[0] = 1.0;')
+one2 = Kernel('one2', 2, 1, False, False, -4, 0, False, '', None, 'Karr[0] = 1.0;')
+one3 = Kernel('one3', 3, 1, False, False, -4, 0, False, '', None, 'Karr[0] = 1.0;')
 
 def make_kernel_dict(ks):
     return {K.name: K for K in ks}
