@@ -159,20 +159,40 @@ def find_free_edges(tris):
 
     return free_edges
 
-def free_edge_constraints(tris):
-    free_edges = find_free_edges(tris)
-    cs = []
+# TODO: normally dofs refer to each element of a 3d vector (9 * i + 3 * v + d)
+# but here dofs refers to each element of a 1d vector (3 * i + v).
+# It would be good to have different words for these two concepts.
+def free_edge_dofs(tris, free_edges):
     pt_idxs = set()
     for tri_idx, edge_idx in free_edges:
         for v in range(2):
             pt_idxs.add(tris[tri_idx][(edge_idx + v) % 3])
+    dofs = []
     for i, t in enumerate(tris):
         for v in range(3):
             if t[v] not in pt_idxs:
                 continue
-            for d in range(3):
-                dof = i * 9 + v * 3 + d
-                cs.append(ConstraintEQ([Term(1.0, dof)], 0.0))
+            dofs.append(i * 3 + v * 1)
+    return dofs
+
+def plot_free_edges(pts, tris, free_edges, dims = [0,1]):
+    # import matplotlib here so it doesn't slow down importing the main module
+    # when it isn't needed
+    import matplotlib.pyplot as plt
+    for tri_idx, edge_idx in free_edges:
+        edge_pts = np.array([
+            pts[tris[tri_idx][(edge_idx + v) % 3]] for v in range(2)
+        ])
+        plt.plot(edge_pts[:,0], edge_pts[:,1], '*-')
+    plt.show()
+
+def free_edge_constraints(tris):
+    free_edges = find_free_edges(tris)
+    cs = []
+    for dof in free_edge_dofs(tris, free_edges):
+        for d in range(3):
+            vec_dof = dof * 3 + d
+            cs.append(ConstraintEQ([Term(1.0, vec_dof)], 0.0))
     return cs
 
 def all_bc_constraints(start_tri, end_tri, vs):

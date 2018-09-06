@@ -34,3 +34,12 @@ def concat(*ms):
 
 def flip_normals(m):
     return (m[0], np.array([[m[1][i,0],m[1][i,2],m[1][i,1]] for i in range(m[1].shape[0])]))
+
+def remove_unused_pts(m):
+    referenced_pts = np.unique(m[1])
+    new_pts = m[0][referenced_pts,:]
+    new_indices = np.empty(m[0].shape[0], dtype = np.int64)
+    new_indices[referenced_pts] = np.arange(referenced_pts.shape[0])
+    new_tris = new_indices[m[1]]
+    return (new_pts, new_tris)
+

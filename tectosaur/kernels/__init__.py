@@ -326,11 +326,25 @@ laplace3H = Kernel(
 
 one2 = Kernel('one2', 2, 1, False, False, -4, 0, False, '', None, 'Karr[0] = 1.0;')
 one3 = Kernel('one3', 3, 1, False, False, -4, 0, False, '', None, 'Karr[0] = 1.0;')
+tensor_one3 = Kernel(
+    'tensor_one3', 3, 3, False, False, -4, 0, False, '', None,
+    '''
+    Karr[0] = 1.0;
+    Karr[1] = 0.0;
+    Karr[2] = 0.0;
+    Karr[3] = 0.0;
+    Karr[4] = 0.0;
+    Karr[5] = 0.0;
+    Karr[6] = 0.0;
+    Karr[7] = 0.0;
+    Karr[8] = 0.0;
+    '''
+)
 
 def make_kernel_dict(ks):
     return {K.name: K for K in ks}
 
-one_kernels = make_kernel_dict([one2, one3])
+one_kernels = make_kernel_dict([one2, one3, tensor_one3])
 
 laplace_kernels = make_kernel_dict([
     laplace2S, laplace2D, laplace2H,

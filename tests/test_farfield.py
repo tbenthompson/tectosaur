@@ -8,17 +8,17 @@ from tectosaur.util.geometry import normalize
 from tectosaur.mesh.mesh_gen import make_rect
 from tectosaur.mesh.modify import concat
 
-def make_meshes(n_m = 8, sep = 2, n_m2 = None):
+def make_meshes(n_m = 8, sep = 2, w = 1, n_m2 = None):
     if n_m2 is None:
         n_m2 = n_m
 
     m1 = make_rect(n_m, n_m, [
-        [-1, 0, 1], [-1, 0, -1],
-        [1, 0, -1], [1, 0, 1]
+        [-w, 0, w], [-w, 0, -w],
+        [w, 0, -w], [w, 0, w]
     ])
     m2 = make_rect(n_m2, n_m2, [
-        [-1, sep, 1], [-1, sep, -1],
-        [1, sep, -1], [1, sep, 1]
+        [-w, sep, w], [-w, sep, -w],
+        [w, sep, -w], [w, sep, w]
     ])
     m = concat(m1, m2)
     surf1_idxs = np.arange(m1[1].shape[0])

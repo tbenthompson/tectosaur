@@ -38,7 +38,7 @@ class TriToTriDirectFarfieldOp:
         self.gpu_obs_tris = gpu.to_gpu(tris[obs_subset], np.int32)
         self.gpu_src_tris = gpu.to_gpu(tris[src_subset], np.int32)
         self.gpu_params = gpu.to_gpu(np.array(params), float_type)
-        self.block_size = 128
+        self.block_size = 1
         self.n_blocks = int(np.ceil(self.n_obs / self.block_size))
 
         self.module = gpu.load_gpu(
@@ -198,7 +198,7 @@ class PtToPtFMMFarfieldOpImpl:
     async def async_dot(self, tsk_w, v):
         t = Timer(output_fnc = logger.debug)
         pts_v = self.to_pts.to_pts(v)
-        input_tree = pts_v.reshape((-1,3))[self.src_orig_idxs,:].reshape(-1)
+        input_tree = pts_v.reshape((-1, 3))[self.src_orig_idxs, :].reshape(-1)
         t.report('to tree space')
 
         fmm_out = await self.evaluator.eval(tsk_w, input_tree.copy())
@@ -206,7 +206,7 @@ class PtToPtFMMFarfieldOpImpl:
         t.report('fmm eval')
 
         to_orig = np.empty_like(fmm_out)
-        to_orig[self.obs_orig_idxs,:] = fmm_out
+        to_orig[self.obs_orig_idxs, :] = fmm_out
         to_orig = to_orig.flatten()
         from_pts = self.to_pts.from_pts(to_orig)
         t.report('to output space')
