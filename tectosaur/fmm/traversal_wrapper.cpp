@@ -78,9 +78,11 @@ void wrap_dim(py::module& m) {
 
     auto octree = m.def_submodule("octree");
     auto kdtree = m.def_submodule("kdtree");
+    auto kdtree2 = m.def_submodule("kdtree2");
 
     wrap_fmm<Octree<dim>>(octree);
     wrap_fmm<KDTree<dim>>(kdtree);
+    // wrap_fmm<KDTree2<dim>>(kdtree2);
 }
 
 

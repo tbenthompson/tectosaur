@@ -49,7 +49,6 @@ class SparseIntegralOp:
         )
 
         self.shape = self.nearfield.shape
-        self.gpu_nearfield = None
 
     async def nearfield_dot(self, v):
         t = Timer(output_fnc = logger.debug)
@@ -104,7 +103,6 @@ class RegularizedSparseIntegralOp:
         )
 
         self.shape = self.nearfield.shape
-        self.gpu_nearfield = None
 
     async def nearfield_dot(self, v):
         t = Timer(output_fnc = logger.debug)

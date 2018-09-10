@@ -13,3 +13,20 @@ def get_data_filepath(filename):
 from tectosaur.util.logging import setup_root_logger
 logger = setup_root_logger(__name__)
 
+from tectosaur.mesh.mesh_gen import make_rect
+
+from tectosaur.ops.mass_op import MassOp
+from tectosaur.ops.sum_op import SumOp
+from tectosaur.ops.neg_op import NegOp, MultOp
+from tectosaur.ops.composite_op import CompositeOp
+from tectosaur.ops.sparse_integral_op import RegularizedSparseIntegralOp
+from tectosaur.ops.sparse_farfield_op import (
+    TriToTriDirectFarfieldOp,
+    PtToPtDirectFarfieldOp,
+    PtToPtFMMFarfieldOp)
+
+from tectosaur.constraints import Term, ConstraintEQ, build_constraint_matrix
+from tectosaur.constraint_builders import (
+    continuity_constraints,
+    free_edge_constraints,
+    build_composite_constraints)
