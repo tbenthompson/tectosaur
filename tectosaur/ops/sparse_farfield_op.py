@@ -38,7 +38,7 @@ class TriToTriDirectFarfieldOp:
         self.gpu_obs_tris = gpu.to_gpu(tris[obs_subset], np.int32)
         self.gpu_src_tris = gpu.to_gpu(tris[src_subset], np.int32)
         self.gpu_params = gpu.to_gpu(np.array(params), float_type)
-        self.block_size = 1
+        self.block_size = 128
         self.n_blocks = int(np.ceil(self.n_obs / self.block_size))
 
         self.module = gpu.load_gpu(

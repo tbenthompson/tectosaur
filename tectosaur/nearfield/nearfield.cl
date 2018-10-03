@@ -88,9 +88,9 @@ void ${pairs_func_name(check0)}(GLOBAL_MEM Real* result,
 }
 </%def>
 
-<%def name="single_pairs_vert_adj(K)">
+<%def name="single_pairs_adj(K)">
 KERNEL
-void ${pairs_func_name(check0)}_vert_adj(GLOBAL_MEM Real* result, 
+void ${pairs_func_name(check0)}_adj(GLOBAL_MEM Real* result, 
     int n_quad_pts, GLOBAL_MEM Real* quad_pts, GLOBAL_MEM Real* quad_wts,
     GLOBAL_MEM Real* pts, GLOBAL_MEM int* tris, GLOBAL_MEM int* pairs_list, 
     int start_idx, int end_idx, GLOBAL_MEM Real* params)
@@ -105,7 +105,15 @@ void ${pairs_func_name(check0)}_vert_adj(GLOBAL_MEM Real* result,
     ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
     ${prim.tri_info("obs", "tris", K.needs_obsn, K.surf_curl_obs)}
     ${prim.tri_info("src", "tris", K.needs_srcn, K.surf_curl_src)}
-    ${integrate_pair(K, False)}
+    ${integrate_pair(K, True)}
+
+    //printf("obs1: %f %f %f\n", obs_tri[0][0], obs_tri[0][1], obs_tri[0][2]);
+    //printf("obs2: %f %f %f\n", obs_tri[1][0], obs_tri[1][1], obs_tri[1][2]);
+    //printf("obs3: %f %f %f\n", obs_tri[2][0], obs_tri[2][1], obs_tri[2][2]);
+    //printf("src1: %f %f %f\n", src_tri[0][0], src_tri[0][1], src_tri[0][2]);
+    //printf("src2: %f %f %f\n", src_tri[1][0], src_tri[1][1], src_tri[1][2]);
+    //printf("src3: %f %f %f\n", src_tri[2][0], src_tri[2][1], src_tri[2][2]);
+    //printf("obsjac: %f srcjac: %f \n", obs_jacobian, src_jacobian);
     
     for (int b1 = 0; b1 < 3; b1++) {
         int obs_derot = positive_mod(-obs_tri_rot_clicks + b1, 3);
@@ -140,6 +148,7 @@ void farfield_tris(GLOBAL_MEM Real* result,
     ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
     ${prim.tri_info("obs", "obs_tris", K.needs_obsn, K.surf_curl_obs)}
     ${prim.tri_info("src", "src_tris", K.needs_srcn, K.surf_curl_src)}
+
     ${integrate_pair(K, check0 = False)}
 
     for (int b_obs = 0; b_obs < 3; b_obs++) {
@@ -161,5 +170,5 @@ void farfield_tris(GLOBAL_MEM Real* result,
 ${prim.geometry_fncs()}
 ${single_pairs(K, check0 = True)}
 ${single_pairs(K, check0 = False)}
-${single_pairs_vert_adj(K)}
+${single_pairs_adj(K)}
 ${farfield_tris(K)}

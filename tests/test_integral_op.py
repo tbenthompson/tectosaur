@@ -216,6 +216,24 @@ def test_interior(request):
         obs_pts, obs_ns, (pts, tris), input, K, 4, 4, params, float_type
     )
 
+@golden_master()
+def test_force_normal(request):
+    corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
+    pts, tris = mesh_gen.make_rect(3,3 ,corners)
+    all_tri_idxs = np.arange(tris.shape[0])
+    args = [
+        8, 8, 8, 3, 5, 2.5, 'elasticRH3', 'elasticRH3', [1.0, 0.25],
+        pts, tris, np.float32, all_tri_idxs, all_tri_idxs
+    ]
+    op1 = dense_integral_op.RegularizedDenseIntegralOp(*args)
+    op2 = dense_integral_op.RegularizedDenseIntegralOp(*args, force_normal = (0.0, 0.0, -1.0))
+    np.random.seed(197)
+    x = np.random.rand(op1.shape[1])
+    y1 = op1.dot(x)
+    y2 = op2.dot(x)
+    np.testing.assert_almost_equal(y1, y2)
+    return y1
+
 @profile
 def benchmark_nearfield_construction():
     corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]

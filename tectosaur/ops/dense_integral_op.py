@@ -7,8 +7,8 @@ from tectosaur.util.quadrature import gauss4d_tri
 from tectosaur.ops.dense_op import DenseOp
 import tectosaur.util.gpu as gpu
 
-def farfield_tris(kernel, params, pts, obs_tris, src_tris, n_q, float_type):
-    integrator = getattr(get_gpu_module(kernel, float_type), "farfield_tris")
+def farfield_tris(kernel, params, pts, obs_tris, src_tris, n_q, float_type, force_normal = None):
+    integrator = getattr(get_gpu_module(kernel, float_type, force_normal), "farfield_tris")
     q = gauss4d_tri(n_q, n_q)
 
     gpu_qx = gpu.to_gpu(q[0], float_type)
@@ -90,7 +90,7 @@ class DenseIntegralOp(DenseOp):
 class RegularizedDenseIntegralOp(DenseOp):
     def __init__(self, nq_coincident, nq_edge_adj, nq_vert_adjacent, nq_far, nq_near,
             near_threshold, K_near_name, K_far_name, params, pts, tris, float_type,
-            obs_subset = None, src_subset = None):
+            obs_subset = None, src_subset = None, force_normal = None):
 
         if obs_subset is None:
             obs_subset = np.arange(tris.shape[0])
@@ -102,11 +102,13 @@ class RegularizedDenseIntegralOp(DenseOp):
         nearfield = RegularizedNearfieldIntegralOp(
             pts, tris, obs_subset, src_subset,
             nq_coincident, nq_edge_adj, nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, K_near_name, K_far_name, params, float_type
+            near_threshold, K_near_name, K_far_name, params, float_type,
+            force_normal = force_normal
         ).no_correction_to_dense()
 
         farfield = farfield_tris(
-            K_far_name, params, pts, tris[obs_subset], tris[src_subset], nq_far, float_type
+            K_far_name, params, pts, tris[obs_subset], tris[src_subset], nq_far, float_type,
+            force_normal = force_normal
         ).reshape(nearfield.shape)
 
         self.mat = np.where(np.abs(nearfield) > 0, nearfield, farfield)

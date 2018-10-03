@@ -12,20 +12,23 @@ def pairs_func_name(check0):
 
 block_size = 256
 
-def get_gpu_config(kernel, float_type):
+def get_gpu_config(kernel, float_type, force_normal):
     return dict(
         block_size = block_size,
         float_type = gpu.np_to_c_type(float_type),
-        kernel_name = kernel
+        kernel_name = kernel,
+        force_normal = force_normal
     )
 
-def get_gpu_module(kernel, float_type):
-    return gpu.load_gpu('nearfield/nearfield.cl', tmpl_args = get_gpu_config(kernel, float_type))
+def get_gpu_module(kernel, float_type, force_normal):
+    return gpu.load_gpu('nearfield/nearfield.cl', tmpl_args = get_gpu_config(
+        kernel, float_type, force_normal
+    ))
 
 class PairsIntegrator:
-    def __init__(self, kernel, params, float_type, nq_far, nq_near, pts, tris):
+    def __init__(self, kernel, params, float_type, nq_far, nq_near, pts, tris, force_normal = None):
         self.float_type = float_type
-        self.module = get_gpu_module(kernel, float_type)
+        self.module = get_gpu_module(kernel, float_type, force_normal)
         self.gpu_params = gpu.to_gpu(np.array(params), self.float_type)
         self.gpu_near_q = self.quad_to_gpu(gauss4d_tri(nq_near, nq_near))
         self.gpu_far_q = self.quad_to_gpu(gauss4d_tri(nq_far, nq_far))
@@ -49,8 +52,9 @@ class PairsIntegrator:
         result = np.empty((n, 3, 3, 3, 3), dtype = self.float_type)
 
         def call_integrator(start_idx, end_idx):
-            n_threads = int(np.ceil((end_idx - start_idx) / block_size))
-            gpu_result = gpu.empty_gpu((end_idx - start_idx, 3, 3, 3, 3), self.float_type)
+            n_pairs = (end_idx - start_idx)
+            n_threads = int(np.ceil(n_pairs / block_size))
+            gpu_result = gpu.empty_gpu((n_pairs, 3, 3, 3, 3), self.float_type)
             integrator(
                 gpu_result, np.int32(q[0].shape[0]), q[0], q[1],
                 self.gpu_pts, self.gpu_tris,
@@ -71,7 +75,7 @@ class PairsIntegrator:
         return self.pairs_quad(self.get_gpu_fnc(False), self.gpu_near_q, pairs_list)
 
     def vert_adj(self, nq, pairs_list):
-        integrator = getattr(self.module, pairs_func_name(False) + '_vert_adj')
+        integrator = getattr(self.module, pairs_func_name(False) + '_adj')
         if type(nq) is int:
             nq = (nq, nq, nq)
         q = triangle_rules.vertex_adj_quad(nq[0], nq[1], nq[2])
@@ -79,11 +83,12 @@ class PairsIntegrator:
         return self.pairs_quad(integrator, gpu_q, pairs_list)
 
     def coincident(self, nq, pairs_list):
-        q = triangle_rules.coincident_quad(nq, nq, nq)
+        q = triangle_rules.coincident_quad(nq)
         co_q = self.quad_to_gpu(q)
         return self.pairs_quad(self.get_gpu_fnc(True), co_q, pairs_list)
 
     def edge_adj(self, nq, pairs_list):
-        q = triangle_rules.edge_adj_quad(nq, nq, nq)
+        integrator = getattr(self.module, pairs_func_name(False) + '_adj')
+        q = triangle_rules.edge_adj_quad(nq)
         co_q = self.quad_to_gpu(q)
-        return self.pairs_quad(self.get_gpu_fnc(True), co_q, pairs_list)
+        return self.pairs_quad(integrator, co_q, pairs_list)

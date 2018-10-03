@@ -48,72 +48,139 @@ def vertex_adj_quad(n_theta, n_beta, n_alpha):
     theta_p_integral()
     return np.array(pts), np.array(wts)
 
-def coincident_quad(n_theta, n_rho, n_outer):
-    q_theta = quad.gaussxw(n_theta)
-    q_rho = quad.gaussxw(n_rho)
-    q_outer = quad.gauss2d_tri(n_outer)
+def coincident_quad(nq):
+    """
+    Coincident quadrature rule from Erichsen and Sauter (1998):
+    Efficient automatic quadrature in 3D Galerkin BEM
+    """
+    qtri = quad.gauss2d_tri(nq)
+    qline = quad.map_to(quad.gaussxw(nq), [0.0, 1.0])
 
-    theta_lims = [
-        lambda x, y: -np.arctan(y / (1 - x)),
-        lambda x, y: np.pi - np.arctan((1 - y) / x),
-        lambda x, y: np.pi + np.arctan(y / x),
-    ]
-    rho_lims = [
-        lambda x, y, t: (1 - y - x) / (np.cos(t) + np.sin(t)),
-        lambda x, y, t: -x / np.cos(t),
-        lambda x, y, t: -y / np.sin(t)
+    mappings = [
+        lambda eta, w1, w2, w3: (
+            w1 + w2 + w3,
+            w1 + w2,
+            w1 * (1 - eta) + w2 + w3,
+            w2
+        ),
+        lambda eta, w1, w2, w3: (
+            w1 * (1 - eta) + w2 + w3,
+            w1 * (1 - eta) + w2,
+            w1 + w2 + w3,
+            w2
+        ),
+        lambda eta, w1, w2, w3: (
+            w1 + w2 + w3,
+            w1 * eta + w2,
+            w2 + w3,
+            w2
+        ),
+        lambda eta, w1, w2, w3: (
+            w1 * (1 - eta) + w2 + w3,
+            w2,
+            w1 + w2 + w3,
+            w1 + w2,
+        ),
+        lambda eta, w1, w2, w3: (
+            w1 + w2 + w3,
+            w2,
+            w1 * (1 - eta) + w2 + w3,
+            w1 * (1 - eta) + w2
+        ),
+        lambda eta, w1, w2, w3: (
+            w2 + w3,
+            w2,
+            w1 + w2 + w3,
+            w1 * eta + w2
+        )
     ]
 
     pts = []
     wts = []
-    for I in range(3):
-        for (obsxhat, obsyhat), wouter in zip(*q_outer):
-            T1 = theta_lims[I](obsxhat, obsyhat)
-            T2 = theta_lims[(I + 1) % 3](obsxhat, obsyhat)
-            if T2 < T1:
-                T2 += 2 * np.pi
-            for theta, wtheta in zip(*quad.map_to(q_theta, [T1, T2])):
-                Rmax = rho_lims[I](obsxhat, obsyhat, theta)
-                for rho, wrho in zip(*quad.map_to(q_rho, [0, Rmax])):
-                    w = wouter * wrho * wtheta * rho
-                    srcxhat = obsxhat + rho * np.cos(theta)
-                    srcyhat = obsyhat + rho * np.sin(theta)
-                    pts.append((obsxhat, obsyhat, srcxhat, srcyhat))
-                    wts.append(w)
+    for i in range(len(mappings)):
+        m = mappings[i]
+        for w12_idx in range(qtri[0].shape[0]):
+            w1 = qtri[0][w12_idx,0]
+            w2 = qtri[0][w12_idx,1]
+            f12 = qtri[1][w12_idx]
+            for x3, f3 in zip(*qline):
+                w3 = x3 * (1 - w1 - w2)
+                f3 *= (1 - w1 - w2)
+                for eta, feta in zip(*qline):
+                    F = f12 * f3 * feta * w1
+                    x1, x2, y1, y2 = m(eta, w1, w2, w3)
+                    obsxhat = 1 - x1
+                    obsyhat = x2
+                    srcxhat = 1 - y1
+                    srcyhat = y2
 
+                    pts.append((obsxhat, obsyhat, srcxhat, srcyhat))
+                    wts.append(F)
     return np.array(pts), np.array(wts)
 
+def edge_adj_quad(nq):
+    """
+    Edge adjacent quadrature rule from Sauter and Schwab book.
+    """
+    qtri = quad.gauss2d_tri(nq)
+    qline = quad.map_to(quad.gaussxw(nq), [0.0, 1.0])
 
-def edge_adj_quad(n_theta, n_rho, n_outer):
-    q_theta = quad.gaussxw(n_theta)
-    q_rho = quad.gaussxw(n_rho)
-    q_outer = quad.gauss2d_tri(n_outer)
-
-    theta_lims = [
-        lambda x: 0,
-        lambda x: np.pi - np.arctan(1 / (1 - x)),
-        lambda x: np.pi
-    ]
-    rho_lims = [
-        lambda x, t: x / (np.cos(t) + np.sin(t)),
-        lambda x, t: -(1 - x) / np.cos(t)
+    mappings = [
+        lambda e1, e2, e3, P: (
+            P,
+            P * e1 * e3,
+            P * (1 - e1 * e2),
+            P * e1 * (1 - e2),
+            P ** 3 * e1 ** 2
+        ),
+        lambda e1, e2, e3, P: (
+            P,
+            P * e1,
+            P * (1 - e1 * e2 * e3),
+            P * e1 * e2 * (1 - e3),
+            P ** 3 * e1 ** 2 * e2
+        ),
+        lambda e1, e2, e3, P: (
+            P * (1 - e1 * e2),
+            P * e1 * (1 - e2),
+            P,
+            P * e1 * e2 * e3,
+            P ** 3 * e1 ** 2 * e2
+        ),
+        lambda e1, e2, e3, P: (
+            P * (1 - e1 * e2 * e3),
+            P * e1 * e2 * (1 - e3),
+            P,
+            P * e1,
+            P ** 3 * e1 ** 2 * e2
+        ),
+        lambda e1, e2, e3, P: (
+            P * (1 - e1 * e2 * e3),
+            P * e1 * (1 - e2 * e3),
+            P,
+            P * e1 * e2,
+            P ** 3 * e1 ** 2 * e2
+        ),
     ]
 
     pts = []
     wts = []
-    for I in range(2):
-        for (obsxhat, obsyhat), wouter in zip(*q_outer):
-            T1 = theta_lims[I](obsxhat)
-            T2 = theta_lims[I + 1](obsxhat)
-            for theta, wtheta in zip(*quad.map_to(q_theta, [T1, T2])):
-                Rmax = rho_lims[I](obsxhat, theta)
-                for rho, wrho in zip(*quad.map_to(q_rho, [0, Rmax])):
-                    w = wouter * wrho * wtheta * rho
+    for i in range(len(mappings)):
+        m = mappings[i]
+        for e1, f1 in zip(*qline):
+            for e2, f2 in zip(*qline):
+                for e3, f3 in zip(*qline):
+                    for P, f4 in zip(*qline):
+                        F = f1 * f2 * f3 * f4
+                        x1, x2, y1, y2, jac = m(e1, e2, e3, P)
+                        F *= jac
 
-                    srcxhat = rho * np.cos(theta) + (1 - obsxhat)
-                    srcyhat = rho * np.sin(theta)
+                        obsxhat = 1 - x1
+                        obsyhat = x2
+                        srcxhat = 1 - y1
+                        srcyhat = y2
+                        srcxhat = (1 - srcyhat) - srcxhat
 
-                    pts.append((obsxhat, obsyhat, srcxhat, srcyhat))
-                    wts.append(w)
-
+                        pts.append((obsxhat, obsyhat, srcxhat, srcyhat))
+                        wts.append(F)
     return np.array(pts), np.array(wts)

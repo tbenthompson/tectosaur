@@ -1,6 +1,9 @@
 <%!
 def dn(dim):
     return ['x', 'y', 'z'][dim]
+
+e = [[[int((i - j) * (j - k) * (k - i) / 2) for k in range(3)]
+    for j in range(3)] for i in range(3)]
 %>
 
 <%namespace name="kernels" file="kernels/kernels.cl"/>
@@ -36,6 +39,24 @@ WITHIN_KERNEL Real magnitude(Real v[3]) {
 WITHIN_KERNEL int positive_mod(int i, int n) {
         return (i % n + n) % n;
 }
+
+WITHIN_KERNEL void inv33(Real m[3][3], Real out[3][3]) {
+    // computes the inverse of a 3x3 matrix m
+    double det = m[0][0] * (m[1][1] * m[2][2] - m[2][1] * m[1][2]) -
+                 m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+                 m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+    double invdet = 1 / det;
+
+    out[0][0] = (m[1][1] * m[2][2] - m[2][1] * m[1][2]) * invdet;
+    out[0][1] = (m[0][2] * m[2][1] - m[0][1] * m[2][2]) * invdet;
+    out[0][2] = (m[0][1] * m[1][2] - m[0][2] * m[1][1]) * invdet;
+    out[1][0] = (m[1][2] * m[2][0] - m[1][0] * m[2][2]) * invdet;
+    out[1][1] = (m[0][0] * m[2][2] - m[0][2] * m[2][0]) * invdet;
+    out[1][2] = (m[1][0] * m[0][2] - m[0][0] * m[1][2]) * invdet;
+    out[2][0] = (m[1][0] * m[2][1] - m[2][0] * m[1][1]) * invdet;
+    out[2][1] = (m[2][0] * m[0][1] - m[0][0] * m[2][1]) * invdet;
+    out[2][2] = (m[0][0] * m[1][1] - m[1][0] * m[0][1]) * invdet;
+}
 </%def>
 
 <%def name="decl_tri_info(name, need_normal, need_surf_curl)">
@@ -66,10 +87,16 @@ get_unscaled_normal(${name}_tri, ${name}_unscaled_normal);
 ${name}_normal_length = magnitude(${name}_unscaled_normal);
 ${name}_jacobian = ${name}_normal_length;
 % if need_normal:
-    % for dim in range(3):
-    n${name}${dn(dim)} = 
-        ${name}_unscaled_normal[${dim}] / ${name}_normal_length;
-    % endfor
+    % if name == 'obs' and force_normal is not None:
+        % for dim in range(3):
+            n${name}${dn(dim)} = ${force_normal[dim]};
+        % endfor
+    % else:
+        % for dim in range(3):
+        n${name}${dn(dim)} = 
+            ${name}_unscaled_normal[${dim}] / ${name}_normal_length;
+        % endfor
+    % endif
 % endif
 % if need_surf_curl:
     ${surf_curl_basis(name)}
@@ -80,17 +107,41 @@ ${name}_jacobian = ${name}_normal_length;
 // The output is indexed as:
 // b{name}_surf_curl[basis_idx][curl_component]
 {
-    Real g1[3];
-    Real g2[3];
-    sub(${name}_tri[1], ${name}_tri[0], g1);
-    sub(${name}_tri[2], ${name}_tri[0], g2);
+    Real jacobian_mat[3][3];
+    for (int d = 0; d < 3; d++) {
+        jacobian_mat[d][0] = ${name}_tri[1][d] - ${name}_tri[0][d];
+        jacobian_mat[d][1] = ${name}_tri[2][d] - ${name}_tri[0][d];
+        jacobian_mat[d][2] = ${name}_unscaled_normal[d];
+    }
+    Real inv_jacobian[3][3];
+    inv33(jacobian_mat, inv_jacobian);
+    Real real_basis_gradient[3][3];
     for (int basis_idx = 0; basis_idx < 3; basis_idx++) {
-        for (int s = 0; s < 3; s++) {
-            b${name}_surf_curl[basis_idx][s] = (
-                + basis_gradient[basis_idx][0] * g2[s] 
-                - basis_gradient[basis_idx][1] * g1[s]
-            ) / ${name}_jacobian;
+        for (int j = 0; j < 3; j++) {
+            Real sum = 0.0;
+            for (int d = 0; d < 2; d++) {
+                sum += basis_gradient[basis_idx][d] * inv_jacobian[d][j];
+            }
+            real_basis_gradient[basis_idx][j] = sum;
         }
+    }
+
+    for (int basis_idx = 0; basis_idx < 3; basis_idx++) {
+        % for s in range(3):
+        {
+            Real sum = 0.0;
+            % for c in range(3):
+                % for b in range(3):
+                    sum += (
+                        ${e[b][c][s]} *
+                        n${name}${dn(b)} *
+                        real_basis_gradient[basis_idx][${c}]
+                    );
+                % endfor
+            %endfor
+            b${name}_surf_curl[basis_idx][${s}] = sum;
+        }
+        % endfor
     }
 }
 </%def>

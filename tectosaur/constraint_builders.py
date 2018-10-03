@@ -195,6 +195,19 @@ def free_edge_constraints(tris):
             cs.append(ConstraintEQ([Term(1.0, vec_dof)], 0.0))
     return cs
 
+def jump_constraints(jump, negative):
+    n_dofs_per_side = jump.shape[0]
+    cs = []
+    coeff_2 = 1.0 if negative else -1.0
+    for i in range(n_dofs_per_side):
+        dof_1 = i
+        dof_2 = i + n_dofs_per_side
+        ts = []
+        ts.append(Term(1.0, dof_1))
+        ts.append(Term(coeff_2, dof_2))
+        cs.append(ConstraintEQ(ts, jump[i]))
+    return cs
+
 def all_bc_constraints(start_tri, end_tri, vs):
     cs = []
     for i in range(start_tri * 9, end_tri * 9):

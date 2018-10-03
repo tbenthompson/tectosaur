@@ -249,7 +249,7 @@ elasticRA = Kernel(
 )
 
 elasticRH = Kernel(
-    'elasticRH3', 3, 3, False, False, -3, 1, False,
+    'elasticRH3', 3, 3, True, True, -3, 1, False,
     '''
     const Real G = params[0];
     const Real nu = params[1];

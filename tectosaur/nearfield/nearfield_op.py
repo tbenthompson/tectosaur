@@ -43,6 +43,23 @@ def to_tri_space(dof_indices, obs_subset, src_subset):
     tri_idxs = np.array([obs_subset[dof_indices[:,0]], src_subset[dof_indices[:,1]]]).T
     return np.concatenate((tri_idxs, dof_indices[:,2:]), axis = 1)
 
+def edge_adj_orient(touching_verts):
+    tv = sorted(touching_verts)
+    if tv[0] == 0:
+        if tv[1] == 2:
+            return 2
+        return 0
+    return 1
+
+def resolve_ea_rotation(ea):
+    out = []
+    for i in range(ea.shape[0]):
+        obs_clicks = edge_adj_orient([ea[i,2], ea[i,4]])
+        src_clicks = edge_adj_orient([ea[i,3], ea[i,5]])
+        out.append((ea[i,0], ea[i,1], obs_clicks, src_clicks))
+    return np.array(out)
+
+
 def build_nearfield(shape, *mats):
     out = []
     for entries, pairs in mats:
@@ -58,7 +75,8 @@ class RegularizedNearfieldIntegralOp:
     def __init__(self, pts, tris, obs_subset, src_subset,
             nq_coincident, nq_edge_adj, nq_vert_adjacent,
             nq_far, nq_near, near_threshold,
-            K_near_name, K_far_name, params, float_type):
+            K_near_name, K_far_name, params, float_type,
+            force_normal = None):
 
         n_obs_dofs = obs_subset.shape[0] * 9
         n_src_dofs = src_subset.shape[0] * 9
@@ -66,10 +84,12 @@ class RegularizedNearfieldIntegralOp:
 
         timer = Timer(output_fnc = logger.debug, tabs = 1)
         pairs_int = PairsIntegrator(
-            K_near_name, params, float_type, nq_far, nq_near, pts, tris
+            K_near_name, params, float_type, nq_far, nq_near, pts, tris,
+            force_normal = force_normal
         )
         correction_pairs_int = PairsIntegrator(
-            K_far_name, params, float_type, nq_far, nq_near, pts, tris
+            K_far_name, params, float_type, nq_far, nq_near, pts, tris,
+            force_normal = force_normal
         )
         timer.report('setup pairs integrator')
 
@@ -91,12 +111,12 @@ class RegularizedNearfieldIntegralOp:
         )
         nearfield_pairs = to_tri_space(nearfield_pairs_dofs, obs_subset, src_subset)
         va = to_tri_space(va_dofs, obs_subset, src_subset)
-        ea = to_tri_space(ea_dofs, obs_subset, src_subset)
+        ea = resolve_ea_rotation(to_tri_space(ea_dofs, obs_subset, src_subset))
         timer.report("Find nearfield/adjacency")
 
         ea_mat_rot = pairs_int.edge_adj(nq_edge_adj, ea)
         timer.report("Edge adjacent")
-        ea_mat_correction = correction_pairs_int.correction(ea, False)
+        ea_mat_correction = correction_pairs_int.correction(ea[:,:2], False)
         timer.report("Edge adjacent correction")
 
         va_mat_rot = pairs_int.vert_adj(nq_vert_adjacent, va)
@@ -125,6 +145,12 @@ class RegularizedNearfieldIntegralOp:
             (nearfield_mat, nearfield_pairs_dofs),
         )
         timer.report("Assemble uncorrected matrix")
+
+    def full_scipy_mat(self):
+        return sum([m.to_bsr().to_scipy() for m in self.mat])
+
+    def full_scipy_mat_no_correction(self):
+        return sum([m.to_bsr().to_scipy() for m in self.mat_no_correction])
 
     def dot(self, v):
         return sum(arr.dot(v) for arr in self.mat)
