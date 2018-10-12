@@ -75,8 +75,7 @@ class RegularizedNearfieldIntegralOp:
     def __init__(self, pts, tris, obs_subset, src_subset,
             nq_coincident, nq_edge_adj, nq_vert_adjacent,
             nq_far, nq_near, near_threshold,
-            K_near_name, K_far_name, params, float_type,
-            force_normal = None):
+            K_near_name, K_far_name, params, float_type):
 
         n_obs_dofs = obs_subset.shape[0] * 9
         n_src_dofs = src_subset.shape[0] * 9
@@ -84,12 +83,10 @@ class RegularizedNearfieldIntegralOp:
 
         timer = Timer(output_fnc = logger.debug, tabs = 1)
         pairs_int = PairsIntegrator(
-            K_near_name, params, float_type, nq_far, nq_near, pts, tris,
-            force_normal = force_normal
+            K_near_name, params, float_type, nq_far, nq_near, pts, tris
         )
         correction_pairs_int = PairsIntegrator(
-            K_far_name, params, float_type, nq_far, nq_near, pts, tris,
-            force_normal = force_normal
+            K_far_name, params, float_type, nq_far, nq_near, pts, tris
         )
         timer.report('setup pairs integrator')
 

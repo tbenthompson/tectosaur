@@ -12,23 +12,22 @@ def pairs_func_name(check0):
 
 block_size = 256
 
-def get_gpu_config(kernel, float_type, force_normal):
+def get_gpu_config(kernel, float_type):
     return dict(
         block_size = block_size,
         float_type = gpu.np_to_c_type(float_type),
-        kernel_name = kernel,
-        force_normal = force_normal
+        kernel_name = kernel
     )
 
-def get_gpu_module(kernel, float_type, force_normal):
+def get_gpu_module(kernel, float_type):
     return gpu.load_gpu('nearfield/nearfield.cl', tmpl_args = get_gpu_config(
-        kernel, float_type, force_normal
+        kernel, float_type
     ))
 
 class PairsIntegrator:
-    def __init__(self, kernel, params, float_type, nq_far, nq_near, pts, tris, force_normal = None):
+    def __init__(self, kernel, params, float_type, nq_far, nq_near, pts, tris):
         self.float_type = float_type
-        self.module = get_gpu_module(kernel, float_type, force_normal)
+        self.module = get_gpu_module(kernel, float_type)
         self.gpu_params = gpu.to_gpu(np.array(params), self.float_type)
         self.gpu_near_q = self.quad_to_gpu(gauss4d_tri(nq_near, nq_near))
         self.gpu_far_q = self.quad_to_gpu(gauss4d_tri(nq_far, nq_far))

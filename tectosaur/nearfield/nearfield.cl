@@ -77,8 +77,8 @@ void ${pairs_func_name(check0)}(GLOBAL_MEM Real* result,
     const int src_tri_rot_clicks = 0;
     ${prim.decl_tri_info("obs", K.needs_obsn, K.surf_curl_obs)}
     ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
-    ${prim.tri_info("obs", "tris", K.needs_obsn, K.surf_curl_obs, force_normal)}
-    ${prim.tri_info("src", "tris", K.needs_srcn, K.surf_curl_src, force_normal)}
+    ${prim.tri_info("obs", "tris", K.needs_obsn, K.surf_curl_obs)}
+    ${prim.tri_info("src", "tris", K.needs_srcn, K.surf_curl_src)}
     ${integrate_pair(K, check0)}
     
     for (int iresult = 0; iresult < 81; iresult++) {
@@ -102,8 +102,8 @@ void ${pairs_func_name(check0)}_adj(GLOBAL_MEM Real* result,
     const int src_tri_rot_clicks = pairs_list[pair_idx * 4 + 3];
     ${prim.decl_tri_info("obs", K.needs_obsn, K.surf_curl_obs)}
     ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
-    ${prim.tri_info("obs", "tris", K.needs_obsn, K.surf_curl_obs, force_normal)}
-    ${prim.tri_info("src", "tris", K.needs_srcn, K.surf_curl_src, force_normal)}
+    ${prim.tri_info("obs", "tris", K.needs_obsn, K.surf_curl_obs)}
+    ${prim.tri_info("src", "tris", K.needs_srcn, K.surf_curl_src)}
     ${integrate_pair(K, True)}
 
     //printf("obs1: %f %f %f\n", obs_tri[0][0], obs_tri[0][1], obs_tri[0][2]);
@@ -145,8 +145,8 @@ void farfield_tris(GLOBAL_MEM Real* result,
     const int src_tri_rot_clicks = 0;
     ${prim.decl_tri_info("obs", K.needs_obsn, K.surf_curl_obs)}
     ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
-    ${prim.tri_info("obs", "obs_tris", K.needs_obsn, K.surf_curl_obs, force_normal)}
-    ${prim.tri_info("src", "src_tris", K.needs_srcn, K.surf_curl_src, force_normal)}
+    ${prim.tri_info("obs", "obs_tris", K.needs_obsn, K.surf_curl_obs)}
+    ${prim.tri_info("src", "src_tris", K.needs_srcn, K.surf_curl_src)}
 
     ${integrate_pair(K, check0 = False)}
 
