@@ -91,6 +91,18 @@ def check_if_crosses_fault(tri1, tri2, fault_touching_pts, fault_tris):
 
     return False
 
+def check_continuity(tris, field):
+    n_pts = np.max(tris) + 1
+    discontinuity_pts = []
+    for i in range(n_pts):
+        tri_idxs, corner_idxs = np.where(tris == i)
+        # print(i, tri_idxs, corner_idxs)
+        vals = field[tri_idxs * 3 + corner_idxs]
+        # print(vals, vals[0])
+        if not np.all(vals == vals[0]):
+            discontinuity_pts.append(i)
+    return discontinuity_pts
+
 def continuity_constraints(surface_tris, fault_tris, tensor_dim = 3):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
