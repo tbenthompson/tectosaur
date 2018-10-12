@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class TriToTriDirectFarfieldOp:
     def __init__(self, nq_far, K_name, params, pts, tris,
-            float_type, obs_subset, src_subset):
+            float_type, obs_subset, src_subset, force_normal = None):
         self.shape = (obs_subset.shape[0] * 9, src_subset.shape[0] * 9)
         self.dim = pts.shape[1]
         self.tensor_dim = kernels[K_name].tensor_dim
@@ -45,7 +45,8 @@ class TriToTriDirectFarfieldOp:
             'farfield_tris.cl',
             tmpl_args = dict(
                 block_size = self.block_size,
-                float_type = gpu.np_to_c_type(float_type)
+                float_type = gpu.np_to_c_type(float_type),
+                force_normal = force_normal
             )
         )
         self.fnc = getattr(self.module, "farfield_tris" + K_name)

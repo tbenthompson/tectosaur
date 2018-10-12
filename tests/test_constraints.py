@@ -146,8 +146,25 @@ def test_faulted_continuity():
     cm = scipy.sparse.csr_matrix((vals, (rows, cols)), shape = (n_rows, n_cols))
     assert(cm.shape[1] == 36)
 
+def test_cascadia_continuity():
+    pts, tris = np.load('tests/cascadia10000.npy')
+    cs = continuity_constraints(tris, np.array([]))
+    # dof_pairs = [(c.terms[0].dof, c.terms[1].dof) for c in cs]
+    # print(
+    #     [x for x in dof_pairs if x[0] == 4887 or x[1] == 4887],
+    #     [x for x in dof_pairs if x[0] == 3045 or x[1] == 3045]
+    # )
+
+    cm, c_rhs = build_constraint_matrix(cs, tris.shape[0] * 9)
+
+    np.random.seed(75)
+    field = np.random.rand(tris.shape[0] * 9)
+    continuous = cm.dot(cm.T.dot(field)).reshape((-1,3))[:,0]
+    assert(check_continuity(tris, continuous) == [])
+
+
 def benchmark_build_constraint_matrix():
-    from tectosaur.util.timer import Timer
+    from tectosaur.util.timer import timer
     from tectosaur.constraints import fast_constraints
     import scipy.sparse
     t = Timer()

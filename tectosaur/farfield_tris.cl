@@ -33,7 +33,7 @@ void farfield_tris${K.name}(
     ${prim.decl_tri_info("obs", K.needs_obsn, K.surf_curl_obs)}
     Real sum[${dofs_per_el}];
     if (obs_tri_idx < n_obs) {
-        ${prim.tri_info("obs", "obs_tris", K.needs_obsn, K.surf_curl_obs)}
+        ${prim.tri_info("obs", "obs_tris", K.needs_obsn, K.surf_curl_obs, force_normal)}
         for (int k = 0; k < ${dofs_per_el}; k++) {
             sum[k] = 0.0;
         }
@@ -61,7 +61,7 @@ void farfield_tris${K.name}(
         const int src_tri_idx = j;
         const int src_tri_rot_clicks = 0;
         ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
-        ${prim.tri_info("src", "src_tris", K.needs_srcn, K.surf_curl_src)}
+        ${prim.tri_info("src", "src_tris", K.needs_srcn, K.surf_curl_src, force_normal)}
 
         Real in[${dofs_per_el}];
         for (int k = 0; k < ${dofs_per_el}; k++) {

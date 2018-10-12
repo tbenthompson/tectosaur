@@ -83,7 +83,7 @@ class RegularizedSparseIntegralOp:
     def __init__(self, nq_coincident, nq_edge_adj, nq_vert_adjacent,
             nq_far, nq_near, near_threshold,
             K_near_name, K_far_name, params, pts, tris, float_type, farfield_op_type,
-            obs_subset = None, src_subset = None):
+            obs_subset = None, src_subset = None, force_normal = None):
 
         if obs_subset is None:
             obs_subset = np.arange(tris.shape[0])
@@ -94,12 +94,13 @@ class RegularizedSparseIntegralOp:
             pts, tris, obs_subset, src_subset,
             nq_coincident, nq_edge_adj, nq_vert_adjacent, nq_far, nq_near,
             near_threshold, K_near_name, K_far_name,
-            params, float_type
+            params, float_type, force_normal = force_normal
         )
 
         self.farfield = farfield_op_type(
             nq_far, K_far_name, params, pts, tris,
-            float_type, obs_subset, src_subset
+            float_type, obs_subset, src_subset,
+            force_normal = force_normal
         )
 
         self.shape = self.nearfield.shape

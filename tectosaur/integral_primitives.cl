@@ -9,7 +9,7 @@ e = [[[int((i - j) * (j - k) * (k - i) / 2) for k in range(3)]
 <%namespace name="kernels" file="kernels/kernels.cl"/>
 
 <%def name="geometry_fncs()">
-
+#include <assert.h>
 CONSTANT Real basis_gradient[3][2] = {{-1.0, -1.0}, {1.0, 0.0}, {0.0, 1.0}};
 
 WITHIN_KERNEL void vec_cross(Real x[3], Real y[3], Real out[3]) {
@@ -42,10 +42,10 @@ WITHIN_KERNEL int positive_mod(int i, int n) {
 
 WITHIN_KERNEL void inv33(Real m[3][3], Real out[3][3]) {
     // computes the inverse of a 3x3 matrix m
-    double det = m[0][0] * (m[1][1] * m[2][2] - m[2][1] * m[1][2]) -
+    Real det = m[0][0] * (m[1][1] * m[2][2] - m[2][1] * m[1][2]) -
                  m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
                  m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
-    double invdet = 1 / det;
+    Real invdet = 1 / det;
 
     out[0][0] = (m[1][1] * m[2][2] - m[2][1] * m[1][2]) * invdet;
     out[0][1] = (m[0][2] * m[2][1] - m[0][1] * m[2][2]) * invdet;
@@ -74,7 +74,7 @@ Real ${name}_jacobian;
 % endif
 </%def>
 
-<%def name="tri_info(name, tris, need_normal, need_surf_curl)">
+<%def name="tri_info(name, tris, need_normal, need_surf_curl, force_normal)">
 for (int c = 0; c < 3; c++) {
     int pt_idx = ${tris}[
         3 * ${name}_tri_idx + positive_mod(c + ${name}_tri_rot_clicks, 3)

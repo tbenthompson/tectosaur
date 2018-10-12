@@ -7,7 +7,7 @@ import tectosaur.nearfield.limit as limit
 import tectosaur.ops.dense_integral_op as dense_integral_op
 import tectosaur.ops.sparse_integral_op as sparse_integral_op
 from tectosaur.ops.sparse_farfield_op import PtToPtDirectFarfieldOp, \
-    PtToPtFMMFarfieldOp
+    PtToPtFMMFarfieldOp, TriToTriDirectFarfieldOp
 import tectosaur.ops.mass_op as mass_op
 
 import tectosaur.util.quadrature as quad
@@ -225,13 +225,20 @@ def test_force_normal(request):
         8, 8, 8, 3, 5, 2.5, 'elasticRH3', 'elasticRH3', [1.0, 0.25],
         pts, tris, np.float32, all_tri_idxs, all_tri_idxs
     ]
+    op3 = sparse_integral_op.RegularizedSparseIntegralOp(
+        8, 8, 8, 3, 5, 2.5, 'elasticRH3', 'elasticRH3', [1.0, 0.25],
+        pts, tris, np.float32, TriToTriDirectFarfieldOp,
+        force_normal = (0.0, 0.0, -1.0)
+    )
     op1 = dense_integral_op.RegularizedDenseIntegralOp(*args)
     op2 = dense_integral_op.RegularizedDenseIntegralOp(*args, force_normal = (0.0, 0.0, -1.0))
     np.random.seed(197)
     x = np.random.rand(op1.shape[1])
     y1 = op1.dot(x)
     y2 = op2.dot(x)
+    y3 = op3.dot(x)
     np.testing.assert_almost_equal(y1, y2)
+    np.testing.assert_almost_equal(y1, y3)
     return y1
 
 @profile
