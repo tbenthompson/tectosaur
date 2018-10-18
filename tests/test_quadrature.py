@@ -127,8 +127,6 @@ def test_edge_adj_nan_problem_09_24_18():
     ea = get_ea(pts, tris)
     mat = pairs_int.edge_adj(9, ea)
     print(mat)
-    import ipdb
-    ipdb.set_trace()
 
 def get_ea(pts, tris):
     import tectosaur.mesh.find_near_adj as find_near_adj
