@@ -131,4 +131,8 @@ class RegularizedSparseIntegralOp:
         return tsk.run(wrapper)
 
     async def farfield_dot(self, tsk_w, v):
-        return (await self.farfield.async_dot(tsk_w, v))
+        t = Timer(output_fnc = logger.debug)
+        logger.debug("start farfield_dot")
+        out = (await self.farfield.async_dot(tsk_w, v))
+        t.report('farfield_dot')
+        return out
