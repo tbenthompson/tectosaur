@@ -4,65 +4,68 @@
 #include <iostream>
 
 template <size_t dim>
-struct PtWithIdx {
-    std::array<double,dim> pt;
+struct BallWithIdx {
+    Ball<dim> ball;
     size_t orig_idx;
 };
 
 // Note: I tried using a minimum bounding sphere algorithm. This didn't help and actually hurt a little bit(?!). Furthermore, the tree construction cost went up quite a lot. On second thought, this makes sense, because there's probably some value in having the center of a node at its center of mass for the sake of the error in the translation operator. Also, for most nodes, the center of mass approach will be quite close to the minimum bounding sphere.
 template <size_t dim>
-Ball<dim> tree_bounds(PtWithIdx<dim>* pts, size_t n_pts) {
-    if (n_pts < 2) {
-        throw std::runtime_error("Cannot form bounds for n_pts = " + std::to_string(n_pts));
+Ball<dim> tree_bounds(BallWithIdx<dim>* balls, size_t n_balls) {
+    if (n_balls < 2) {
+        throw std::runtime_error("Cannot form bounds for n_balls = " + std::to_string(n_balls));
     }
 
     std::array<double,dim> com{};
 
-    for (size_t i = 0; i < n_pts; i++) {
+    for (size_t i = 0; i < n_balls; i++) {
         for (size_t d = 0; d < dim; d++) {
-            com[d] += pts[i].pt[d];
+            com[d] += balls[i].ball.center[d];
         }
     }
     for (size_t d = 0; d < dim; d++) {
-        com[d] /= n_pts;
+        com[d] /= n_balls;
     }
 
-    double max_r2 = 0.0;
-    for (size_t i = 0; i < n_pts; i++) {
-        for (size_t d = 0; d < dim; d++) {
-            max_r2 = std::max(max_r2, dist2(pts[i].pt, com));
-        }
+    double max_r = 0.0;
+    for (size_t i = 0; i < n_balls; i++) {
+        max_r = std::max(
+            max_r,
+            dist(balls[i].ball.center, com) + balls[i].ball.R
+        ); 
     }
-    return {com, std::sqrt(max_r2)};
+    return {com, max_r};
 }
 
 template <size_t dim>
-Ball<dim> root_tree_bounds(PtWithIdx<dim>* pts, size_t n_pts) {
-    if (n_pts == 0) {
+Ball<dim> root_tree_bounds(BallWithIdx<dim>* balls, size_t n_balls) {
+    if (n_balls == 0) {
         return {std::array<double,dim>{}, 1.0};
-    } else if (n_pts == 1) {
-        return {pts[0].pt, 1.0};
+    } else if (n_balls == 1) {
+        return balls[0].ball;
     } else {
-        return tree_bounds(pts, n_pts);
+        return tree_bounds(balls, n_balls);
     }
 }
 
 template <size_t dim>
-Ball<dim> child_tree_bounds(PtWithIdx<dim>* pts, size_t n_pts, const Ball<dim>& parent_bounds) {
-    if (n_pts == 0) {
+Ball<dim> child_tree_bounds(BallWithIdx<dim>* balls, size_t n_balls, const Ball<dim>& parent_bounds) {
+    if (n_balls == 0) {
         return {parent_bounds.center, parent_bounds.R / 50.0};
-    } else if (n_pts == 1) {
-        return {pts[0].pt, parent_bounds.R / 50.0}; 
+    } else if (n_balls == 1) {
+        return balls[0].ball; 
     } else {
-        return tree_bounds(pts, n_pts);
+        return tree_bounds(balls, n_balls);
     }
 }
 
 template <size_t dim>
-std::vector<PtWithIdx<dim>> combine_pts_idxs(std::array<double,dim>* pts, size_t n_pts) {
-    std::vector<PtWithIdx<dim>> pts_idxs(n_pts);
-    for (size_t i = 0; i < n_pts; i++) {
-        pts_idxs[i] = {pts[i], i};
+std::vector<BallWithIdx<dim>> combine_balls_idxs(
+        std::array<double,dim>* balls, double* Rs, size_t n_balls) 
+{
+    std::vector<BallWithIdx<dim>> balls_idxs(n_balls);
+    for (size_t i = 0; i < n_balls; i++) {
+        balls_idxs[i] = {{balls[i], Rs[i]}, i};
     }
-    return pts_idxs;
+    return balls_idxs;
 }

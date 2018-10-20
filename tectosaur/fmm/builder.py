@@ -7,7 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 def make_tree(pts, cfg, max_pts_per_cell):
-    return cfg.traversal_module.Tree.build(pts, max_pts_per_cell)
+    return cfg.traversal_module.Tree.build(pts, np.zeros(pts.shape[0]), max_pts_per_cell)
 
 class FMM:
     def __init__(self, obs_tree, obs_normals, src_tree, src_normals, cfg):
@@ -15,6 +15,15 @@ class FMM:
         self.obs_tree = obs_tree
         self.src_tree = src_tree
         self.gpu_data = dict()
+
+        self.src_tree_pts = np.array(
+            [b.center for b in self.src_tree.balls],
+            copy = False
+        )
+        self.obs_tree_pts = np.array(
+            [b.center for b in self.obs_tree.balls],
+            copy = False
+        )
 
         self.setup_interactions()
         self.collect_gpu_ops()
@@ -42,10 +51,8 @@ class FMM:
         self.n_surf_dofs = self.n_surf_pts * self.cfg.K.tensor_dim
         self.n_multipoles = self.n_surf_dofs * self.src_tree.n_nodes
         self.n_locals = self.n_surf_dofs * self.obs_tree.n_nodes
-        src_tree_pts = np.array(self.src_tree.pts, copy = False)
-        obs_tree_pts = np.array(self.obs_tree.pts, copy = False)
-        self.n_input = self.cfg.K.tensor_dim * src_tree_pts.shape[0]
-        self.n_output = self.cfg.K.tensor_dim * obs_tree_pts.shape[0]
+        self.n_input = self.cfg.K.tensor_dim * self.src_tree_pts.shape[0]
+        self.n_output = self.cfg.K.tensor_dim * self.obs_tree_pts.shape[0]
 
     def float_gpu(self, arr):
         return gpu.to_gpu(arr, self.cfg.float_type)
@@ -59,9 +66,9 @@ class FMM:
     def tree_to_gpu(self, obs_normals, src_normals):
         gd = self.gpu_data
 
-        gd['obs_pts'] = self.float_gpu(np.array(self.obs_tree.pts, copy = False))
+        gd['obs_pts'] = self.float_gpu(np.array(self.obs_tree_pts, copy = False))
         gd['obs_normals'] = self.float_gpu(obs_normals)
-        gd['src_pts'] = self.float_gpu(np.array(self.src_tree.pts, copy = False))
+        gd['src_pts'] = self.float_gpu(np.array(self.src_tree_pts, copy = False))
         gd['src_normals'] = self.float_gpu(src_normals)
 
         obs_tree_nodes = self.obs_tree.nodes
@@ -119,7 +126,7 @@ class FMM:
         return output_orig
 
 def report_interactions(fmm_obj):
-    dim = fmm_obj.obs_tree.pts.shape[1]
+    dim = fmm_obj.obs_tree_pts.shape[1]
     def count_interactions(op_name, op):
         obs_surf = False if op_name[2] == 'p' else True
         src_surf = False if op_name[0] == 'p' else True
@@ -128,8 +135,8 @@ def report_interactions(fmm_obj):
             obs_surf, src_surf, fmm_obj.cfg.order
         )
 
-    n_obs_pts = fmm_obj.obs_tree.pts.shape[0]
-    n_src_pts = fmm_obj.src_tree.pts.shape[0]
+    n_obs_pts = fmm_obj.obs_tree_pts.shape[0]
+    n_src_pts = fmm_obj.src_tree_pts.shape[0]
     level_ops = ['m2m', 'l2l']
     ops = ['p2m', 'p2l', 'm2l', 'p2p', 'm2p', 'l2p']
 

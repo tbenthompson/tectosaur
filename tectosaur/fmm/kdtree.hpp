@@ -18,13 +18,14 @@ struct KDNode {
 
 template <size_t dim>
 std::array<int,2> kd_partition(const Ball<dim>& bounds, int split_dim,
-    PtWithIdx<dim>* start, PtWithIdx<dim>* end);
+    BallWithIdx<dim>* start, BallWithIdx<dim>* end);
 
 template <size_t dim>
 struct KDTree;
 
 template <size_t dim>
-KDTree<dim> build_kdtree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_cell);
+KDTree<dim> build_kdtree(std::array<double,dim>* in_pts, double* in_R,
+    size_t n_balls, size_t n_per_cell);
 
 template <size_t _dim>
 struct KDTree {
@@ -33,7 +34,7 @@ struct KDTree {
     constexpr static auto build_fnc = build_kdtree<dim>;
     using Node = KDNode<dim>;
 
-    std::vector<std::array<double,dim>> pts;
+    std::vector<Ball<dim>> balls;
     std::vector<size_t> orig_idxs;
 
     int max_height;

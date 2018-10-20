@@ -40,7 +40,7 @@ void query_helper(std::vector<long>& out,
                 auto orig_idx_j = src_tree.orig_idxs[j];
                 auto pt_touching_sep = obs_radius_ptr[i] + src_radius_ptr[j];
                 auto pt_limit = std::pow(pt_touching_sep * threshold, 2);
-                if (dist2(obs_tree.pts[i], src_tree.pts[j]) > pt_limit) {
+                if (dist2(obs_tree.balls[i].center, src_tree.balls[j].center) > pt_limit) {
                     continue;
                 }
                 out.push_back(orig_idx_i);
@@ -73,6 +73,7 @@ void query_helper(std::vector<long>& out,
     }
 }
 
+//TODO: This is redundant now that octree/kdtree support ball radius
 template <size_t dim>
 std::vector<double> get_expanded_node_r(const Octree<dim>& tree, double* radius_ptr) {
     std::vector<double> expanded_node_r(tree.nodes.size());
@@ -82,7 +83,7 @@ std::vector<double> get_expanded_node_r(const Octree<dim>& tree, double* radius_
         double max_radius = n.bounds.R;
         for (size_t j = n.start; j < n.end; j++) {
             auto orig_idx = tree.orig_idxs[j];
-            auto modified_dist = dist(tree.pts[j], n.bounds.center) + radius_ptr[orig_idx];
+            auto modified_dist = dist(tree.balls[j].center, n.bounds.center) + radius_ptr[orig_idx];
             if (modified_dist > max_radius) {
                 max_radius = modified_dist;
             }
@@ -192,13 +193,13 @@ PYBIND11_MODULE(fast_find_nearfield,m) {
             auto obs_pts_ptr = as_ptr<std::array<double,dim>>(obs_pts);
             auto obs_radius_ptr = as_ptr<double>(obs_radius);
             auto n_obs = obs_pts.request().shape[0];
-            auto obs_tree = Octree<dim>::build_fnc(obs_pts_ptr, n_obs, leaf_size);
+            auto obs_tree = Octree<dim>::build_fnc(obs_pts_ptr, obs_radius_ptr, n_obs, leaf_size);
             auto obs_expanded_r = get_expanded_node_r(obs_tree, obs_radius_ptr);
 
             auto src_pts_ptr = as_ptr<std::array<double,dim>>(src_pts);
             auto src_radius_ptr = as_ptr<double>(src_radius);
             auto n_src = src_pts.request().shape[0];
-            auto src_tree = Octree<dim>::build_fnc(src_pts_ptr, n_src, leaf_size);
+            auto src_tree = Octree<dim>::build_fnc(src_pts_ptr, src_radius_ptr, n_src, leaf_size);
             auto src_expanded_r = get_expanded_node_r(src_tree, src_radius_ptr);
             t.report("setup");
 
@@ -221,7 +222,7 @@ PYBIND11_MODULE(fast_find_nearfield,m) {
             auto pts_ptr = as_ptr<std::array<double,dim>>(pts);
             auto radius_ptr = as_ptr<double>(radius);
             auto n_obs = pts.request().shape[0];
-            auto tree = Octree<dim>::build_fnc(pts_ptr, n_obs, leaf_size);
+            auto tree = Octree<dim>::build_fnc(pts_ptr, radius_ptr, n_obs, leaf_size);
             auto expanded_r = get_expanded_node_r(tree, radius_ptr);
             t.report("setup");
 

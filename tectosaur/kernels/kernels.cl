@@ -153,35 +153,6 @@ def dn(dim):
 <%def name="elasticRH3_vector()">
     const Real invr2 = 1.0 / r2;
     const Real invr = sqrt(invr2);
-    % for d_obs in range(3):
-    % for d_src in range(3):
-    % for It in range(3):
-    % for Im in range(3):
-    {
-        //k is d_obs, j is d_src, 
-        Real Kval = factor * CsRH0 * invr * (
-            -2 * D${dn(d_obs)} * D${dn(d_src)} * invr2 * ${kronecker[It][Im]}
-            + CsRH1 * ${kronecker[d_obs][It] * kronecker[d_src][Im]}
-            + CsRH2 * ${kronecker[d_obs][Im] * kronecker[d_src][It]}
-            - 2 * ${kronecker[d_obs][d_src] * kronecker[It][Im]}
-        );
-        for (int b_src = 0; b_src < 3; b_src++) {
-        for (int b_obs = 0; b_obs < 3; b_obs++) {
-            sum[b_obs * 3 + ${d_obs}] += Kval 
-                * bobs_surf_curl[b_obs][${It}] 
-                * bsrc_surf_curl[b_src][${Im}] * in[b_src * 3 + ${d_src}];
-        }
-        }
-    }
-    % endfor
-    % endfor
-    % endfor
-    % endfor
-</%def>
-
-<%def name="elasticRH3_vector2()">
-    const Real invr2 = 1.0 / r2;
-    const Real invr = sqrt(invr2);
     Real F = factor * CsRH0 * invr;
 
     Real src_surf_curl[3][3];

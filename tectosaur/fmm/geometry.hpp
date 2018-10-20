@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <cmath>
+#include <iostream>
 
 //TODO: This and vec_tensor.hpp can be merged some.
 template <size_t dim>
@@ -129,5 +130,10 @@ int find_containing_subcell(const Ball<dim>& b, const std::array<double,dim>& pt
 template <size_t dim>
 bool in_ball(const Ball<dim>& b, const std::array<double,dim>& pt) {
     return dist(pt, b.center) <= b.R;
+}
+
+template <size_t dim>
+bool ball_in_ball(const Ball<dim>& container, const Ball<dim>& member) {
+    return dist(member.center, container.center) + member.R <= container.R;
 }
 

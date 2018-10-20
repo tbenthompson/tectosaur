@@ -20,16 +20,17 @@ struct OctreeNode {
 
 template <size_t dim>
 std::array<int,OctreeNode<dim>::split+1> octree_partition(
-        const Ball<dim>& bounds, PtWithIdx<dim>* start, PtWithIdx<dim>* end);
+        const Ball<dim>& bounds, BallWithIdx<dim>* start, BallWithIdx<dim>* end);
 
 template <size_t dim>
-Ball<dim> bounding_ball(PtWithIdx<dim>* pts, size_t n_pts);
+Ball<dim> bounding_ball(BallWithIdx<dim>* balls, size_t n_balls);
 
 template <size_t dim>
 struct Octree;
 
 template <size_t dim>
-Octree<dim> build_octree(std::array<double,dim>* in_pts, size_t n_pts, size_t n_per_cell);
+Octree<dim> build_octree(std::array<double,dim>* in_balls, double* in_R,
+    size_t n_balls, size_t n_per_cell);
 
 template <size_t _dim>
 struct Octree {
@@ -38,7 +39,7 @@ struct Octree {
     constexpr static auto build_fnc = build_octree<dim>;
     using Node = OctreeNode<dim>;
 
-    std::vector<std::array<double,dim>> pts;
+    std::vector<Ball<dim>> balls;
     std::vector<size_t> orig_idxs;
 
     int max_height;

@@ -299,7 +299,7 @@ def build_and_solve_T_regularized(data):
     timer.report("Constraints")
 
     T_op = RegularizedSparseIntegralOp(
-        6, 6, 6, 2, 4, 2.0,
+        8, 8, 8, 2, 5, 2.5,
         'elasticRT3', 'elasticRT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
         data.float_type,
         # farfield_op_type = PtToPtFMMFarfieldOp(150, 3.0, 450)
@@ -375,17 +375,17 @@ def main():
     t = Timer(output_fnc = logger.info)
     obj = Okada(
         int(sys.argv[1]), n_fault = int(sys.argv[2]),
-        top_depth = 0.0, verbose = True
+        top_depth = -0.5, verbose = True
     )
     obj.plot_mesh()
-    soln = obj.run(build_and_solve = build_and_solve_T)
-    soln2 = obj.run(build_and_solve = build_and_solve_T_regularized)
+    # soln = obj.run(build_and_solve = build_and_solve_T)
+    soln = obj.run(build_and_solve = build_and_solve_T_regularized)
     t.report('tectosaur')
     okada_soln = obj.okada_exact()
 
     # np.save('okada_soln_for_plot.npy', [obj.all_mesh, obj.surface_tris, obj.fault_tris, soln, okada_soln])
     t.report('okada')
-    obj.xsec_plot([soln, soln2], okada_soln)
+    obj.xsec_plot([soln], okada_soln)
     # obj.plot_interior_displacement(soln)
     obj.print_error(soln, okada_soln)
     t.report('check')

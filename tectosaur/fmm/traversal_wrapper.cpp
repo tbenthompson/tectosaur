@@ -30,10 +30,11 @@ void wrap_fmm(py::module& m) {
 
     py::class_<TreeT>(m, "Tree")
         .def_static("build", 
-            [] (NPArrayD np_pts, size_t n_per_cell) {
+            [] (NPArrayD np_pts, NPArrayD np_R, size_t n_per_cell) {
                 check_shape<TreeT::dim>(np_pts);
                 return TreeT::build_fnc(
                     as_ptr<std::array<double,TreeT::dim>>(np_pts),
+                    as_ptr<double>(np_R),
                     np_pts.request().shape[0], n_per_cell
                 );
             })
@@ -42,7 +43,7 @@ void wrap_fmm(py::module& m) {
         .def_readonly("nodes", &TreeT::nodes)
         .NPARRAYPROP(TreeT, orig_idxs)
         .def_readonly("max_height", &TreeT::max_height)
-        .NPARRAYPROP(TreeT, pts)
+        .def_readonly("balls", &TreeT::balls)
         .def_property_readonly("node_centers", [] (TreeT& tree) {
             auto out = make_array<double>({tree.nodes.size(), TreeT::dim});
             auto* out_ptr = as_ptr<std::array<double,TreeT::dim>>(out);
@@ -78,11 +79,9 @@ void wrap_dim(py::module& m) {
 
     auto octree = m.def_submodule("octree");
     auto kdtree = m.def_submodule("kdtree");
-    auto kdtree2 = m.def_submodule("kdtree2");
 
     wrap_fmm<Octree<dim>>(octree);
     wrap_fmm<KDTree<dim>>(kdtree);
-    // wrap_fmm<KDTree2<dim>>(kdtree2);
 }
 
 

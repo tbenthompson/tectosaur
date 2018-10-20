@@ -8,17 +8,22 @@ import pytest
 def tree_type(request):
     return request.param
 
-def make_tree(tree_type, pts, n_per_cell):
+def make_tree(tree_type, pts, Rs, n_per_cell):
     dim = pts.shape[1]
     if tree_type == 'kd':
-        return get_dim_module(dim).kdtree.Tree.build(pts, n_per_cell)
+        return get_dim_module(dim).kdtree.Tree.build(pts, Rs, n_per_cell)
     elif tree_type == 'oct':
-        return get_dim_module(dim).octree.Tree.build(pts, n_per_cell)
+        return get_dim_module(dim).octree.Tree.build(pts, Rs, n_per_cell)
+
+def simple_setup(n, tree_type, dim):
+    pts = np.random.rand(n, dim)
+    Rs = np.random.rand(n) * 0.01
+    t = make_tree(tree_type, pts, Rs, 1)
+    return pts, Rs, t
 
 def test_bisects(tree_type, dim):
-    pts = np.random.rand(100,dim)
-    t = make_tree(tree_type, pts, 1)
-    pts = np.array(t.pts)
+    pts, Rs, t = simple_setup(100, tree_type, dim)
+    pts = np.array([b.center for b in t.balls])
     for n in t.nodes:
         if n.is_leaf:
             continue
@@ -31,17 +36,15 @@ def test_bisects(tree_type, dim):
         assert(len(idx_list) == 0)
 
 def test_contains_pts(tree_type, dim):
-    pts = np.random.rand(100,dim)
-    t = make_tree(tree_type, pts, 1)
-    pts = np.array(t.pts)
+    pts, Rs, t = simple_setup(100, tree_type, dim)
+    pts = np.array([b.center for b in t.balls])
     for n in t.nodes:
         for i in range(n.start, n.end):
             dist = np.sqrt(np.sum((n.bounds.center - pts[i,:]) ** 2))
             assert(dist <= n.bounds.R)
 
 def test_height_depth(tree_type, dim):
-    pts = np.random.rand(100,dim)
-    t = make_tree(tree_type, pts, 1)
+    pts, Rs, t = simple_setup(100, tree_type, dim)
     for n in t.nodes:
         if n.is_leaf:
             continue
@@ -52,7 +55,7 @@ def test_height_depth(tree_type, dim):
 
 def test_one_level(tree_type, dim):
     pts = np.random.rand(dim, dim)
-    t = make_tree(tree_type, pts, dim + 1)
+    t = make_tree(tree_type, pts, np.full(pts.shape[0], 0.01), dim + 1)
     assert(t.max_height == 0);
     assert(len(t.nodes) == 1);
     assert(t.root().is_leaf);
@@ -61,20 +64,22 @@ def test_one_level(tree_type, dim):
     assert(t.root().height == 0);
 
 def test_orig_idxs(tree_type, dim):
-    pts = np.random.rand(1000,dim)
-    t = make_tree(tree_type, pts, 50)
-    np.testing.assert_almost_equal(np.array(t.pts), pts[np.array(t.orig_idxs), :])
+    pts = np.random.rand(1000, dim)
+    Rs = np.random.rand(1000) * 0.01
+    t = make_tree(tree_type, pts, Rs, 50)
+    pts_new = np.array([b.center for b in t.balls])
+    np.testing.assert_almost_equal(pts_new, pts[np.array(t.orig_idxs), :])
 
 def test_idx(tree_type, dim):
-    pts = np.random.rand(100,dim)
-    t = make_tree(tree_type, pts, 1)
+    pts, Rs, t = simple_setup(100, tree_type, dim)
     for i, n in enumerate(t.nodes):
         assert(n.idx == i)
 
 def test_law_of_large_numbers():
     n = 10000
     pts = np.random.rand(n, 3)
-    t = get_dim_module(3).octree.Tree.build(pts, 100);
+    Rs = np.random.rand(n) * 0.01
+    t = get_dim_module(3).octree.Tree.build(pts, Rs, 100);
     for i in range(8):
         child = t.nodes[t.root().children[i]]
         n_pts = child.end - child.start
