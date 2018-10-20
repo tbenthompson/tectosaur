@@ -79,7 +79,7 @@ class Okada:
             soln = np.load('okada.npy')
         return soln
 
-    def okada_exact(self):
+    def okada_exact(self, slip_fnc):
         obs_pts = self.all_mesh[0]
         sm, pr = self.k_params
         lam = 2 * sm * pr / (1 - 2 * pr)
@@ -87,17 +87,32 @@ class Okada:
         print(lam, sm, pr, alpha)
 
         n_pts = obs_pts.shape[0]
-        u = np.empty((n_pts, 3))
+        u = np.zeros((n_pts, 3))
+        NX = 20
+        NY = 20
+        X_vals = np.linspace(-self.fault_L, self.fault_L, NX + 1)
+        Y_vals = np.linspace(-1.0, 0.0, NX + 1)
         for i in range(n_pts):
             pt = obs_pts[i, :]
-            [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
-                alpha, pt, -self.top_depth, 90.0,
-                [-self.fault_L, self.fault_L], [-1.0, 0.0], [1.0, 0.0, 0.0]
-            )
-            if suc != 0:
-                u[i, :] = 0
-            else:
-                u[i, :] = uv
+            for j in range(NX):
+                X1 = X_vals[j]
+                X2 = X_vals[j+1]
+                midX = (X1 + X2) / 2.0
+                for k in range(NY):
+                    Y1 = Y_vals[k]
+                    Y2 = Y_vals[k+1]
+                    midY = (Y1 + Y2) / 2.0
+                    slip = slip_fnc(midX, midY + self.top_depth)
+
+                    [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
+                        alpha, pt, -self.top_depth, 90.0,
+                        [X1, X2], [Y1, Y2], [slip, 0.0, 0.0]
+                    )
+
+                    if suc != 0:
+                        u[i, :] = 0
+                    else:
+                        u[i, :] += uv
         return u
 
     def xsec_plot(self, solns, okada_soln = None, show = True):
@@ -256,7 +271,10 @@ def ones_fault_slip(pts, fault_tris):
     slip[:,:,0] = 1.0
     return slip
 
-def abs_fault_slip(pts, fault_tris):
+def gauss_slip_fnc(x, z):
+    return np.exp(-(x ** 2 + (z + 1) ** 2) * 8.0)
+
+def gauss_fault_slip(pts, fault_tris):
     dof_pts = pts[fault_tris]
     x = dof_pts[:,:,0]
     z = dof_pts[:,:,2]
@@ -265,7 +283,7 @@ def abs_fault_slip(pts, fault_tris):
     # slip[:,:,0] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
     # slip[:,:,1] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
     # slip[:,:,2] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
-    slip[:,:,0] = np.exp(-(x ** 2 + ((z - mean_z) * 2.0) ** 2) * 8.0)
+    slip[:,:,0] = gauss_slip_fnc(x, z)
 
     slip_pts = np.zeros(pts.shape[0])
     # slip_pts[fault_tris] = np.log10(np.abs(slip[:,:,0]))
@@ -280,7 +298,7 @@ def abs_fault_slip(pts, fault_tris):
 
     return slip
 
-def build_constraints(surface_tris, fault_tris, pts, slip_fnc = ones_fault_slip):
+def build_constraints(surface_tris, fault_tris, pts, slip_fnc = gauss_fault_slip):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
 
@@ -315,27 +333,6 @@ def build_and_solve_T_regularized(data):
     timer.report("Solve")
     return soln
 
-def build_and_solve_T(data):
-    timer = Timer(output_fnc = logger.debug)
-    cs = build_constraints(data.surface_tris, data.fault_tris, data.all_mesh[0])
-    timer.report("Constraints")
-
-    T_op = SparseIntegralOp(
-        6, 2, 5, 2.0,
-        'elasticT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
-        data.float_type,
-        farfield_op_type = PtToPtFMMFarfieldOp(150, 3.0, 450)
-    )
-    timer.report("Integrals")
-
-    mass_op = MassOp(3, data.all_mesh[0], data.all_mesh[1])
-    iop = SumOp([T_op, mass_op])
-    timer.report('mass op/sum op')
-
-    soln = solve.iterative_solve(iop, cs, tol = 1e-6)
-    timer.report("Solve")
-    return soln
-
 def build_and_solve_H_regularized(data):
     timer = Timer(output_fnc = logger.debug)
     cs = build_constraints(data.surface_tris, data.fault_tris, data.all_mesh[0])
@@ -354,23 +351,6 @@ def build_and_solve_H_regularized(data):
     timer.report("Solve")
     return soln
 
-def build_and_solve_H(data):
-    timer = Timer(output_fnc = logger.debug)
-    cs = build_constraints(data.surface_tris, data.fault_tris, data.all_mesh[0])
-    timer.report("Constraints")
-
-    iop = SumOp([SparseIntegralOp(
-        8, 3, 6, 3.0,
-        'elasticH3', data.k_params, data.all_mesh[0], data.all_mesh[1],
-        data.float_type,
-        farfield_op_type = PtToPtFMMFarfieldOp(150, 3.0, 450)
-    )])
-    timer.report("Integrals")
-
-    soln = solve.iterative_solve(iop, cs, tol = 1e-6)
-    timer.report("Solve")
-    return soln
-
 def main():
     t = Timer(output_fnc = logger.info)
     obj = Okada(
@@ -381,7 +361,7 @@ def main():
     # soln = obj.run(build_and_solve = build_and_solve_T)
     soln = obj.run(build_and_solve = build_and_solve_T_regularized)
     t.report('tectosaur')
-    okada_soln = obj.okada_exact()
+    okada_soln = obj.okada_exact(gauss_slip_fnc)
 
     # np.save('okada_soln_for_plot.npy', [obj.all_mesh, obj.surface_tris, obj.fault_tris, soln, okada_soln])
     t.report('okada')
