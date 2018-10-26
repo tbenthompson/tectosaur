@@ -32,10 +32,9 @@ class FMM:
         self.d2e_u2e_ops_to_gpu()
 
     def setup_interactions(self):
-        order = 5#self.cfg.surf[1].shape[0]
         self.interactions = self.cfg.traversal_module.fmmmm_interactions(
-            self.obs_tree, self.src_tree, self.cfg.inner_r, self.cfg.outer_r, order,
-            self.cfg.treecode
+            self.obs_tree, self.src_tree, self.cfg.inner_r, self.cfg.outer_r,
+            self.cfg.order, self.cfg.treecode
         )
 
     def collect_gpu_ops(self):
@@ -93,11 +92,6 @@ class FMM:
                 self.op_to_gpu(name, op)
 
     def op_to_gpu(self, name, op):
-        # if name == 'm2p':
-        #     self.gpu_data[name + '_obs_n_idxs'] = gpu.to_gpu(np.array([op.obs_n_idxs[0]]), np.int32)
-        #     self.gpu_data[name + '_obs_src_starts'] = gpu.to_gpu(np.array([0, 1]), np.int32)
-        #     self.gpu_data[name + '_src_n_idxs'] = gpu.to_gpu(np.array([op.src_n_idxs[0]]), np.int32)
-        # else:
         for data_name in ['obs_n_idxs', 'obs_src_starts', 'src_n_idxs']:
             self.gpu_data[name + '_' + data_name] = self.int_gpu(
                 np.array(getattr(op, data_name), copy = False)

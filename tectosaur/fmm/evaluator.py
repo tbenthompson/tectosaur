@@ -142,7 +142,7 @@ class FMMEvaluator:
         return self.gpu_c2e(level, level, evs, 'd', self.locals, self.l_check)
 
     def gpu_u2e(self, level, evs):
-        n_depth = self.fmm.src_tree.max_height - level;
+        n_depth = self.fmm.src_tree.max_height - level
         return self.gpu_c2e(level, n_depth, evs, 'u', self.multipoles, self.m_check)
 
     def prep_data_for_eval(self, input_vals):

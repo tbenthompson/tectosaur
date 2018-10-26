@@ -52,14 +52,18 @@ class FMMConfig:
     n_workers_per_block = attr.ib()
     n_c2e_block_rows = attr.ib()
     treecode = attr.ib()
+    order = attr.ib()
 
 def make_config(K_name, params, inner_r, outer_r, order,
         float_type, alpha = 1e-5, n_workers_per_block = 64, n_c2e_block_rows = 16,
-        treecode = False):
+        treecode = False, force_order = None):
 
     K = kernels[K_name]
     quad = gauss4d_tri(2, 2)
     surf = make_sphere((0.0, 0.0, 0.0), 1.0, order)
+    order = surf[1].shape[0]
+    if force_order is not None:
+        order = force_order
     if len(params) == 0:
         params = [0.0]
     return FMMConfig(
@@ -75,5 +79,6 @@ def make_config(K_name, params, inner_r, outer_r, order,
         traversal_module = get_traversal_module(K),
         n_workers_per_block = n_workers_per_block,
         n_c2e_block_rows = n_c2e_block_rows,
-        treecode = treecode
+        treecode = treecode,
+        order = order
     )

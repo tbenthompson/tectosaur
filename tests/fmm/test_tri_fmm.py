@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from tectosaur.ops.sparse_farfield_op import (
     TriToTriDirectFarfieldOp, PtToPtFMMFarfieldOp, PtToPtDirectFarfieldOp)
 from tectosaur.ops.dense_integral_op import farfield_tris
@@ -52,7 +53,7 @@ def check_children(tree, n):
             continue
         check_children(tree, tree.nodes[c])
 
-def op(obs_m, src_m, K = 'elasticRH3', nq = 2):
+def op(obs_m, src_m, K, nq = 2):
     new_pts, new_tris = concat(obs_m, src_m)
     n_obs_tris = obs_m[1].shape[0]
     obs_tris = new_tris[:n_obs_tris]
@@ -122,6 +123,145 @@ def gpu_p2s(center, node_R, surf_R, src_m, src_in):
     )
     return gpu_out.get()
 
+def test_tri_fmm_p2p():
+    np.random.seed(100)
+
+    n = 10
+    m1 = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    m2 = mesh_gen.make_rect(n, n, [[-3, 0, 1], [-3, 0, -1], [-2, 0, -1], [-2, 0, 1]])
+
+    K = 'elasticRH3'
+    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True, force_order = 1000000)
+    tree1 = make_tree(m1, cfg, 10)
+    tree2 = make_tree(m2, cfg, 10)
+
+    fmm = FMM(tree1, m1, tree1, m2, cfg)
+    fmmeval = FMMEvaluator(fmm)
+    full = op(m1, m2, K = K)
+
+    x = np.random.rand(full.shape[1])
+    y1 = full.dot(x)
+
+    x_tree = fmm.to_tree(x)
+    import taskloaf as tsk
+    async def call_fmm(tsk_w):
+        return (await fmmeval.eval(tsk_w, x_tree, return_all_intermediates = True))
+    fmm_res, m_check, multipoles, l_check, locals = tsk.run(call_fmm)
+    y2 = fmm.to_orig(fmm_res)
+    np.testing.assert_almost_equal(y1, y2)
+
+
+def test_tri_fmm_m2p2():
+    np.random.seed(100)
+
+    n = 10
+    m1 = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    m2 = mesh_gen.make_rect(n, n, [[-10, 0, 1], [-10, 0, -1], [-8, 0, -1], [-8, 0, 1]])
+
+    K = 'tensor_one3'
+    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True, force_order = 1)
+    tree1 = make_tree(m1, cfg, 1000)
+    tree2 = make_tree(m2, cfg, 1000)
+
+    src_R = tree2.nodes[0].bounds.R
+    center = tree2.nodes[0].bounds.center
+    R_outer = 3.0
+    R_inner = 1.1
+    check_sphere = mesh_gen.make_sphere(center, R_outer * src_R, 2)
+    equiv_sphere = mesh_gen.make_sphere(center, R_inner * src_R, 2)
+
+    src_tri_idxs = tree2.orig_idxs
+    src_tris = m2[1][src_tri_idxs]
+    obs_tri_idxs = tree1.orig_idxs
+    obs_tris = m1[1][obs_tri_idxs]
+
+    K = 'tensor_one3'
+    p2c = op(check_sphere, (m2[0], src_tris), K)
+    e2c = op(check_sphere, equiv_sphere, K)
+    c2e = reg_lstsq_inverse(e2c, 1e-4)
+    e2p = op((m1[0], obs_tris), equiv_sphere, K)
+
+    p2p = op((m1[0], obs_tris), (m2[0], src_tris), K)
+    fmm_mat = e2p.dot(c2e.dot(p2c))
+
+    full = op(m1, m2, K = K)
+
+    fmm = FMM(tree1, m1, tree2, m2, cfg)
+    fmmeval = FMMEvaluator(fmm)
+
+    x = np.random.rand(full.shape[1])
+    y1 = full.dot(x)
+
+    x_tree = fmm.to_tree(x)
+    import taskloaf as tsk
+    async def call_fmm(tsk_w):
+        return (await fmmeval.eval(tsk_w, x_tree, return_all_intermediates = True))
+    fmm_res, m_check, multipoles, l_check, locals = tsk.run(call_fmm)
+    y2 = fmm.to_orig(fmm_res)
+
+    m_check2 = p2c.dot(x_tree)
+    import ipdb
+    ipdb.set_trace()
+    np.testing.assert_almost_equal(m_check, m_check2)
+
+def test_tri_fmm_m2p():
+    np.random.seed(100)
+
+    n = 10
+    m1 = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    m2 = mesh_gen.make_rect(n, n, [[-10, 0, 1], [-10, 0, -1], [-8, 0, -1], [-8, 0, 1]])
+
+    K = 'tensor_one3'
+    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True, force_order = 1)
+    tree1 = make_tree(m1, cfg, 1000)
+    tree2 = make_tree(m2, cfg, 1000)
+
+    fmm = FMM(tree1, m1, tree2, m2, cfg)
+    fmmeval = FMMEvaluator(fmm)
+    full = op(m1, m2, K = K)
+
+    x = np.random.rand(full.shape[1])
+    y1 = full.dot(x)
+
+    x_tree = fmm.to_tree(x)
+    import taskloaf as tsk
+    async def call_fmm(tsk_w):
+        return (await fmmeval.eval(tsk_w, x_tree, return_all_intermediates = True))
+    fmm_res, m_check, multipoles, l_check, locals = tsk.run(call_fmm)
+    y2 = fmm.to_orig(fmm_res)
+    # np.testing.assert_almost_equal(y1, y2)
+
+
+    for i in range(fmm.interactions.p2m.obs_n_idxs.shape[0]):
+        src_n = fmm.src_tree.nodes[fmm.interactions.p2m.obs_n_idxs[i]]
+        if src_n.end - src_n.start > 0:
+            break
+
+    src_center = src_n.bounds.center
+    src_R = src_n.bounds.R
+
+    src_tri_idxs = tree2.orig_idxs[src_n.start:src_n.end]
+    src_tris = m2[1][src_tri_idxs]
+
+    check_sphere = mesh_gen.make_sphere(src_center, cfg.outer_r * src_R, 2)
+    equiv_sphere = mesh_gen.make_sphere(src_center, cfg.inner_r * src_R, 2)
+    p2c = op(check_sphere, (m2[0], src_tris), K)
+    m_check3 = p2c.dot(x_tree[(src_n.start * 9):(src_n.end * 9)])
+
+    start_dof = src_n.idx * cfg.surf[1].shape[0] * 9
+    end_dof = (src_n.idx + 1) * cfg.surf[1].shape[0] * 9
+    np.testing.assert_almost_equal(m_check3, m_check[start_dof:end_dof], 5)
+
+    e2c = op(check_sphere, equiv_sphere, K)
+    c2e = reg_lstsq_inverse(e2c, 1e-5)
+    import ipdb
+    ipdb.set_trace()
+
+    multipoles3 = c2e.dot(m_check3)
+    calc = multipoles[start_dof:end_dof]
+    calc2 = fmm.gpu_data['u2e_ops'].get().dot(m_check[start_dof:end_dof])
+    np.testing.assert_almost_equal(multipoles3, calc)
+
 
 def test_tri_fmm_full():
     np.random.seed(100)
@@ -131,12 +271,12 @@ def test_tri_fmm_full():
     m2 = mesh_gen.make_rect(n, n, [[-3, 0, 1], [-3, 0, -1], [-2, 0, -1], [-2, 0, 1]])
 
 
-    K = 'elasticRH3'
+    K = 'tensor_one3'
 
     cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True)
     tree1 = make_tree(m1, cfg, 10)
     tree2 = make_tree(m2, cfg, 10)
-    fmm = FMM(tree1, m1, tree1, m2, cfg)
+    fmm = FMM(tree1, m1, tree2, m2, cfg)
     report_interactions(fmm)
     fmmeval = FMMEvaluator(fmm)
     full = op(m1, m2, K = K)
@@ -156,33 +296,33 @@ def test_tri_fmm_full():
 
     print(y1[0], y2[0])
 
-    # import matplotlib.pyplot as plt
-    # plt.plot(y1)
-    # plt.plot(y2)
-    # plt.show()
+    import matplotlib.pyplot as plt
+    plt.plot(y1)
+    plt.plot(y2)
+    plt.show()
 
 
     # Run with order = 10 and p2p off and only first node
 
-    # obs_n = fmm.obs_tree.nodes[fmm.interactions.m2p.obs_n_idxs[0]]
-    # src_n = fmm.src_tree.nodes[fmm.interactions.m2p.src_n_idxs[0]]
-    # src_center = src_n.bounds.center
-    # src_R = src_n.bounds.R
+    obs_n = fmm.obs_tree.nodes[fmm.interactions.m2p.obs_n_idxs[0]]
+    src_n = fmm.src_tree.nodes[fmm.interactions.m2p.src_n_idxs[0]]
+    src_center = src_n.bounds.center
+    src_R = src_n.bounds.R
 
-    # src_tri_idxs = tree2.orig_idxs[src_n.start:src_n.end]
-    # src_tris = m2[1][src_tri_idxs]
-    # obs_tri_idxs = tree1.orig_idxs[obs_n.start:obs_n.end]
-    # obs_tris = m1[1][obs_tri_idxs]
+    src_tri_idxs = tree2.orig_idxs[src_n.start:src_n.end]
+    src_tris = m2[1][src_tri_idxs]
+    obs_tri_idxs = tree1.orig_idxs[obs_n.start:obs_n.end]
+    obs_tris = m1[1][obs_tri_idxs]
 
-    # check_sphere = mesh_gen.make_sphere(src_center, cfg.outer_r * src_R, 2)
-    # equiv_sphere = mesh_gen.make_sphere(src_center, cfg.inner_r * src_R, 2)
-    # e2p = op((m1[0], obs_tris), equiv_sphere)
+    check_sphere = mesh_gen.make_sphere(src_center, cfg.outer_r * src_R, 2)
+    equiv_sphere = mesh_gen.make_sphere(src_center, cfg.inner_r * src_R, 2)
+    e2p = op((m1[0], obs_tris), equiv_sphere)
 
-    # multipole_start = src_n.idx * cfg.surf[1].shape[0] * 9
-    # multipole_end = (src_n.idx + 1) * cfg.surf[1].shape[0] * 9
+    multipole_start = src_n.idx * cfg.surf[1].shape[0] * 9
+    multipole_end = (src_n.idx + 1) * cfg.surf[1].shape[0] * 9
 
-    # y3_chunk = e2p.dot(multipoles[multipole_start:multipole_end])
-    # np.testing.assert_almost_equal(y3_chunk, fmm_res[:y3_chunk.shape[0]])
+    y3_chunk = e2p.dot(multipoles[multipole_start:multipole_end])
+    np.testing.assert_almost_equal(y3_chunk, fmm_res[:y3_chunk.shape[0]])
 
     for i in range(fmm.interactions.p2m.obs_n_idxs.shape[0]):
         src_n = fmm.src_tree.nodes[fmm.interactions.p2m.obs_n_idxs[i]]

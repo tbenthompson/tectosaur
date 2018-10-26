@@ -133,8 +133,6 @@ void traverse(const TreeT& obs_tree, const TreeT& src_tree,
     // a small safety factor just in case!
     double safety_factor = 0.98;
 
-    // std::cout << outer_r * r_src + inner_r * r_obs << " " <<  safety_factor * sep << std::endl;
-
     if (outer_r * r_src + inner_r * r_obs < safety_factor * sep) {
         // If there aren't enough src or obs to justify using the approximation,
         // then just do a p2p direct calculation between the nodes.
@@ -147,8 +145,6 @@ void traverse(const TreeT& obs_tree, const TreeT& src_tree,
 
         bool small_src = n_src < order;
         bool small_obs = n_obs < order;
-
-        // std::cout << n_src << " " << n_obs << " " << order << std::endl;
 
         if (small_src && small_obs) {
             for_all_leaves_of(obs_tree, obs_n,
