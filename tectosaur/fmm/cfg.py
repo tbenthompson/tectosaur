@@ -2,7 +2,9 @@ import numpy as np
 import attr
 
 import tectosaur.util.gpu as gpu
+from tectosaur.util.quadrature import gauss4d_tri
 from tectosaur.kernels import kernels
+from tectosaur.mesh.mesh_gen import make_sphere
 
 from tectosaur.fmm.surrounding_surf import surrounding_surf
 
@@ -18,16 +20,19 @@ def get_traversal_module(K):
     else:
         return get_dim_module(K.spatial_dim).octree
 
-def get_gpu_module(surf, K, float_type, n_workers_per_block, n_c2e_block_rows):
+def get_gpu_module(surf, quad, K, float_type, n_workers_per_block, n_c2e_block_rows):
     args = dict(
         n_workers_per_block = n_workers_per_block,
         n_c2e_block_rows = n_c2e_block_rows,
         gpu_float_type = gpu.np_to_c_type(float_type),
-        surf = surf,
+        surf_pts = surf[0],
+        surf_tris = surf[1],
+        quad_pts = quad[0],
+        quad_wts = quad[1],
         K = K
     )
     gpu_module = gpu.load_gpu(
-        'fmm/gpu_kernels.cl',
+        'fmm/tri_gpu_kernels.cl',
         tmpl_args = args
     )
     return gpu_module
@@ -37,33 +42,38 @@ class FMMConfig:
     K = attr.ib()
     params = attr.ib()
     surf = attr.ib()
+    quad = attr.ib()
     outer_r = attr.ib()
     inner_r = attr.ib()
-    order = attr.ib()
     alpha = attr.ib()
     float_type = attr.ib()
     gpu_module = attr.ib()
     traversal_module = attr.ib()
     n_workers_per_block = attr.ib()
     n_c2e_block_rows = attr.ib()
+    treecode = attr.ib()
 
 def make_config(K_name, params, inner_r, outer_r, order,
-        float_type, alpha = 1e-5, n_workers_per_block = 64, n_c2e_block_rows = 16):
+        float_type, alpha = 1e-5, n_workers_per_block = 64, n_c2e_block_rows = 16,
+        treecode = False):
+
     K = kernels[K_name]
-    surf = surrounding_surf(order, K.spatial_dim)
+    quad = gauss4d_tri(2, 2)
+    surf = make_sphere((0.0, 0.0, 0.0), 1.0, order)
     if len(params) == 0:
         params = [0.0]
     return FMMConfig(
         K = K,
         params = np.array(params),
         surf = surf,
+        quad = quad,
         outer_r = outer_r,
         inner_r = inner_r,
-        order = order,
         alpha = alpha,
         float_type = float_type,
-        gpu_module = get_gpu_module(surf, K, float_type, n_workers_per_block, n_c2e_block_rows),
+        gpu_module = get_gpu_module(surf, quad, K, float_type, n_workers_per_block, n_c2e_block_rows),
         traversal_module = get_traversal_module(K),
         n_workers_per_block = n_workers_per_block,
-        n_c2e_block_rows = n_c2e_block_rows
+        n_c2e_block_rows = n_c2e_block_rows,
+        treecode = treecode
     )

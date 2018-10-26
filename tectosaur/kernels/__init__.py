@@ -223,7 +223,7 @@ elasticH = Kernel(
 )
 
 elasticRT = Kernel(
-    'elasticRT3', 3, 3, False, True, -3, 1, False,
+    'elasticRT3', 3, 3, False, True, -2, 0, False,
     '''
     const Real nu = params[1];
     const Real CsRT0 = -1.0 / (8.0 * M_PI * (1.0 - nu));
@@ -236,7 +236,7 @@ elasticRT = Kernel(
 )
 
 elasticRA = Kernel(
-    'elasticRA3', 3, 3, True, False, -3, 1, False,
+    'elasticRA3', 3, 3, True, False, -2, 0, False,
     '''
     const Real nu = params[1];
     const Real CsRT0 = -1.0 / (8.0 * M_PI * (1.0 - nu));

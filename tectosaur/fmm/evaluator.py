@@ -43,7 +43,7 @@ class FMMEvaluator:
             if type[0] == 'pts':
                 call_data.extend([
                     gd[type[1] + '_n_start'], gd[type[1] + '_n_end'],
-                    gd[type[1] + '_pts'], gd[type[1] + '_normals']
+                    gd[type[1] + '_pts'], gd[type[1] + '_tris']
                 ])
             else:
                 call_data.extend([
@@ -150,7 +150,7 @@ class FMMEvaluator:
         for arr in ['out', 'm_check', 'multipoles', 'l_check', 'locals']:
             getattr(self, arr).fill(0)
 
-    async def eval(self, tsk_w, input_vals, should_log_timing = False):
+    async def eval(self, tsk_w, input_vals, should_log_timing = False, return_all_intermediates = False):
         self.kernel_evs = dict()
 
         self.prep_data_for_eval(input_vals)
@@ -189,7 +189,10 @@ class FMMEvaluator:
         if should_log_timing:
             self.log_timing()
 
-        return result
+        if return_all_intermediates:
+            return result, self.m_check.get(), self.multipoles.get(), self.l_check.get(), self.locals.get()
+        else:
+            return result
 
     def log_timing(self):
         def get_time(ev):

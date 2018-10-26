@@ -31,6 +31,7 @@ def fmm_lib_cfg(cfg):
     cfg['sources'] += to_fmm_dir(['traversal.cpp', 'octree.cpp', 'kdtree.cpp'])
     cfg['dependencies'] += to_fmm_dir([
         'traversal.hpp', 'octree.hpp', 'kdtree.hpp', 'tree_helpers.hpp',
+        'traversal.cpp',
         os.path.join(tectosaur.source_dir, 'include', 'pybind11_nparray.hpp'),
     ])
 

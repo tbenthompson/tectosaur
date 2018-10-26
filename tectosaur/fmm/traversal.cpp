@@ -120,7 +120,7 @@ template <typename TreeT>
 void traverse(const TreeT& obs_tree, const TreeT& src_tree,
         InteractionLists& interaction_lists,
         const typename TreeT::Node& obs_n, const typename TreeT::Node& src_n,
-        double inner_r, double outer_r, size_t order) 
+        double inner_r, double outer_r, size_t order, bool treecode) 
 {
     auto r_src = src_n.bounds.R;
     auto r_obs = obs_n.bounds.R;
@@ -133,11 +133,22 @@ void traverse(const TreeT& obs_tree, const TreeT& src_tree,
     // a small safety factor just in case!
     double safety_factor = 0.98;
 
+    // std::cout << outer_r * r_src + inner_r * r_obs << " " <<  safety_factor * sep << std::endl;
+
     if (outer_r * r_src + inner_r * r_obs < safety_factor * sep) {
         // If there aren't enough src or obs to justify using the approximation,
         // then just do a p2p direct calculation between the nodes.
-        bool small_src = src_n.end - src_n.start < order;
-        bool small_obs = obs_n.end - obs_n.start < order;
+        size_t n_src = src_n.end - src_n.start;
+        size_t n_obs = obs_n.end - obs_n.start;
+
+        if (n_src == 0 || n_obs == 0) {
+            return;
+        }
+
+        bool small_src = n_src < order;
+        bool small_obs = n_obs < order;
+
+        // std::cout << n_src << " " << n_obs << " " << order << std::endl;
 
         if (small_src && small_obs) {
             for_all_leaves_of(obs_tree, obs_n,
@@ -145,7 +156,7 @@ void traverse(const TreeT& obs_tree, const TreeT& src_tree,
                     interaction_lists.p2p[leaf_obs_n.idx].push_back(src_n.idx);
                 }
             );
-        } else if (small_obs) {
+        } else if (small_obs || treecode) {
             for_all_leaves_of(obs_tree, obs_n,
                 [&] (const typename TreeT::Node& leaf_obs_n) {
                     interaction_lists.m2p[leaf_obs_n.idx].push_back(src_n.idx);
@@ -170,7 +181,7 @@ void traverse(const TreeT& obs_tree, const TreeT& src_tree,
             traverse(
                 obs_tree, src_tree, interaction_lists,
                 obs_n, src_tree.nodes[src_n.children[i]],
-                inner_r, outer_r, order
+                inner_r, outer_r, order, treecode
             );
         }
     } else {
@@ -178,7 +189,7 @@ void traverse(const TreeT& obs_tree, const TreeT& src_tree,
             traverse(
                 obs_tree, src_tree, interaction_lists,
                 obs_tree.nodes[obs_n.children[i]], src_n,
-                inner_r, outer_r, order
+                inner_r, outer_r, order, treecode
             );
         }
     }
@@ -219,7 +230,7 @@ void down_collect(const TreeT& obs_tree, InteractionLists& interaction_lists,
 
 template <typename TreeT>
 Interactions fmmmm_interactions(const TreeT& obs_tree, const TreeT& src_tree,
-    double inner_r, double outer_r, size_t order)
+    double inner_r, double outer_r, size_t order, bool treecode)
 {
     auto interaction_lists = init_interaction_lists(obs_tree, src_tree);
 
@@ -228,7 +239,7 @@ Interactions fmmmm_interactions(const TreeT& obs_tree, const TreeT& src_tree,
     traverse(
         obs_tree, src_tree, interaction_lists,
         obs_tree.root(), src_tree.root(),
-        inner_r, outer_r, order
+        inner_r, outer_r, order, treecode
     );
 
     return compress_interaction_lists(interaction_lists);
@@ -236,14 +247,14 @@ Interactions fmmmm_interactions(const TreeT& obs_tree, const TreeT& src_tree,
 
 template 
 Interactions fmmmm_interactions(const Octree<2>& obs_tree, const Octree<2>& src_tree,
-    double inner_r, double outer_r, size_t order);
+    double inner_r, double outer_r, size_t order, bool treecode);
 template 
 Interactions fmmmm_interactions(const Octree<3>& obs_tree, const Octree<3>& src_tree,
-    double inner_r, double outer_r, size_t order);
+    double inner_r, double outer_r, size_t order, bool treecode);
 
 template 
 Interactions fmmmm_interactions(const KDTree<2>& obs_tree, const KDTree<2>& src_tree,
-    double inner_r, double outer_r, size_t order);
+    double inner_r, double outer_r, size_t order, bool treecode);
 template 
 Interactions fmmmm_interactions(const KDTree<3>& obs_tree, const KDTree<3>& src_tree,
-    double inner_r, double outer_r, size_t order);
+    double inner_r, double outer_r, size_t order, bool treecode);

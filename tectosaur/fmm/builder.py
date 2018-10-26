@@ -6,36 +6,36 @@ from tectosaur.fmm.c2e import build_c2e
 import logging
 logger = logging.getLogger(__name__)
 
-def make_tree(pts, cfg, max_pts_per_cell):
-    return cfg.traversal_module.Tree.build(pts, np.zeros(pts.shape[0]), max_pts_per_cell)
+def make_tree(m, cfg, max_pts_per_cell):
+    tri_pts = m[0][m[1]]
+    centers = np.mean(tri_pts, axis = 1)
+    pt_dist = tri_pts - centers[:,np.newaxis,:]
+    Rs = np.max(np.linalg.norm(pt_dist, axis = 2), axis = 1)
+    tree = cfg.traversal_module.Tree.build(centers, Rs, max_pts_per_cell)
+    return tree
 
 class FMM:
-    def __init__(self, obs_tree, obs_normals, src_tree, src_normals, cfg):
+    def __init__(self, obs_tree, obs_m, src_tree, src_m, cfg):
         self.cfg = cfg
         self.obs_tree = obs_tree
+        self.obs_m = obs_m
         self.src_tree = src_tree
+        self.src_m = src_m
         self.gpu_data = dict()
-
-        self.src_tree_pts = np.array(
-            [b.center for b in self.src_tree.balls],
-            copy = False
-        )
-        self.obs_tree_pts = np.array(
-            [b.center for b in self.obs_tree.balls],
-            copy = False
-        )
 
         self.setup_interactions()
         self.collect_gpu_ops()
         self.setup_output_sizes()
         self.params_to_gpu()
-        self.tree_to_gpu(obs_normals, src_normals)
+        self.tree_to_gpu(obs_m, src_m)
         self.interactions_to_gpu()
         self.d2e_u2e_ops_to_gpu()
 
     def setup_interactions(self):
+        order = 5#self.cfg.surf[1].shape[0]
         self.interactions = self.cfg.traversal_module.fmmmm_interactions(
-            self.obs_tree, self.src_tree, self.cfg.inner_r, self.cfg.outer_r, self.cfg.order
+            self.obs_tree, self.src_tree, self.cfg.inner_r, self.cfg.outer_r, order,
+            self.cfg.treecode
         )
 
     def collect_gpu_ops(self):
@@ -47,12 +47,12 @@ class FMM:
         self.gpu_ops['c2e'] = self.cfg.gpu_module.c2e_kernel
 
     def setup_output_sizes(self):
-        self.n_surf_pts = self.cfg.surf.shape[0]
-        self.n_surf_dofs = self.n_surf_pts * self.cfg.K.tensor_dim
+        self.n_surf_tris = self.cfg.surf[1].shape[0]
+        self.n_surf_dofs = self.n_surf_tris * 9
         self.n_multipoles = self.n_surf_dofs * self.src_tree.n_nodes
         self.n_locals = self.n_surf_dofs * self.obs_tree.n_nodes
-        self.n_input = self.cfg.K.tensor_dim * self.src_tree_pts.shape[0]
-        self.n_output = self.cfg.K.tensor_dim * self.obs_tree_pts.shape[0]
+        self.n_input = self.src_m[1].shape[0] * 9
+        self.n_output = self.obs_m[1].shape[0] * 9
 
     def float_gpu(self, arr):
         return gpu.to_gpu(arr, self.cfg.float_type)
@@ -63,13 +63,13 @@ class FMM:
     def params_to_gpu(self):
         self.gpu_data['params'] = self.float_gpu(self.cfg.params)
 
-    def tree_to_gpu(self, obs_normals, src_normals):
+    def tree_to_gpu(self, obs_m, src_m):
         gd = self.gpu_data
 
-        gd['obs_pts'] = self.float_gpu(np.array(self.obs_tree_pts, copy = False))
-        gd['obs_normals'] = self.float_gpu(obs_normals)
-        gd['src_pts'] = self.float_gpu(np.array(self.src_tree_pts, copy = False))
-        gd['src_normals'] = self.float_gpu(src_normals)
+        gd['obs_pts'] = self.float_gpu(obs_m[0])
+        gd['obs_tris'] = self.int_gpu(obs_m[1][self.src_tree.orig_idxs])
+        gd['src_pts'] = self.float_gpu(src_m[0])
+        gd['src_tris'] = self.int_gpu(src_m[1][self.src_tree.orig_idxs])
 
         obs_tree_nodes = self.obs_tree.nodes
         src_tree_nodes = self.src_tree.nodes
@@ -93,6 +93,11 @@ class FMM:
                 self.op_to_gpu(name, op)
 
     def op_to_gpu(self, name, op):
+        # if name == 'm2p':
+        #     self.gpu_data[name + '_obs_n_idxs'] = gpu.to_gpu(np.array([op.obs_n_idxs[0]]), np.int32)
+        #     self.gpu_data[name + '_obs_src_starts'] = gpu.to_gpu(np.array([0, 1]), np.int32)
+        #     self.gpu_data[name + '_src_n_idxs'] = gpu.to_gpu(np.array([op.src_n_idxs[0]]), np.int32)
+        # else:
         for data_name in ['obs_n_idxs', 'obs_src_starts', 'src_n_idxs']:
             self.gpu_data[name + '_' + data_name] = self.int_gpu(
                 np.array(getattr(op, data_name), copy = False)
@@ -118,25 +123,31 @@ class FMM:
             build_c2e(self.obs_tree, self.cfg.inner_r, self.cfg.outer_r, self.cfg),
         )
 
+    def to_tree(self, input_orig):
+        orig_idxs = np.array(self.src_tree.orig_idxs)
+        input_orig = input_orig.reshape((-1,9))
+        return input_orig[orig_idxs,:].flatten()
+
     def to_orig(self, output_tree):
         orig_idxs = np.array(self.obs_tree.orig_idxs)
-        output_tree = output_tree.reshape((-1, self.cfg.K.tensor_dim))
+        output_tree = output_tree.reshape((-1, 9))
         output_orig = np.empty_like(output_tree)
         output_orig[orig_idxs,:] = output_tree
-        return output_orig
+        return output_orig.flatten()
 
 def report_interactions(fmm_obj):
-    dim = fmm_obj.obs_tree_pts.shape[1]
+    dim = fmm_obj.obs_m[1].shape[1]
+    order = fmm_obj.cfg.surf[1].shape[0]
     def count_interactions(op_name, op):
         obs_surf = False if op_name[2] == 'p' else True
         src_surf = False if op_name[0] == 'p' else True
         return fmm_obj.cfg.traversal_module.count_interactions(
             op, fmm_obj.obs_tree, fmm_obj.src_tree,
-            obs_surf, src_surf, fmm_obj.cfg.order
+            obs_surf, src_surf, order
         )
 
-    n_obs_pts = fmm_obj.obs_tree_pts.shape[0]
-    n_src_pts = fmm_obj.src_tree_pts.shape[0]
+    n_obs_tris = fmm_obj.obs_m[1].shape[0]
+    n_src_tris = fmm_obj.src_m[1].shape[0]
     level_ops = ['m2m', 'l2l']
     ops = ['p2m', 'p2l', 'm2l', 'p2p', 'm2p', 'l2p']
 
@@ -152,12 +163,12 @@ def report_interactions(fmm_obj):
                 interactions[op_name] = 0
             interactions[op_name] += count_interactions(op_name, op)
 
-    direct_i = n_obs_pts * n_src_pts
+    direct_i = n_obs_tris * n_src_tris
     fmm_i = sum([v for k,v in interactions.items()])
 
     logger.debug('compression factor: ' + str(fmm_i / direct_i))
-    logger.debug('# obs pts: ' + str(n_obs_pts))
-    logger.debug('# src pts: ' + str(n_src_pts))
+    logger.debug('# obs tris: ' + str(n_obs_tris))
+    logger.debug('# src tris: ' + str(n_src_tris))
     logger.debug('total tree interactions: %e' % fmm_i)
     for k, v in interactions.items():
         logger.debug('total %s interactions: %e' % (k, v))

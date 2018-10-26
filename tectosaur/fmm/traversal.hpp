@@ -52,4 +52,4 @@ struct Interactions {
 
 template <typename TreeT>
 Interactions fmmmm_interactions(const TreeT& obs_tree, const TreeT& src_tree,
-    double inner_r, double outer_r, size_t order);
+    double inner_r, double outer_r, size_t order, bool treecode);
