@@ -111,32 +111,19 @@ class FMMEvaluator:
         )
 
     def gpu_c2e(self, level, depth, evs, d_or_u, out_arr, in_arr):
-        gd = self.fmm.gpu_data
         name = d_or_u + '2e'
-        c2e = self.fmm.gpu_ops['c2e']
-        n_c2e = gd[name + '_obs_n_idxs'][level].shape[0]
-        n_c2e_rows = self.fmm.n_surf_dofs
-        if d_or_u == 'd':
-            R_data = gd['obs_n_R']
-        else:
-            R_data = gd['src_n_R']
-
-        if n_c2e > 0:
-            n_c2e_block_rows = self.fmm.cfg.n_c2e_block_rows
-            n_rows = int(np.ceil(n_c2e / n_c2e_block_rows))
-            n_cols = int(np.ceil(n_c2e_rows / n_c2e_block_rows))
-            return self.call_kernel(
-                name, c2e,
-                out_arr, in_arr,
-                np.int32(n_c2e), np.int32(n_c2e_rows),
-                gd[name + '_obs_n_idxs'][level],
-                R_data, np.int32(depth),
-                gd[name + '_ops'],
-                grid = (n_rows, n_cols, 1),
-                block = (n_c2e_block_rows, n_c2e_block_rows, 1)
-            )
-        else:
-            return None
+        check_vals = in_arr.get()
+        ops = getattr(self.fmm, name + '_ops')
+        out = out_arr.get()
+        obs_n_idxs = self.fmm.gpu_data[name + '_obs_n_idxs'][level].get()
+        for n_idx in obs_n_idxs:
+            start_dof = n_idx * self.fmm.n_surf_dofs
+            end_dof = (n_idx + 1) * self.fmm.n_surf_dofs
+            check_chunk = check_vals[start_dof:end_dof]
+            op = ops[n_idx]
+            multipole_chunk = op.dot(check_chunk)
+            out[start_dof:end_dof] = multipole_chunk
+        out_arr[:] = out
 
     def gpu_d2e(self, level, evs):
         return self.gpu_c2e(level, level, evs, 'd', self.locals, self.l_check)

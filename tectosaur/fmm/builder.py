@@ -110,12 +110,8 @@ class FMM:
             for level in range(len(self.interactions.l2l))
         ]
 
-        gd['u2e_ops'] = self.float_gpu(
-            build_c2e(self.src_tree, self.cfg.outer_r, self.cfg.inner_r, self.cfg),
-        )
-        gd['d2e_ops'] = self.float_gpu(
-            build_c2e(self.obs_tree, self.cfg.inner_r, self.cfg.outer_r, self.cfg),
-        )
+        self.u2e_ops = build_c2e(self.src_tree, self.cfg.outer_r, self.cfg.inner_r, self.cfg)
+        self.d2e_ops = build_c2e(self.obs_tree, self.cfg.inner_r, self.cfg.outer_r, self.cfg)
 
     def to_tree(self, input_orig):
         orig_idxs = np.array(self.src_tree.orig_idxs)

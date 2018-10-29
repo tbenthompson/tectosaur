@@ -276,7 +276,6 @@ ${fmm_op("s2s", "surf", "surf", False)}
 ${fmm_op("p2p", "pts", "pts", True)}
 ${fmm_op("s2p", "pts", "surf", False)}
 
-// This is essentially a weird in-place block sparse matrix-matrix multiply. 
 KERNEL
 void c2e_kernel(GLOBAL_MEM Real* out, GLOBAL_MEM Real* in,
         int n_blocks, int n_rows, GLOBAL_MEM int* node_idx,
@@ -295,11 +294,7 @@ void c2e_kernel(GLOBAL_MEM Real* out, GLOBAL_MEM Real* in,
         global_n_idx = node_idx[global_block_idx];
     }
 
-    % if type(K.scale_type) is int:
-        GLOBAL_MEM Real* op_start = &ops[0];
-    % else:
-        GLOBAL_MEM Real* op_start = &ops[node_depth * n_rows * n_rows];
-    % endif
+    GLOBAL_MEM Real* op_start = &ops[global_n_idx * n_rows * n_rows];
 
     Real sum = 0.0;
     int t = 0;
@@ -311,7 +306,7 @@ void c2e_kernel(GLOBAL_MEM Real* out, GLOBAL_MEM Real* in,
         } else {
             Asub[local_row][local_col] = 0.0;
         }
-        if (tile_row < n_rows && global_col < n_rows) {
+        if (tile_row < n_rows && global_col < n_rows && global_n_idx != -1) {
             Bsub[local_row][local_col] = op_start[global_col * n_rows + tile_row];
         } else {
             Bsub[local_row][local_col] = 0.0;
@@ -331,12 +326,7 @@ void c2e_kernel(GLOBAL_MEM Real* out, GLOBAL_MEM Real* in,
     }
 
     if (global_n_idx != -1 && global_col < n_rows) {
-        % if type(K.scale_type) is int:
-            Real scaling = pow(node_R[global_n_idx], (Real)(${K.scale_type + 4}));
-        % else:
-            Real scaling = 1.0;
-        % endif
-        out[global_n_idx * n_rows + global_col] += scaling * sum;
+        out[global_n_idx * n_rows + global_col] += sum;
     }
 }
 
