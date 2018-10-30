@@ -43,20 +43,12 @@ def op(obs_m, src_m, K, nq = 2):
     save = False
     if save:
         np.save('ptspts.npy', [new_pts, obs_tris, src_tris, nq])
-    mat = RegularizedDenseIntegralOp(
-        10,10,10,6,6,10000.0,'elasticRH3','elasticRH3',[1.0,0.25],
-        new_pts, new_tris, np.float64,
-        obs_subset = np.arange(0, n_obs_tris),
-        src_subset = np.arange(n_obs_tris, new_tris.shape[0])
-    ).mat
-    return mat
-
-def e2c_op(m):
-    mat = RegularizedDenseIntegralOp(
-        10,10,10,6,6,10000.0,'elasticRH3','elasticRH3',[1.0,0.25],
-        m[0], m[1], np.float64,
-    ).mat
-    return mat
+    mat = farfield_tris(
+        K, [1.0, 0.25], new_pts, obs_tris, src_tris, nq, np.float32
+    )
+    nrows = mat.shape[0] * 9
+    ncols = mat.shape[3] * 9
+    return mat.reshape((nrows, ncols))
 
 def test_tri_fmm_p2p():
     np.random.seed(100)
@@ -88,17 +80,19 @@ def test_tri_fmm_p2p():
     np.testing.assert_almost_equal(y1, y2)
 
 def test_new_c2e():
-    center = (1.0,0.0,0.0)
+    center = (0.0,0.0,0.0)
     mats = []
     for scaling in [1.0, 2.0]:
-        sphere = mesh_gen.make_sphere(center, scaling, 2)
+        R = 1.5
+        sphere = mesh_gen.make_sphere(center, scaling * R, 2)
         op = RegularizedDenseIntegralOp(
-            10,10,10,6,6,10000.0,'elasticRH3','elasticRH3',[1.0,0.25],
+            8,8,8,5,5,10000.0,'elasticRH3','elasticRH3',[1.0,0.25],
             sphere[0], sphere[1], np.float64
         )
         mats.append(op.mat)
-    inv_mats = [reg_lstsq_inverse(m, 1e-6) for m in mats]
-    np.testing.assert_almost_equal(inv_mats[0], inv_mats[1] * 2.0, 2)
+    inv_mats = [np.linalg.inv(m) for m in mats]
+    import ipdb
+    ipdb.set_trace()
 
 def test_tri_fmm_m2p_single():
     np.random.seed(100)
@@ -108,7 +102,7 @@ def test_tri_fmm_m2p_single():
     m2 = mesh_gen.make_rect(n, n, [[-10, 0, 1], [-10, 0, -1], [-8, 0, -1], [-8, 0, 1]])
 
     K = 'elasticRH3'
-    cfg = make_config(K, [1.0, 0.25], 2.5, 2.5, 2, np.float32, treecode = True, force_order = 1)
+    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True, force_order = 1)
     tree1 = make_tree(m1, cfg, 1000)
     tree2 = make_tree(m2, cfg, 1000)
 
@@ -126,17 +120,18 @@ def test_tri_fmm_m2p_single():
     obs_tri_idxs = tree1.orig_idxs
     obs_tris = m1[1][obs_tri_idxs]
 
-    p2c = op(check_sphere, (m2[0], src_tris), K, nq = 6)
+    p2c = op(check_sphere, (m2[0], src_tris), K)
 
-    e2c = e2c_op(check_sphere)
+    e2c = op(check_sphere, equiv_sphere, K)
     c2e = reg_lstsq_inverse(e2c, cfg.alpha)
 
-    e2p = op((m1[0], obs_tris), equiv_sphere, K, nq = 6)
+    e2p = op((m1[0], obs_tris), equiv_sphere, K)
 
     p2p = op((m1[0], obs_tris), (m2[0], src_tris), K)
     fmm_mat = e2p.dot(c2e.dot(p2c))
 
     full = op(m1, m2, K = K)
+
     fmm = FMM(tree1, m1, tree2, m2, cfg)
     fmmeval = FMMEvaluator(fmm)
 
@@ -150,11 +145,8 @@ def test_tri_fmm_m2p_single():
     fmm_res, m_check, multipoles, l_check, locals = tsk.run(call_fmm)
     y2 = fmm.to_orig(fmm_res)
 
-    import ipdb
-    ipdb.set_trace()
-
     m_check2 = p2c.dot(x_tree)
-    c2e2 = fmm.u2e_ops.reshape(c2e.shape)
+    c2e2 = fmm.u2e_ops[0].reshape(c2e.shape)
     np.testing.assert_almost_equal(m_check, m_check2)
     np.testing.assert_almost_equal(multipoles, c2e.dot(m_check))
     np.testing.assert_almost_equal(fmm_res, e2p.dot(multipoles), 4)
