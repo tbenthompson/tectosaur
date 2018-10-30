@@ -158,3 +158,45 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 % endif
 </%def>
 
+<%def name="integrate_pair(K, check0)">
+    Real result_temp[81];
+    Real kahanC[81];
+
+    for (int iresult = 0; iresult < 81; iresult++) {
+        result_temp[iresult] = 0;
+        kahanC[iresult] = 0;
+    }
+
+    ${K.constants_code}
+    
+    for (int iq = 0; iq < n_quad_pts; iq++) {
+        Real obsxhat = quad_pts[iq * 4 + 0];
+        Real obsyhat = quad_pts[iq * 4 + 1];
+        Real srcxhat = quad_pts[iq * 4 + 2];
+        Real srcyhat = quad_pts[iq * 4 + 3];
+        Real quadw = quad_wts[iq];
+
+        % for which, ptname in [("obs", "x"), ("src", "y")]:
+            ${basis(which)}
+            ${pts_from_basis(
+                ptname, which,
+                lambda b, d: which + "_tri[" + str(b) + "][" + str(d) + "]", 3
+            )}
+        % endfor
+
+        Real Dx = yx - xx;
+        Real Dy = yy - xy; 
+        Real Dz = yz - xz;
+        Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
+
+        % if check0:
+        if (r2 == 0.0) {
+            continue;
+        }
+        % endif
+
+        ${call_tensor_code(K)}
+    }
+</%def>
+
+

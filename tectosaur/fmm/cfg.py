@@ -20,10 +20,9 @@ def get_traversal_module(K):
     else:
         return get_dim_module(K.spatial_dim).octree
 
-def get_gpu_module(surf, quad, K, float_type, n_workers_per_block, n_c2e_block_rows):
+def get_gpu_module(surf, quad, K, float_type, n_workers_per_block):
     args = dict(
         n_workers_per_block = n_workers_per_block,
-        n_c2e_block_rows = n_c2e_block_rows,
         gpu_float_type = gpu.np_to_c_type(float_type),
         surf_pts = surf[0],
         surf_tris = surf[1],
@@ -50,12 +49,11 @@ class FMMConfig:
     gpu_module = attr.ib()
     traversal_module = attr.ib()
     n_workers_per_block = attr.ib()
-    n_c2e_block_rows = attr.ib()
     treecode = attr.ib()
     order = attr.ib()
 
 def make_config(K_name, params, inner_r, outer_r, order,
-        float_type, alpha = 1e-5, n_workers_per_block = 64, n_c2e_block_rows = 16,
+        float_type, alpha = 1e-5, n_workers_per_block = 64,
         treecode = False, force_order = None):
 
     K = kernels[K_name]
@@ -75,10 +73,9 @@ def make_config(K_name, params, inner_r, outer_r, order,
         inner_r = inner_r,
         alpha = alpha,
         float_type = float_type,
-        gpu_module = get_gpu_module(surf, quad, K, float_type, n_workers_per_block, n_c2e_block_rows),
+        gpu_module = get_gpu_module(surf, quad, K, float_type, n_workers_per_block),
         traversal_module = get_traversal_module(K),
         n_workers_per_block = n_workers_per_block,
-        n_c2e_block_rows = n_c2e_block_rows,
         treecode = treecode,
         order = order
     )

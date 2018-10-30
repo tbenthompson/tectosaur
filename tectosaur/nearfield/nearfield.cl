@@ -13,47 +13,6 @@ ${cluda_preamble}
 
 <%namespace name="prim" file="../integral_primitives.cl"/>
 
-<%def name="integrate_pair(K, check0)">
-    Real result_temp[81];
-    Real kahanC[81];
-
-    for (int iresult = 0; iresult < 81; iresult++) {
-        result_temp[iresult] = 0;
-        kahanC[iresult] = 0;
-    }
-
-    ${K.constants_code}
-    
-    for (int iq = 0; iq < n_quad_pts; iq++) {
-        Real obsxhat = quad_pts[iq * 4 + 0];
-        Real obsyhat = quad_pts[iq * 4 + 1];
-        Real srcxhat = quad_pts[iq * 4 + 2];
-        Real srcyhat = quad_pts[iq * 4 + 3];
-        Real quadw = quad_wts[iq];
-
-        % for which, ptname in [("obs", "x"), ("src", "y")]:
-            ${prim.basis(which)}
-            ${prim.pts_from_basis(
-                ptname, which,
-                lambda b, d: which + "_tri[" + str(b) + "][" + str(d) + "]", 3
-            )}
-        % endfor
-
-        Real Dx = yx - xx;
-        Real Dy = yy - xy; 
-        Real Dz = yz - xz;
-        Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
-
-        % if check0:
-        if (r2 == 0.0) {
-            continue;
-        }
-        % endif
-
-        ${prim.call_tensor_code(K)}
-    }
-</%def>
-
 <%def name="setup_pair()">
     const int i = get_global_id(0);
     const int pair_idx = i + start_idx;
@@ -79,7 +38,7 @@ void ${pairs_func_name(check0)}(GLOBAL_MEM Real* result,
     ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
     ${prim.tri_info("obs", "tris", K.needs_obsn, K.surf_curl_obs)}
     ${prim.tri_info("src", "tris", K.needs_srcn, K.surf_curl_src)}
-    ${integrate_pair(K, check0)}
+    ${prim.integrate_pair(K, check0)}
     
     for (int iresult = 0; iresult < 81; iresult++) {
         result[i * 81 + iresult] = obs_jacobian * src_jacobian * result_temp[iresult];
@@ -104,7 +63,7 @@ void ${pairs_func_name(check0)}_adj(GLOBAL_MEM Real* result,
     ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
     ${prim.tri_info("obs", "tris", K.needs_obsn, K.surf_curl_obs)}
     ${prim.tri_info("src", "tris", K.needs_srcn, K.surf_curl_src)}
-    ${integrate_pair(K, True)}
+    ${prim.integrate_pair(K, True)}
 
     //printf("obs1: %f %f %f\n", obs_tri[0][0], obs_tri[0][1], obs_tri[0][2]);
     //printf("obs2: %f %f %f\n", obs_tri[1][0], obs_tri[1][1], obs_tri[1][2]);
@@ -148,7 +107,7 @@ void farfield_tris(GLOBAL_MEM Real* result,
     ${prim.tri_info("obs", "obs_tris", K.needs_obsn, K.surf_curl_obs)}
     ${prim.tri_info("src", "src_tris", K.needs_srcn, K.surf_curl_src)}
 
-    ${integrate_pair(K, check0 = False)}
+    ${prim.integrate_pair(K, check0 = False)}
 
     for (int b_obs = 0; b_obs < 3; b_obs++) {
     for (int d_obs = 0; d_obs < 3; d_obs++) {

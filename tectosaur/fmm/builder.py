@@ -43,7 +43,6 @@ class FMM:
             for b in ['s', 'p']:
                 name = a + '2' + b
                 self.gpu_ops[name] = getattr(self.cfg.gpu_module, name + '_' + self.cfg.K.name)
-        self.gpu_ops['c2e'] = self.cfg.gpu_module.c2e_kernel
 
     def setup_output_sizes(self):
         self.n_surf_tris = self.cfg.surf[1].shape[0]
@@ -110,8 +109,14 @@ class FMM:
             for level in range(len(self.interactions.l2l))
         ]
 
-        self.u2e_ops = build_c2e(self.src_tree, self.cfg.outer_r, self.cfg.inner_r, self.cfg)
-        self.d2e_ops = build_c2e(self.obs_tree, self.cfg.inner_r, self.cfg.outer_r, self.cfg)
+        self.u2e_ops = build_c2e(
+            gd['params'], gd['src_n_C'], gd['src_n_R'],
+            self.cfg.outer_r, self.cfg.inner_r, self.cfg
+        )
+        self.d2e_ops = build_c2e(
+            gd['params'], gd['obs_n_C'], gd['obs_n_R'],
+            self.cfg.inner_r, self.cfg.outer_r, self.cfg
+        )
 
     def to_tree(self, input_orig):
         orig_idxs = np.array(self.src_tree.orig_idxs)

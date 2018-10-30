@@ -14,6 +14,7 @@ from tectosaur.fmm.c2e import reg_lstsq_inverse
 from tectosaur.constraint_builders import continuity_constraints
 from tectosaur.constraints import build_constraint_matrix
 from tectosaur.util.timer import Timer
+from tectosaur.util.test_decorators import golden_master
 
 # TODO: dim
 def test_tri_ones():
@@ -78,21 +79,6 @@ def test_tri_fmm_p2p():
     fmm_res, m_check, multipoles, l_check, locals = tsk.run(call_fmm)
     y2 = fmm.to_orig(fmm_res)
     np.testing.assert_almost_equal(y1, y2)
-
-def test_new_c2e():
-    center = (0.0,0.0,0.0)
-    mats = []
-    for scaling in [1.0, 2.0]:
-        R = 1.5
-        sphere = mesh_gen.make_sphere(center, scaling * R, 2)
-        op = RegularizedDenseIntegralOp(
-            8,8,8,5,5,10000.0,'elasticRH3','elasticRH3',[1.0,0.25],
-            sphere[0], sphere[1], np.float64
-        )
-        mats.append(op.mat)
-    inv_mats = [np.linalg.inv(m) for m in mats]
-    import ipdb
-    ipdb.set_trace()
 
 def test_tri_fmm_m2p_single():
     np.random.seed(100)
@@ -191,6 +177,20 @@ def test_tri_fmm_full():
 
     np.testing.assert_almost_equal(y1, y2)
 
+@golden_master(digits = 5)
+def test_c2e(request):
+    n = 10
+    m1 = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    m2 = mesh_gen.make_rect(n, n, [[-3, 0, 1], [-3, 0, -1], [-2, 0, -1], [-2, 0, 1]])
+
+    K = 'elasticRH3'
+    t = Timer()
+    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float64, treecode = True)
+    tree1 = make_tree(m1, cfg, 100)
+    tree2 = make_tree(m2, cfg, 100)
+    print(len(tree1.nodes))
+    fmm = FMM(tree1, m1, tree2, m2, cfg)
+    return np.array(fmm.u2e_ops)
 
 def benchmark():
     n = 100
