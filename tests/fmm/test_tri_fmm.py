@@ -53,16 +53,15 @@ def op(obs_m, src_m, K, nq = 2):
 def test_tri_fmm_p2p():
     np.random.seed(100)
 
-    n = 500
+    n = 10
     m1 = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     m2 = mesh_gen.make_rect(n, n, [[-3, 0, 1], [-3, 0, -1], [-2, 0, -1], [-2, 0, 1]])
 
     K = 'elasticRH3'
     cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True, force_order = 1000000)
-    tree1 = make_tree(m1, cfg, 500)
-    import ipdb
-    ipdb.set_trace()
+    tree1 = make_tree(m1, cfg, 10)
     tree2 = make_tree(m2, cfg, 10)
+    print('n_nodes: ', str(len(tree1.nodes)))
 
     fmm = FMM(tree1, m1, tree2, m2, cfg)
     fmmeval = FMMEvaluator(fmm)
@@ -122,7 +121,7 @@ def test_tri_fmm_m2p_single():
 
     p2c = op(check_sphere, (m2[0], src_tris), K)
 
-    e2c = op(check_sphere, equiv_sphere, K)
+    e2c = op(check_sphere, equiv_sphere, K, nq = 4)
     c2e = reg_lstsq_inverse(e2c, cfg.alpha)
 
     e2p = op((m1[0], obs_tris), equiv_sphere, K)
@@ -144,6 +143,8 @@ def test_tri_fmm_m2p_single():
         return (await fmmeval.eval(tsk_w, x_tree, return_all_intermediates = True))
     fmm_res, m_check, multipoles, l_check, locals = tsk.run(call_fmm)
     y2 = fmm.to_orig(fmm_res)
+    import ipdb
+    ipdb.set_trace()
 
     m_check2 = p2c.dot(x_tree)
     c2e2 = fmm.u2e_ops[0].reshape(c2e.shape)
@@ -155,16 +156,18 @@ def test_tri_fmm_m2p_single():
 def test_tri_fmm_full():
     np.random.seed(100)
 
-    n = 10
+    n = 40
     m1 = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     m2 = mesh_gen.make_rect(n, n, [[-3, 0, 1], [-3, 0, -1], [-2, 0, -1], [-2, 0, 1]])
 
     K = 'elasticRH3'
-    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True, force_order = 5)
-    tree1 = make_tree(m1, cfg, 10)
-    tree2 = make_tree(m2, cfg, 10)
+    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True)
+    tree1 = make_tree(m1, cfg, 100)
+    tree2 = make_tree(m2, cfg, 100)
+    print('n_nodes: ', str(len(tree1.nodes)))
 
     fmm = FMM(tree1, m1, tree2, m2, cfg)
+    report_interactions(fmm)
     fmmeval = FMMEvaluator(fmm)
     full = op(m1, m2, K = K)
 

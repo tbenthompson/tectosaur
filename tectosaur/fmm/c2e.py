@@ -1,5 +1,7 @@
 import attr
 import numpy as np
+from multiprocessing import Pool
+import cloudpickle
 
 import tectosaur.util.gpu as gpu
 from tectosaur.mesh.modify import concat
@@ -25,37 +27,37 @@ def reg_lstsq_inverse(M, alpha):
     inv_eig = eig / (eig ** 2 + alpha ** 2)
     return (VT.T * inv_eig).dot(U.T)
 
-def c2e_solve(assembler, surf, bounds, check_r, equiv_r, alpha):
-    t = Timer()
-    check_surf = inscribe_surf(bounds, check_r, surf)
-    equiv_surf = inscribe_surf(bounds, equiv_r, surf)
-
-    new_pts, new_tris = concat(check_surf, equiv_surf)
-    n_check_tris = check_surf[1].shape[0]
-    check_tris = new_tris[:n_check_tris]
-    equiv_tris = new_tris[n_check_tris:]
-
-    print("GO")
-    mat = assembler.assemble(new_pts, check_tris, equiv_tris)
-    t.report('assemble')
-
-    nrows = mat.shape[0] * 9
-    ncols = mat.shape[3] * 9
-    equiv_to_check = mat.reshape((nrows, ncols))
-    t.report('reshape')
-
-    c2e = reg_lstsq_inverse(equiv_to_check, alpha)
-    t.report('invert')
-    return c2e
+def caller(data):
+    f = cloudpickle.loads(data)
+    return f()
 
 def build_c2e(tree, check_r, equiv_r, cfg):
-    def make(assembler, bounds):
-        return c2e_solve(
-            assembler, cfg.surf, bounds, check_r, equiv_r, cfg.alpha
-        )
-
-    assembler = FarfieldTriMatrix(cfg.K.name, [1.0, 0.25], 2, np.float32)
-    c2e_ops = []
+    t = Timer()
+    e2cs = []
+    assembler = FarfieldTriMatrix(cfg.K.name, cfg.params, 4, np.float64)
     for n in tree.nodes:
-        c2e_ops.append(make(assembler, n.bounds))
-    return c2e_ops
+        check_surf = inscribe_surf(n.bounds, check_r, cfg.surf)
+        equiv_surf = inscribe_surf(n.bounds, equiv_r, cfg.surf)
+
+        new_pts, new_tris = concat(check_surf, equiv_surf)
+        n_check_tris = check_surf[1].shape[0]
+        check_tris = new_tris[:n_check_tris]
+        equiv_tris = new_tris[n_check_tris:]
+
+        mat = assembler.assemble(new_pts, check_tris, equiv_tris)
+
+        nrows = mat.shape[0] * 9
+        ncols = mat.shape[3] * 9
+        equiv_to_check = mat.reshape((nrows, ncols))
+        e2cs.append(equiv_to_check)
+    t.report('build e2cs')
+
+    data = []
+    for i in range(len(e2cs)):
+        def task(e2c = e2cs[i], alpha = cfg.alpha):
+            return reg_lstsq_inverse(e2c, alpha)
+        data.append(cloudpickle.dumps(task))
+    p = Pool()
+    out = p.map(caller, data)
+    t.report('invert for c2e')
+    return out
