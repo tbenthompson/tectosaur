@@ -276,55 +276,29 @@ ${fmm_op("s2s", "surf", "surf", False)}
 ${fmm_op("p2p", "pts", "pts", True)}
 ${fmm_op("s2p", "pts", "surf", False)}
 
-<%def name="c2e_builder(K)">
+
 KERNEL
-void build_c2e(GLOBAL_MEM Real* result,
-    int n_nodes, int n_obs, GLOBAL_MEM Real* node_center,
-    GLOBAL_MEM Real* node_R, Real check_R, Real equiv_R,
-    GLOBAL_MEM Real* params)
+void c2e_kernel(GLOBAL_MEM Real* out, GLOBAL_MEM Real* in,
+        int n_blocks, int n_rows, GLOBAL_MEM int* node_idx,
+        GLOBAL_MEM Real* node_R, Real alpha, GLOBAL_MEM Real* V,
+        GLOBAL_MEM Real* E, GLOBAL_MEM Real* UT)
 {
-    const int node_idx = get_global_id(0);
-    const int obs_tri_idx = get_global_id(1);
-    if (obs_tri_idx >= n_obs) {
-        return;
-    }
-    const int n_quad_pts = ${quad_pts.shape[0]};
-    const int n_matrix_els = ${(surf_tris.shape[0] * 9) ** 2};
-    const int n_src_tris = ${surf_tris.shape[0]};
+    const int block_idx = get_global_id(0);
+    const int row_idx = get_global_id(1);
+    const int node_idx = node_idx[block_idx];
+    const Real R = node_R[node_idx];
 
-    const int obs_tri_rot_clicks = 0;
-    const int src_tri_rot_clicks = 0;
-    ${prim.decl_tri_info("obs", K.needs_obsn, K.surf_curl_obs)}
-    ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
-    
-    Real true_check_R = check_R * node_R[node_idx];
-    Real true_equiv_R = equiv_R * node_R[node_idx];
-    ${tri_info("obs", "surf_pts", "surf_tris",
-            K.needs_obsn, K.surf_curl_obs,
-            [f"node_center[node_idx * 3 + {d}]" for d in range(3)],
-            "true_check_R")}
-    for (int src_tri_idx = 0; src_tri_idx < n_src_tris; src_tri_idx++) {
-        ${tri_info("src", "surf_pts", "surf_tris", K.needs_srcn, K.surf_curl_src,
-                [f"node_center[node_idx * 3 + {d}]" for d in range(3)],
-                "true_equiv_R")}
-
-        ${prim.integrate_pair(K, check0 = False)}
-
-        for (int b_obs = 0; b_obs < 3; b_obs++) {
-        for (int d_obs = 0; d_obs < 3; d_obs++) {
-        for (int b_src = 0; b_src < 3; b_src++) {
-        for (int d_src = 0; d_src < 3; d_src++) {
-            result[
-                node_idx * n_matrix_els + 
-                (obs_tri_idx * 9 + b_obs * 3 + d_obs) * n_src_tris * 9 +
-                (src_tri_idx * 9 + b_src * 3 + d_src)
-                ] = obs_jacobian * src_jacobian * 
-                    result_temp[b_obs * 27 + d_obs * 9 + b_src * 3 + d_src];
-        }
-        }
-        }
+    Real sum = 0.0;
+    for (int j = 0; j < n_rows; j++) {
+        Real Vv = V[row_idx * n_rows + j];
+        Real Ev = E[j];
+        Real REv = (R * Ev)
+        Real invEv = REv / (REv * REv + alpha * alpha);
+        for (int k = 0; k < n_rows; k++) {
+            Real UTv = UT[j * n_rows + k];
+            Real xv = in[node_idx * n_rows + k];
+            sum += Vv * invEv * UTv * xv;
         }
     }
+    out[node_idx * n_rows + row_idx] = sum;
 }
-</%def>
-${c2e_builder(K)}

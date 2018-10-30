@@ -1,7 +1,12 @@
+import logging
+
 import numpy as np
 import matplotlib.pyplot as plt
+
+import tectosaur as tct
 from tectosaur.ops.sparse_farfield_op import (
     TriToTriDirectFarfieldOp, PtToPtFMMFarfieldOp, PtToPtDirectFarfieldOp)
+from tectosaur.ops.sparse_integral_op import RegularizedSparseIntegralOp
 from tectosaur.ops.dense_integral_op import farfield_tris
 import tectosaur.mesh.mesh_gen as mesh_gen
 from tectosaur.kernels import kernels
@@ -144,12 +149,14 @@ def test_tri_fmm_full():
     np.random.seed(100)
 
     n = 40
+    K = 'elasticRH3'
     m1 = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     m2 = mesh_gen.make_rect(n, n, [[-3, 0, 1], [-3, 0, -1], [-2, 0, -1], [-2, 0, 1]])
+    x = np.random.rand(m2[1].shape[0] * 9)
 
-    K = 'elasticRH3'
     t = Timer()
-    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True)
+
+    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32)
     tree1 = make_tree(m1, cfg, 100)
     tree2 = make_tree(m2, cfg, 100)
     print('n_nodes: ', str(len(tree1.nodes)))
@@ -162,7 +169,6 @@ def test_tri_fmm_full():
     full = op(m1, m2, K = K)
     t.report('setup dense')
 
-    x = np.random.rand(full.shape[1])
     t.report('gen x')
     y1 = full.dot(x)
     t.report('dense mv')
@@ -170,8 +176,8 @@ def test_tri_fmm_full():
     x_tree = fmm.to_tree(x)
     import taskloaf as tsk
     async def call_fmm(tsk_w):
-        return (await fmmeval.eval(tsk_w, x_tree, return_all_intermediates = True))
-    fmm_res, m_check, multipoles, l_check, locals = tsk.run(call_fmm)
+        return (await fmmeval.eval(tsk_w, x_tree))
+    fmm_res = tsk.run(call_fmm)
     y2 = fmm.to_orig(fmm_res)
     t.report('fmm mv')
 
@@ -190,15 +196,32 @@ def test_c2e(request):
     tree2 = make_tree(m2, cfg, 100)
     print(len(tree1.nodes))
     fmm = FMM(tree1, m1, tree2, m2, cfg)
-    return np.array(fmm.u2e_ops)
+
+    u2e_ops = []
+    for n in tree2.nodes:
+        UT, eig, V = fmm.u2e_ops
+        alpha = cfg.alpha
+        R = n.bounds.R
+        inv_eig = R * eig / ((R * eig) ** 2 + alpha ** 2)
+        u2e_ops.append((V * inv_eig).dot(UT))
+    return np.array(u2e_ops)
 
 def benchmark():
+    tct.logger.setLevel(logging.INFO)
     n = 100
+    K = 'elasticRH3'
     m1 = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     m2 = mesh_gen.make_rect(n, n, [[-3, 0, 1], [-3, 0, -1], [-2, 0, -1], [-2, 0, 1]])
+    x = np.random.rand(m2[1].shape[0] * 9)
 
-    K = 'elasticRH3'
     t = Timer()
+    new_pts, new_tris = concat(m1, m2)
+    n_obs_tris = m1[1].shape[0]
+    sparse_op = RegularizedSparseIntegralOp(8,8,8,2,5,2.5,K,K,[1.0, 0.25],new_pts,new_tris,np.float32,TriToTriDirectFarfieldOp,obs_subset = np.arange(0,n_obs_tris),src_subset = np.arange(n_obs_tris,new_tris.shape[0]))
+    t.report('assemble matrix free')
+    sparse_op.dot(x)
+    t.report('matrix free mv')
+
     cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True)
     tree1 = make_tree(m1, cfg, 100)
     tree2 = make_tree(m2, cfg, 100)
@@ -209,7 +232,6 @@ def benchmark():
     fmmeval = FMMEvaluator(fmm)
     t.report('setup fmm')
 
-    x = np.random.rand(full.shape[1])
     t.report('gen x')
 
     x_tree = fmm.to_tree(x)

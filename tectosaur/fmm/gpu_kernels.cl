@@ -252,7 +252,6 @@ void direct_matrix(GLOBAL_MEM Real* out,
     }
 }
 
-// This is essentially a weird in-place block sparse matrix-matrix multiply. 
 KERNEL
 void c2e_kernel(GLOBAL_MEM Real* out, GLOBAL_MEM Real* in,
         int n_blocks, int n_rows, GLOBAL_MEM int* node_idx,
