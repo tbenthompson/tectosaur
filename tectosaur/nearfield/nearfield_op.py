@@ -113,7 +113,10 @@ class RegularizedNearfieldIntegralOp:
 
         ea_mat_rot = pairs_int.edge_adj(nq_edge_adj, ea)
         timer.report("Edge adjacent")
-        ea_mat_correction = correction_pairs_int.correction(ea[:,:2], False)
+        if ea.shape[0] == 0:
+            ea_mat_correction = 0 * ea_mat_rot
+        else:
+            ea_mat_correction = correction_pairs_int.correction(ea[:,:2], False)
         timer.report("Edge adjacent correction")
 
         va_mat_rot = pairs_int.vert_adj(nq_vert_adjacent, va)

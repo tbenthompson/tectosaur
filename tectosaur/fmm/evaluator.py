@@ -113,15 +113,19 @@ class FMMEvaluator:
     def gpu_c2e(self, level, depth, evs, d_or_u, out_arr, in_arr):
         name = d_or_u + '2e'
         check_vals = in_arr.get()
-        ops = getattr(self.fmm, name + '_ops')
+        op = getattr(self.fmm, name + '_ops')
         out = out_arr.get()
         obs_n_idxs = self.fmm.gpu_data[name + '_obs_n_idxs'][level].get()
+        if d_or_u == 'u':
+            tree = self.fmm.src_tree
+        else:
+            tree = self.fmm.obs_tree
         for n_idx in obs_n_idxs:
+            R = tree.nodes[n_idx].bounds.R
             start_dof = n_idx * self.fmm.n_surf_dofs
             end_dof = (n_idx + 1) * self.fmm.n_surf_dofs
             check_chunk = check_vals[start_dof:end_dof]
-            op = ops[n_idx]
-            multipole_chunk = op.dot(check_chunk)
+            multipole_chunk = op.dot(check_chunk) / R
             out[start_dof:end_dof] = multipole_chunk
         out_arr[:] = out
 

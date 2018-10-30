@@ -59,7 +59,7 @@ def make_config(K_name, params, inner_r, outer_r, order,
         treecode = False, force_order = None):
 
     K = kernels[K_name]
-    quad = gauss4d_tri(2, 2)
+    quad = gauss4d_tri(6, 6)
     surf = make_sphere((0.0, 0.0, 0.0), 1.0, order)
     order = surf[1].shape[0]
     if force_order is not None:
