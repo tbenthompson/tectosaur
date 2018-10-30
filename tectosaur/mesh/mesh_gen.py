@@ -46,9 +46,9 @@ def make_rect(nx, ny, corners):
     y = np.linspace(0, 1, ny)
     return rect_points(corners, x, y), rect_topology(nx, ny)
 
-def spherify(center, r, pts):
-    D = scipy.spatial.distance.cdist(pts, center.reshape((1,center.shape[0])))
-    return (r / D) * (pts - center) + center
+def spherify(pts):
+    D = scipy.spatial.distance.cdist(pts, np.zeros((1,3)))
+    return (1.0 / D) * pts
 
 def make_ellipse(center, rx, ry, rz):
     pts = np.array([[0,-ry,0],[rx,0,0],[0,0,rz],[-rx,0,0],[0,0,-rz],[0,ry,0]])
@@ -57,15 +57,13 @@ def make_ellipse(center, rx, ry, rz):
     return pts, tris
 
 def make_sphere(center, r, refinements):
-    center = np.array(center)
-    pts = np.array([[0,-r,0],[r,0,0],[0,0,r],[-r,0,0],[0,0,-r],[0,r,0]])
+    pts = np.array([[0,-1.0,0],[1.0,0,0],[0,0,1.0],[-1.0,0,0],[0,0,-1.0],[0,1.0,0]])
     tris = np.array([[1,0,2],[2,0,3],[3,0,4],[4,0,1],[5,1,2],[5,2,3],[5,3,4],[5,4,1]])
-    pts += center
     m = pts, tris
     for i in range(refinements):
         m = refine.refine(m)
-        m = (spherify(center, r, m[0]), m[1])
-    m = (m[0], m[1])
+        m = (spherify(m[0]), m[1])
+    m = (np.array(center) + r * m[0], m[1])
     return m
 
 def plot_mesh3d(pts, tris):
