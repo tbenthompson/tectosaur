@@ -8,15 +8,16 @@ from tectosaur.kernels import kernels
 from tectosaur.mesh.modify import concat
 import tectosaur.util.gpu as gpu
 from tectosaur.util.quadrature import gauss4d_tri
-from test_farfield import make_meshes
 from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
 from tectosaur.fmm.fmm import make_tree, make_config, FMM, FMMEvaluator, report_interactions
 from tectosaur.fmm.c2e import reg_lstsq_inverse
 from tectosaur.constraint_builders import continuity_constraints
 from tectosaur.constraints import build_constraint_matrix
+from tectosaur.util.timer import Timer
 
 # TODO: dim
 def test_tri_ones():
+    from test_farfield import make_meshes
     m, surf1_idxs, surf2_idxs = make_meshes(n_m = 2, sep = 5, w = 1)
     ops = [
         C(
@@ -161,6 +162,7 @@ def test_tri_fmm_full():
     m2 = mesh_gen.make_rect(n, n, [[-3, 0, 1], [-3, 0, -1], [-2, 0, -1], [-2, 0, 1]])
 
     K = 'elasticRH3'
+    t = Timer()
     cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True)
     tree1 = make_tree(m1, cfg, 100)
     tree2 = make_tree(m2, cfg, 100)
@@ -169,10 +171,15 @@ def test_tri_fmm_full():
     fmm = FMM(tree1, m1, tree2, m2, cfg)
     report_interactions(fmm)
     fmmeval = FMMEvaluator(fmm)
+    t.report('setup fmm')
+
     full = op(m1, m2, K = K)
+    t.report('setup dense')
 
     x = np.random.rand(full.shape[1])
+    t.report('gen x')
     y1 = full.dot(x)
+    t.report('dense mv')
 
     x_tree = fmm.to_tree(x)
     import taskloaf as tsk
@@ -180,5 +187,39 @@ def test_tri_fmm_full():
         return (await fmmeval.eval(tsk_w, x_tree, return_all_intermediates = True))
     fmm_res, m_check, multipoles, l_check, locals = tsk.run(call_fmm)
     y2 = fmm.to_orig(fmm_res)
+    t.report('fmm mv')
+
     np.testing.assert_almost_equal(y1, y2)
 
+
+def benchmark():
+    n = 100
+    m1 = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
+    m2 = mesh_gen.make_rect(n, n, [[-3, 0, 1], [-3, 0, -1], [-2, 0, -1], [-2, 0, 1]])
+
+    K = 'elasticRH3'
+    t = Timer()
+    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True)
+    tree1 = make_tree(m1, cfg, 100)
+    tree2 = make_tree(m2, cfg, 100)
+    print('n_nodes: ', str(len(tree1.nodes)))
+
+    fmm = FMM(tree1, m1, tree2, m2, cfg)
+    report_interactions(fmm)
+    fmmeval = FMMEvaluator(fmm)
+    t.report('setup fmm')
+
+    x = np.random.rand(full.shape[1])
+    t.report('gen x')
+
+    x_tree = fmm.to_tree(x)
+    import taskloaf as tsk
+    async def call_fmm(tsk_w):
+        return (await fmmeval.eval(tsk_w, x_tree, return_all_intermediates = True))
+    fmm_res, m_check, multipoles, l_check, locals = tsk.run(call_fmm)
+    y2 = fmm.to_orig(fmm_res)
+    t.report('fmm mv')
+
+
+if __name__ == "__main__":
+    benchmark()
