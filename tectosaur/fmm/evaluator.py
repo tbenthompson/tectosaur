@@ -19,6 +19,7 @@ class FMMEvaluator:
         self.out = gpu.empty_gpu(fmm.n_output, fmm.cfg.float_type)
         self.m_check = gpu.empty_gpu(fmm.n_multipoles, fmm.cfg.float_type)
         self.multipoles = gpu.empty_gpu(fmm.n_multipoles, fmm.cfg.float_type)
+        self.c2e_scratch = gpu.empty_gpu(fmm.n_multipoles, fmm.cfg.float_type)
         self.l_check = gpu.empty_gpu(fmm.n_locals, fmm.cfg.float_type)
         self.locals = gpu.empty_gpu(fmm.n_locals, fmm.cfg.float_type)
 
@@ -111,28 +112,38 @@ class FMMEvaluator:
         )
 
     def gpu_c2e(self, level, depth, evs, d_or_u, out_arr, in_arr):
-        t = Timer()
-        self.f
-        name = d_or_u + '2e'
-        check_vals = in_arr.get()
-        ops = getattr(self.fmm, name + '_ops')
-        out = out_arr.get()
-        obs_n_idxs = self.fmm.gpu_data[name + '_obs_n_idxs'][level].get()
-        tree = self.fmm.obs_tree if d_or_u == 'd' else self.fmm.src_tree
-        for n_idx in obs_n_idxs:
-            start_dof = n_idx * self.fmm.n_surf_dofs
-            end_dof = (n_idx + 1) * self.fmm.n_surf_dofs
-            check_chunk = check_vals[start_dof:end_dof]
+        gd = self.fmm.gpu_data
+        op1 = self.fmm.gpu_ops['c2e1']
+        op2 = self.fmm.gpu_ops['c2e2']
 
-            R = tree.nodes[n_idx].bounds.R
-            UT, eig, V = ops
-            alpha = self.fmm.cfg.alpha
-            R = tree.nodes[n_idx].bounds.R
-            inv_eig = R * eig / ((R * eig) ** 2 + alpha ** 2)
-            multipole_chunk = V.dot((inv_eig * UT.dot(check_chunk)))
-            out[start_dof:end_dof] = multipole_chunk
-        out_arr[:] = out
-        t.report('c2e')
+        name = d_or_u + '2e'
+        src_obs = 'obs' if d_or_u == 'd' else 'src'
+        n_nodes = gd[name + '_obs_n_idxs'][level].shape[0]
+        n_c2e_rows = gd[name + '_UT'].shape[0]
+
+        block_size = 16
+        n_node_blocks = int(np.ceil(n_nodes / block_size))
+        n_c2e_row_blocks = int(np.ceil(n_c2e_rows / block_size))
+
+        self.call_kernel(
+            name, op1,
+            self.c2e_scratch, in_arr,
+            np.int32(n_nodes), np.int32(n_c2e_rows),
+            gd[name + '_obs_n_idxs'][level], gd[name + '_UT'],
+            grid = (n_node_blocks, n_c2e_row_blocks, 1),
+            block = (block_size, block_size, 1)
+        )
+
+        self.call_kernel(
+            name, op2,
+            out_arr, self.c2e_scratch,
+            np.int32(n_nodes), np.int32(n_c2e_rows),
+            gd[name + '_obs_n_idxs'][level], gd[src_obs + '_n_R'],
+            np.float32(self.fmm.cfg.alpha),
+            gd[name + '_V'], gd[name + '_E'],
+            grid = (n_node_blocks, n_c2e_row_blocks, 1),
+            block = (block_size, block_size, 1)
+        )
 
     def gpu_d2e(self, level, evs):
         return self.gpu_c2e(level, level, evs, 'd', self.locals, self.l_check)
@@ -143,7 +154,7 @@ class FMMEvaluator:
 
     def prep_data_for_eval(self, input_vals):
         self.inp[:] = input_vals.astype(self.fmm.cfg.float_type).flatten()
-        for arr in ['out', 'm_check', 'multipoles', 'l_check', 'locals']:
+        for arr in ['out', 'm_check', 'multipoles', 'l_check', 'locals', 'c2e_scratch']:
             getattr(self, arr).fill(0)
 
     async def eval(self, tsk_w, input_vals, should_log_timing = False, return_all_intermediates = False):
@@ -202,4 +213,4 @@ class FMMEvaluator:
             times[name] = times.get(name, 0) +sum([get_time(e) for e in evs])
 
         for k, t in times.items():
-            logger.debug(k + ' took ' + str(t))
+            logger.info(k + ' took ' + str(t))

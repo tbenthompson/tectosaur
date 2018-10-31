@@ -43,6 +43,8 @@ class FMM:
             for b in ['s', 'p']:
                 name = a + '2' + b
                 self.gpu_ops[name] = getattr(self.cfg.gpu_module, name + '_' + self.cfg.K.name)
+        self.gpu_ops['c2e1'] = self.cfg.gpu_module.c2e_kernel1
+        self.gpu_ops['c2e2'] = self.cfg.gpu_module.c2e_kernel2
 
     def setup_output_sizes(self):
         self.n_surf_tris = self.cfg.surf[1].shape[0]
@@ -109,15 +111,19 @@ class FMM:
             for level in range(len(self.interactions.l2l))
         ]
 
-        u2e_V, u2e_E, u2e_UT = build_c2e(
+        u2e_UT, u2e_E, u2e_V = build_c2e(
             self.src_tree, self.cfg.outer_r, self.cfg.inner_r, self.cfg
-        )
-        d2e_V, d2e_E, d2e_UT = build_c2e(
-            self.obs_tree, self.cfg.inner_r, self.cfg.outer_r, self.cfg
         )
         gd['u2e_V'] = self.float_gpu(u2e_V)
         gd['u2e_E'] = self.float_gpu(u2e_E)
         gd['u2e_UT'] = self.float_gpu(u2e_UT)
+
+        d2e_UT, d2e_E, d2e_V = build_c2e(
+            self.obs_tree, self.cfg.inner_r, self.cfg.outer_r, self.cfg
+        )
+        gd['d2e_V'] = self.float_gpu(d2e_V)
+        gd['d2e_E'] = self.float_gpu(d2e_E)
+        gd['d2e_UT'] = self.float_gpu(d2e_UT)
 
 
     def to_tree(self, input_orig):
@@ -163,9 +169,9 @@ def report_interactions(fmm_obj):
     direct_i = n_obs_tris * n_src_tris
     fmm_i = sum([v for k,v in interactions.items()])
 
-    logger.debug('compression factor: ' + str(fmm_i / direct_i))
-    logger.debug('# obs tris: ' + str(n_obs_tris))
-    logger.debug('# src tris: ' + str(n_src_tris))
-    logger.debug('total tree interactions: %e' % fmm_i)
+    logger.info('compression factor: ' + str(fmm_i / direct_i))
+    logger.info('# obs tris: ' + str(n_obs_tris))
+    logger.info('# src tris: ' + str(n_src_tris))
+    logger.info('total tree interactions: %e' % fmm_i)
     for k, v in interactions.items():
-        logger.debug('total %s interactions: %e' % (k, v))
+        logger.info('total %s interactions: %e' % (k, v))

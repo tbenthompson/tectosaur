@@ -278,27 +278,47 @@ ${fmm_op("s2p", "pts", "surf", False)}
 
 
 KERNEL
-void c2e_kernel(GLOBAL_MEM Real* out, GLOBAL_MEM Real* in,
-        int n_blocks, int n_rows, GLOBAL_MEM int* node_idx,
-        GLOBAL_MEM Real* node_R, Real alpha, GLOBAL_MEM Real* V,
-        GLOBAL_MEM Real* E, GLOBAL_MEM Real* UT)
+void c2e_kernel1(GLOBAL_MEM Real* out, GLOBAL_MEM Real* in,
+        int n_nodes, int n_rows, GLOBAL_MEM int* node_idxs,
+        GLOBAL_MEM Real* UT)
 {
-    const int block_idx = get_global_id(0);
+    const int idx = get_global_id(0);
     const int row_idx = get_global_id(1);
-    const int node_idx = node_idx[block_idx];
+    if (row_idx >= n_rows || idx >= n_nodes) {
+        return;
+    }
+    const int node_idx = node_idxs[idx];
+
+    Real sum1 = 0.0;
+    for (int k = 0; k < n_rows; k++) {
+        Real UTv = UT[row_idx * n_rows + k];
+        Real xv = in[node_idx * n_rows + k]; 
+        sum1 += UTv * xv;
+    }
+    out[node_idx * n_rows + row_idx] = sum1;
+}
+
+KERNEL
+void c2e_kernel2(GLOBAL_MEM Real* out, GLOBAL_MEM Real* in,
+        int n_nodes, int n_rows, GLOBAL_MEM int* node_idxs,
+        GLOBAL_MEM Real* node_R, Real alpha, GLOBAL_MEM Real* V,
+        GLOBAL_MEM Real* E)
+{
+    const int idx = get_global_id(0);
+    const int row_idx = get_global_id(1);
+    if (row_idx >= n_rows || idx >= n_nodes) {
+        return;
+    }
+    const int node_idx = node_idxs[idx];
     const Real R = node_R[node_idx];
 
-    Real sum = 0.0;
+    Real sum2 = 0.0;
     for (int j = 0; j < n_rows; j++) {
         Real Vv = V[row_idx * n_rows + j];
         Real Ev = E[j];
-        Real REv = (R * Ev)
+        Real REv = R * Ev;
         Real invEv = REv / (REv * REv + alpha * alpha);
-        for (int k = 0; k < n_rows; k++) {
-            Real UTv = UT[j * n_rows + k];
-            Real xv = in[node_idx * n_rows + k];
-            sum += Vv * invEv * UTv * xv;
-        }
+        sum2 += Vv * invEv * in[node_idx * n_rows + j];
     }
-    out[node_idx * n_rows + row_idx] = sum;
+    out[node_idx * n_rows + row_idx] = sum2;
 }

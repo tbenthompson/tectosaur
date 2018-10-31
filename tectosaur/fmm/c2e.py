@@ -51,6 +51,6 @@ def build_c2e(tree, check_r, equiv_r, cfg):
     t.report('build e2cs')
 
     U, eig, VT = np.linalg.svd(equiv_to_check)
-    out = (U.T, eig, VT.T)
+    out = (U.T.copy(), eig.copy(), VT.T.copy())
     t.report('svd')
     return out

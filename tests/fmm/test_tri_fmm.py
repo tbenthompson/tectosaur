@@ -135,11 +135,8 @@ def test_tri_fmm_m2p_single():
         return (await fmmeval.eval(tsk_w, x_tree, return_all_intermediates = True))
     fmm_res, m_check, multipoles, l_check, locals = tsk.run(call_fmm)
     y2 = fmm.to_orig(fmm_res)
-    import ipdb
-    ipdb.set_trace()
 
     m_check2 = p2c.dot(x_tree)
-    c2e2 = fmm.u2e_ops[0].reshape(c2e.shape)
     np.testing.assert_almost_equal(m_check, m_check2)
     np.testing.assert_almost_equal(multipoles, c2e.dot(m_check))
     np.testing.assert_almost_equal(fmm_res, e2p.dot(multipoles), 4)
@@ -208,6 +205,7 @@ def test_c2e(request):
 
 def benchmark():
     tct.logger.setLevel(logging.INFO)
+    m = 1
     n = 100
     K = 'elasticRH3'
     m1 = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
@@ -217,12 +215,18 @@ def benchmark():
     t = Timer()
     new_pts, new_tris = concat(m1, m2)
     n_obs_tris = m1[1].shape[0]
-    sparse_op = RegularizedSparseIntegralOp(8,8,8,2,5,2.5,K,K,[1.0, 0.25],new_pts,new_tris,np.float32,TriToTriDirectFarfieldOp,obs_subset = np.arange(0,n_obs_tris),src_subset = np.arange(n_obs_tris,new_tris.shape[0]))
+    sparse_op = RegularizedSparseIntegralOp(
+        8,8,8,2,5,2.5,K,K,[1.0, 0.25],new_pts,new_tris,
+        np.float32,TriToTriDirectFarfieldOp,
+        obs_subset = np.arange(0,n_obs_tris),
+        src_subset = np.arange(n_obs_tris,new_tris.shape[0])
+    )
     t.report('assemble matrix free')
-    sparse_op.dot(x)
-    t.report('matrix free mv')
+    for i in range(m):
+        sparse_op.dot(x)
+    t.report('matrix free mv x10')
 
-    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = True)
+    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = False)
     tree1 = make_tree(m1, cfg, 100)
     tree2 = make_tree(m2, cfg, 100)
     print('n_nodes: ', str(len(tree1.nodes)))
@@ -234,13 +238,16 @@ def benchmark():
 
     t.report('gen x')
 
-    x_tree = fmm.to_tree(x)
-    import taskloaf as tsk
-    async def call_fmm(tsk_w):
-        return (await fmmeval.eval(tsk_w, x_tree, return_all_intermediates = True))
-    fmm_res, m_check, multipoles, l_check, locals = tsk.run(call_fmm)
-    y2 = fmm.to_orig(fmm_res)
-    t.report('fmm mv')
+    for i in range(m):
+        x_tree = fmm.to_tree(x)
+        import taskloaf as tsk
+        async def call_fmm(tsk_w):
+            return (await fmmeval.eval(
+                tsk_w, x_tree, should_log_timing = True
+            ))
+        fmm_res = tsk.run(call_fmm)
+        y2 = fmm.to_orig(fmm_res)
+    t.report('fmm mv x10')
 
 
 if __name__ == "__main__":
