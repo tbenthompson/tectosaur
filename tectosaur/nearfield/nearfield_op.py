@@ -3,8 +3,6 @@ import numpy as np
 
 import tectosaur.mesh.find_near_adj as find_near_adj
 
-from tectosaur.nearfield.limit import richardson_quad
-from tectosaur.nearfield.table_lookup import coincident_table, adjacent_table
 from tectosaur.nearfield.pairs_integrator import PairsIntegrator
 
 from tectosaur.util.timer import Timer

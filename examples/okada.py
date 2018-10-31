@@ -21,12 +21,11 @@ import tectosaur.constraints as constraints
 from tectosaur.constraint_builders import continuity_constraints, \
     all_bc_constraints, free_edge_constraints
 from tectosaur.util.timer import Timer
-from tectosaur.interior import interior_integral
+# from tectosaur.interior import interior_integral
 from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
-from tectosaur.ops.sparse_integral_op import SparseIntegralOp, \
-    RegularizedSparseIntegralOp
+from tectosaur.ops.sparse_integral_op import RegularizedSparseIntegralOp
 from tectosaur.ops.sparse_farfield_op import FMMFarfieldOp, \
-    PtToPtDirectFarfieldOp, TriToTriDirectFarfieldOp
+    TriToTriDirectFarfieldOp
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.neg_op import MultOp
 from tectosaur.ops.sum_op import SumOp

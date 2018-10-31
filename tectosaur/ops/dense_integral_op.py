@@ -52,51 +52,6 @@ class FarfieldTriMatrix:
 
         return out
 
-class DenseIntegralOp(DenseOp):
-    def __init__(self, nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, kernel, params, pts, tris, float_type,
-            obs_subset = None, src_subset = None):
-
-        if obs_subset is None:
-            obs_subset = np.arange(tris.shape[0])
-        if src_subset is None:
-            src_subset = np.arange(tris.shape[0])
-
-        self.float_type = float_type
-
-        nearfield = NearfieldIntegralOp(
-            pts, tris, obs_subset, src_subset,
-            nq_vert_adjacent, nq_far, nq_near,
-            near_threshold, kernel, params, float_type
-        ).no_correction_to_dense()
-
-        farfield = farfield_tris(
-            kernel, params, pts, tris[obs_subset], tris[src_subset], nq_far, float_type
-        ).reshape(nearfield.shape)
-
-        self.mat = np.where(np.abs(nearfield) > 0, nearfield, farfield)
-        self.shape = self.mat.shape
-        self.gpu_mat = None
-
-    def gpu_dot(self, v):
-        import skcuda.linalg
-        if self.gpu_mat is None:
-            self.gpu_mat = gpu.to_gpu(self.mat, self.float_type)
-            skcuda.linalg.init()
-        v_gpu = gpu.to_gpu(v, self.float_type)
-        y_gpu = skcuda.linalg.dot(self.gpu_mat, v_gpu)
-        return y_gpu.get()
-
-    def np_dot(self, v):
-        return self.mat.dot(v)
-
-    def dot(self, v):
-        # if gpu.cuda_backend:
-        #     return self.gpu_dot(v)
-        # else:
-        return self.np_dot(v)
-
-#TODO: combine with the non-regularized one, figure out the seams
 class RegularizedDenseIntegralOp(DenseOp):
     def __init__(self, nq_coincident, nq_edge_adj, nq_vert_adjacent, nq_far, nq_near,
             near_threshold, K_near_name, K_far_name, params, pts, tris, float_type,

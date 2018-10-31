@@ -1,10 +1,7 @@
 import numpy as np
 import tectosaur.mesh.find_near_adj as find_near_adj
-from tectosaur.nearfield.table_params import table_min_internal_angle, min_intersect_angle
 
 import cppimport.import_hook
-import tectosaur.nearfield.edge_adj_setup as edge_adj_setup
-import tectosaur.nearfield.standardize as standardize
 import tectosaur.util.tri_tri_intersect as tri_tri_intersect
 import tectosaur._check_for_problems as _check_for_problems
 
