@@ -161,56 +161,44 @@ class PtToPtDirectFarfieldOp:
         return self.dot(v)
 
 @attr.s()
-class PtToPtFMMFarfieldOp:
-    order = attr.ib()
+class FMMFarfieldOp:
     mac = attr.ib()
     pts_per_cell = attr.ib()
     def __call__(self, nq_far, K_name, params, pts, tris, float_type,
             obs_subset, src_subset):
-        return PtToPtFMMFarfieldOpImpl(
+        return FMMFarfieldOpImpl(
             nq_far, K_name, params, pts, tris, float_type,
-            obs_subset, src_subset, self.order, self.mac, self.pts_per_cell
+            obs_subset, src_subset, self.mac, self.pts_per_cell
         )
 
-class PtToPtFMMFarfieldOpImpl:
+class FMMFarfieldOpImpl:
     def __init__(self, nq_far, K_name, params, pts, tris, float_type,
-            obs_subset, src_subset, order, mac, pts_per_cell):
+            obs_subset, src_subset, mac, pts_per_cell):
 
-        self.to_pts = ToPts(nq_far, pts, tris, obs_subset, src_subset)
-        obs_pts = self.to_pts.obs_quad_pts
-        obs_ns = self.to_pts.obs_quad_ns
-        src_pts = self.to_pts.src_quad_pts
-        src_ns = self.to_pts.src_quad_ns
+        cfg = fmm.make_config(K_name, params, 1.1, mac, 2, float_type)
 
-        cfg = fmm.make_config(K_name, params, 1.1, mac, order, float_type)
-
-        self.obs_tree = fmm.make_tree(obs_pts.copy(), cfg, pts_per_cell)
-        self.src_tree = fmm.make_tree(src_pts.copy(), cfg, pts_per_cell)
-        self.obs_orig_idxs = np.array(self.obs_tree.orig_idxs)
-        self.src_orig_idxs = np.array(self.src_tree.orig_idxs)
+        m_obs = (pts, tris[obs_subset])
+        m_src = (pts, tris[src_subset])
+        self.obs_tree = fmm.make_tree(m_obs, cfg, pts_per_cell)
+        self.src_tree = fmm.make_tree(m_src, cfg, pts_per_cell)
         self.fmm_obj = fmm.FMM(
-            self.obs_tree, obs_ns[self.obs_orig_idxs].copy(),
-            self.src_tree, src_ns[self.src_orig_idxs].copy(), cfg
+            self.obs_tree, m_obs,
+            self.src_tree, m_src,
+            cfg
         )
-        fmm.report_interactions(self.fmm_obj)
         self.evaluator = fmm.FMMEvaluator(self.fmm_obj)
 
     async def async_dot(self, tsk_w, v):
         t = Timer(output_fnc = logger.debug)
-        pts_v = self.to_pts.to_pts(v)
-        input_tree = pts_v.reshape((-1, 3))[self.src_orig_idxs, :].reshape(-1)
+        v_tree = self.fmm_obj.to_tree(v)
         t.report('to tree space')
 
-        fmm_out = await self.evaluator.eval(tsk_w, input_tree.copy())
-        fmm_out = fmm_out.reshape((-1, 3))
+        fmm_out = await self.evaluator.eval(tsk_w, v_tree)
         t.report('fmm eval')
 
-        to_orig = np.empty_like(fmm_out)
-        to_orig[self.obs_orig_idxs, :] = fmm_out
-        to_orig = to_orig.flatten()
-        from_pts = self.to_pts.from_pts(to_orig)
+        out = self.fmm_obj.to_orig(fmm_out)
         t.report('to output space')
-        return from_pts
+        return out
 
     def dot(self, v):
         async def wrapper(tsk_w):

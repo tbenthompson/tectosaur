@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 import tectosaur as tct
 from tectosaur.ops.sparse_farfield_op import (
-    TriToTriDirectFarfieldOp, PtToPtFMMFarfieldOp, PtToPtDirectFarfieldOp)
+    TriToTriDirectFarfieldOp, FMMFarfieldOp, PtToPtDirectFarfieldOp)
 from tectosaur.ops.sparse_integral_op import RegularizedSparseIntegralOp
 from tectosaur.ops.dense_integral_op import farfield_tris
 import tectosaur.mesh.mesh_gen as mesh_gen
@@ -146,14 +146,14 @@ def test_tri_fmm_full():
     np.random.seed(100)
 
     n = 40
-    K = 'elasticRH3'
+    K = 'elasticRA3'
     m1 = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     m2 = mesh_gen.make_rect(n, n, [[-3, 0, 1], [-3, 0, -1], [-2, 0, -1], [-2, 0, 1]])
     x = np.random.rand(m2[1].shape[0] * 9)
 
     t = Timer()
 
-    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32)
+    cfg = make_config(K, [1.0, 0.25], 1.1, 4.5, 2, np.float32)
     tree1 = make_tree(m1, cfg, 100)
     tree2 = make_tree(m2, cfg, 100)
     print('n_nodes: ', str(len(tree1.nodes)))
@@ -206,7 +206,7 @@ def test_c2e(request):
 def benchmark():
     tct.logger.setLevel(logging.INFO)
     m = 1
-    n = 100
+    n = 50
     K = 'elasticRH3'
     m1 = mesh_gen.make_rect(n, n, [[-1, 0, 1], [-1, 0, -1], [1, 0, -1], [1, 0, 1]])
     m2 = mesh_gen.make_rect(n, n, [[-3, 0, 1], [-3, 0, -1], [-2, 0, -1], [-2, 0, 1]])
@@ -223,31 +223,21 @@ def benchmark():
     )
     t.report('assemble matrix free')
     for i in range(m):
-        sparse_op.dot(x)
+        y1 = sparse_op.dot(x)
     t.report('matrix free mv x10')
 
-    cfg = make_config(K, [1.0, 0.25], 1.1, 2.5, 2, np.float32, treecode = False)
-    tree1 = make_tree(m1, cfg, 100)
-    tree2 = make_tree(m2, cfg, 100)
-    print('n_nodes: ', str(len(tree1.nodes)))
-
-    fmm = FMM(tree1, m1, tree2, m2, cfg)
-    report_interactions(fmm)
-    fmmeval = FMMEvaluator(fmm)
+    fmm = FMMFarfieldOp(mac = 4.5, pts_per_cell = 300)(
+        2, K, [1.0, 0.25], new_pts, new_tris, np.float32,
+        obs_subset = np.arange(0,n_obs_tris),
+        src_subset = np.arange(n_obs_tris,new_tris.shape[0])
+    )
+    report_interactions(fmm.fmm_obj)
     t.report('setup fmm')
 
-    t.report('gen x')
-
-    for i in range(m):
-        x_tree = fmm.to_tree(x)
-        import taskloaf as tsk
-        async def call_fmm(tsk_w):
-            return (await fmmeval.eval(
-                tsk_w, x_tree, should_log_timing = True
-            ))
-        fmm_res = tsk.run(call_fmm)
-        y2 = fmm.to_orig(fmm_res)
+    y2 = fmm.dot(x)
     t.report('fmm mv x10')
+
+    print(y1, y2)
 
 
 if __name__ == "__main__":

@@ -22,8 +22,7 @@ from tectosaur.ops.composite_op import CompositeOp
 from tectosaur.ops.sparse_integral_op import RegularizedSparseIntegralOp
 from tectosaur.ops.sparse_farfield_op import (
     TriToTriDirectFarfieldOp,
-    PtToPtDirectFarfieldOp,
-    PtToPtFMMFarfieldOp)
+    FMMFarfieldOp)
 from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
 
 from tectosaur.constraints import Term, ConstraintEQ, build_constraint_matrix

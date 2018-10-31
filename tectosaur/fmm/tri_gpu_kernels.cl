@@ -316,7 +316,7 @@ void c2e_kernel2(GLOBAL_MEM Real* out, GLOBAL_MEM Real* in,
     for (int j = 0; j < n_rows; j++) {
         Real Vv = V[row_idx * n_rows + j];
         Real Ev = E[j];
-        Real REv = R * Ev;
+        Real REv = pow(R, ${K.scale_type} + 4) * Ev;
         Real invEv = REv / (REv * REv + alpha * alpha);
         sum2 += Vv * invEv * in[node_idx * n_rows + j];
     }

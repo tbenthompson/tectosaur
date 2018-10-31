@@ -25,7 +25,7 @@ from tectosaur.interior import interior_integral
 from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
 from tectosaur.ops.sparse_integral_op import SparseIntegralOp, \
     RegularizedSparseIntegralOp
-from tectosaur.ops.sparse_farfield_op import PtToPtFMMFarfieldOp, \
+from tectosaur.ops.sparse_farfield_op import FMMFarfieldOp, \
     PtToPtDirectFarfieldOp, TriToTriDirectFarfieldOp
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.neg_op import MultOp
@@ -320,8 +320,8 @@ def build_and_solve_T_regularized(data):
         8, 8, 8, 2, 5, 2.5,
         'elasticRT3', 'elasticRT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
         data.float_type,
-        # farfield_op_type = PtToPtFMMFarfieldOp(150, 3.0, 450)
         farfield_op_type = TriToTriDirectFarfieldOp
+        # farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 300)
     )
     timer.report("Integrals")
 
@@ -343,7 +343,7 @@ def build_and_solve_H_regularized(data):
         'elasticRH3', 'elasticRH3',
         data.k_params, data.all_mesh[0], data.all_mesh[1], data.float_type,
         farfield_op_type = TriToTriDirectFarfieldOp
-        # farfield_op_type = PtToPtFMMFarfieldOp(150, 3.0, 450)
+        # farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 300)
     )])
     timer.report("Integrals")
 
