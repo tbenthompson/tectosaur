@@ -79,18 +79,22 @@ class TriToTriDirectFarfieldOp:
 class FMMFarfieldOp:
     mac = attr.ib()
     pts_per_cell = attr.ib()
+    alpha = attr.ib(default = 1e-5)
     def __call__(self, nq_far, K_name, params, pts, tris, float_type,
             obs_subset, src_subset):
         return FMMFarfieldOpImpl(
             nq_far, K_name, params, pts, tris, float_type,
-            obs_subset, src_subset, self.mac, self.pts_per_cell
+            obs_subset, src_subset, self.mac, self.pts_per_cell, self.alpha
         )
 
 class FMMFarfieldOpImpl:
     def __init__(self, nq_far, K_name, params, pts, tris, float_type,
-            obs_subset, src_subset, mac, pts_per_cell):
+            obs_subset, src_subset, mac, pts_per_cell, alpha):
 
-        cfg = fmm.make_config(K_name, params, 1.1, mac, 2, float_type)
+        cfg = fmm.make_config(
+            K_name, params, 1.1, mac, 2, float_type,
+            alpha = alpha
+        )
 
         m_obs = (pts, tris[obs_subset])
         m_src = (pts, tris[src_subset])
