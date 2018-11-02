@@ -12,6 +12,7 @@ def get_data_filepath(filename):
 
 from tectosaur.util.logging import setup_root_logger
 logger = setup_root_logger(__name__)
+from tectosaur.util.timer import Timer
 
 from tectosaur.mesh.mesh_gen import make_rect
 
