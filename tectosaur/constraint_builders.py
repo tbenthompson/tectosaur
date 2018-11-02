@@ -144,12 +144,23 @@ def continuity_constraints(pts, surface_tris, fault_tris, tensor_dim = 3):
 
                 fault_tri_idx = None
                 if crosses:
+                    import ipdb
+                    ipdb.set_trace()
                     fault_tri_idxs, fault_corner_idxs = np.where(
                         independent_tri[independent_corner_idx] == fault_tris
                     )
                     fault_tri_idx = fault_tri_idxs[0]
                     fault_corner_idx = fault_corner_idxs[0]
-                    # plt.triplot(
+
+                    plt_pts = np.vstack((
+                        pts[independent_tri],
+                        pts[dependent_tri],
+                        pts[fault_tris[fault_tri_idx]]
+                    ))
+                    import matplotlib.pyplot as plt
+                    plt.triplot(plt_pts[:,0], plt_pts[:,1], np.array([[0,1,2],[3,4,5]]), 'k-')
+                    plt.triplot(plt_pts[:,0], plt_pts[:,1], np.array([[6,7,8]]), 'r-')
+                    plt.show()
 
                 for d in range(tensor_dim):
                     independent_dof = (independent_tri_idx * 3 + independent_corner_idx) * tensor_dim + d

@@ -1,9 +1,3 @@
-# python examples/okada.py 61 7
-# python examples/okada.py 21 3
-#n = [8, 16, 32, 64, 128, 256]
-#l2 = [0.0149648012534, 0.030572079265, 0.00867837671259, 0.00105034618493, 6.66984415273e-05, 4.07689295549e-06]
-#linf = [0.008971091166208367, 0.014749192806577716, 0.0093510756645549115, 0.0042803891552975898, 0.0013886177492512669, 0.000338113427521]
-
 import sys
 import logging
 import pickle
@@ -38,7 +32,7 @@ logger = setup_root_logger(__name__)
 
 class Okada:
     def __init__(self, n_surf, n_fault, top_depth = 0.0, surface_w = 5.0,
-            fault_L = 1.0, verbose = False):
+            fault_L = 1.0, gauss_z = 0.0, verbose = False):
         log_level = logging.INFO
         if verbose:
             log_level = logging.DEBUG
@@ -47,6 +41,7 @@ class Okada:
         logger.setLevel(log_level)
         self.k_params = [1.0, 0.25]
         self.surface_w = surface_w
+        self.gauss_z = gauss_z
         self.fault_L = fault_L
         self.top_depth = top_depth
         self.load_soln = False
@@ -80,7 +75,7 @@ class Okada:
             soln = np.load('okada.npy')
         return soln
 
-    def okada_exact(self, slip_fnc):
+    def okada_exact(self):
         obs_pts = self.all_mesh[0]
         sm, pr = self.k_params
         lam = 2 * sm * pr / (1 - 2 * pr)
@@ -103,7 +98,7 @@ class Okada:
                     Y1 = Y_vals[k]
                     Y2 = Y_vals[k+1]
                     midY = (Y1 + Y2) / 2.0
-                    slip = slip_fnc(midX, midY + self.top_depth)
+                    slip = gauss_slip_fnc(midX, midY + self.top_depth, self.gauss_z)
 
                     [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
                         alpha, pt, -self.top_depth, 90.0,
@@ -251,10 +246,10 @@ def make_meshes(surf_w, fault_L, top_depth, n_surf, n_fault):
     fault_tris = all_mesh[1][surface[1].shape[0]:]
     return all_mesh, surface_tris, fault_tris
 
-def gauss_slip_fnc(x, z):
-    return np.exp(-(x ** 2 + (z + 1.0) ** 2) * 8.0)
+def gauss_slip_fnc(x, z, gauss_z):
+    return np.exp(-(x ** 2 + (z - gauss_z) ** 2) * 8.0)
 
-def gauss_fault_slip(pts, fault_tris):
+def gauss_fault_slip(pts, fault_tris, gauss_z):
     dof_pts = pts[fault_tris]
     x = dof_pts[:,:,0]
     z = dof_pts[:,:,2]
@@ -263,7 +258,7 @@ def gauss_fault_slip(pts, fault_tris):
     # slip[:,:,0] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
     # slip[:,:,1] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
     # slip[:,:,2] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
-    slip[:,:,0] = gauss_slip_fnc(x, z)
+    slip[:,:,0] = gauss_slip_fnc(x, z, gauss_z)
 
     slip_pts = np.zeros(pts.shape[0])
     # slip_pts[fault_tris] = np.log10(np.abs(slip[:,:,0]))
@@ -288,12 +283,12 @@ def gauss_fault_slip(pts, fault_tris):
 
     return slip
 
-def build_constraints(surface_tris, fault_tris, pts, slip_fnc = gauss_fault_slip):
+def build_constraints(surface_tris, fault_tris, pts, gauss_z):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
 
     cs = continuity_constraints(pts, surface_tris, fault_tris)
-    slip = slip_fnc(pts, fault_tris).flatten()
+    slip = gauss_fault_slip(pts, fault_tris, gauss_z).flatten()
     # csf_idxs = [i for i in range(len(cs)) if len(cs[i].terms) == 3]
     # from tectosaur.constraints import ConstraintEQ, Term
     # xs = []
@@ -321,7 +316,8 @@ def build_constraints(surface_tris, fault_tris, pts, slip_fnc = gauss_fault_slip
 def build_and_solve_T_regularized(data):
     timer = Timer(output_fnc = logger.debug)
     cs = build_constraints(
-        data.surface_tris, data.fault_tris, data.all_mesh[0]
+        data.surface_tris, data.fault_tris, data.all_mesh[0],
+        data.gauss_z
     )
     timer.report("Constraints")
 
@@ -346,7 +342,10 @@ def build_and_solve_T_regularized(data):
 
 def build_and_solve_H_regularized(data):
     timer = Timer(output_fnc = logger.debug)
-    cs = build_constraints(data.surface_tris, data.fault_tris, data.all_mesh[0])
+    cs = build_constraints(
+        data.surface_tris, data.fault_tris, data.all_mesh[0],
+        data.gauss_z
+    )
 
     # For H, we need to constrain the edges of the surface to have 0 displacement.
     cs.extend(free_edge_constraints(data.surface_tris))
@@ -369,16 +368,23 @@ def build_and_solve_H_regularized(data):
     return soln
 
 def main():
+    #python examples/okada.py 31 7 5.0 0.0 0.0 T
+    #python examples/okada.py 31 7 5.0 0.0 0.0 H
+    #python examples/okada.py 31 7 5.0 -0.5 -1.0 T
+    #python examples/okada.py 31 7 5.0 -0.5 -1.0 H
     t = Timer(output_fnc = logger.info)
     obj = Okada(
         int(sys.argv[1]), n_fault = int(sys.argv[2]),
-        surface_w = 5.0, top_depth = -0.5, verbose = True
+        surface_w = float(sys.argv[3]), top_depth = float(sys.argv[4]),
+        gauss_z = float(sys.argv[5]), verbose = True
     )
     obj.plot_mesh()
-    # soln = obj.run(build_and_solve = build_and_solve_T_regularized)
-    soln = obj.run(build_and_solve = build_and_solve_H_regularized)
+    if sys.argv[6] == 'T':
+        soln = obj.run(build_and_solve = build_and_solve_T_regularized)
+    else:
+        soln = obj.run(build_and_solve = build_and_solve_H_regularized)
     t.report('tectosaur')
-    okada_soln = obj.okada_exact(gauss_slip_fnc)
+    okada_soln = obj.okada_exact()
 
     # np.save('okada_soln_for_plot.npy', [obj.all_mesh, obj.surface_tris, obj.fault_tris, soln, okada_soln])
     t.report('okada')
