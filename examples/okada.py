@@ -359,18 +359,6 @@ def build_and_solve_H_regularized(data):
         # farfield_op_type = TriToTriDirectFarfieldOp
         farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 10000)
     )
-    H_op2 = RegularizedSparseIntegralOp(
-        10, 10, 8, 3, 6, 3.0,
-        'elasticRH3', 'elasticRH3',
-        data.k_params, data.all_mesh[0], data.all_mesh[1], data.float_type,
-        farfield_op_type = TriToTriDirectFarfieldOp
-        # farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 100)
-    )
-    x = np.random.rand(H_op.shape[1])
-    y1 = H_op.dot(x)
-    y2 = H_op2.dot(x)
-    import ipdb
-    ipdb.set_trace()
     iop = SumOp([H_op])
     from tectosaur.fmm.builder import report_interactions
     report_interactions(H_op.farfield.fmm_obj)
