@@ -90,7 +90,7 @@ class FMMFarfieldOpImpl:
     def __init__(self, nq_far, K_name, params, pts, tris, float_type,
             obs_subset, src_subset, mac, pts_per_cell):
 
-        cfg = fmm.make_config(K_name, params, 1.1, mac, 2, float_type)
+        cfg = fmm.make_config(K_name, params, 1.1, mac, 2, nq_far, float_type)
 
         m_obs = (pts, tris[obs_subset])
         m_src = (pts, tris[src_subset])

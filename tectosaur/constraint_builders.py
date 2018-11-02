@@ -103,7 +103,9 @@ def check_continuity(tris, field):
             discontinuity_pts.append(i)
     return discontinuity_pts
 
-def continuity_constraints(surface_tris, fault_tris, tensor_dim = 3):
+#TODO: this function needs to know the idxs of the surface_tris and fault_tris, so use
+# idx lists and pass the full tris array, currently using the (n_surf_tris * 9) hack!
+def continuity_constraints(pts, surface_tris, fault_tris, tensor_dim = 3):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
 
@@ -123,33 +125,46 @@ def continuity_constraints(surface_tris, fault_tris, tensor_dim = 3):
         for independent_idx in range(len(tpt)):
             independent = tpt[independent_idx]
             independent_tri_idx = independent[0]
+            independent_corner_idx = independent[1]
             independent_tri = surface_tris[independent_tri_idx]
 
             for dependent_idx in range(independent_idx + 1, len(tpt)):
                 dependent = tpt[dependent_idx]
                 dependent_tri_idx = dependent[0]
+                dependent_corner_idx = dependent[1]
                 dependent_tri = surface_tris[dependent_tri_idx]
 
                 # Check for anything that touches across the fault.
                 crosses = (
-                    fault_tris.shape[0] > 0
+                    n_fault_tris > 0
                     and check_if_crosses_fault(
                         independent_tri, dependent_tri, fault_touching_pt, fault_tris
                     )
                 )
 
+                fault_tri_idx = None
                 if crosses:
-                    continue
+                    fault_tri_idxs, fault_corner_idxs = np.where(
+                        independent_tri[independent_corner_idx] == fault_tris
+                    )
+                    fault_tri_idx = fault_tri_idxs[0]
+                    fault_corner_idx = fault_corner_idxs[0]
+                    # plt.triplot(
 
                 for d in range(tensor_dim):
-                    independent_dof = (independent_tri_idx * 3 + independent[1]) * tensor_dim + d
-                    dependent_dof = (dependent_tri_idx * 3 + dependent[1]) * tensor_dim + d
+                    independent_dof = (independent_tri_idx * 3 + independent_corner_idx) * tensor_dim + d
+                    dependent_dof = (dependent_tri_idx * 3 + dependent_corner_idx) * tensor_dim + d
                     if dependent_dof <= independent_dof:
                         continue
                     diff = 0.0
-                    constraints.append(ConstraintEQ(
-                        [Term(1.0, dependent_dof), Term(-1.0, independent_dof)], diff
-                    ))
+                    terms = [Term(1.0, dependent_dof), Term(-1.0, independent_dof)]
+                    if fault_tri_idx is not None:
+                        fault_dof = (
+                            n_surf_tris * 9 +
+                            fault_tri_idx * 9 + fault_corner_idx * 3 + d
+                        )
+                        terms.append(Term(-1.0, fault_dof))
+                    constraints.append(ConstraintEQ(terms, 0.0))
     return constraints
 
 def find_free_edges(tris):

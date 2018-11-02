@@ -58,7 +58,7 @@ class RegularizedSparseIntegralOp:
         t.report("nearfield_dot")
         return out
 
-    async def nearfield_no_correction_dot(self, v):
+    def nearfield_no_correction_dot(self, v):
         return self.nearfield.nearfield_no_correction_dot(v)
 
     async def async_dot(self, tsk_w, v):

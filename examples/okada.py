@@ -37,7 +37,8 @@ from tectosaur.util.logging import setup_root_logger
 logger = setup_root_logger(__name__)
 
 class Okada:
-    def __init__(self, n_surf, n_fault, top_depth = 0.0, fault_L = 1.0, verbose = False):
+    def __init__(self, n_surf, n_fault, top_depth = 0.0, surface_w = 5.0,
+            fault_L = 1.0, verbose = False):
         log_level = logging.INFO
         if verbose:
             log_level = logging.DEBUG
@@ -45,6 +46,7 @@ class Okada:
         solve.logger.setLevel(log_level)
         logger.setLevel(log_level)
         self.k_params = [1.0, 0.25]
+        self.surface_w = surface_w
         self.fault_L = fault_L
         self.top_depth = top_depth
         self.load_soln = False
@@ -52,7 +54,7 @@ class Okada:
         self.n_surf = n_surf
         self.n_fault = n_fault#max(2, n_surf // 5)
         self.all_mesh, self.surface_tris, self.fault_tris = make_meshes(
-            self.fault_L, self.top_depth, self.n_surf, self.n_fault
+            self.surface_w, self.fault_L, self.top_depth, self.n_surf, self.n_fault
         )
         logger.info('n_elements: ' + str(self.all_mesh[1].shape[0]))
 
@@ -237,9 +239,8 @@ def make_fault(L, top_depth, n_fault):
     ])
     return m
 
-def make_meshes(fault_L, top_depth, n_surf, n_fault):
+def make_meshes(surf_w, fault_L, top_depth, n_surf, n_fault):
     t = Timer(output_fnc = logger.debug)
-    surf_w = 5
     surface = make_free_surface(surf_w, n_surf)
     t.report('make free surface')
     fault = make_fault(fault_L, top_depth, n_fault)
@@ -250,28 +251,8 @@ def make_meshes(fault_L, top_depth, n_surf, n_fault):
     fault_tris = all_mesh[1][surface[1].shape[0]:]
     return all_mesh, surface_tris, fault_tris
 
-def build_constraints(surface_tris, fault_tris, pts):
-    n_surf_tris = surface_tris.shape[0]
-    n_fault_tris = fault_tris.shape[0]
-
-    cs = continuity_constraints(surface_tris, fault_tris)
-
-    # X component = 1
-    # Y comp = Z comp = 0
-    cs.extend(constant_bc_constraints(
-        n_surf_tris, n_surf_tris + n_fault_tris, [1.0, 0.0, 0.0]
-    ))
-    cs.extend(free_edge_constraints(surface_tris))
-
-    return cs
-
-def ones_fault_slip(pts, fault_tris):
-    slip = np.zeros((fault_tris.shape[0], 3, 3))
-    slip[:,:,0] = 1.0
-    return slip
-
 def gauss_slip_fnc(x, z):
-    return np.exp(-(x ** 2 + (z + 1) ** 2) * 8.0)
+    return np.exp(-(x ** 2 + (z + 1.0) ** 2) * 8.0)
 
 def gauss_fault_slip(pts, fault_tris):
     dof_pts = pts[fault_tris]
@@ -295,16 +276,45 @@ def gauss_fault_slip(pts, fault_tris):
     plt.colorbar()
     plt.show()
 
+    idxs = np.where(pts[:,2] == 0.0)[0]
+    idxs = np.intersect1d(idxs, fault_tris.flatten())
+    x = pts[idxs,0]
+    s = slip_pts[idxs]
+    plt.plot(x, s, '.')
+    plt.show()
+    # for I in idxs:
+    #     tri_idxs, basis_idxs = np.where(fault_tris == I)
+    #     slip[tri_idxs, basis_idxs,0] = 0.0
+
     return slip
 
 def build_constraints(surface_tris, fault_tris, pts, slip_fnc = gauss_fault_slip):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
 
-    cs = continuity_constraints(surface_tris, fault_tris)
-    slip = slip_fnc(pts, fault_tris)
+    cs = continuity_constraints(pts, surface_tris, fault_tris)
+    slip = slip_fnc(pts, fault_tris).flatten()
+    # csf_idxs = [i for i in range(len(cs)) if len(cs[i].terms) == 3]
+    # from tectosaur.constraints import ConstraintEQ, Term
+    # xs = []
+    # ys = []
+    # for i in csf_idxs:
+    #     old_c = cs[i]
+    #     fault_dof = old_c.terms[2].dof
+    #     slip_val = slip[fault_dof - n_surf_tris * 9]
+    #     if fault_dof % 3 == 0:
+    #         corner_idx = (fault_dof // 3) % 3
+    #         tri_idx = (fault_dof - corner_idx * 3) // 9 - n_surf_tris
+    #         x = pts[fault_tris[tri_idx, corner_idx], 0]
+    #         xs.append(x)
+    #         ys.append(slip_val)
+    #     new_c = ConstraintEQ(old_c.terms[:2], slip_val * -old_c.terms[2].val)
+    #     cs[i] = new_c
+    # plt.plot(xs, ys, '.')
+    # plt.show()
+
     cs.extend(all_bc_constraints(
-        n_surf_tris, n_surf_tris + n_fault_tris, slip.flatten()
+        n_surf_tris, n_surf_tris + n_fault_tris, slip
     ))
     return cs
 
@@ -319,9 +329,11 @@ def build_and_solve_T_regularized(data):
         8, 8, 8, 2, 5, 2.5,
         'elasticRT3', 'elasticRT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
         data.float_type,
-        farfield_op_type = TriToTriDirectFarfieldOp
-        # farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 300)
+        # farfield_op_type = TriToTriDirectFarfieldOp
+        farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 100)
     )
+    from tectosaur.fmm.builder import report_interactions
+    report_interactions(T_op.farfield.fmm_obj)
     timer.report("Integrals")
 
     mass_op = MultOp(MassOp(3, data.all_mesh[0], data.all_mesh[1]), 0.5)
@@ -335,18 +347,36 @@ def build_and_solve_T_regularized(data):
 def build_and_solve_H_regularized(data):
     timer = Timer(output_fnc = logger.debug)
     cs = build_constraints(data.surface_tris, data.fault_tris, data.all_mesh[0])
+
+    # For H, we need to constrain the edges of the surface to have 0 displacement.
+    cs.extend(free_edge_constraints(data.surface_tris))
     timer.report("Constraints")
 
-    iop = SumOp([RegularizedSparseIntegralOp(
+    H_op = RegularizedSparseIntegralOp(
+        10, 10, 8, 3, 6, 3.0,
+        'elasticRH3', 'elasticRH3',
+        data.k_params, data.all_mesh[0], data.all_mesh[1], data.float_type,
+        # farfield_op_type = TriToTriDirectFarfieldOp
+        farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 10000)
+    )
+    H_op2 = RegularizedSparseIntegralOp(
         10, 10, 8, 3, 6, 3.0,
         'elasticRH3', 'elasticRH3',
         data.k_params, data.all_mesh[0], data.all_mesh[1], data.float_type,
         farfield_op_type = TriToTriDirectFarfieldOp
-        # farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 300)
-    )])
+        # farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 100)
+    )
+    x = np.random.rand(H_op.shape[1])
+    y1 = H_op.dot(x)
+    y2 = H_op2.dot(x)
+    import ipdb
+    ipdb.set_trace()
+    iop = SumOp([H_op])
+    from tectosaur.fmm.builder import report_interactions
+    report_interactions(H_op.farfield.fmm_obj)
     timer.report("Integrals")
 
-    soln = solve.iterative_solve(iop, cs, tol = 1e-6)
+    soln = solve.iterative_solve(iop, cs, tol = 1e-5)
     timer.report("Solve")
     return soln
 
@@ -354,11 +384,11 @@ def main():
     t = Timer(output_fnc = logger.info)
     obj = Okada(
         int(sys.argv[1]), n_fault = int(sys.argv[2]),
-        top_depth = -0.5, verbose = True
+        surface_w = 5.0, top_depth = -0.5, verbose = True
     )
     obj.plot_mesh()
-    # soln = obj.run(build_and_solve = build_and_solve_T)
-    soln = obj.run(build_and_solve = build_and_solve_T_regularized)
+    # soln = obj.run(build_and_solve = build_and_solve_T_regularized)
+    soln = obj.run(build_and_solve = build_and_solve_H_regularized)
     t.report('tectosaur')
     okada_soln = obj.okada_exact(gauss_slip_fnc)
 

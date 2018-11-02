@@ -52,12 +52,12 @@ class FMMConfig:
     treecode = attr.ib()
     order = attr.ib()
 
-def make_config(K_name, params, inner_r, outer_r, order,
+def make_config(K_name, params, inner_r, outer_r, order, quad_order,
         float_type, alpha = 1e-5, n_workers_per_block = 64,
         treecode = False, force_order = None):
 
     K = kernels[K_name]
-    quad = gauss4d_tri(2, 2)
+    quad = gauss4d_tri(quad_order, quad_order)
     surf = make_sphere((0.0, 0.0, 0.0), 1.0, order)
     order = surf[1].shape[0]
     if force_order is not None:

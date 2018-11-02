@@ -190,6 +190,7 @@ if (obs_tri_idx < obs_tri_max) {
         }
 
         for (int iq = 0; iq < ${quad_wts.shape[0]}; iq++) {
+            //TODO: this is shared with farfield_tris.cl
             Real obsxhat = quad_pts[iq * 4 + 0];
             Real obsyhat = quad_pts[iq * 4 + 1];
             Real srcxhat = quad_pts[iq * 4 + 2];
