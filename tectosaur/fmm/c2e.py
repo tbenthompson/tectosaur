@@ -6,8 +6,6 @@ import cloudpickle
 import tectosaur.util.gpu as gpu
 from tectosaur.mesh.modify import concat
 from tectosaur.ops.dense_integral_op import FarfieldTriMatrix
-from tectosaur.constraint_builders import continuity_constraints
-from tectosaur.constraints import build_constraint_matrix
 from tectosaur.util.timer import Timer
 
 @attr.s

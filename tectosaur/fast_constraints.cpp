@@ -83,7 +83,7 @@ ConstraintEQ substitute(const ConstraintEQ& c_victim, size_t entry_idx,
         out_terms.push_back({c_in.c.terms[i].val * mult_factor, c_in.c.terms[i].dof});
     }
 
-    double out_rhs = c_victim.rhs - mult_factor * c_in.c.rhs;
+    double out_rhs = c_victim.rhs + mult_factor * c_in.c.rhs;
     return ConstraintEQ{out_terms, out_rhs};
 }
 
@@ -143,6 +143,17 @@ ConstraintEQ make_reduced(const ConstraintEQ& c, const ConstraintMatrix& m) {
     return c;
 }
 
+void print_c(const ConstraintEQ& c, bool recurse, ConstraintMatrix lower_tri_cs) {
+    std::cout << "rhs: " << c.rhs << std::endl;
+    for (size_t i = 0; i < c.terms.size(); i++) {
+        std::cout << " term(" << i << "):" << c.terms[i].dof << " " << c.terms[i].val << std::endl;
+        if (recurse && lower_tri_cs.count(c.terms[i].dof) != 0) {
+            print_c(lower_tri_cs[c.terms[i].dof].c, false, lower_tri_cs);
+        }
+    }
+}
+
+
 ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
     size_t n_total_dofs) 
 {
@@ -167,6 +178,9 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
         auto ldi = max_dof(c_lower_tri).second;
         auto separated = isolate_term_on_lhs(c_lower_tri, ldi);
         lower_tri_cs[separated.lhs_dof] = separated;
+        if (separated.c.rhs < 0) {
+            std::cout << "YIKES!" << std::endl;
+        }
     }
 
     for (size_t i = 0; i < n_total_dofs; i++) {
@@ -174,7 +188,15 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
             continue;
         }
 
+        auto before = lower_tri_cs[i].c;
         lower_tri_cs[i].c = make_reduced(lower_tri_cs[i].c, lower_tri_cs);
+        if (lower_tri_cs[i].c.rhs < 0) {
+            std::cout << "YIKES2!" << std::endl;
+            std::cout << "constrained_dof: " << i << std::endl;
+            std::cout << "before: ";print_c(before, true, lower_tri_cs);
+            std::cout << "after: ";print_c(lower_tri_cs[i].c, true, lower_tri_cs);
+            std::cout << std::endl;
+        }
     }
     
     return lower_tri_cs;

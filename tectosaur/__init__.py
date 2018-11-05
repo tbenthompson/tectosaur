@@ -28,8 +28,8 @@ from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
 
 from tectosaur.constraints import Term, ConstraintEQ, build_constraint_matrix
 from tectosaur.constraint_builders import (
-    continuity_constraints,
     free_edge_constraints,
     build_composite_constraints,
     jump_constraints,
     check_continuity)
+from tectosaur.continuity import continuity_constraints

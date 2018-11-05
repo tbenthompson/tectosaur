@@ -12,8 +12,8 @@ import tectosaur.mesh.refine as mesh_refine
 import tectosaur.mesh.modify as mesh_modify
 import tectosaur.mesh.mesh_gen as mesh_gen
 import tectosaur.constraints as constraints
-from tectosaur.constraint_builders import continuity_constraints, \
-    all_bc_constraints, free_edge_constraints
+from tectosaur.continuity import continuity_constraints, get_side_of_fault
+from tectosaur.constraint_builders import all_bc_constraints, free_edge_constraints
 from tectosaur.util.timer import Timer
 # from tectosaur.interior import interior_integral
 from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
@@ -260,41 +260,58 @@ def gauss_fault_slip(pts, fault_tris, gauss_z):
     # slip[:,:,2] = (1 - np.abs(x)) * (1 - np.abs((z - mean_z) * 2.0))
     slip[:,:,0] = gauss_slip_fnc(x, z, gauss_z)
 
-    slip_pts = np.zeros(pts.shape[0])
-    # slip_pts[fault_tris] = np.log10(np.abs(slip[:,:,0]))
-    slip_pts[fault_tris] = slip[:,:,0]
-    plt.tricontourf(pts[:,0], pts[:,2], fault_tris, slip_pts)
-    plt.triplot(pts[:,0], pts[:,2], fault_tris)
-    dof_pts = pts[fault_tris]
-    plt.xlim([np.min(dof_pts[:,:,0]), np.max(dof_pts[:,:,0])])
-    plt.ylim([np.min(dof_pts[:,:,2]), np.max(dof_pts[:,:,2])])
-    plt.colorbar()
-    plt.show()
+    # slip_pts = np.zeros(pts.shape[0])
+    # # slip_pts[fault_tris] = np.log10(np.abs(slip[:,:,0]))
+    # slip_pts[fault_tris] = slip[:,:,0]
+    # plt.tricontourf(pts[:,0], pts[:,2], fault_tris, slip_pts)
+    # plt.triplot(pts[:,0], pts[:,2], fault_tris)
+    # dof_pts = pts[fault_tris]
+    # plt.xlim([np.min(dof_pts[:,:,0]), np.max(dof_pts[:,:,0])])
+    # plt.ylim([np.min(dof_pts[:,:,2]), np.max(dof_pts[:,:,2])])
+    # plt.colorbar()
+    # plt.show()
 
-    idxs = np.where(pts[:,2] == 0.0)[0]
-    idxs = np.intersect1d(idxs, fault_tris.flatten())
-    x = pts[idxs,0]
-    s = slip_pts[idxs]
-    plt.plot(x, s, '.')
-    plt.show()
+    # idxs = np.where(pts[:,2] == 0.0)[0]
+    # idxs = np.intersect1d(idxs, fault_tris.flatten())
+    # x = pts[idxs,0]
+    # s = slip_pts[idxs]
+    # plt.plot(x, s, '.')
+    # plt.show()
     # for I in idxs:
     #     tri_idxs, basis_idxs = np.where(fault_tris == I)
     #     slip[tri_idxs, basis_idxs,0] = 0.0
 
     return slip
 
-def build_constraints(surface_tris, fault_tris, pts, gauss_z):
+def build_constraints(surface_tris, fault_tris, pts, tris, gauss_z):
     n_surf_tris = surface_tris.shape[0]
     n_fault_tris = fault_tris.shape[0]
 
-    cs = continuity_constraints(pts, surface_tris, fault_tris)
+    side = get_side_of_fault(pts, tris, surface_tris.shape[0])
+
+    # plt.tripcolor(pts[:,0], pts[:,1], tris[:surface_tris.shape[0]], side[:surface_tris.shape[0]])
+    # plt.triplot(pts[:,0], pts[:,1], tris[surface_tris.shape[0]:], 'k-')
+    # plt.show()
+
+    from tectosaur.constraints import build_constraint_matrix
+    cs = continuity_constraints(pts, tris, surface_tris.shape[0])
     slip = gauss_fault_slip(pts, fault_tris, gauss_z).flatten()
-    # csf_idxs = [i for i in range(len(cs)) if len(cs[i].terms) == 3]
+    cs.extend(all_bc_constraints(
+        n_surf_tris, n_surf_tris + n_fault_tris, slip
+    ))
+    # cm = build_constraint_matrix(cs, tris.shape[0] * 9)
+    # import ipdb
+    # ipdb.set_trace()
+
+
+    # import copy
+    # cs2 = copy.copy(cs)
+    # csf_idxs = [i for i in range(len(cs2)) if len(cs2[i].terms) == 3]
     # from tectosaur.constraints import ConstraintEQ, Term
     # xs = []
     # ys = []
     # for i in csf_idxs:
-    #     old_c = cs[i]
+    #     old_c = cs2[i]
     #     fault_dof = old_c.terms[2].dof
     #     slip_val = slip[fault_dof - n_surf_tris * 9]
     #     if fault_dof % 3 == 0:
@@ -304,20 +321,23 @@ def build_constraints(surface_tris, fault_tris, pts, gauss_z):
     #         xs.append(x)
     #         ys.append(slip_val)
     #     new_c = ConstraintEQ(old_c.terms[:2], slip_val * -old_c.terms[2].val)
-    #     cs[i] = new_c
-    # plt.plot(xs, ys, '.')
+    #     cs2[i] = new_c
+    # from tectosaur.constraints import build_constraint_matrix
+    # cm, c_rhs = build_constraint_matrix(cs, tris.shape[0] * 9)
+    # cm2, c_rhs2 = build_constraint_matrix(cs2, tris.shape[0] * 9)
+    # plt.plot(c_rhs, 'k-')
+    # plt.plot(c_rhs2, 'b-')
     # plt.show()
+    # import ipdb
+    # ipdb.set_trace()
 
-    cs.extend(all_bc_constraints(
-        n_surf_tris, n_surf_tris + n_fault_tris, slip
-    ))
     return cs
 
 def build_and_solve_T_regularized(data):
     timer = Timer(output_fnc = logger.debug)
     cs = build_constraints(
         data.surface_tris, data.fault_tris, data.all_mesh[0],
-        data.gauss_z
+        data.all_mesh[1], data.gauss_z
     )
     timer.report("Constraints")
 
@@ -340,24 +360,27 @@ def build_and_solve_T_regularized(data):
     timer.report("Solve")
     return soln
 
-def build_and_solve_H_regularized(data):
-    timer = Timer(output_fnc = logger.debug)
-    cs = build_constraints(
-        data.surface_tris, data.fault_tris, data.all_mesh[0],
-        data.gauss_z
-    )
-
-    # For H, we need to constrain the edges of the surface to have 0 displacement.
-    cs.extend(free_edge_constraints(data.surface_tris))
-    timer.report("Constraints")
-
-    H_op = RegularizedSparseIntegralOp(
+def build_H(data):
+    return RegularizedSparseIntegralOp(
         10, 10, 8, 3, 6, 3.0,
         'elasticRH3', 'elasticRH3',
         data.k_params, data.all_mesh[0], data.all_mesh[1], data.float_type,
         # farfield_op_type = TriToTriDirectFarfieldOp
         farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 10000)
     )
+
+def build_and_solve_H_regularized(data):
+    timer = Timer(output_fnc = logger.debug)
+    cs = build_constraints(
+        data.surface_tris, data.fault_tris, data.all_mesh[0],
+        data.all_mesh[1], data.gauss_z
+    )
+
+    # For H, we need to constrain the edges of the surface to have 0 displacement.
+    cs.extend(free_edge_constraints(data.surface_tris))
+    timer.report("Constraints")
+
+    H_op = build_H(data)
     iop = SumOp([H_op])
     from tectosaur.fmm.builder import report_interactions
     report_interactions(H_op.farfield.fmm_obj)
@@ -378,7 +401,7 @@ def main():
         surface_w = float(sys.argv[3]), top_depth = float(sys.argv[4]),
         gauss_z = float(sys.argv[5]), verbose = True
     )
-    obj.plot_mesh()
+    # obj.plot_mesh()
     if sys.argv[6] == 'T':
         soln = obj.run(build_and_solve = build_and_solve_T_regularized)
     else:
