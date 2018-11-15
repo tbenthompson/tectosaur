@@ -67,7 +67,7 @@ class FMM:
         gd = self.gpu_data
 
         gd['obs_pts'] = self.float_gpu(obs_m[0])
-        gd['obs_tris'] = self.int_gpu(obs_m[1][self.src_tree.orig_idxs])
+        gd['obs_tris'] = self.int_gpu(obs_m[1][self.obs_tree.orig_idxs])
         gd['src_pts'] = self.float_gpu(src_m[0])
         gd['src_tris'] = self.int_gpu(src_m[1][self.src_tree.orig_idxs])
 

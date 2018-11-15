@@ -160,7 +160,10 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
     std::sort(
         cs.begin(), cs.end(), 
         [] (const ConstraintEQ& a, const ConstraintEQ& b) {
-            return max_dof(a).first < max_dof(b).first;
+            if (a.terms.size() == b.terms.size()) {
+                return max_dof(a).first < max_dof(b).first;
+            }
+            return a.terms.size() < b.terms.size();
         }
     );
 
@@ -178,9 +181,6 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
         auto ldi = max_dof(c_lower_tri).second;
         auto separated = isolate_term_on_lhs(c_lower_tri, ldi);
         lower_tri_cs[separated.lhs_dof] = separated;
-        if (separated.c.rhs < 0) {
-            std::cout << "YIKES!" << std::endl;
-        }
     }
 
     for (size_t i = 0; i < n_total_dofs; i++) {
@@ -190,13 +190,6 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
 
         auto before = lower_tri_cs[i].c;
         lower_tri_cs[i].c = make_reduced(lower_tri_cs[i].c, lower_tri_cs);
-        if (lower_tri_cs[i].c.rhs < 0) {
-            std::cout << "YIKES2!" << std::endl;
-            std::cout << "constrained_dof: " << i << std::endl;
-            std::cout << "before: ";print_c(before, true, lower_tri_cs);
-            std::cout << "after: ";print_c(lower_tri_cs[i].c, true, lower_tri_cs);
-            std::cout << std::endl;
-        }
     }
     
     return lower_tri_cs;

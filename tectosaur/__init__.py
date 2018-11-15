@@ -15,6 +15,7 @@ logger = setup_root_logger(__name__)
 from tectosaur.util.timer import Timer
 
 from tectosaur.mesh.mesh_gen import make_rect
+from tectosaur.mesh.combined_mesh import CombinedMesh
 
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.sum_op import SumOp
@@ -31,5 +32,6 @@ from tectosaur.constraint_builders import (
     free_edge_constraints,
     build_composite_constraints,
     jump_constraints,
-    check_continuity)
+    check_continuity,
+    all_bc_constraints)
 from tectosaur.continuity import continuity_constraints
