@@ -55,14 +55,15 @@ void ${pairs_func_name(check0)}_adj(GLOBAL_MEM Real* result,
 {
     ${setup_pair()}
 
-    const int obs_tri_idx = pairs_list[pair_idx * 4];
-    const int src_tri_idx = pairs_list[pair_idx * 4 + 1];
-    const int obs_tri_rot_clicks = pairs_list[pair_idx * 4 + 2];
-    const int src_tri_rot_clicks = pairs_list[pair_idx * 4 + 3];
+    const int obs_tri_idx = pairs_list[pair_idx * 5];
+    const int src_tri_idx = pairs_list[pair_idx * 5 + 1];
+    const int obs_tri_rot_clicks = pairs_list[pair_idx * 5 + 2];
+    const int src_tri_rot_clicks = pairs_list[pair_idx * 5 + 3];
+    const bool src_tri_flip = pairs_list[pair_idx * 5 + 4];
     ${prim.decl_tri_info("obs", K.needs_obsn, K.surf_curl_obs)}
     ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
     ${prim.tri_info("obs", "tris", K.needs_obsn, K.surf_curl_obs)}
-    ${prim.tri_info("src", "tris", K.needs_srcn, K.surf_curl_src)}
+    ${prim.tri_info("src", "tris", K.needs_srcn, K.surf_curl_src, need_flip = True)}
     ${prim.integrate_pair(K, True)}
 
     //printf("obs1: %f %f %f\n", obs_tri[0][0], obs_tri[0][1], obs_tri[0][2]);
@@ -78,9 +79,17 @@ void ${pairs_func_name(check0)}_adj(GLOBAL_MEM Real* result,
         for (int d1 = 0; d1 < 3; d1++) {
             for (int b2 = 0; b2 < 3; b2++) {
                 int src_derot = positive_mod(-src_tri_rot_clicks + b2, 3);
+                int src_flipped = src_derot;
+                if (src_tri_flip) { 
+                    if (src_derot == 0) {
+                        src_flipped = 1;
+                    } else if (src_derot == 1) {
+                        src_flipped = 0;
+                    }
+                } 
                 for (int d2 = 0; d2 < 3; d2++) {
                     int out_idx = b1 * 27 + d1 * 9 + b2 * 3 + d2;
-                    int in_idx = obs_derot * 27 + d1 * 9 + src_derot * 3 + d2;
+                    int in_idx = obs_derot * 27 + d1 * 9 + src_flipped * 3 + d2;
                     Real val = obs_jacobian * src_jacobian * result_temp[in_idx];
                     result[i * 81 + out_idx] = val;
                 }

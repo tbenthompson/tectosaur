@@ -53,16 +53,32 @@ Real ${name}_jacobian;
 % endif
 </%def>
 
-<%def name="tri_info(name, tris, need_normal, need_surf_curl)">
+<%def name="tri_info(name, tris, need_normal, need_surf_curl, need_flip = False)">
 for (int c = 0; c < 3; c++) {
-    int pt_idx = ${tris}[
-        3 * ${name}_tri_idx + positive_mod(c + ${name}_tri_rot_clicks, 3)
-    ];
+    int flipped_c = c;
+    % if need_flip:
+        if (src_tri_flip) { 
+            if (c == 0) {
+                flipped_c = 1;
+            } else if (c == 1) {
+                flipped_c = 0;
+            }
+        } 
+    % endif
+    int tri_entry_idx = 3 * ${name}_tri_idx + positive_mod(flipped_c + ${name}_tri_rot_clicks, 3);
+    int pt_idx = ${tris}[tri_entry_idx];
     for (int d = 0; d < 3; d++) {
         ${name}_tri[c][d] = pts[pt_idx * 3 + d];
     }
 }
 get_unscaled_normal(${name}_tri, ${name}_unscaled_normal);
+% if need_flip:
+    if (src_tri_flip) { 
+        for (int d = 0; d < 3; d++) {
+            ${name}_unscaled_normal[d] *= -1;
+        }
+    }
+% endif
 ${name}_normal_length = magnitude(${name}_unscaled_normal);
 ${name}_jacobian = ${name}_normal_length;
 % if need_normal:

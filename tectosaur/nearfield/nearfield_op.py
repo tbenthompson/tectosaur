@@ -49,12 +49,16 @@ def edge_adj_orient(touching_verts):
         return 0
     return 1
 
-def resolve_ea_rotation(ea):
+def resolve_ea_rotation(tris, ea):
     out = []
     for i in range(ea.shape[0]):
         obs_clicks = edge_adj_orient([ea[i,2], ea[i,4]])
         src_clicks = edge_adj_orient([ea[i,3], ea[i,5]])
-        out.append((ea[i,0], ea[i,1], obs_clicks, src_clicks))
+        src_flip = False
+        if tris[ea[i,0], (0 + obs_clicks) % 3] != tris[ea[i,1], (1 + src_clicks) % 3] or \
+                tris[ea[i,0], (1 + obs_clicks) % 3] != tris[ea[i,1], (0 + src_clicks) % 3]:
+            src_flip = True
+        out.append((ea[i,0], ea[i,1], obs_clicks, src_clicks, src_flip))
     return np.array(out)
 
 
@@ -106,7 +110,8 @@ class RegularizedNearfieldIntegralOp:
         )
         nearfield_pairs = to_tri_space(nearfield_pairs_dofs, obs_subset, src_subset)
         va = to_tri_space(va_dofs, obs_subset, src_subset)
-        ea = resolve_ea_rotation(to_tri_space(ea_dofs, obs_subset, src_subset))
+        va = np.hstack((va, np.zeros((va.shape[0], 1))))
+        ea = resolve_ea_rotation(tris, to_tri_space(ea_dofs, obs_subset, src_subset))
         timer.report("Find nearfield/adjacency")
 
         ea_mat_rot = pairs_int.edge_adj(nq_edge_adj, ea)
