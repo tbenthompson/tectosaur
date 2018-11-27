@@ -53,7 +53,7 @@ class FMMConfig:
     order = attr.ib()
 
 def make_config(K_name, params, inner_r, outer_r, order, quad_order,
-        float_type, alpha = 1e-5, n_workers_per_block = 64,
+        float_type, alpha = 1e-5, n_workers_per_block = 256,
         treecode = False, force_order = None):
 
     K = kernels[K_name]

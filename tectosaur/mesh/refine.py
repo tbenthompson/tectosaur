@@ -53,7 +53,7 @@ def selective_refine(m, should_refine):
     new_tris = np.array(new_tris)
     return remove_duplicate_pts((new_pts, new_tris))
 
-def refine_to_size(m, threshold, fields = None):
+def refine_to_size(m, threshold, recurse = True, fields = None):
     if fields is None:
         fields = []
 
@@ -72,34 +72,23 @@ def refine_to_size(m, threshold, fields = None):
                 new_fields[i].append(t_fields[i])
             continue
 
-        # find the longest edge
-        # split in two along that edge.
-        long_edge = geometry.get_longest_edge(geometry.get_edge_lens(t_pts.tolist()))
-
-        if long_edge == 0:
-            edge_indices = [0, 1]
-            tri_indices = [[0, 3, 2], [1, 2, 3]]
-        elif long_edge == 1:
-            edge_indices = [1, 2]
-            tri_indices = [[0, 1, 3], [0, 3, 2]]
-        elif long_edge == 2:
-            edge_indices = [2, 0]
-            tri_indices = [[0, 1, 3], [2, 3, 1]]
-
         tri_pt_indices = t.tolist()
-        tri_pt_indices.append(len(new_pts))
-        for t_f in t_fields:
-            t_f.append(np.sum([t_f[idx] for idx in edge_indices], axis = 0) / 2.0)
+        for vert_idxs in [[0, 1], [1, 2], [2, 0]]:
+            tri_pt_indices.append(len(new_pts))
+            new_pts.append(np.sum(t_pts[vert_idxs], axis = 0) / 2.0)
+            for t_f in t_fields:
+                t_f.append(np.sum([t_f[idx] for idx in vert_idxs], axis = 0) / 2.0)
 
-        new_pts.append(np.sum(t_pts[edge_indices], axis = 0) / 2.0)
-        for k in range(2):
-            new_tris.append([tri_pt_indices[idx] for idx in tri_indices[k]])
+        for new_tri_idxs in [[0, 3, 5], [1, 4, 3], [2, 5, 4], [3, 4, 5]]:
+            new_tris.append([tri_pt_indices[idx] for idx in new_tri_idxs])
             for i in range(len(fields)):
-                new_fields[i].append([t_fields[i][idx] for idx in tri_indices[k]])
+                new_fields[i].append([t_fields[i][idx] for idx in new_tri_idxs])
 
     if len(new_tris) > tris.shape[0]:
-        out_m = (np.array(new_pts), np.array(new_tris))
+        out_m = remove_duplicate_pts((np.array(new_pts), np.array(new_tris)))
         np_new_fields = [np.array(new_f) for new_f in new_fields]
-        return refine_to_size(out_m, threshold, np_new_fields)
+        if recurse:
+            return refine_to_size(out_m, threshold, np_new_fields)
+        return out_m, np_new_fields
 
     return m, fields

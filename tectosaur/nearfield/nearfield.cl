@@ -74,23 +74,30 @@ void ${pairs_func_name(check0)}_adj(GLOBAL_MEM Real* result,
     //printf("src3: %f %f %f\n", src_tri[2][0], src_tri[2][1], src_tri[2][2]);
     //printf("obsjac: %f srcjac: %f \n", obs_jacobian, src_jacobian);
     
+    Real derot_factor = -1;
+    int obs_derot[3];
+    for (size_t i = 0; i < 3; i++) {
+        obs_derot[i] = positive_mod(-obs_tri_rot_clicks + i, 3);
+    }
+    int src_derot[3];
+    for (size_t i = 0; i < 3; i++) {
+        src_derot[i] = positive_mod(-src_tri_rot_clicks + i, 3);
+    }
+    if (src_tri_flip) { 
+        int temp = src_derot[0];
+        src_derot[0] = src_derot[1];
+        src_derot[1] = temp;
+    } 
     for (int b1 = 0; b1 < 3; b1++) {
-        int obs_derot = positive_mod(-obs_tri_rot_clicks + b1, 3);
         for (int d1 = 0; d1 < 3; d1++) {
             for (int b2 = 0; b2 < 3; b2++) {
-                int src_derot = positive_mod(-src_tri_rot_clicks + b2, 3);
-                int src_flipped = src_derot;
-                if (src_tri_flip) { 
-                    if (src_derot == 0) {
-                        src_flipped = 1;
-                    } else if (src_derot == 1) {
-                        src_flipped = 0;
-                    }
-                } 
                 for (int d2 = 0; d2 < 3; d2++) {
                     int out_idx = b1 * 27 + d1 * 9 + b2 * 3 + d2;
-                    int in_idx = obs_derot * 27 + d1 * 9 + src_flipped * 3 + d2;
+                    int in_idx = obs_derot[b1] * 27 + d1 * 9 + src_derot[b2] * 3 + d2;
                     Real val = obs_jacobian * src_jacobian * result_temp[in_idx];
+                    if (src_tri_flip) {
+                        val *= -1;
+                    }
                     result[i * 81 + out_idx] = val;
                 }
             }
