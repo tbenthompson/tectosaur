@@ -14,3 +14,17 @@ Tectosaur is an implementation of the elastic boundary element method, oriented 
 4. Rapid model iteration
 
 Further documentation and examples will absolutely be available in the future! Until then, however, tectosaur will be rapidly changing and developing and any users should expect little to no support and frequent API breaking changes. 
+
+# Installation instructions
+
+1. Tectosaur requires Python 3.5 or greater. 
+2. You will need to have either PyCUDA or PyOpenCL installed. If you have an NVidia GPU, install PyCUDA for best performance. Try running `pip install pycuda`. If that fails, you can follow the (more detailed instructions on the PyCUDA wiki)[https://wiki.tiker.net/PyCuda/Installation].
+3. `git clone git@github.com:tbenthompson/tectosaur.git`
+4. Enter that direct and run `pip install .`
+
+# Running the examples
+
+1. Check that Jupyter is installed!
+2. Launch a Jupyter notebook or lab server. 
+3. Navigate to `tectosaur/examples/notebooks`.
+4. Open and run the examples!
