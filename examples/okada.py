@@ -415,7 +415,7 @@ def main():
     # obj.plot_interior_displacement(soln)
     obj.print_error(soln, okada_soln)
     t.report('check')
-    # obj.plot_results(soln, okada_soln)
+    obj.plot_results(soln, okada_soln)
 
 if __name__ == '__main__':
     main()
