@@ -95,9 +95,6 @@ void ${pairs_func_name(check0)}_adj(GLOBAL_MEM Real* result,
                     int out_idx = b1 * 27 + d1 * 9 + b2 * 3 + d2;
                     int in_idx = obs_derot[b1] * 27 + d1 * 9 + src_derot[b2] * 3 + d2;
                     Real val = obs_jacobian * src_jacobian * result_temp[in_idx];
-                    if (src_tri_flip) {
-                        val *= -1;
-                    }
                     result[i * 81 + out_idx] = val;
                 }
             }

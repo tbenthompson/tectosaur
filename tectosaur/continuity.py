@@ -133,9 +133,9 @@ def continuity_constraints(pts, tris, fault_start_idx, tensor_dim = 3):
                             fault_tri_idx * 9 + fault_corner_idx * 3 + d
                         )
                         if side1 < side2:
-                            terms.append(Term(1.0, fault_dof))
-                        else:
                             terms.append(Term(-1.0, fault_dof))
+                        else:
+                            terms.append(Term(1.0, fault_dof))
                     constraints.append(ConstraintEQ(terms, 0.0))
     return constraints
 

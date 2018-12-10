@@ -4,7 +4,7 @@ import numpy as np
 import tectosaur as tct
 tct.logger.setLevel(logging.INFO)
 
-n = 100
+n = 20
 corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
 m = tct.make_rect(n, n, corners)
 
@@ -23,3 +23,5 @@ t.report('x')
 
 y = op.dot(x)
 t.report('op.dot(x)')
+import ipdb
+ipdb.set_trace()
