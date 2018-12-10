@@ -1,19 +1,40 @@
-FROM alpine:3.6
-RUN echo "http://dl-cdn.alpinelinux.org/alpine/latest-stable/main" > /etc/apk/repositories
-RUN echo "http://dl-cdn.alpinelinux.org/alpine/latest-stable/community" >> /etc/apk/repositories
-RUN apk --no-cache --update-cache add gcc gfortran python3 python3-dev py3-pip build-base wget freetype-dev libpng-dev openblas-dev git linux-headers ca-certificates libstdc++ cmake g++ make musl-dev
+# Make sure you have a recent docker version
+# Install nvidia-docker https://github.com/NVIDIA/nvidia-docker
+# Build this dockerfile into an image
+# Run the image
+# Go to localhost:9999/lab to use Jupyter Lab with Tectosaur
+# Try the Tectosaur examples
+FROM nvidia/cuda:9.0-devel
+RUN nvcc -V
 
-RUN ln -s /usr/include/locale.h /usr/include/xlocale.h
+RUN apt-get update --fix-missing && \
+    apt-get install -y wget bzip2 ca-certificates curl git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-4.5.11-Linux-x86_64.sh -O ~/miniconda.sh && \
+    /bin/bash ~/miniconda.sh -b -p /opt/conda && \
+    rm ~/miniconda.sh && \
+    /opt/conda/bin/conda clean -tipsy && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "conda activate base" >> ~/.bashrc
+
+ENV PATH /opt/conda/bin:$PATH
 
 RUN git clone https://github.com/tbenthompson/tectosaur.git
 WORKDIR /tectosaur
 
-RUN python3 -V
-RUN pip3 install numpy
-RUN pip3 install .
-RUN pip3 install -U pip
-RUN pip3 install jupyterlab
-RUN pip3 install pycuda
+RUN apt-get update && apt-get install -y gfortran libcapnp-dev gcc
+RUN conda install -c conda-forge pycapnp
 
-ENTRYPOINT /usr/bin/jupyter lab --no-browser --ip=0.0.0.0 --allow-root --port 9999
+RUN conda install numpy
+RUN python -V
+RUN pip install .
+RUN apt-get install -y build-essential
+
+RUN pip install pycuda
+RUN conda install jupyterlab
+
+ENTRYPOINT jupyter lab --no-browser --ip=0.0.0.0 --allow-root --port 9999
 EXPOSE 9999
