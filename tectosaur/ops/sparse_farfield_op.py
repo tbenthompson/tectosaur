@@ -105,7 +105,7 @@ class FMMFarfieldOpImpl:
         v_tree = self.fmm_obj.to_tree(v)
         t.report('to tree space')
 
-        fmm_out = self.evaluator.eval(tsk_w, v_tree)
+        fmm_out = self.evaluator.eval(v_tree)
         t.report('fmm eval')
 
         out = self.fmm_obj.to_orig(fmm_out)
