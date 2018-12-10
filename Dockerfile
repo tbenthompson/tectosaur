@@ -22,19 +22,15 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-4.5.11-Linux-x86
 
 ENV PATH /opt/conda/bin:$PATH
 
+RUN apt-get update && \
+    apt-get install -y gfortran libcapnp-dev gcc build-essential
+
+RUN conda install -c conda-forge pycapnp numpy jupyterlab
+RUN pip install pycuda
+
 RUN git clone https://github.com/tbenthompson/tectosaur.git
 WORKDIR /tectosaur
-
-RUN apt-get update && apt-get install -y gfortran libcapnp-dev gcc
-RUN conda install -c conda-forge pycapnp
-
-RUN conda install numpy
-RUN python -V
 RUN pip install .
-RUN apt-get install -y build-essential
 
-RUN pip install pycuda
-RUN conda install jupyterlab
-
-ENTRYPOINT jupyter lab --no-browser --ip=0.0.0.0 --allow-root --port 9999
+ENTRYPOINT jupyter lab --no-browser --ip=0.0.0.0 --allow-root --port 9999 --NotebookApp.token=''
 EXPOSE 9999
