@@ -2,8 +2,6 @@ import attr
 import numpy as np
 import scipy.sparse
 
-import taskloaf as tsk
-
 import tectosaur.fmm.fmm as fmm
 import tectosaur.util.geometry as geometry
 import tectosaur.util.gpu as gpu
@@ -50,7 +48,7 @@ class TriToTriDirectFarfieldOp:
         )
         self.fnc = getattr(self.module, "farfield_tris" + K_name)
 
-    async def async_dot(self, tsk_w, v):
+    def dot(self, v):
         self.gpu_in[:] = v[:].astype(self.gpu_in.dtype)
         self.fnc(
             self.gpu_out, self.gpu_in,
@@ -60,11 +58,6 @@ class TriToTriDirectFarfieldOp:
             grid = (self.n_blocks, 1, 1), block = (self.block_size, 1, 1)
         )
         return self.gpu_out.get()
-
-    def dot(self, v):
-        async def wrapper(tsk_w):
-            return await self.async_dot(tsk_w, v)
-        return tsk.run(wrapper)
 
     def nearfield_dot(self, v):
         return self.dot(v)
@@ -107,22 +100,17 @@ class FMMFarfieldOpImpl:
         )
         self.evaluator = fmm.FMMEvaluator(self.fmm_obj)
 
-    async def async_dot(self, tsk_w, v):
+    def dot(self, v):
         t = Timer(output_fnc = logger.debug)
         v_tree = self.fmm_obj.to_tree(v)
         t.report('to tree space')
 
-        fmm_out = await self.evaluator.eval(tsk_w, v_tree)
+        fmm_out = self.evaluator.eval(tsk_w, v_tree)
         t.report('fmm eval')
 
         out = self.fmm_obj.to_orig(fmm_out)
         t.report('to output space')
         return out
-
-    def dot(self, v):
-        async def wrapper(tsk_w):
-            return await self.async_dot(tsk_w, v)
-        return tsk.run(wrapper)
 
     def nearfield_dot(self, v):
         return self.dot(v)

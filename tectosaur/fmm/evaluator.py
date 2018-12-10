@@ -157,7 +157,7 @@ class FMMEvaluator:
         for arr in ['out', 'm_check', 'multipoles', 'l_check', 'locals', 'c2e_scratch']:
             getattr(self, arr).fill(0)
 
-    async def eval(self, tsk_w, input_vals, should_log_timing = False, return_all_intermediates = False):
+    def eval(self, input_vals, should_log_timing = False, return_all_intermediates = False):
         self.kernel_evs = dict()
 
         self.prep_data_for_eval(input_vals)
@@ -190,7 +190,6 @@ class FMMEvaluator:
 
         l2p_ev = self.gpu_l2p(d2e_evs[-1])
 
-        # result = await gpu.get(tsk_w, self.out)
         result = self.out.get()
 
         if should_log_timing:

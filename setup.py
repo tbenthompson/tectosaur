@@ -9,7 +9,7 @@ except (IOError, ImportError):
 setuptools.setup(
     packages = setuptools.find_packages(),
 
-    install_requires = ['matplotlib', 'numpy', 'scipy', 'mako', 'cppimport', 'attrs', 'taskloaf', 'okada_wrapper', 'psutil'],
+    install_requires = ['matplotlib', 'numpy', 'scipy', 'mako', 'cppimport', 'attrs', 'taskloaf>=18.12.08', 'okada_wrapper', 'psutil'],
     zip_safe = False,
     include_package_data = True,
 

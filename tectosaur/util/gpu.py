@@ -1,7 +1,6 @@
 import os
 
 import numpy as np
-import taskloaf as tsk
 
 import tectosaur
 from tectosaur.util.timer import Timer
@@ -27,9 +26,9 @@ def np_to_c_type(t):
     elif t == np.float64:
         return 'double'
 
-async def get(tsk_w, arr):
-    result = await tsk_w.run_in_thread(lambda: threaded_get(arr))
-    return result
+# async def get(tsk_w, arr):
+#     result = await tsk_w.run_in_thread(lambda: threaded_get(arr))
+#     return result
 
 def intervals(length, step_size):
     out = []

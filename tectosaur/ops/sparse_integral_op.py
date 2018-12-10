@@ -1,7 +1,5 @@
 import numpy as np
 
-import taskloaf as tsk
-
 from tectosaur.nearfield.nearfield_op import NearfieldIntegralOp, RegularizedNearfieldIntegralOp
 
 from tectosaur.util.timer import Timer
@@ -51,7 +49,7 @@ class RegularizedSparseIntegralOp:
 
         self.shape = self.nearfield.shape
 
-    async def nearfield_dot(self, v):
+    def nearfield_dot(self, v):
         t = Timer(output_fnc = logger.debug)
         logger.debug("start nearfield_dot")
         out = self.nearfield.dot(v)
@@ -61,25 +59,12 @@ class RegularizedSparseIntegralOp:
     def nearfield_no_correction_dot(self, v):
         return self.nearfield.nearfield_no_correction_dot(v)
 
-    async def async_dot(self, tsk_w, v):
-        async def call_farfield(tsk_w):
-            return (await self.farfield_dot(tsk_w, v))
-        async def call_nearfield(tsk_w):
-            return (await self.nearfield_dot(v))
-        near_t = tsk.task(tsk_w, call_nearfield)
-        far_t = tsk.task(tsk_w, call_farfield)
-        far_out = await far_t
-        near_out = await near_t
-        return near_out + far_out
-
     def dot(self, v):
-        async def wrapper(tsk_w):
-            return await self.async_dot(tsk_w, v)
-        return tsk.run(wrapper)
+        return self.farfield_dot(v) + self.nearfield_dot(v)
 
-    async def farfield_dot(self, tsk_w, v):
+    def farfield_dot(self, v):
         t = Timer(output_fnc = logger.debug)
         logger.debug("start farfield_dot")
-        out = (await self.farfield.async_dot(tsk_w, v))
+        out = self.farfield.dot(v)
         t.report('farfield_dot')
         return out
