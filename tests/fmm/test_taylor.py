@@ -371,59 +371,61 @@ def test_fmmU():
     offset = 4.5
     corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
     m_src = tct.make_rect(n, n, corners)
+    v = np.ones(m_src[1].shape[0] * 9)
 
-    m_obs = (
-        np.array([[0,0,0],[1,0,0],[0,1,0.0]]),
-        np.array([[0,1,2]])
-    )
-    # m_obs = tct.make_rect(n, n, corners)
+    m_obs = tct.make_rect(n, n, corners)
     m_obs[0][:,0] += offset
+
+    full_m = concat(m_src, m_obs)
+    src_subset = np.arange(0, m_src[1].shape[0])
+    obs_subset = np.arange(0, m_obs[1].shape[0]) + m_src[1].shape[0]
+    op = tct.TriToTriDirectFarfieldOp(
+        quad_order, K_name, K_params, full_m[0], full_m[1],
+        float_type, obs_subset, src_subset
+    )
+    y1 = op.dot(v)
 
     cfg = make_config(
         params = K_params, order = order, quad_order = quad_order,
         float_type = float_type, mac = 2.0
     )
 
-    obst = make_tree(m_obs, cfg, 2)
-    srct = make_tree(m_src, cfg, 2)
+    obst = make_tree(m_obs, cfg, 10)
+    srct = make_tree(m_src, cfg, 10)
 
     fmm = TSFMM(obst, m_obs, srct, m_src, cfg)
+    gpu_v_tree = gpu.to_gpu(fmm.to_tree(v), float_type)
 
-    # MAC = 2.0
-    # interactions = cfg['traversal_module'].fmmmm_interactions(
-    #     obst, srct, 1.0, MAC,
-    #     order ** 2, True
-    # )
-    # assert(interactions.p2p.src_n_idxs.shape[0] == 0)
-    # print(interactions.m2p.src_n_idxs.shape[0])
-        # gpu_src_pts = gpu.to_gpu(m_src[0], float_type)
-        # gpu_src_tris = gpu.to_gpu(m_src[1], np.int32)
-        # gpu_obs_pts = gpu.to_gpu(m_obs[0], float_type)
-        # gpu_obs_tris = gpu.to_gpu(m_obs[1], np.int32)
-        # gpu_params = gpu.to_gpu(K_params, float_type)
-        # gpu_v = gpu.to_gpu(v, float_type)
+    gpu_multipoles = gpu.empty_gpu(fmm.n_multipoles, float_type)
+    cfg['gpu_module'].p2m(
+        gpu_multipoles,
+        gpu_v_tree,
+        # fmm.gpu_data['p2m_obs_n_idxs'], TODO
+        gpu.to_gpu(np.arange(len(srct.nodes)), np.int32),
+        fmm.gpu_data['src_n_C'],
+        fmm.gpu_data['src_n_start'],
+        fmm.gpu_data['src_n_end'],
+        fmm.gpu_data['src_pts'],
+        fmm.gpu_data['src_tris'],
+        grid = (len(srct.nodes),1,1),
+        block = (1,1,1)
+    )
 
-        # gpu_multipoles = gpu.empty_gpu(4 * 2 * (order + 1) * (2 * order + 1), float_type)
-        # cfg['gpu_module'].p2m(
-        #     gpu_multipoles,
-        #     gpu_src_pts,
-        #     gpu_src_tris,
-        #     gpu_v,
-        #     np.int32(gpu_src_tris.shape[0]),
-        #     grid = (1,1,1),
-        #     block = (1,1,1)
-        # )
-        # # print(gpu_multipoles.get().reshape((order + 1, order + 1, 4, 2)))
-
-        # gpu_out = gpu.empty_gpu(m_obs[1].shape[0] * 9, float_type)
-        # cfg['gpu_module'].m2p_U(
-        #     gpu_out,
-        #     gpu_obs_pts,
-        #     gpu_obs_tris,
-        #     gpu_multipoles,
-        #     gpu_params,
-        #     np.int32(gpu_obs_tris.shape[0]),
-        #     grid = (1,1,1),
-        #     block = (1,1,1)
-        # )
-        # y2 = gpu_out.get()
+    gpu_out = gpu.empty_gpu(m_obs[1].shape[0] * 9, float_type)
+    cfg['gpu_module'].m2p_U(
+        gpu_out,
+        gpu_multipoles,
+        fmm.gpu_data['params'],
+        fmm.gpu_data['m2p_obs_n_idxs'],
+        fmm.gpu_data['m2p_obs_src_starts'],
+        fmm.gpu_data['m2p_src_n_idxs'],
+        fmm.gpu_data['obs_n_start'],
+        fmm.gpu_data['obs_n_end'],
+        fmm.gpu_data['obs_pts'],
+        fmm.gpu_data['obs_tris'],
+        fmm.gpu_data['src_n_C'],
+        grid = (fmm.gpu_data['m2p_obs_n_idxs'].shape[0],1,1),
+        block = (1,1,1)
+    )
+    y2 = fmm.to_orig(gpu_out.get())
+    np.testing.assert_almost_equal(y1, y2)
