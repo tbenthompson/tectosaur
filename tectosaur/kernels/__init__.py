@@ -340,6 +340,20 @@ tensor_one3 = Kernel(
     Karr[8] = 0.0;
     '''
 )
+invr3 = Kernel(
+    'invr3', 3, 3, False, False, -4, 0, False, '', None,
+    '''
+    Karr[0] = 1.0 / sqrt(r2);
+    Karr[1] = 0.0;
+    Karr[2] = 0.0;
+    Karr[3] = 0.0;
+    Karr[4] = 0.0;
+    Karr[5] = 0.0;
+    Karr[6] = 0.0;
+    Karr[7] = 0.0;
+    Karr[8] = 0.0;
+    '''
+)
 
 def make_kernel_dict(ks):
     return {K.name: K for K in ks}
@@ -364,7 +378,10 @@ regularized_elastic_kernels = make_kernel_dict([
     elasticRH,
 ])
 
+etc_kernels = make_kernel_dict([invr3])
+
 kernels = dict(one_kernels)
 kernels.update(laplace_kernels)
 kernels.update(elastic_kernels)
 kernels.update(regularized_elastic_kernels)
+kernels.update(etc_kernels)
