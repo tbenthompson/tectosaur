@@ -397,7 +397,7 @@ def test_fmmU():
     np.testing.assert_almost_equal(y1, y2)
 
 def benchmark():
-    n = 20
+    n = 100
     corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
     m = tct.make_rect(n, n, corners)
     v = np.random.rand(m[1].shape[0] * 9)
@@ -407,6 +407,7 @@ def benchmark():
         quad_order = 2, float_type = np.float64,
         mac = 2.5, max_pts_per_cell = 20, n_workers_per_block = 128
     )
+    report_interactions(fmm)
     t.report('build')
     out = fmm.dot(v)
     t.report('first dot')

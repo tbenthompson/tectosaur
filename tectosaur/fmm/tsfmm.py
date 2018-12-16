@@ -12,6 +12,15 @@ traversal_module = traversal_ext.three.octree
 import logging
 logger = logging.getLogger(__name__)
 
+# TODO: Optimization:
+# -- figure out how much the p2p can be optimized
+
+# TODO: If I ever want this to be full FMM instead of treecode, I need to:
+# -- implement the p2l and l2p operators, pretty much the same way I did the p2m/m2p
+#    go from one source tri to one obs tri
+# -- implement the m2l operator, go from one source tri to one obs tri
+# -- implement the l2l operator
+
 def make_tree(m, max_pts_per_cell):
     tri_pts = m[0][m[1]]
     centers = np.mean(tri_pts, axis = 1)
