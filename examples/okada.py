@@ -360,15 +360,6 @@ def build_and_solve_T_regularized(data):
     timer.report("Solve")
     return soln
 
-def build_H(data):
-    return RegularizedSparseIntegralOp(
-        10, 10, 8, 3, 6, 3.0,
-        'elasticRH3', 'elasticRH3',
-        data.k_params, data.all_mesh[0], data.all_mesh[1], data.float_type,
-        # farfield_op_type = TriToTriDirectFarfieldOp
-        farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 10000)
-    )
-
 def build_and_solve_H_regularized(data):
     timer = Timer(output_fnc = logger.debug)
     cs = build_constraints(
@@ -380,10 +371,16 @@ def build_and_solve_H_regularized(data):
     cs.extend(free_edge_constraints(data.surface_tris))
     timer.report("Constraints")
 
-    H_op = build_H(data)
+    H_op = RegularizedSparseIntegralOp(
+        10, 10, 8, 3, 6, 3.0,
+        'elasticRH3', 'elasticRH3',
+        data.k_params, data.all_mesh[0], data.all_mesh[1], data.float_type,
+        farfield_op_type = TriToTriDirectFarfieldOp
+        # farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 10000)
+    )
     iop = SumOp([H_op])
-    from tectosaur.fmm.builder import report_interactions
-    report_interactions(H_op.farfield.fmm_obj)
+    # from tectosaur.fmm.builder import report_interactions
+    # report_interactions(H_op.farfield.fmm_obj)
     timer.report("Integrals")
 
     soln = solve.iterative_solve(iop, cs, tol = 1e-5)
@@ -415,7 +412,7 @@ def main():
     # obj.plot_interior_displacement(soln)
     obj.print_error(soln, okada_soln)
     t.report('check')
-    obj.plot_results(soln, okada_soln)
+    # obj.plot_results(soln, okada_soln)
 
 if __name__ == '__main__':
     main()

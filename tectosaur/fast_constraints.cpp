@@ -160,10 +160,7 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
     std::sort(
         cs.begin(), cs.end(), 
         [] (const ConstraintEQ& a, const ConstraintEQ& b) {
-            if (a.terms.size() == b.terms.size()) {
-                return max_dof(a).first < max_dof(b).first;
-            }
-            return a.terms.size() < b.terms.size();
+            return max_dof(a).first < max_dof(b).first;
         }
     );
 
