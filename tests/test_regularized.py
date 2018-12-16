@@ -1,10 +1,10 @@
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 from test_farfield import make_meshes
-from tectosaur.ops.sparse_integral_op import SparseIntegralOp, RegularizedSparseIntegralOp
-from tectosaur.ops.dense_integral_op import DenseIntegralOp, RegularizedDenseIntegralOp
-from tectosaur.ops.sparse_farfield_op import \
-        TriToTriDirectFarfieldOp, PtToPtDirectFarfieldOp, PtToPtFMMFarfieldOp
+from tectosaur.ops.sparse_integral_op import RegularizedSparseIntegralOp
+from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
+from tectosaur.ops.sparse_farfield_op import TriToTriDirectFarfieldOp
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.neg_op import MultOp
 from tectosaur.ops.sum_op import SumOp
@@ -228,21 +228,16 @@ def test_benchmark_far_tris():
     op.dot(x_flat)
     import tectosaur, logging
     tectosaur.logger.setLevel(logging.INFO)
-    n = 1
-    t = Timer()
+    n = 2
     for j in range(n):
-        op.dot(x_flat)
-    t.report('dot')
-
-    op2 = PtToPtDirectFarfieldOp(
-        2, 'elasticH3', [1.0, 0.25], m[0], m[1], np.float32,
-        surf1_idxs, surf2_idxs
-    )
-    op2.dot(x_flat)
-    t = Timer()
-    for j in range(n):
-        op2.dot(x_flat)
-    t.report('dot pts')
+        start = time.time()
+        print(op.dot(x_flat)[0])
+        took = time.time() - start
+        print('op.dot took', took)
+        total_interactions = surf1_idxs.shape[0] * surf2_idxs.shape[0]
+        inter_per_sec = total_interactions / took
+        print('total interactions', total_interactions)
+        print('billion interactions/sec', inter_per_sec / 1e9)
 
 if __name__ == "__main__":
     test_benchmark_far_tris()

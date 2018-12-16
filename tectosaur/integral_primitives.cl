@@ -53,7 +53,7 @@ Real ${name}_jacobian;
 % endif
 </%def>
 
-<%def name="tri_info(name, tris, need_normal, need_surf_curl, need_flip = False)">
+<%def name="tri_info(name, pts_name, tris, need_normal, need_surf_curl, need_flip = False)">
 for (int c = 0; c < 3; c++) {
     int flipped_c = c;
     % if need_flip:
@@ -68,7 +68,7 @@ for (int c = 0; c < 3; c++) {
     int tri_entry_idx = 3 * ${name}_tri_idx + positive_mod(flipped_c + ${name}_tri_rot_clicks, 3);
     int pt_idx = ${tris}[tri_entry_idx];
     for (int d = 0; d < 3; d++) {
-        ${name}_tri[c][d] = pts[pt_idx * 3 + d];
+        ${name}_tri[c][d] = ${pts_name}[pt_idx * 3 + d];
     }
 }
 get_unscaled_normal(${name}_tri, ${name}_unscaled_normal);

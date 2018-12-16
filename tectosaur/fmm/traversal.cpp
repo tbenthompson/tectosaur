@@ -145,6 +145,8 @@ void traverse(const TreeT& obs_tree, const TreeT& src_tree,
 
         bool small_src = n_src < order;
         bool small_obs = n_obs < order;
+        // bool small_src = true;
+        // bool small_obs = true;
 
         if (small_src && small_obs) {
             for_all_leaves_of(obs_tree, obs_n,

@@ -1,3 +1,4 @@
+import time
 from math import factorial
 import scipy.special
 import scipy.spatial
@@ -397,15 +398,17 @@ def test_fmmU():
     np.testing.assert_almost_equal(y1, y2)
 
 def benchmark():
+    np.random.seed(123456)
+    float_type = np.float32
     n = 100
     corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
     m = tct.make_rect(n, n, corners)
-    v = np.random.rand(m[1].shape[0] * 9)
+    v = (np.random.rand(m[1].shape[0] * 9) - 0.5).astype(float_type)
     t = tct.Timer()
     fmm = TSFMM(
         m, m, params = np.array([1.0, 0.25]), order = 4,
-        quad_order = 2, float_type = np.float64,
-        mac = 2.5, max_pts_per_cell = 20, n_workers_per_block = 128
+        quad_order = 2, float_type = float_type,
+        mac = 2.5, max_pts_per_cell = 50, n_workers_per_block = 128
     )
     report_interactions(fmm)
     t.report('build')
@@ -413,8 +416,16 @@ def benchmark():
     t.report('first dot')
     out = fmm.dot(v)
     t.report('second dot')
+    start = time.time()
     out = fmm.dot(v)
     t.report('third dot')
+    t = time.time() - start
+    interactions = m[1].shape[0] ** 2
+    print('billion interactions/sec', interactions / t / 1e9)
+
+    filename = 'tests/fmm/taylorbenchmarkcorrect.npy'
+    # np.save(filename, out)
+    correct = np.load(filename)
     np.testing.assert_almost_equal(out, correct)
 
 if __name__ == "__main__":

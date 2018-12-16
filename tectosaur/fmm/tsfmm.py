@@ -46,6 +46,18 @@ class TSFMM:
         self.load_gpu_module()
         self.setup_arrays()
 
+        import tectosaur as tct
+        t = tct.Timer()
+        obs_tri_block_idx = -1 * np.ones(self.obs_m[1].shape[0], dtype = np.int)
+        for block_idx, n_idx in enumerate(self.interactions.p2p.obs_n_idxs):
+            for tri_idx in range(self.obs_tree.nodes[n_idx].start, self.obs_tree.nodes[n_idx].end):
+                assert(obs_tri_block_idx[tri_idx] == -1)
+                obs_tri_block_idx[tri_idx] = block_idx
+        assert(not np.any(obs_tri_block_idx == -1))
+        t.report('build obs_tri_block_idx (TODO: optimize this)')
+        self.obs_tri_block_idx = obs_tri_block_idx
+        self.gpu_data['obs_tri_block_idx'] = self.int_gpu(self.obs_tri_block_idx)
+
     def load_gpu_module(self):
         quad = gauss2d_tri(self.cfg['quad_order'])
         self.gpu_module = gpu.load_gpu(
@@ -54,7 +66,8 @@ class TSFMM:
                 order = self.cfg['order'],
                 gpu_float_type = gpu.np_to_c_type(self.cfg['float_type']),
                 quad_pts = quad[0],
-                quad_wts = quad[1]
+                quad_wts = quad[1],
+                n_workers_per_block = self.cfg['n_workers_per_block']
             )
         )
         quad4d = gauss4d_tri(self.cfg['quad_order'], self.cfg['quad_order'])
@@ -179,10 +192,13 @@ class TSFMM:
         n_obs_n = self.gpu_data['m2p_obs_n_idxs'].shape[0]
         if n_obs_n == 0:
             return
+        block_size = self.cfg['n_workers_per_block']
+        n_blocks = int(np.ceil(n_obs_n / block_size))
         self.gpu_module.m2p_U(
             self.gpu_out,
             self.gpu_multipoles,
             self.gpu_data['params'],
+            np.int32(n_obs_n),
             self.gpu_data['m2p_obs_n_idxs'],
             self.gpu_data['m2p_obs_src_starts'],
             self.gpu_data['m2p_src_n_idxs'],
@@ -191,20 +207,22 @@ class TSFMM:
             self.gpu_data['obs_pts'],
             self.gpu_data['obs_tris'],
             self.gpu_data['src_n_C'],
-            grid = (n_obs_n,1,1),
-            block = (1,1,1)
+            grid = (n_blocks,1,1),
+            block = (block_size,1,1)
         )
 
     def p2p(self):
         n_obs_n = self.gpu_data['p2p_obs_n_idxs'].shape[0]
         if n_obs_n == 0:
             return
-        self.old_gpu_module.p2p_elasticU3(
+        n_obs_tris = self.obs_m[1].shape[0]
+        n_blocks = int(np.ceil(n_obs_tris / self.cfg['n_workers_per_block']))
+        self.gpu_module.p2p(
             self.gpu_out,
             self.gpu_in,
-            np.int32(n_obs_n),
+            np.int32(n_obs_tris),
             self.gpu_data['params'],
-            self.gpu_data['p2p_obs_n_idxs'],
+            self.gpu_data['obs_tri_block_idx'],
             self.gpu_data['p2p_obs_src_starts'],
             self.gpu_data['p2p_src_n_idxs'],
             self.gpu_data['obs_n_start'],
@@ -215,7 +233,7 @@ class TSFMM:
             self.gpu_data['src_n_end'],
             self.gpu_data['src_pts'],
             self.gpu_data['src_tris'],
-            grid = (n_obs_n, 1, 1),
+            grid = (n_blocks, 1, 1),
             block = (self.cfg['n_workers_per_block'], 1, 1)
         )
 

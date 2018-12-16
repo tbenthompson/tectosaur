@@ -38,6 +38,116 @@ CONSTANT Real quad_wts[${quad_wts.size}] = {${str(quad_wts.flatten().tolist())[1
     }
 </%def>
 
+KERNEL void p2p(
+    GLOBAL_MEM Real* out,
+    GLOBAL_MEM Real* inarr,
+    int n_obs_tris,
+    GLOBAL_MEM Real* params,
+    GLOBAL_MEM int* obs_tri_block_idxs,
+    GLOBAL_MEM int* obs_src_starts,
+    GLOBAL_MEM int* src_n_idxs,
+    GLOBAL_MEM int* obs_n_start,
+    GLOBAL_MEM int* obs_n_end,
+    GLOBAL_MEM Real* obs_pts,
+    GLOBAL_MEM int* obs_tris,
+    GLOBAL_MEM int* src_n_start,
+    GLOBAL_MEM int* src_n_end,
+    GLOBAL_MEM Real* src_pts,
+    GLOBAL_MEM int* src_tris)
+{
+    const int obs_tri_idx = get_global_id(0); 
+    if (obs_tri_idx >= n_obs_tris) {
+        return;
+    }
+    const int block_idx = obs_tri_block_idxs[obs_tri_idx];
+    const int this_obs_n_idx = block_idx;
+    const int this_obs_src_start = obs_src_starts[block_idx];
+    const int this_obs_src_end = obs_src_starts[block_idx + 1];
+
+    ${kernels['elasticU3'].constants_code}
+
+    const int obs_tri_rot_clicks = 0;
+    ${prim.decl_tri_info("obs", False, False)}
+    ${prim.tri_info("obs", "obs_pts", "obs_tris", False, False)}
+
+    Real sum[9];
+    for (int d = 0; d < 9; d++) {
+        sum[d] = 0.0;
+    }
+
+    for (int src_block_idx = this_obs_src_start;
+         src_block_idx < this_obs_src_end;
+         src_block_idx++) 
+    {
+        const int this_src_n_idx = src_n_idxs[src_block_idx];
+        for (int src_tri_idx = src_n_start[this_src_n_idx];
+                src_tri_idx < src_n_end[this_src_n_idx];
+                src_tri_idx++) 
+        {
+            const int src_tri_rot_clicks = 0;
+            ${prim.decl_tri_info("src", False, False)}
+            ${prim.tri_info("src", "src_pts", "src_tris", False, False)}
+
+            Real in[9];
+            for (int k = 0; k < 9; k++) {
+                in[k] = inarr[src_tri_idx * 9 + k];
+            }
+
+            % for iq1 in range(quad_wts.shape[0]):
+            {
+                Real obsxhat = ${quad_pts[iq1,0]};
+                Real obsyhat = ${quad_pts[iq1,1]};
+                % for iq2 in range(quad_wts.shape[0]):
+                {
+                    Real srcxhat = ${quad_pts[iq2,0]};
+                    Real srcyhat = ${quad_pts[iq2,1]};
+                    Real quadw = ${quad_wts[iq1] * quad_wts[iq2]};
+                    % for which, ptname in [("obs", "x"), ("src", "y")]:
+                        ${prim.basis(which)}
+                        ${prim.pts_from_basis(
+                            ptname, which,
+                            lambda b, d: which + "_tri[" + str(b) + "][" + str(d) + "]", 3
+                        )}
+                    % endfor
+
+                    Real Dx = yx - xx;
+                    Real Dy = yy - xy; 
+                    Real Dz = yz - xz;
+                    Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
+
+                    % if iq1 == iq2:
+                        if (r2 == 0.0) {
+                            continue;
+                        }
+                    % endif
+
+                    Real factor = obs_jacobian * src_jacobian * quadw;
+                    % for d in range(3):
+                        Real sum${dn(d)} = 0.0;
+                        Real in${dn(d)} = 0.0;
+                        for (int b_src = 0; b_src < 3; b_src++) {
+                            in${dn(d)} += in[b_src * 3 + ${d}] * srcb[b_src];
+                        }
+                    % endfor
+
+                    ${prim.call_vector_code(kernels['elasticU3'])}
+
+                    for (int b_obs = 0; b_obs < 3; b_obs++) {
+                        % for d_obs in range(3):
+                        sum[b_obs * 3 + ${d_obs}] += factor * obsb[b_obs] * sum${dn(d_obs)};
+                        % endfor
+                    }
+                }
+                % endfor
+            }
+            % endfor
+        }
+    }
+    for (int k = 0; k < 9; k++) {
+        out[obs_tri_idx * 9 + k] = sum[k];
+    }
+}
+
 KERNEL void p2m(
     GLOBAL_MEM Real* multipoles,
     GLOBAL_MEM Real* src_in,
@@ -74,7 +184,7 @@ KERNEL void p2m(
     {
         const int src_tri_rot_clicks = 0;
         ${prim.decl_tri_info("src", False, False)}
-        ${prim.tri_info("src", "tris", False, False)}
+        ${prim.tri_info("src", "pts", "tris", False, False)}
         for (int iq = 0; iq < ${quad_wts.shape[0]}; iq++) {
             Real srcxhat = quad_pts[iq * 2 + 0];
             Real srcyhat = quad_pts[iq * 2 + 1];
@@ -302,6 +412,7 @@ KERNEL void m2p_U(
     GLOBAL_MEM Real* out,
     GLOBAL_MEM Real* multipoles,
     GLOBAL_MEM Real* params,
+    int n_blocks,
     GLOBAL_MEM int* obs_n_idxs,
     GLOBAL_MEM int* obs_src_starts,
     GLOBAL_MEM int* src_n_idxs,
@@ -312,6 +423,9 @@ KERNEL void m2p_U(
     GLOBAL_MEM Real* src_n_centers)
 {
     const int global_idx = get_global_id(0); 
+    if (global_idx >= n_blocks) {
+        return;
+    }
     const int block_idx = global_idx;
     const int this_obs_n_idx = obs_n_idxs[block_idx];
     const int this_obs_src_start = obs_src_starts[block_idx];
@@ -329,7 +443,7 @@ KERNEL void m2p_U(
     {
         const int obs_tri_rot_clicks = 0;
         ${prim.decl_tri_info("obs", False, False)}
-        ${prim.tri_info("obs", "tris", False, False)}
+        ${prim.tri_info("obs", "pts", "tris", False, False)}
 
         Real sum[3][3];
         for (int d1 = 0; d1 < 3; d1++) {

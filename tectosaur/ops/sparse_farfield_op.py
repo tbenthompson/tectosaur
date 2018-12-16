@@ -27,10 +27,7 @@ class TriToTriDirectFarfieldOp:
         self.gpu_in = gpu.empty_gpu(in_size, float_type)
         self.gpu_out = gpu.empty_gpu(out_size, float_type)
 
-        q = gauss4d_tri(nq_far, nq_far)
-        self.gpu_qx = gpu.to_gpu(q[0], float_type)
-        self.gpu_qw = gpu.to_gpu(q[1], float_type)
-        self.nq = self.gpu_qx.shape[0]
+        q = gauss2d_tri(nq_far)
 
         self.gpu_pts = gpu.to_gpu(pts, float_type)
         self.gpu_obs_tris = gpu.to_gpu(tris[obs_subset], np.int32)
@@ -43,7 +40,9 @@ class TriToTriDirectFarfieldOp:
             'farfield_tris.cl',
             tmpl_args = dict(
                 block_size = self.block_size,
-                float_type = gpu.np_to_c_type(float_type)
+                float_type = gpu.np_to_c_type(float_type),
+                quad_pts = q[0],
+                quad_wts = q[1]
             )
         )
         self.fnc = getattr(self.module, "farfield_tris" + K_name)
@@ -53,8 +52,8 @@ class TriToTriDirectFarfieldOp:
         self.fnc(
             self.gpu_out, self.gpu_in,
             self.gpu_pts, self.gpu_obs_tris, self.gpu_src_tris,
-            self.gpu_qx, self.gpu_qw, self.gpu_params,
-            np.int32(self.n_obs), np.int32(self.n_src), np.int32(self.nq),
+            self.gpu_params,
+            np.int32(self.n_obs), np.int32(self.n_src),
             grid = (self.n_blocks, 1, 1), block = (self.block_size, 1, 1)
         )
         return self.gpu_out.get()

@@ -3,7 +3,6 @@ import numpy as np
 
 from tectosaur.farfield import farfield_pts_direct, get_gpu_module
 from tectosaur.ops.sparse_farfield_op import TriToTriDirectFarfieldOp
-from tectosaur.ops.sparse_farfield_op import PtToPtDirectFarfieldOp
 from tectosaur.util.geometry import normalize
 from tectosaur.mesh.mesh_gen import make_rect
 from tectosaur.mesh.modify import concat
