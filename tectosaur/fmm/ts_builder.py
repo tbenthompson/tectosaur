@@ -56,10 +56,10 @@ class TSFMM:
     def setup_output_sizes(self):
         order = self.cfg['order']
         # n dim = [0, order],
-        # m dim = [-n, n],
+        # m dim = [0, n],
         # 4 moments,
         # 2 = real and imaginary parts
-        self.n_multipoles = (order + 1) * (2 * order + 1) * 4 * 2 * self.src_tree.n_nodes
+        self.n_multipoles = (order + 1) * (order + 1) * 4 * 2 * self.src_tree.n_nodes
         # self.n_locals = self.n_surf_dofs * self.obs_tree.n_nodes
         self.n_input = self.src_m[1].shape[0] * 9
         self.n_output = self.obs_m[1].shape[0] * 9
