@@ -5,7 +5,7 @@ import numpy as np
 
 import tectosaur as tct
 from tectosaur.mesh.modify import concat
-from tectosaur.fmm.ts_builder import make_config, make_tree, TSFMM
+from tectosaur.fmm.tsfmm import *
 from tectosaur.fmm.ts_terms import *
 import tectosaur.util.gpu as gpu
 
@@ -368,10 +368,10 @@ def test_fmmU():
     K_name = 'elasticU3'
 
     n = 20
-    offset = 6.0
+    offset = 0.0
     corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
     m_src = tct.make_rect(n, n, corners)
-    v = np.ones(m_src[1].shape[0] * 9)
+    v = np.random.rand(m_src[1].shape[0] * 9)
 
     m_obs = tct.make_rect(n, n, corners)
     m_obs[0][:,0] += offset
@@ -385,64 +385,36 @@ def test_fmmU():
     )
     y1 = op.dot(v)
 
-    for order in range(1, 10):
-        cfg = make_config(
-            params = K_params, order = order, quad_order = quad_order,
-            float_type = float_type, mac = 2.5
-        )
+    fmm = TSFMM(
+        m_obs, m_src, params = K_params, order = order,
+        quad_order = quad_order, float_type = float_type,
+        mac = 2.5, max_pts_per_cell = 20, n_workers_per_block = 128
+    )
+    report_interactions(fmm)
 
-        obst = make_tree(m_obs, cfg, 10)
-        srct = make_tree(m_src, cfg, 10)
-
-        fmm = TSFMM(obst, m_obs, srct, m_src, cfg)
-        assert(fmm.interactions.p2p.src_n_idxs.shape[0] == 0)
-        gpu_v_tree = gpu.to_gpu(fmm.to_tree(v), float_type)
-
-        gpu_multipoles = gpu.empty_gpu(fmm.n_multipoles, float_type)
-        cfg['gpu_module'].p2m(
-            gpu_multipoles,
-            gpu_v_tree,
-            fmm.gpu_data['p2m_obs_n_idxs'],
-            # gpu.to_gpu(np.arange(len(srct.nodes)), np.int32),
-            fmm.gpu_data['src_n_C'],
-            fmm.gpu_data['src_n_start'],
-            fmm.gpu_data['src_n_end'],
-            fmm.gpu_data['src_pts'],
-            fmm.gpu_data['src_tris'],
-            grid = (fmm.gpu_data['p2m_obs_n_idxs'].shape[0],1,1),
-            # grid = (len(srct.nodes),1,1),
-            block = (1,1,1)
-        )
-
-        for i in range(1, len(fmm.interactions.m2m)):
-            cfg['gpu_module'].m2m(
-                gpu_multipoles,
-                fmm.gpu_data['m2m' + str(i) + '_obs_n_idxs'],
-                fmm.gpu_data['m2m' + str(i) + '_obs_src_starts'],
-                fmm.gpu_data['m2m' + str(i) + '_src_n_idxs'],
-                fmm.gpu_data['src_n_C'],
-                grid = (fmm.gpu_data['m2m' + str(i) + '_obs_n_idxs'].shape[0],1,1),
-                block = (1,1,1)
-            )
-
-        gpu_out = gpu.empty_gpu(m_obs[1].shape[0] * 9, float_type)
-        cfg['gpu_module'].m2p_U(
-            gpu_out,
-            gpu_multipoles,
-            fmm.gpu_data['params'],
-            fmm.gpu_data['m2p_obs_n_idxs'],
-            fmm.gpu_data['m2p_obs_src_starts'],
-            fmm.gpu_data['m2p_src_n_idxs'],
-            fmm.gpu_data['obs_n_start'],
-            fmm.gpu_data['obs_n_end'],
-            fmm.gpu_data['obs_pts'],
-            fmm.gpu_data['obs_tris'],
-            fmm.gpu_data['src_n_C'],
-            grid = (fmm.gpu_data['m2p_obs_n_idxs'].shape[0],1,1),
-            block = (1,1,1)
-        )
-        y2 = fmm.to_orig(gpu_out.get())
-        print(order, np.linalg.norm((y1 - y2)) / np.linalg.norm(y1))
+    y2 = fmm.dot(v)
+    print(order, np.linalg.norm((y1 - y2)) / np.linalg.norm(y1))
     np.testing.assert_almost_equal(y1, y2)
-    import ipdb
-    ipdb.set_trace()
+
+def benchmark():
+    n = 20
+    corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
+    m = tct.make_rect(n, n, corners)
+    v = np.random.rand(m[1].shape[0] * 9)
+    t = tct.Timer()
+    fmm = TSFMM(
+        m, m, params = np.array([1.0, 0.25]), order = 4,
+        quad_order = 2, float_type = np.float64,
+        mac = 2.5, max_pts_per_cell = 20, n_workers_per_block = 128
+    )
+    t.report('build')
+    out = fmm.dot(v)
+    t.report('first dot')
+    out = fmm.dot(v)
+    t.report('second dot')
+    out = fmm.dot(v)
+    t.report('third dot')
+    np.testing.assert_almost_equal(out, correct)
+
+if __name__ == "__main__":
+    benchmark()

@@ -465,7 +465,7 @@ KERNEL void m2p_U(
 
         for (int d1 = 0; d1 < 3; d1++) {
             for (int d2 = 0; d2 < 3; d2++) {
-                out[obs_tri_idx * 9 + d1 * 3 + d2] = sum[d1][d2];
+                out[obs_tri_idx * 9 + d1 * 3 + d2] += sum[d1][d2];
             }
         }
     }
