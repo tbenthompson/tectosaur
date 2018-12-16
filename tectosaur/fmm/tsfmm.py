@@ -1,5 +1,6 @@
 import numpy as np
 
+import tectosaur as tct
 from tectosaur.util.quadrature import gauss2d_tri, gauss4d_tri
 from tectosaur.kernels import kernels
 import tectosaur.util.gpu as gpu
@@ -46,17 +47,6 @@ class TSFMM:
         self.load_gpu_module()
         self.setup_arrays()
 
-        import tectosaur as tct
-        t = tct.Timer()
-        obs_tri_block_idx = -1 * np.ones(self.obs_m[1].shape[0], dtype = np.int)
-        for block_idx, n_idx in enumerate(self.interactions.p2p.obs_n_idxs):
-            for tri_idx in range(self.obs_tree.nodes[n_idx].start, self.obs_tree.nodes[n_idx].end):
-                assert(obs_tri_block_idx[tri_idx] == -1)
-                obs_tri_block_idx[tri_idx] = block_idx
-        assert(not np.any(obs_tri_block_idx == -1))
-        t.report('build obs_tri_block_idx (TODO: optimize this)')
-        self.obs_tri_block_idx = obs_tri_block_idx
-        self.gpu_data['obs_tri_block_idx'] = self.int_gpu(self.obs_tri_block_idx)
 
     def load_gpu_module(self):
         quad = gauss2d_tri(self.cfg['quad_order'])
@@ -119,14 +109,14 @@ class TSFMM:
         gd['src_pts'] = self.float_gpu(self.src_m[0])
         gd['src_tris'] = self.int_gpu(self.src_m[1][self.src_tree.orig_idxs])
 
-        obs_tree_nodes = self.obs_tree.nodes
-        src_tree_nodes = self.src_tree.nodes
+        self.obs_tree_nodes = self.obs_tree.nodes
+        self.src_tree_nodes = self.src_tree.nodes
 
         for name, tree in [('src', self.src_tree), ('obs', self.obs_tree)]:
             gd[name + '_n_C'] = self.float_gpu(tree.node_centers)
             # gd[name + '_n_R'] = self.float_gpu(tree.node_Rs)
 
-        for name, tree in [('src', src_tree_nodes), ('obs', obs_tree_nodes)]:
+        for name, tree in [('src', self.src_tree_nodes), ('obs', self.obs_tree_nodes)]:
             gd[name + '_n_start'] = self.int_gpu(np.array([n.start for n in tree]))
             gd[name + '_n_end'] = self.int_gpu(np.array([n.end for n in tree]))
 
@@ -139,6 +129,22 @@ class TSFMM:
                     self.op_to_gpu(name + str(i), op_level)
             else:
                 self.op_to_gpu(name, op)
+
+        self.p2p_obs_tri_block_idx()
+
+    def p2p_obs_tri_block_idx(self):
+        t = tct.Timer()
+        obs_tri_block_idx = -1 * np.ones(self.obs_m[1].shape[0], dtype = np.int)
+        p2p_obs_n_idxs = np.array(self.interactions.p2p.obs_n_idxs, copy = False)
+        for block_idx in range(p2p_obs_n_idxs.shape[0]):
+            n_idx = p2p_obs_n_idxs[block_idx]
+            start = self.obs_tree_nodes[n_idx].start
+            end = self.obs_tree_nodes[n_idx].end
+            assert(np.all(obs_tri_block_idx[start:end] == -1))
+            obs_tri_block_idx[start:end] = block_idx
+        assert(not np.any(obs_tri_block_idx == -1))
+        self.obs_tri_block_idx = obs_tri_block_idx
+        self.gpu_data['p2p_obs_tri_block_idx'] = self.int_gpu(self.obs_tri_block_idx)
 
     def op_to_gpu(self, name, op):
         for data_name in ['obs_n_idxs', 'obs_src_starts', 'src_n_idxs']:
@@ -193,7 +199,7 @@ class TSFMM:
         if n_obs_n == 0:
             return
         block_size = self.cfg['n_workers_per_block']
-        n_blocks = int(np.ceil(n_obs_n / block_size))
+        # n_blocks = int(np.ceil(n_obs_n / block_size))
         self.gpu_module.m2p_U(
             self.gpu_out,
             self.gpu_multipoles,
@@ -207,8 +213,8 @@ class TSFMM:
             self.gpu_data['obs_pts'],
             self.gpu_data['obs_tris'],
             self.gpu_data['src_n_C'],
-            grid = (n_blocks,1,1),
-            block = (block_size,1,1)
+            grid = (n_obs_n,1,1),
+            block = (1,block_size,1)
         )
 
     def p2p(self):
@@ -222,7 +228,7 @@ class TSFMM:
             self.gpu_in,
             np.int32(n_obs_tris),
             self.gpu_data['params'],
-            self.gpu_data['obs_tri_block_idx'],
+            self.gpu_data['p2p_obs_tri_block_idx'],
             self.gpu_data['p2p_obs_src_starts'],
             self.gpu_data['p2p_src_n_idxs'],
             self.gpu_data['obs_n_start'],

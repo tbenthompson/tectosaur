@@ -375,6 +375,7 @@ KERNEL void m2m(
 <%def name="out_sum_S_U(n, real, imag)">
     allSreal[${n}][${order} + mi] = ${real};
     allSimag[${n}][${order} + mi] = ${imag};
+    ${out_sum_dS(n, "mi", "(" + real + ")", "(" + imag + ")")}
     for (int d = 0; d < 3; d++) {
         int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
             + (${n}) * ${4 * 2 * (order + 1)}
@@ -393,6 +394,7 @@ KERNEL void m2m(
         }
         allSreal[${n}][${order} - mi] = -mult * ${real};
         allSimag[${n}][${order} - mi] = mult * ${imag};
+        ${out_sum_dS(n, "-mi", "(-mult * " + real + ")", "(mult * " + imag + ")")}
 
         for (int d = 0; d < 3; d++) {
             int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
@@ -406,6 +408,9 @@ KERNEL void m2m(
             }
         }
     }
+</%def>
+
+<%def name="out_sum_dS(n, m, real, imag)">
 </%def>
 
 KERNEL void m2p_U(
@@ -426,6 +431,7 @@ KERNEL void m2p_U(
     if (global_idx >= n_blocks) {
         return;
     }
+    const int worker_idx = get_local_id(1);
     const int block_idx = global_idx;
     const int this_obs_n_idx = obs_n_idxs[block_idx];
     const int this_obs_src_start = obs_src_starts[block_idx];
@@ -437,10 +443,16 @@ KERNEL void m2p_U(
     const Real CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
 
 
-    for (int obs_tri_idx = obs_n_starts[this_obs_n_idx];
-            obs_tri_idx < obs_n_ends[this_obs_n_idx];
-            obs_tri_idx++) 
+    int n_start = obs_n_starts[this_obs_n_idx];
+    int n_end = obs_n_ends[this_obs_n_idx];
+    int n_tris = n_end - n_start;
+    for (int outer_idx = worker_idx;
+            outer_idx < n_tris * ${quad_wts.shape[0]};
+            outer_idx += ${n_workers_per_block}) 
     {
+        int iq = outer_idx % ${quad_wts.shape[0]};
+        int obs_tri_idx = n_start + (outer_idx - iq) / ${quad_wts.shape[0]};
+
         const int obs_tri_rot_clicks = 0;
         ${prim.decl_tri_info("obs", False, False)}
         ${prim.tri_info("obs", "pts", "tris", False, False)}
@@ -452,125 +464,120 @@ KERNEL void m2p_U(
             }
         }
 
+        Real obsxhat = quad_pts[iq * 2 + 0];
+        Real obsyhat = quad_pts[iq * 2 + 1];
+        Real quadw = quad_wts[iq];
+
+        ${prim.basis("obs")}
+        ${prim.pts_from_basis(
+            "x", "obs",
+            lambda b, d: "obs_tri[" + str(b) + "][" + str(d) + "]", 3
+        )}
+
+        for (int d = 0; d < 3; d++) {
+            obsb[d] *= quadw * obs_jacobian;
+        }
+
         for (int src_block_idx = this_obs_src_start;
              src_block_idx < this_obs_src_end;
              src_block_idx++) 
         {
             const int this_src_n_idx = src_n_idxs[src_block_idx];
 
+            //TODO: is it worth preloading centers?
             Real yx = src_n_centers[this_src_n_idx * 3 + 0];
             Real yy = src_n_centers[this_src_n_idx * 3 + 1];
             Real yz = src_n_centers[this_src_n_idx * 3 + 2];
+            // TODO: load multipoles here
 
-            for (int iq = 0; iq < ${quad_wts.shape[0]}; iq++) {
-                Real obsxhat = quad_pts[iq * 2 + 0];
-                Real obsyhat = quad_pts[iq * 2 + 1];
-                Real quadw = quad_wts[iq];
+            Real Dx = xx - yx;
+            Real Dy = xy - yy; 
+            Real Dz = xz - yz;
+            Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
 
-                ${prim.basis("obs")}
-                ${prim.pts_from_basis(
-                    "x", "obs",
-                    lambda b, d: "obs_tri[" + str(b) + "][" + str(d) + "]", 3
-                )}
+            // TODO: Is there an alternate recurrence for calculating derivatives of S?
+            //      --> yes! we do not need to store... use the separated derivatives from yoshida thesis
+            Real allSreal[${order + 1}][${2 * order + 1}];
+            Real allSimag[${order + 1}][${2 * order + 1}];
+            Real Ssr = 1.0 / sqrt(r2);
+            Real Ssi = 0.0;
+            for (int mi = 0; mi < ${order + 1}; mi++) {
+                ${out_sum_S_U("mi", "Ssr", "Ssi")}
 
-                Real Dx = xx - yx;
-                Real Dy = xy - yy; 
-                Real Dz = xz - yz;
-                Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
+                Real Sm2r = 0.0;
+                Real Sm2i = 0.0;
+                Real Sm1r = Ssr;
+                Real Sm1i = Ssi;
+                for (int ni = mi; ni < ${order}; ni++) {
+                    Real F = 1.0 / r2;
+                    Real t1f = (2 * ni + 1) * Dz;
+                    Real t2f = ni * ni - mi * mi;
+                    Real Svr = F * (t1f * Sm1r - t2f * Sm2r);
+                    Real Svi = F * (t1f * Sm1i - t2f * Sm2i);
+                    ${out_sum_S_U("ni + 1", "Svr", "Svi")}
 
-                for (int d = 0; d < 3; d++) {
-                    obsb[d] *= quadw * obs_jacobian;
+                    Sm2r = Sm1r;
+                    Sm2i = Sm1i;
+                    Sm1r = Svr;
+                    Sm1i = Svi;
                 }
+                Real Ssrold = Ssr;
+                Real Ssiold = Ssi;
+                Real F = (2 * mi + 1) / r2;
+                Ssr = F * (Dx * Ssrold - Dy * Ssiold);
+                Ssi = F * (Dx * Ssiold + Dy * Ssrold);
+            }
 
-                Real allSreal[${order + 1}][${2 * order + 1}];
-                Real allSimag[${order + 1}][${2 * order + 1}];
-                Real Ssr = 1.0 / sqrt(r2);
-                Real Ssi = 0.0;
-                for (int mi = 0; mi < ${order + 1}; mi++) {
-                    ${out_sum_S_U("mi", "Ssr", "Ssi")}
-
-                    Real Sm2r = 0.0;
-                    Real Sm2i = 0.0;
-                    Real Sm1r = Ssr;
-                    Real Sm1i = Ssi;
-                    for (int ni = mi; ni < ${order}; ni++) {
-                        Real F = 1.0 / r2;
-                        Real t1f = (2 * ni + 1) * Dz;
-                        Real t2f = ni * ni - mi * mi;
-                        Real Svr = F * (t1f * Sm1r - t2f * Sm2r);
-                        Real Svi = F * (t1f * Sm1i - t2f * Sm2i);
-                        ${out_sum_S_U("ni + 1", "Svr", "Svi")}
-
-                        Sm2r = Sm1r;
-                        Sm2i = Sm1i;
-                        Sm1r = Svr;
-                        Sm1i = Svi;
+            for (int ni = 0; ni < ${order}; ni++) {
+                for (int mi = -ni; mi <= ni; mi++) {
+                    Real Sdr[3];
+                    Real Sdi[3];
+                    Real Sv[3][2];
+                    for (int d = -1; d <= 1; d++) {
+                        Sv[d + 1][0] = allSreal[ni + 1][${order} + mi + d];
+                        Sv[d + 1][1] = allSimag[ni + 1][${order} + mi + d];
                     }
-                    Real Ssrold = Ssr;
-                    Real Ssiold = Ssi;
-                    Real F = (2 * mi + 1) / r2;
-                    Ssr = F * (Dx * Ssrold - Dy * Ssiold);
-                    Ssi = F * (Dx * Ssiold + Dy * Ssrold);
-                }
+                    Sdr[0] = 0.5 * (Sv[0][0] - Sv[2][0]);
+                    Sdi[0] = 0.5 * (Sv[0][1] - Sv[2][1]);
+                    Sdr[1] = -0.5 * (Sv[0][1] + Sv[2][1]);
+                    Sdi[1] = 0.5 * (Sv[0][0] + Sv[2][0]);
+                    Sdr[2] = -Sv[1][0];
+                    Sdi[2] = -Sv[1][1];
 
-                for (int ni = 0; ni < ${order}; ni++) {
-                    for (int mi = -ni; mi <= ni; mi++) {
-                        Real Sdr[3];
-                        Real Sdi[3];
-                        Sdr[0] = 0.5 * (
-                            allSreal[ni + 1][${order} + mi - 1]
-                            - allSreal[ni + 1][${order} + mi + 1]
-                        );
-                        Sdi[0] = 0.5 * (
-                            allSimag[ni + 1][${order} + mi - 1]
-                            - allSimag[ni + 1][${order} + mi + 1]
-                        );
-                        Sdr[1] = -0.5 * (
-                            allSimag[ni + 1][${order} + mi - 1]
-                            + allSimag[ni + 1][${order} + mi + 1]
-                        );
-                        Sdi[1] = 0.5 * (
-                            allSreal[ni + 1][${order} + mi - 1]
-                            + allSreal[ni + 1][${order} + mi + 1]
-                        );
-                        Sdr[2] = -allSreal[ni + 1][${order} + mi];
-                        Sdi[2] = -allSimag[ni + 1][${order} + mi];
-
-                        int pos_mi = abs(mi);
-                        Real multRR = 1.0;
-                        Real multRI = 1.0;
-                        if (mi < 0) {
-                            multRR = -1.0;
-                            if (mi % 2 == 0) {
-                                multRR = 1.0;
-                                multRI = -1.0;
-                            }
+                    int pos_mi = abs(mi);
+                    Real multRR = 1.0;
+                    Real multRI = 1.0;
+                    if (mi < 0) {
+                        multRR = -1.0;
+                        if (mi % 2 == 0) {
+                            multRR = 1.0;
+                            multRI = -1.0;
                         }
-                        for (int d1 = 0; d1 < 3; d1++) {
-                            % for d2 in range(3):
-                            {
-                                int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
-                                    + ni * ${4 * 2 * (order + 1)}
-                                    + pos_mi * 4 * 2
-                                    + ${d2} * 2;
-                                Real Rr = multRR * multipoles[idx];
-                                Real Ri = multRI * multipoles[idx + 1];
-                                Real v = D${dn(d2)} * (Rr * Sdr[d1] + Ri * Sdi[d1]);
-                                for (int bi = 0; bi < 3; bi++) {
-                                    sum[bi][d1] -= CsU1 * obsb[bi] * v;
-                                }
-                            }
-                            % endfor 
+                    }
+                    for (int d1 = 0; d1 < 3; d1++) {
+                        % for d2 in range(3):
+                        {
                             int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
                                 + ni * ${4 * 2 * (order + 1)}
                                 + pos_mi * 4 * 2
-                                + 3 * 2;
+                                + ${d2} * 2;
                             Real Rr = multRR * multipoles[idx];
                             Real Ri = multRI * multipoles[idx + 1];
-                            Real v =  Rr * Sdr[d1] + Ri * Sdi[d1];
+                            Real v = D${dn(d2)} * (Rr * Sdr[d1] + Ri * Sdi[d1]);
                             for (int bi = 0; bi < 3; bi++) {
-                                sum[bi][d1] += CsU1 * obsb[bi] * v;
+                                sum[bi][d1] -= CsU1 * obsb[bi] * v;
                             }
+                        }
+                        % endfor 
+                        int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
+                            + ni * ${4 * 2 * (order + 1)}
+                            + pos_mi * 4 * 2
+                            + 3 * 2;
+                        Real Rr = multRR * multipoles[idx];
+                        Real Ri = multRI * multipoles[idx + 1];
+                        Real v =  Rr * Sdr[d1] + Ri * Sdi[d1];
+                        for (int bi = 0; bi < 3; bi++) {
+                            sum[bi][d1] += CsU1 * obsb[bi] * v;
                         }
                     }
                 }
@@ -579,7 +586,7 @@ KERNEL void m2p_U(
 
         for (int d1 = 0; d1 < 3; d1++) {
             for (int d2 = 0; d2 < 3; d2++) {
-                out[obs_tri_idx * 9 + d1 * 3 + d2] += sum[d1][d2];
+                atomicAdd(&out[obs_tri_idx * 9 + d1 * 3 + d2], sum[d1][d2]);
             }
         }
     }
