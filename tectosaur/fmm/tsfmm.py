@@ -13,9 +13,6 @@ traversal_module = traversal_ext.three.octree
 import logging
 logger = logging.getLogger(__name__)
 
-# TODO: Optimization:
-# -- figure out how much the p2p can be optimized
-
 # TODO: If I ever want this to be full FMM instead of treecode, I need to:
 # -- implement the p2l and l2p operators, pretty much the same way I did the p2m/m2p
 #    go from one source tri to one obs tri
@@ -170,28 +167,36 @@ class TSFMM:
         self.gpu_in = gpu.empty_gpu(self.n_input, self.cfg['float_type'])
 
     def p2m(self):
+        n_obs_n = self.gpu_data['p2m_obs_n_idxs'].shape[0]
+        block_size = self.cfg['n_workers_per_block']
+        n_blocks = int(np.ceil(n_obs_n / block_size))
         self.gpu_module.p2m(
             self.gpu_multipoles,
             self.gpu_in,
+            np.int32(n_obs_n),
             self.gpu_data['p2m_obs_n_idxs'],
             self.gpu_data['src_n_C'],
             self.gpu_data['src_n_start'],
             self.gpu_data['src_n_end'],
             self.gpu_data['src_pts'],
             self.gpu_data['src_tris'],
-            grid = (self.gpu_data['p2m_obs_n_idxs'].shape[0],1,1),
-            block = (1,1,1)
+            grid = (n_blocks,1,1),
+            block = (block_size,1,1)
         )
 
     def m2m(self, level):
+        n_obs_n = self.gpu_data['m2m' + str(level) + '_obs_n_idxs'].shape[0]
+        block_size = self.cfg['n_workers_per_block']
+        n_blocks = int(np.ceil(n_obs_n / block_size))
         self.gpu_module.m2m(
             self.gpu_multipoles,
+            np.int32(n_obs_n),
             self.gpu_data['m2m' + str(level) + '_obs_n_idxs'],
             self.gpu_data['m2m' + str(level) + '_obs_src_starts'],
             self.gpu_data['m2m' + str(level) + '_src_n_idxs'],
             self.gpu_data['src_n_C'],
-            grid = (self.gpu_data['m2m' + str(level) + '_obs_n_idxs'].shape[0],1,1),
-            block = (1,1,1)
+            grid = (n_blocks,1,1),
+            block = (block_size,1,1)
         )
 
     def m2p(self):
@@ -199,7 +204,6 @@ class TSFMM:
         if n_obs_n == 0:
             return
         block_size = self.cfg['n_workers_per_block']
-        # n_blocks = int(np.ceil(n_obs_n / block_size))
         self.gpu_module.m2p_U(
             self.gpu_out,
             self.gpu_multipoles,
@@ -214,7 +218,7 @@ class TSFMM:
             self.gpu_data['obs_tris'],
             self.gpu_data['src_n_C'],
             grid = (n_obs_n,1,1),
-            block = (1,block_size,1)
+            block = (block_size,1,1)
         )
 
     def p2p(self):

@@ -398,26 +398,38 @@ def test_fmmU():
     np.testing.assert_almost_equal(y1, y2)
 
 def benchmark():
+    compare = False
     np.random.seed(123456)
     float_type = np.float32
-    n = 100
+    n = 200
     corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
     m = tct.make_rect(n, n, corners)
     v = (100000 * np.random.rand(m[1].shape[0] * 9)).astype(float_type)
     t = tct.Timer()
 
-    # all_tris = np.arange(m[1].shape[0])
-    # op = tct.TriToTriDirectFarfieldOp(
-    #     2, 'elasticU3', [1.0, 0.25], m[0], m[1],
-    #     float_type, all_tris, all_tris
-    # )
-    # t.report('build direct')
-    # y1 = op.dot(v)
-    # t.report('op.dot direct')
+    if compare:
+        all_tris = np.arange(m[1].shape[0])
+        op = tct.TriToTriDirectFarfieldOp(
+            2, 'elasticU3', [1.0, 0.25], m[0], m[1],
+            float_type, all_tris, all_tris
+        )
+        t.report('build direct')
+        for i in range(2):
+            y1 = op.dot(v)
+            t.report('op.dot direct')
 
-    # TODO: block the p2m,m2m...
+        all_tris = np.arange(m[1].shape[0])
+        oldfmm = tct.FMMFarfieldOp(4.0, 400, 1e-5)(
+            2, 'elasticU3', [1.0, 0.25], m[0], m[1],
+            float_type, all_tris, all_tris
+        )
+        t.report('build oldfmm')
+        for i in range(2):
+            oldfmm.dot(v)
+            t.report('op.dot oldfmm')
+
     # TODO: still maybe some room in p2p compared to direct
-    # TODO: tons of room in m2p
+    # TODO
     # TODO: maybe do full fmm?
     fmm = TSFMM(
         m, m, params = np.array([1.0, 0.25]), order = 4,
@@ -430,69 +442,20 @@ def benchmark():
     t.report('first dot')
     out = fmm.dot(v)
     t.report('second dot')
-    start = time.time()
-    out = fmm.dot(v)
-    t.report('third dot')
-    t = time.time() - start
-    interactions = m[1].shape[0] ** 2
-    print('n/sec', m[1].shape[0] / t)
-    print('billion interactions/sec', interactions / t / 1e9)
+    for i in range(1):
+        start = time.time()
+        out = fmm.dot(v)
+        t.report('third dot')
+        took = time.time() - start
+        interactions = m[1].shape[0] ** 2
+        print('million rows/sec', m[1].shape[0] / took / 1e6)
+        print('billion interactions/sec', interactions / took / 1e9)
 
     filename = 'tests/fmm/taylorbenchmarkcorrect.npy'
     # np.save(filename, out)
     correct = np.load(filename)
     # print(out, correct, y1)
-    np.testing.assert_almost_equal(out, correct)
-
-#Real Sdr[3];
-# Real Sdi[3];
-# Real Sv[3][2];
-# for (int d = -1; d <= 1; d++) {
-#     Sv[d + 1][0] = allSreal[ni + 1][${order} + mi + d];
-#     Sv[d + 1][1] = allSimag[ni + 1][${order} + mi + d];
-# }
-# Sdr[0] = 0.5 * (Sv[0][0] - Sv[2][0]);
-# Sdi[0] = 0.5 * (Sv[0][1] - Sv[2][1]);
-# Sdr[1] = -0.5 * (Sv[0][1] + Sv[2][1]);
-# Sdi[1] = 0.5 * (Sv[0][0] + Sv[2][0]);
-# Sdr[2] = -Sv[1][0];
-# Sdi[2] = -Sv[1][1];
-#int pos_mi = abs(mi);
-#Real multRR = 1.0;
-#Real multRI = 1.0;
-#if (mi < 0) {
-#    multRR = -1.0;
-#    if (mi % 2 == 0) {
-#        multRR = 1.0;
-#        multRI = -1.0;
-#    }
-#}
-#for (int d1 = 0; d1 < 3; d1++) {
-#    % for d2 in range(3):
-#    {
-#        int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
-#            + ni * ${4 * 2 * (order + 1)}
-#            + pos_mi * 4 * 2
-#            + ${d2} * 2;
-#        Real Rr = multRR * multipoles[idx];
-#        Real Ri = multRI * multipoles[idx + 1];
-#        Real v = D${dn(d2)} * (Rr * Sdr[d1] + Ri * Sdi[d1]);
-#        for (int bi = 0; bi < 3; bi++) {
-#            sum[bi][d1] -= CsU1 * obsb[bi] * v;
-#        }
-#    }
-#    % endfor
-#    int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
-#        + ni * ${4 * 2 * (order + 1)}
-#        + pos_mi * 4 * 2
-#        + 3 * 2;
-#    Real Rr = multRR * multipoles[idx];
-#    Real Ri = multRI * multipoles[idx + 1];
-#    Real v =  Rr * Sdr[d1] + Ri * Sdi[d1];
-#    for (int bi = 0; bi < 3; bi++) {
-#        sum[bi][d1] += CsU1 * obsb[bi] * v;
-#    }
-#}
+    np.testing.assert_almost_equal(out, correct, 5)
 
 if __name__ == "__main__":
     benchmark()
