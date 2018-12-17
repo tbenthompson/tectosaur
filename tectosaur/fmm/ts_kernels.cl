@@ -373,9 +373,7 @@ KERNEL void m2m(
 }
 
 <%def name="out_sum_S_U(n, real, imag)">
-    allSreal[${n}][${order} + mi] = ${real};
-    allSimag[${n}][${order} + mi] = ${imag};
-    ${out_sum_dS(n, "mi", "(" + real + ")", "(" + imag + ")")}
+    ${out_sum_dS("(" + n + ")", "mi", "(" + real + ")", "(" + imag + ")")}
     for (int d = 0; d < 3; d++) {
         int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
             + (${n}) * ${4 * 2 * (order + 1)}
@@ -392,9 +390,7 @@ KERNEL void m2m(
         if (mi % 2 == 0) {
             mult = -1.0;
         }
-        allSreal[${n}][${order} - mi] = -mult * ${real};
-        allSimag[${n}][${order} - mi] = mult * ${imag};
-        ${out_sum_dS(n, "-mi", "(-mult * " + real + ")", "(mult * " + imag + ")")}
+        ${out_sum_dS("(" + n + ")", "(-mi)", "(-mult * " + real + ")", "(mult * " + imag + ")")}
 
         for (int d = 0; d < 3; d++) {
             int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
@@ -411,7 +407,70 @@ KERNEL void m2m(
 </%def>
 
 <%def name="out_sum_dS(n, m, real, imag)">
+    int dSn = (${n}) - 1;
+    int dSmm1 = (${m}) - 1;
+    int dSmp1 = (${m}) + 1;
+
+    if (abs(dSmm1) <= dSn) {
+        Real dSr1 = -0.5 * (${real});    
+        Real dSi1 = -0.5 * (${imag});        
+        ${dS_sum("dSn", "dSmm1", 0, "dSr1", "dSi1")}
+        Real dSr2 = -0.5 * (${imag});    
+        Real dSi2 = 0.5 * (${real});        
+        ${dS_sum("dSn", "dSmm1", 1, "dSr2", "dSi2")}
+    }
+
+    if (abs(dSmp1) <= dSn) {
+        Real dSr1 = 0.5 * (${real});        
+        Real dSi1 = 0.5 * (${imag});        
+        ${dS_sum("dSn", "dSmp1", 0, "dSr1", "dSi1")}
+        Real dSr2 = -0.5 * (${imag});        
+        Real dSi2 =  0.5 * (${real});        
+        ${dS_sum("dSn", "dSmp1", 1, "dSr2", "dSi2")}
+    }
+
+    if (abs(${m}) <= dSn) {
+        Real dSr3 = -(${real});
+        Real dSi3 = -(${imag});
+        ${dS_sum("dSn", m, 2, "dSr3", "dSi3")}
+    }
 </%def>
+
+<%def name="dS_sum(dsn, dsm, d1, real, imag)">
+{
+    Real multRR = 1.0;
+    Real multRI = 1.0;
+    if (${dsm} < 0) {
+        if (${dsm} % 2 == 0) {
+            multRI = -1.0;
+        } else {
+            multRR = -1.0;
+        }
+    }
+    int base_idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
+        + (${dsn}) * ${4 * 2 * (order + 1)}
+        + abs(${dsm}) * 4 * 2;
+    % for d2 in range(3):
+    {
+        int idx = base_idx + ${d2} * 2;
+        Real Rr = multRR * multipoles[idx];
+        Real Ri = multRI * multipoles[idx + 1];
+        Real v = D${dn(d2)} * (Rr * ${real} + Ri * ${imag});
+        for (int bi = 0; bi < 3; bi++) {
+            sum[bi][${d1}] -= CsU1 * obsb[bi] * v;
+        }
+    }
+    % endfor
+    int idx = base_idx + 3 * 2;
+    Real Rr = multRR * multipoles[idx];
+    Real Ri = multRI * multipoles[idx + 1];
+    Real v =  Rr * ${real} + Ri * ${imag};
+    for (int bi = 0; bi < 3; bi++) {
+        sum[bi][${d1}] += CsU1 * obsb[bi] * v;
+    }
+}
+</%def>
+
 
 KERNEL void m2p_U(
     GLOBAL_MEM Real* out,
@@ -495,10 +554,6 @@ KERNEL void m2p_U(
             Real Dz = xz - yz;
             Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
 
-            // TODO: Is there an alternate recurrence for calculating derivatives of S?
-            //      --> yes! we do not need to store... use the separated derivatives from yoshida thesis
-            Real allSreal[${order + 1}][${2 * order + 1}];
-            Real allSimag[${order + 1}][${2 * order + 1}];
             Real Ssr = 1.0 / sqrt(r2);
             Real Ssi = 0.0;
             for (int mi = 0; mi < ${order + 1}; mi++) {
@@ -526,61 +581,6 @@ KERNEL void m2p_U(
                 Real F = (2 * mi + 1) / r2;
                 Ssr = F * (Dx * Ssrold - Dy * Ssiold);
                 Ssi = F * (Dx * Ssiold + Dy * Ssrold);
-            }
-
-            for (int ni = 0; ni < ${order}; ni++) {
-                for (int mi = -ni; mi <= ni; mi++) {
-                    Real Sdr[3];
-                    Real Sdi[3];
-                    Real Sv[3][2];
-                    for (int d = -1; d <= 1; d++) {
-                        Sv[d + 1][0] = allSreal[ni + 1][${order} + mi + d];
-                        Sv[d + 1][1] = allSimag[ni + 1][${order} + mi + d];
-                    }
-                    Sdr[0] = 0.5 * (Sv[0][0] - Sv[2][0]);
-                    Sdi[0] = 0.5 * (Sv[0][1] - Sv[2][1]);
-                    Sdr[1] = -0.5 * (Sv[0][1] + Sv[2][1]);
-                    Sdi[1] = 0.5 * (Sv[0][0] + Sv[2][0]);
-                    Sdr[2] = -Sv[1][0];
-                    Sdi[2] = -Sv[1][1];
-
-                    int pos_mi = abs(mi);
-                    Real multRR = 1.0;
-                    Real multRI = 1.0;
-                    if (mi < 0) {
-                        multRR = -1.0;
-                        if (mi % 2 == 0) {
-                            multRR = 1.0;
-                            multRI = -1.0;
-                        }
-                    }
-                    for (int d1 = 0; d1 < 3; d1++) {
-                        % for d2 in range(3):
-                        {
-                            int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
-                                + ni * ${4 * 2 * (order + 1)}
-                                + pos_mi * 4 * 2
-                                + ${d2} * 2;
-                            Real Rr = multRR * multipoles[idx];
-                            Real Ri = multRI * multipoles[idx + 1];
-                            Real v = D${dn(d2)} * (Rr * Sdr[d1] + Ri * Sdi[d1]);
-                            for (int bi = 0; bi < 3; bi++) {
-                                sum[bi][d1] -= CsU1 * obsb[bi] * v;
-                            }
-                        }
-                        % endfor 
-                        int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
-                            + ni * ${4 * 2 * (order + 1)}
-                            + pos_mi * 4 * 2
-                            + 3 * 2;
-                        Real Rr = multRR * multipoles[idx];
-                        Real Ri = multRI * multipoles[idx + 1];
-                        Real v =  Rr * Sdr[d1] + Ri * Sdi[d1];
-                        for (int bi = 0; bi < 3; bi++) {
-                            sum[bi][d1] += CsU1 * obsb[bi] * v;
-                        }
-                    }
-                }
             }
         }
 

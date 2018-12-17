@@ -444,5 +444,55 @@ def benchmark():
     # print(out, correct, y1)
     np.testing.assert_almost_equal(out, correct)
 
+#Real Sdr[3];
+# Real Sdi[3];
+# Real Sv[3][2];
+# for (int d = -1; d <= 1; d++) {
+#     Sv[d + 1][0] = allSreal[ni + 1][${order} + mi + d];
+#     Sv[d + 1][1] = allSimag[ni + 1][${order} + mi + d];
+# }
+# Sdr[0] = 0.5 * (Sv[0][0] - Sv[2][0]);
+# Sdi[0] = 0.5 * (Sv[0][1] - Sv[2][1]);
+# Sdr[1] = -0.5 * (Sv[0][1] + Sv[2][1]);
+# Sdi[1] = 0.5 * (Sv[0][0] + Sv[2][0]);
+# Sdr[2] = -Sv[1][0];
+# Sdi[2] = -Sv[1][1];
+#int pos_mi = abs(mi);
+#Real multRR = 1.0;
+#Real multRI = 1.0;
+#if (mi < 0) {
+#    multRR = -1.0;
+#    if (mi % 2 == 0) {
+#        multRR = 1.0;
+#        multRI = -1.0;
+#    }
+#}
+#for (int d1 = 0; d1 < 3; d1++) {
+#    % for d2 in range(3):
+#    {
+#        int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
+#            + ni * ${4 * 2 * (order + 1)}
+#            + pos_mi * 4 * 2
+#            + ${d2} * 2;
+#        Real Rr = multRR * multipoles[idx];
+#        Real Ri = multRI * multipoles[idx + 1];
+#        Real v = D${dn(d2)} * (Rr * Sdr[d1] + Ri * Sdi[d1]);
+#        for (int bi = 0; bi < 3; bi++) {
+#            sum[bi][d1] -= CsU1 * obsb[bi] * v;
+#        }
+#    }
+#    % endfor
+#    int idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
+#        + ni * ${4 * 2 * (order + 1)}
+#        + pos_mi * 4 * 2
+#        + 3 * 2;
+#    Real Rr = multRR * multipoles[idx];
+#    Real Ri = multRI * multipoles[idx + 1];
+#    Real v =  Rr * Sdr[d1] + Ri * Sdi[d1];
+#    for (int bi = 0; bi < 3; bi++) {
+#        sum[bi][d1] += CsU1 * obsb[bi] * v;
+#    }
+#}
+
 if __name__ == "__main__":
     benchmark()
