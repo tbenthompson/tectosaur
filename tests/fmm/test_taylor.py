@@ -9,12 +9,11 @@ from tectosaur.mesh.modify import concat
 from tectosaur.fmm.tsfmm import *
 import tectosaur.util.gpu as gpu
 
-def test_fmmU():
+def fmm_tester(K_name):
     order = 4
     float_type = np.float64
     quad_order = 2
     K_params = np.array([1.0, 0.25])
-    K_name = 'elasticU3'
 
     n = 20
     offset = 0.0
@@ -44,6 +43,12 @@ def test_fmmU():
     y2 = fmm.dot(v)
     print(order, np.linalg.norm((y1 - y2)) / np.linalg.norm(y1))
     np.testing.assert_almost_equal(y1, y2)
+
+def test_fmmU():
+    fmm_tester('elasticU3')
+
+def test_fmmT():
+    fmm_tester('elasticT3')
 
 def benchmark():
     compare = False

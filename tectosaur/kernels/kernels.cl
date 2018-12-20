@@ -1,4 +1,4 @@
-//TODO: refactor to put all kernels here!
+//TODO: refactor to put all kernels here?
 <%!
 import numpy as np
 e = [[[int((i - j) * (j - k) * (k - i) / 2) for k in range(3)]
