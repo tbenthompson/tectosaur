@@ -86,7 +86,10 @@ def get_template(tmpl_name, tmpl_dir):
 
 def template_with_mako(tmpl, tmpl_args):
     try:
-        return tmpl.render(**tmpl_args, cluda_preamble = cluda_preamble)
+        return tmpl.render(
+            **tmpl_args, cluda_preamble = cluda_preamble,
+            cuda_backend = cuda_backend, ocl_backend = ocl_backend
+        )
     except:
         import mako.exceptions
         logger.error(mako.exceptions.text_error_template().render())

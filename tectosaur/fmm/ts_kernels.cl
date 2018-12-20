@@ -3,6 +3,11 @@ def dn(dim):
     return ['x', 'y', 'z'][dim]
 from tectosaur.kernels import kernels
 %>
+<%
+ceil = 'ceilf'
+if ocl_backend:
+    ceil = 'ceil'
+%>
 ${cluda_preamble}
 
 #define Real ${gpu_float_type}
@@ -515,7 +520,11 @@ KERNEL void m2p_U(
     int n_end = obs_n_ends[this_obs_n_idx];
     int n_tris = n_end - n_start;
     int n_outer_idxs = n_tris * ${quad_wts.shape[0]};
-    int outer_idx_loop_max = ceilf(((float)n_outer_idxs) / ((float)${n_workers_per_block}));
+    % if ocl_backend:
+    int outer_idx_loop_max = n_outer_idxs;
+    % else:
+    int outer_idx_loop_max = ceil(((float)n_outer_idxs) / ((float)${n_workers_per_block}));
+    % endif
     for (int group_outer_idx = 0;
             group_outer_idx < outer_idx_loop_max;
             group_outer_idx++) 
@@ -610,7 +619,11 @@ KERNEL void m2p_U(
         if (outer_idx < n_outer_idxs) {
             for (int d1 = 0; d1 < 3; d1++) {
                 for (int d2 = 0; d2 < 3; d2++) {
-                    atomicAdd(&out[obs_tri_idx * 9 + d1 * 3 + d2], obsb[d1] * sum[d2]);
+                    % if ocl_backend:
+                        out[obs_tri_idx * 9 + d1 * 3 + d2] += obsb[d1] * sum[d2];
+                    % else:
+                        atomicAdd(&out[obs_tri_idx * 9 + d1 * 3 + d2], obsb[d1] * sum[d2]);
+                    % endif
                 }
             }
         }

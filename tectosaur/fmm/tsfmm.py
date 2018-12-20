@@ -29,6 +29,9 @@ def make_tree(m, max_pts_per_cell):
 
 class TSFMM:
     def __init__(self, obs_m, src_m, **kwargs):
+        if gpu.ocl_backend:
+            kwargs['n_workers_per_block'] = 1
+
         self.cfg = kwargs
         self.obs_m = obs_m
         self.src_m = src_m
