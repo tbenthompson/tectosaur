@@ -51,28 +51,15 @@ class TSFMM:
     def load_gpu_module(self):
         quad = gauss2d_tri(self.cfg['quad_order'])
         self.gpu_module = gpu.load_gpu(
-            'fmm/ts_kernels.cl',
+            'fmm/ts_kernels_' + self.cfg['K_name'] + '.cl',
             tmpl_args = dict(
                 order = self.cfg['order'],
                 gpu_float_type = gpu.np_to_c_type(self.cfg['float_type']),
                 quad_pts = quad[0],
                 quad_wts = quad[1],
-                n_workers_per_block = self.cfg['n_workers_per_block']
+                n_workers_per_block = self.cfg['n_workers_per_block'],
+                K = kernels[self.cfg['K_name']]
             )
-        )
-        quad4d = gauss4d_tri(self.cfg['quad_order'], self.cfg['quad_order'])
-        args = dict(
-            n_workers_per_block = self.cfg['n_workers_per_block'],
-            gpu_float_type = gpu.np_to_c_type(self.cfg['float_type']),
-            surf_pts = np.array([[0,0,0]]),
-            surf_tris = np.array([[0,0,0]]),
-            quad_pts = quad4d[0],
-            quad_wts = quad4d[1],
-            K = kernels['elasticU3'] #TODO #TODO #TODO #TODO #TODO #TODO
-        )
-        self.old_gpu_module = gpu.load_gpu(
-            'fmm/tri_gpu_kernels.cl',
-            tmpl_args = args
         )
 
     def setup_interactions(self):
@@ -142,7 +129,6 @@ class TSFMM:
             end = self.obs_tree_nodes[n_idx].end
             assert(np.all(obs_tri_block_idx[start:end] == -1))
             obs_tri_block_idx[start:end] = block_idx
-        assert(not np.any(obs_tri_block_idx == -1))
         self.obs_tri_block_idx = obs_tri_block_idx
         self.gpu_data['p2p_obs_tri_block_idx'] = self.int_gpu(self.obs_tri_block_idx)
 

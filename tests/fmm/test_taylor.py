@@ -9,7 +9,8 @@ from tectosaur.mesh.modify import concat
 from tectosaur.fmm.tsfmm import *
 import tectosaur.util.gpu as gpu
 
-def fmm_tester(K_name):
+def fmm_tester(K_name, far_only = False, one_cell = False):
+    np.random.seed(123987)
     order = 4
     float_type = np.float64
     quad_order = 2
@@ -17,6 +18,8 @@ def fmm_tester(K_name):
 
     n = 20
     offset = 0.0
+    if far_only:
+        offset = 9.0
     corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
     m_src = tct.make_rect(n, n, corners)
     v = np.random.rand(m_src[1].shape[0] * 9).astype(float_type)
@@ -33,11 +36,18 @@ def fmm_tester(K_name):
     )
     y1 = op.dot(v)
 
+    max_pts_per_cell = 20
+    if one_cell:
+        max_pts_per_cell = int(1e9)
     fmm = TSFMM(
         m_obs, m_src, params = K_params, order = order,
         quad_order = quad_order, float_type = float_type,
-        mac = 2.5, max_pts_per_cell = 20, n_workers_per_block = 128
+        K_name = K_name,
+        mac = 2.5, max_pts_per_cell = max_pts_per_cell,
+        n_workers_per_block = 128
     )
+    if far_only:
+        assert(fmm.interactions.p2p.src_n_idxs.shape[0] == 0)
     report_interactions(fmm)
 
     y2 = fmm.dot(v)
@@ -48,7 +58,7 @@ def test_fmmU():
     fmm_tester('elasticU3')
 
 def test_fmmT():
-    fmm_tester('elasticT3')
+    fmm_tester('elasticRT3')
 
 def benchmark():
     compare = False

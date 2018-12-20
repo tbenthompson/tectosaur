@@ -1,4 +1,4 @@
-//TODO: refactor to put all kernels here?
+//TODO: refactor to put all kernels here!
 <%!
 import numpy as np
 e = [[[int((i - j) * (j - k) * (k - i) / 2) for k in range(3)]
@@ -116,15 +116,11 @@ def dn(dim):
     % for d_src in range(3):
     % for Ij in range(3):
     {
-        ${Gimk(d_obs, Ij, d_src)}
+        Real Gimk = Q1 * ${e[d_obs][d_src][Ij]};
         sum${dn(d_obs)} += Gimk * src_surf_curl[${d_src}][${Ij}];;
     }
     % endfor
     % endfor
-    % endfor
-
-    % for d in range(3):
-        sum${dn(d)} += Q3nD * in${dn(d)};
     % endfor
 </%def>
 
