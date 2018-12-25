@@ -5,6 +5,12 @@ from tectosaur.kernels import kernels
 e = [[[int((i - j) * (j - k) * (k - i) / 2) for k in range(3)]
     for j in range(3)] for i in range(3)]
 %>
+<%
+if K.name == 'elasticU3':
+    multipole_dim = 4
+elif K.name == 'elasticRT3':
+    multipole_dim = 7
+%>
 ${cluda_preamble}
 
 #define Real ${gpu_float_type}
@@ -15,6 +21,13 @@ ${prim.geometry_fncs()}
 
 CONSTANT Real quad_pts[${quad_pts.size}] = {${str(quad_pts.flatten().tolist())[1:-1]}};
 CONSTANT Real quad_wts[${quad_wts.size}] = {${str(quad_wts.flatten().tolist())[1:-1]}};
+
+<%def name="multipole_idx(node_idx, n_idx, m_idx, d_idx)">
+    (${node_idx} * ${multipole_dim * 2 * (order + 1) * (order + 1)}
+    + ${n_idx} * ${multipole_dim * 2 * (order + 1)}
+    + ${m_idx} * ${multipole_dim * 2}
+    + ${d_idx} * 2)
+</%def>
 
 KERNEL void p2p(
     GLOBAL_MEM Real* out,
@@ -142,11 +155,8 @@ KERNEL void p2p(
 <%def name="finish_multipole_sum()">
     for (int i = 0; i < ${order + 1}; i++) {
         for (int j = 0; j < ${order + 1}; j++) {
-            for (int d = 0; d < 4; d++) {
-                int idx = this_obs_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
-                    + i * ${4 * 2 * (order + 1)}
-                    + j * 4 * 2
-                    + d * 2;
+            for (int d = 0; d < ${multipole_dim}; d++) {
+                int idx = ${multipole_idx("this_obs_n_idx", "i", "j", "d")};
                 multipoles[idx] = sumreal[i][j][d];
                 multipoles[idx + 1] = sumimag[i][j][d];
             }
@@ -176,12 +186,12 @@ KERNEL void p2m(
     Real xy = n_centers[this_obs_n_idx * 3 + 1];
     Real xz = n_centers[this_obs_n_idx * 3 + 2];
 
-    Real sumreal[${order + 1}][${order + 1}][4];
-    Real sumimag[${order + 1}][${order + 1}][4];
+    Real sumreal[${order + 1}][${order + 1}][${multipole_dim}];
+    Real sumimag[${order + 1}][${order + 1}][${multipole_dim}];
 
     for (int i = 0; i < ${order + 1}; i++) {
         for (int j = 0; j < ${order + 1}; j++) {
-            for (int d = 0; d < 4; d++) {
+            for (int d = 0; d < ${multipole_dim}; d++) {
                 sumreal[i][j][d] = 0.0;
                 sumimag[i][j][d] = 0.0;
             }
@@ -272,8 +282,9 @@ KERNEL void p2m(
 }
 
 <%def name="get_child_multipoles(d)">
-    Real child_real = multipoles[start_idx + ${d} * 2 + 0];
-    Real child_imag = multipoles[start_idx + ${d} * 2 + 1];
+    int idx = ${multipole_idx("this_src_n_idx", "ni_diff", "pos_mi_diff", d)};
+    Real child_real = multipoles[idx];
+    Real child_imag = multipoles[idx + 1];
     if (mi_diff < 0 && mi_diff % 2 == 0) {
         child_imag *= -1;
     } else if (mi_diff < 0 && mi_diff % 2 != 0) {
@@ -302,9 +313,6 @@ for (int ni = (${nip}); ni <= ${order}; ni++) {
 
             int mi_diff = mi - full_mip;
             int pos_mi_diff = abs(mi_diff);
-            int start_idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
-                + (ni_diff) * ${4 * 2 * (order + 1)}
-                + (pos_mi_diff) * 4 * 2;
             %for d in range(3):
             {
                 ${get_child_multipoles(d)}
@@ -346,12 +354,12 @@ KERNEL void m2m(
     Real xz = n_centers[this_obs_n_idx * 3 + 2];
 
     //TODO: Could Kahan summation be helpful?
-    Real sumreal[${order + 1}][${order + 1}][4];
-    Real sumimag[${order + 1}][${order + 1}][4];
+    Real sumreal[${order + 1}][${order + 1}][${multipole_dim}];
+    Real sumimag[${order + 1}][${order + 1}][${multipole_dim}];
 
     for (int i = 0; i < ${order + 1}; i++) {
         for (int j = 0; j < ${order + 1}; j++) {
-            for (int d = 0; d < 4; d++) {
+            for (int d = 0; d < ${multipole_dim}; d++) {
                 sumreal[i][j][d] = 0.0;
                 sumimag[i][j][d] = 0.0;
             }
@@ -415,7 +423,7 @@ KERNEL void m2m(
     Real real_val = C * (${real}); 
     Real imag_val = C * (${imag}); 
     for (int d = 0; d < 3; d++) {
-        int idx = (${n}) * ${4 * 2 * (order + 1)} + mi * 4 * 2 + d * 2;
+        int idx = (${n}) * ${multipole_dim * 2 * (order + 1)} + mi * ${multipole_dim * 2} + d * 2;
         Real Rr = sh_multipoles[idx];
         Real Ri = sh_multipoles[idx + 1];
         sum[d] += Rr * real_val + Ri * imag_val;
@@ -451,9 +459,9 @@ KERNEL void m2p_U(
     ${K.constants_code}
 
     <%
-        n_multipoles = (order + 1) ** 2 * 4 * 2
+        multipoles_per_cell = (order + 1) ** 2 * multipole_dim * 2
     %>
-    LOCAL_MEM Real sh_multipoles[${n_multipoles}];
+    LOCAL_MEM Real sh_multipoles[${multipoles_per_cell}];
 
     int n_start = obs_n_starts[this_obs_n_idx];
     int n_end = obs_n_ends[this_obs_n_idx];
@@ -503,10 +511,10 @@ KERNEL void m2p_U(
             const int this_src_n_idx = src_n_idxs[src_block_idx];
             LOCAL_BARRIER;
             for (int multipole_idx = worker_idx;
-                multipole_idx < ${n_multipoles};
+                multipole_idx < ${multipoles_per_cell};
                 multipole_idx += ${n_workers_per_block}) 
             {
-                int full_arr_idx = this_src_n_idx * ${n_multipoles} + multipole_idx;
+                int full_arr_idx = this_src_n_idx * ${multipoles_per_cell} + multipole_idx;
                 sh_multipoles[multipole_idx] = multipoles[full_arr_idx];
             }
             LOCAL_BARRIER;

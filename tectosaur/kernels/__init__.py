@@ -17,6 +17,7 @@ class Kernel:
     adj_table_filename = attr.ib(default = None)
     surf_curl_obs = attr.ib(default = False)
     surf_curl_src = attr.ib(default = False)
+    multipole_dim = attr.ib(default = 0)
 
 elasticU = Kernel(
     'elasticU3', 3, 3, False, False, -3, 1, False,
@@ -50,7 +51,8 @@ elasticU = Kernel(
     Karr[8] = Q2*Dz*Dz + Q1;
     ''',
     co_table_filename = 'elasticU_25_0.010000_16_0.000000_8_13_8_coincidenttable.npy',
-    adj_table_filename = 'elasticU_25_0.010000_16_0.000000_7_8_adjacenttable.npy'
+    adj_table_filename = 'elasticU_25_0.010000_16_0.000000_7_8_adjacenttable.npy',
+    multipole_dim = 4
 )
 
 TA_const_code = '''
@@ -232,7 +234,8 @@ elasticRT = Kernel(
     ''',
     '', '',
     surf_curl_obs = False,
-    surf_curl_src = True
+    surf_curl_src = True,
+    multipole_dim = 7
 )
 
 elasticRA = Kernel(
