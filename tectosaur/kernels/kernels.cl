@@ -23,7 +23,7 @@ def dn(dim):
     % for It in range(3):
         B += ${e[m][It][j]} * D${dn(It)};
     % endfor
-    Real Gimk = A + Q2 * D${dn(p)} * B;
+    Real Gimk = A;// + Q2 * D${dn(p)} * B;
 </%def>
 
 <%def name="elasticRTA3_tensor(L, R)">
@@ -116,7 +116,7 @@ def dn(dim):
     % for d_src in range(3):
     % for Ij in range(3):
     {
-        Real Gimk = Q1 * ${e[d_obs][d_src][Ij]};
+        ${Gimk(d_obs, Ij, d_src)}
         sum${dn(d_obs)} += Gimk * src_surf_curl[${d_src}][${Ij}];;
     }
     % endfor

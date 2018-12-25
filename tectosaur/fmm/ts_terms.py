@@ -116,6 +116,39 @@ def R_storagefree(n_max, y):
         Rsi = (y1 * Rsiold + y2 * Rsrold) / (2 * (mi + 1))
     return real, imag
 
+def Rderivs(n_max, y, d):
+    Rvr, Rvi = R(n_max + 1, y)
+    real = np.zeros((n_max + 1, 2 * n_max + 1))
+    imag = np.zeros((n_max + 1, 2 * n_max + 1))
+
+    if d == 0:
+        for i in range(n_max):
+            for j in range(-i, i + 1):
+                real[i, n_max + j] = 0.5 * (
+                    Rvr[i - 1, (n_max + 1) + j - 1]
+                    - Rvr[i - 1, (n_max + 1) + j + 1]
+                )
+                imag[i, n_max + j] = 0.5 * (
+                    Rvi[i - 1, (n_max + 1) + j - 1]
+                    - Rvi[i - 1, (n_max + 1) + j + 1]
+                )
+    elif d == 1:
+        for i in range(n_max + 1):
+            for j in range(-i, i + 1):
+                real[i, n_max + j] = -0.5 * (
+                    Rvi[i - 1, (n_max + 1) + j - 1]
+                    + Rvi[i - 1, (n_max + 1) + j + 1]
+                )
+                imag[i, n_max + j] = 0.5 * (
+                    Rvr[i - 1, (n_max + 1) + j - 1]
+                    + Rvr[i - 1, (n_max + 1) + j + 1]
+                )
+    else:
+        for i in range(n_max + 1):
+            for j in range(-i, i + 1):
+                real[i, n_max + j] = Rvr[i - 1, (n_max + 1) + j]
+                imag[i, n_max + j] = Rvi[i - 1, (n_max + 1) + j]
+    return real, imag
 
 def S(n_max, y):
     y1, y2, y3 = y

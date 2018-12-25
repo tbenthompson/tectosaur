@@ -58,7 +58,7 @@ def test_fmmU():
     fmm_tester('elasticU3')
 
 def test_fmmT():
-    fmm_tester('elasticRT3')
+    fmm_tester('elasticRT3', one_cell = True, far_only = True)
 
 def benchmark():
     compare = False

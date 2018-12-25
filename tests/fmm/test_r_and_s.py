@@ -121,6 +121,50 @@ def test_ror_invr3():
         # print(n_src * n_obs, n_src * n_multipole + n_multipole * n_obs)
         print(order, (result - correct)[-1], result[-1], correct[-1])
 
+def test_ror_invr3_Rderiv():
+    n_src = 100
+    n_obs = 2
+    order = 5
+    src_pts = np.random.rand(n_src, 3) - 0.5
+    str = np.ones((n_src, 3))#np.random.rand(n_src, 3)
+    obs_pts = np.random.rand(n_obs, 3)
+    obs_pts[:,0] += 3
+
+    r = scipy.spatial.distance.cdist(obs_pts, src_pts)
+    rd = [np.subtract.outer(obs_pts[:,d], src_pts[:,d]) for d in range(3)]
+    for d1 in range(3):
+        for d2 in range(3):
+            correct = np.sum((rd[d1] * rd[d2] / (r ** 3)) * str[:,d2], axis = 1)
+            # correct = np.sum((rd[d1] / (r ** 3)) * str[:,d2], axis = 1)
+            print(correct)
+
+            for order in range(1, 10):
+                exp_pt = np.array((0,0,0))
+                src_sep = exp_pt[np.newaxis,:] - src_pts
+                Rsumreal = np.zeros((order + 1, 2 * order + 1, 3))
+                Rsumimag = np.zeros((order + 1, 2 * order + 1, 3))
+                for i in range(src_sep.shape[0]):
+                    Rdvr, Rdvi = Rderivs(order, src_sep[i,:], d2)
+                    Rsumreal[:,:,0] += Rdvr * str[i,d2]
+                    Rsumimag[:,:,0] += Rdvi * str[i,d2]
+                    Rsumreal[:,:,1] += src_sep[i, d1] * Rdvr * str[i,d2]
+                    Rsumimag[:,:,1] += src_sep[i, d1] * Rdvi * str[i,d2]
+
+                    Rvr, Rvi = R(order, src_sep[i,:])
+                    Rsumreal[:,:,2] += Rvr * str[i,d2]
+                    Rsumimag[:,:,2] += Rvi * str[i,d2]
+
+                obs_sep = exp_pt[np.newaxis,:] - obs_pts
+                result = np.zeros(n_obs)
+                for i in range(obs_sep.shape[0]):
+                    Svr, Svi = S(order, obs_sep[i,:])
+                    t1 = obs_sep[i, d1] * (Rsumreal[:,:,0] * Svr + Rsumimag[:,:,0] * Svi)
+                    t2 = -(Rsumreal[:,:,1] * Svr + Rsumimag[:,:,1] * Svi)
+                    result[i] += np.sum(t1 + t2)
+                # n_multipole = (order + 1) * (2 * order + 1)
+                # print(n_src * n_obs, n_src * n_multipole + n_multipole * n_obs)
+                print(order, (result - correct)[-1], result[-1], correct[-1])
+
 def test_elasticU():
     n_src = 100
     n_obs = 2
