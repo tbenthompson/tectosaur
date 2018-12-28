@@ -52,6 +52,7 @@ def fmm_tester(K_name, far_only = False, one_cell = False):
 
     y2 = fmm.dot(v)
     print(order, np.linalg.norm((y1 - y2)) / np.linalg.norm(y1))
+    print(y1, y2)
     np.testing.assert_almost_equal(y1, y2)
 
 def test_fmmU():

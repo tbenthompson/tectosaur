@@ -6,10 +6,7 @@ e = [[[int((i - j) * (j - k) * (k - i) / 2) for k in range(3)]
     for j in range(3)] for i in range(3)]
 %>
 <%
-if K.name == 'elasticU3':
-    multipole_dim = 4
-elif K.name == 'elasticRT3':
-    multipole_dim = 7
+    multipole_dim = K.multipole_dim
 %>
 ${cluda_preamble}
 
@@ -139,17 +136,106 @@ KERNEL void p2p(
     }
 }
 
+//TODO: could it be better to do a source derivative and increase the number of
+//multipoles? Then, the m2p would be faster. The p2m operator doesn't take much
+//time regardless.
 <%def name="multipole_sum(n, m, real, imag)">
-    % for i in range(3):
-        % for k in range(3):
+    % for dobs in range(3):
+        % for dsrc in range(3):
             % for j in range(3):
-                sumreal[${n}][${m}][${i}] += ${e[i][k][j]} * ${real} * src_surf_curl[${k}][${j}];
-                sumimag[${n}][${m}][${i}] += ${e[i][k][j]} * ${imag} * src_surf_curl[${k}][${j}];
+                sumreal[${n}][${m}][${dobs}] += (
+                    ${e[dobs][dsrc][j]} * ${real} * src_surf_curl[${dsrc}][${j}]
+                );
+                sumimag[${n}][${m}][${dobs}] += (
+                    ${e[dobs][dsrc][j]} * ${imag} * src_surf_curl[${dsrc}][${j}]
+                );
             % endfor
         % endfor
     % endfor
-    sumreal[${n}][${m}][3] += ${real} * in_dot_D;
-    sumimag[${n}][${m}][3] += ${imag} * in_dot_D;
+    ${out_sum_dR(n, m, real, imag)}
+    if (mi == 1) {
+        ${out_sum_dR_plus1(
+            "(" + n + ")", "(-1)", "(-" + real + ")", "(" + imag + ")"
+        )}
+    }
+</%def>
+
+
+<%def name="dR_sum(dsn, dsm, dsrc, real, imag)">
+{
+    % for j in range(3):
+        sumreal[${dsn}][${dsm}][3 + ${j}] += (
+            ${real} * src_surf_curl[${dsrc}][${j}]
+        );
+        sumimag[${dsn}][${dsm}][3 + ${j}] += (
+            ${imag} * src_surf_curl[${dsrc}][${j}]
+        );
+        % if j == 2:
+        % endif
+    % endfor
+    % for dobs in range(3):
+        % for p in range(3):
+            % for j in range(3):
+                sumreal[${dsn}][${dsm}][6 + ${dobs}] += (
+                    ${e[dobs][p][j]} * D${dn(p)} * ${real} 
+                    * src_surf_curl[${dsrc}][${j}]
+                );
+                sumimag[${dsn}][${dsm}][6 + ${dobs}] += (
+                    ${e[dobs][p][j]} * D${dn(p)} * ${imag} 
+                    * src_surf_curl[${dsrc}][${j}]
+                );
+            % endfor
+        % endfor
+    % endfor
+}
+</%def>
+
+
+<%def name="out_sum_dR(n, m, real, imag)">
+    ${out_sum_dR_minus1(n, m, real, imag)}
+    ${out_sum_dR_plus1(n, m, real, imag)}
+    ${out_sum_dR_0(n, m, real, imag)}
+</%def>
+
+<%def name="out_sum_dR_minus1(n, m, real, imag)">
+{
+    int dRn = (${n}) + 1;
+    int dRmm1 = (${m}) - 1;
+    if (0 <= dRn && dRmm1 >= 0 && dRn <= ${order}) {
+        Real dRr1 = -0.5 * (${real});    
+        Real dRi1 = -0.5 * (${imag});        
+        ${dR_sum("dRn", "dRmm1", 0, "dRr1", "dRi1")}
+        Real dRr2 = -0.5 * (${imag});    
+        Real dRi2 = 0.5 * (${real});        
+        ${dR_sum("dRn", "dRmm1", 1, "dRr2", "dRi2")}
+    }
+}
+</%def>
+
+<%def name="out_sum_dR_plus1(n, m, real, imag)">
+{
+    int dRn = (${n}) + 1;
+    int dRmp1 = (${m}) + 1;
+    if (0 <= dRn && dRmp1 <= dRn && dRn <= ${order}) {
+        Real dRr1 = 0.5 * (${real});
+        Real dRi1 = 0.5 * (${imag});
+        ${dR_sum("dRn", "dRmp1", 0, "dRr1", "dRi1")}
+        Real dRr2 = -0.5 * (${imag});
+        Real dRi2 =  0.5 * (${real});
+        ${dR_sum("dRn", "dRmp1", 1, "dRr2", "dRi2")}
+    }
+}
+</%def>
+
+<%def name="out_sum_dR_0(n, m, real, imag)">
+{
+    int dRn = (${n}) + 1;
+    if (0 <= dRn && ${m} <= dRn && dRn <= ${order}) {
+        Real dRr3 = (${real});
+        Real dRi3 = (${imag});
+        ${dR_sum("dRn", m, 2, "dRr3", "dRi3")}
+    }
+}
 </%def>
 
 <%def name="finish_multipole_sum()">
@@ -419,17 +505,40 @@ KERNEL void m2m(
         mult = 2.0;
     }
     
-    Real C = mult * CsRT1;
-    Real real_val = C * (${real}); 
-    Real imag_val = C * (${imag}); 
-    for (int d = 0; d < 3; d++) {
-        int idx = (${n}) * ${multipole_dim * 2 * (order + 1)} + mi * ${multipole_dim * 2} + d * 2;
-        Real Rr = sh_multipoles[idx];
-        Real Ri = sh_multipoles[idx + 1];
-        sum[d] += Rr * real_val + Ri * imag_val;
-    }
-
-    if (mi == 1) {
+    {
+        Real C = mult * CsRT0;
+        Real real_val = C * (${real}); 
+        Real imag_val = C * (${imag}); 
+        % for d1 in range(3):
+        {
+            % for j in range(3):
+            {
+                int idx = 
+                    (${n}) * ${multipole_dim * 2 * (order + 1)} 
+                    + mi * ${multipole_dim * 2} 
+                    + ${3 + j} * 2;
+                Real Rr = sh_multipoles[idx];
+                Real Ri = sh_multipoles[idx + 1];
+                Real val = Rr * real_val + Ri * imag_val;
+                % for p in range(3):
+                    if (${d1} == 0) {
+                        printf("i=%i p=%i j=%i eipj=%i Dp=%f Rr=%f Ri=%f real_val=%f imag_val=%f \n", ${d1}, ${p}, ${j}, ${e[d1][p][j]}, D${dn(p)}, Rr, Ri, real_val, imag_val);
+                    }
+                    sum[${d1}] += ${e[d1][p][j]} * D${dn(p)} * val;
+                % endfor
+            }
+            % endfor
+        }
+        % endfor
+        for (int d = 0; d < 3; d++) {
+            int idx = 
+                (${n}) * ${multipole_dim * 2 * (order + 1)} 
+                + mi * ${multipole_dim * 2} 
+                + (6 + d) * 2;
+            Real Rr = sh_multipoles[idx];
+            Real Ri = sh_multipoles[idx + 1];
+            sum[d] += Rr * real_val + Ri * imag_val;
+        }
     }
 }
 </%def>
@@ -569,7 +678,10 @@ KERNEL void m2p_U(
                     % if ocl_backend:
                         out[obs_tri_idx * 9 + d1 * 3 + d2] += obsb[d1] * sum[d2];
                     % else:
-                        atomicAdd(&out[obs_tri_idx * 9 + d1 * 3 + d2], obsb[d1] * sum[d2]);
+                        atomicAdd(
+                            &out[obs_tri_idx * 9 + d1 * 3 + d2],
+                            obsb[d1] * sum[d2]
+                        );
                     % endif
                 }
             }

@@ -264,6 +264,13 @@ def report_interactions(fmm_obj):
     n_src_tris = fmm_obj.src_m[1].shape[0]
 
     p2p = count_interactions('p2p', fmm_obj.interactions.p2p)
+    n_p2p = fmm_obj.interactions.p2p.src_n_idxs.shape[0]
+    n_p2m = fmm_obj.interactions.p2m.src_n_idxs.shape[0]
+    n_m2m = sum([
+        fmm_obj.interactions.m2m[i].src_n_idxs.shape[0]
+        for i in range(len(fmm_obj.interactions.m2m))
+    ])
+    n_m2p = fmm_obj.interactions.m2p.src_n_idxs.shape[0]
     total = n_obs_tris * n_src_tris
     not_p2p = total - p2p
 
@@ -272,3 +279,7 @@ def report_interactions(fmm_obj):
     logger.info('total: ' + str(total))
     logger.info('p2p percent: ' + str(p2p / total))
     logger.info('m2p percent: ' + str(not_p2p / total))
+    logger.info('# p2p:' + str(n_p2p))
+    logger.info('# p2m:' + str(n_p2m))
+    logger.info('# m2m:' + str(n_m2m))
+    logger.info('# m2p:' + str(n_m2p))
