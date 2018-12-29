@@ -235,7 +235,7 @@ elasticRT = Kernel(
     '', '',
     surf_curl_obs = False,
     surf_curl_src = True,
-    multipole_dim = 9
+    multipole_dim = 10
 )
 
 elasticRA = Kernel(

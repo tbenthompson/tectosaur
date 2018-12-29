@@ -161,32 +161,37 @@ KERNEL void p2p(
 </%def>
 
 
-<%def name="dR_sum(dsn, dsm, dsrc, real, imag)">
+<%def name="dR_sum(dsn, dsm, p, real, imag)">
 {
     % for j in range(3):
-        sumreal[${dsn}][${dsm}][3 + ${j}] += (
-            ${real} * src_surf_curl[${dsrc}][${j}]
-        );
-        sumimag[${dsn}][${dsm}][3 + ${j}] += (
-            ${imag} * src_surf_curl[${dsrc}][${j}]
-        );
-        % if j == 2:
-        % endif
+        % for k in range(3):
+            sumreal[${dsn}][${dsm}][3] += (
+                ${e[j][p][k]} * ${real} * src_surf_curl[${k}][${j}]
+            );
+            sumimag[${dsn}][${dsm}][3] += (
+                ${e[j][p][k]} * ${imag} * src_surf_curl[${k}][${j}]
+            );
+        % endfor
     % endfor
     % for dobs in range(3):
-        % for p in range(3):
-            % for j in range(3):
-                sumreal[${dsn}][${dsm}][6 + ${dobs}] += (
-                    ${e[dobs][p][j]} * D${dn(p)} * ${real} 
-                    * src_surf_curl[${dsrc}][${j}]
+        % for j in range(3):
+            % for k in range(3):
+                sumreal[${dsn}][${dsm}][4 + ${dobs}] += (
+                    ${e[j][p][k]} * D${dn(dobs)} * ${real} 
+                    * src_surf_curl[${k}][${j}]
                 );
-                sumimag[${dsn}][${dsm}][6 + ${dobs}] += (
-                    ${e[dobs][p][j]} * D${dn(p)} * ${imag} 
-                    * src_surf_curl[${dsrc}][${j}]
+                sumimag[${dsn}][${dsm}][4 + ${dobs}] += (
+                    ${e[j][p][k]} * D${dn(dobs)} * ${imag} 
+                    * src_surf_curl[${k}][${j}]
                 );
             % endfor
         % endfor
     % endfor
+    //TODO: currently ignoring this term in m2p
+    for (int dobs = 0; dobs < 3; dobs++) {
+        sumreal[${dsn}][${dsm}][7 + dobs] += ${real} * nsrc${dn(p)} * invals[dobs];
+        sumimag[${dsn}][${dsm}][7 + dobs] += ${imag} * nsrc${dn(p)} * invals[dobs];
+    }
 }
 </%def>
 
@@ -399,20 +404,20 @@ for (int ni = (${nip}); ni <= ${order}; ni++) {
 
             int mi_diff = mi - full_mip;
             int pos_mi_diff = abs(mi_diff);
-            %for d in range(3):
+            % for d in range(7):
             {
                 ${get_child_multipoles(d)}
                 sumreal[ni][mi][${d}] += realval;
                 sumimag[ni][mi][${d}] += imagval;
-
-                sumreal[ni][mi][3] += D${dn(d)} * realval;
-                sumimag[ni][mi][3] += D${dn(d)} * imagval;
             }
             % endfor
-
             ${get_child_multipoles(3)}
-            sumreal[ni][mi][3] += realval;
-            sumimag[ni][mi][3] += imagval;
+            % for d in range(3):
+            {
+                sumreal[ni][mi][4 + ${d}] += D${dn(d)} * realval;
+                sumimag[ni][mi][4 + ${d}] += D${dn(d)} * imagval;
+            }
+            % endfor
         }
     }
 }
@@ -504,41 +509,48 @@ KERNEL void m2m(
     if (mi > 0) {
         mult = 2.0;
     }
+
+    {
+        Real C = mult * CsRT1;
+        Real real_val = C * (${real});
+        Real imag_val = C * (${imag});
+        for (int d = 0; d < 3; d++) {
+            int idx =
+                (${n}) * ${multipole_dim * 2 * (order + 1)}
+                + mi * ${multipole_dim} * 2
+                + d * 2;
+            Real Rr = sh_multipoles[idx];
+            Real Ri = sh_multipoles[idx + 1];
+            sum[d] += Rr * real_val + Ri * imag_val;
+        }
+    }
+
     
     {
         Real C = mult * CsRT0;
         Real real_val = C * (${real}); 
         Real imag_val = C * (${imag}); 
+
+        int idx = 
+            (${n}) * ${multipole_dim * 2 * (order + 1)} 
+            + mi * ${multipole_dim * 2} 
+            + 3 * 2;
+        Real Rr = sh_multipoles[idx];
+        Real Ri = sh_multipoles[idx + 1];
+        Real Aval = Rr * real_val + Ri * imag_val;
         % for d1 in range(3):
         {
-            % for j in range(3):
-            {
-                int idx = 
-                    (${n}) * ${multipole_dim * 2 * (order + 1)} 
-                    + mi * ${multipole_dim * 2} 
-                    + ${3 + j} * 2;
-                Real Rr = sh_multipoles[idx];
-                Real Ri = sh_multipoles[idx + 1];
-                Real val = Rr * real_val + Ri * imag_val;
-                % for p in range(3):
-                    if (${d1} == 0) {
-                        printf("i=%i p=%i j=%i eipj=%i Dp=%f Rr=%f Ri=%f real_val=%f imag_val=%f \n", ${d1}, ${p}, ${j}, ${e[d1][p][j]}, D${dn(p)}, Rr, Ri, real_val, imag_val);
-                    }
-                    sum[${d1}] += ${e[d1][p][j]} * D${dn(p)} * val;
-                % endfor
-            }
-            % endfor
-        }
-        % endfor
-        for (int d = 0; d < 3; d++) {
             int idx = 
                 (${n}) * ${multipole_dim * 2 * (order + 1)} 
                 + mi * ${multipole_dim * 2} 
-                + (6 + d) * 2;
+                + (4 + ${d1}) * 2;
             Real Rr = sh_multipoles[idx];
             Real Ri = sh_multipoles[idx + 1];
-            sum[d] += Rr * real_val + Ri * imag_val;
+            Real Bval = Rr * real_val + Ri * imag_val;
+
+            sum[${d1}] += D${dn(d1)} * Aval - Bval;
         }
+        % endfor
     }
 }
 </%def>

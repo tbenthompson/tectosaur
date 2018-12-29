@@ -11,55 +11,57 @@ import tectosaur.util.gpu as gpu
 
 def fmm_tester(K_name, far_only = False, one_cell = False):
     np.random.seed(123987)
-    order = 4
-    float_type = np.float64
-    quad_order = 2
-    K_params = np.array([1.0, 0.25])
+    for order in range(2, 13):
+        float_type = np.float64
+        quad_order = 2
+        K_params = np.array([1.0, 0.25])
 
-    n = 20
-    offset = 0.0
-    if far_only:
-        offset = 9.0
-    corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
-    m_src = tct.make_rect(n, n, corners)
-    v = np.random.rand(m_src[1].shape[0] * 9).astype(float_type)
+        n = 20
+        offset = 0.0
+        if far_only:
+            offset = 6.0
+        if far_only and one_cell:
+            offset = 9.0
+        corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
+        m_src = tct.make_rect(n, n, corners)
+        v = np.random.rand(m_src[1].shape[0] * 9).astype(float_type)
 
-    m_obs = tct.make_rect(n, n, corners)
-    m_obs[0][:,0] += offset
+        m_obs = tct.make_rect(n, n, corners)
+        m_obs[0][:,0] += offset
 
-    full_m = concat(m_src, m_obs)
-    src_subset = np.arange(0, m_src[1].shape[0])
-    obs_subset = np.arange(0, m_obs[1].shape[0]) + m_src[1].shape[0]
-    op = tct.TriToTriDirectFarfieldOp(
-        quad_order, K_name, K_params, full_m[0], full_m[1],
-        float_type, obs_subset, src_subset
-    )
-    y1 = op.dot(v)
+        full_m = concat(m_src, m_obs)
+        src_subset = np.arange(0, m_src[1].shape[0])
+        obs_subset = np.arange(0, m_obs[1].shape[0]) + m_src[1].shape[0]
+        op = tct.TriToTriDirectFarfieldOp(
+            quad_order, K_name, K_params, full_m[0], full_m[1],
+            float_type, obs_subset, src_subset
+        )
+        y1 = op.dot(v)
 
-    max_pts_per_cell = 20
-    if one_cell:
-        max_pts_per_cell = int(1e9)
-    fmm = TSFMM(
-        m_obs, m_src, params = K_params, order = order,
-        quad_order = quad_order, float_type = float_type,
-        K_name = K_name,
-        mac = 2.5, max_pts_per_cell = max_pts_per_cell,
-        n_workers_per_block = 128
-    )
-    if far_only:
-        assert(fmm.interactions.p2p.src_n_idxs.shape[0] == 0)
-    report_interactions(fmm)
+        max_pts_per_cell = 2
+        if one_cell:
+            max_pts_per_cell = int(1e9)
+        fmm = TSFMM(
+            m_obs, m_src, params = K_params, order = order,
+            quad_order = quad_order, float_type = float_type,
+            K_name = K_name,
+            mac = 2.5, max_pts_per_cell = max_pts_per_cell,
+            n_workers_per_block = 128
+        )
+        if far_only:
+            assert(fmm.interactions.p2p.src_n_idxs.shape[0] == 0)
+        report_interactions(fmm)
 
-    y2 = fmm.dot(v)
-    print(order, np.linalg.norm((y1 - y2)) / np.linalg.norm(y1))
-    print(y1, y2)
-    np.testing.assert_almost_equal(y1, y2)
+        y2 = fmm.dot(v)
+        print(order, np.linalg.norm((y1 - y2)) / np.linalg.norm(y1))
+    # print(y1, y2)
+    # np.testing.assert_almost_equal(y1, y2)
 
 def test_fmmU():
     fmm_tester('elasticU3')
 
 def test_fmmT():
-    fmm_tester('elasticRT3', one_cell = True, far_only = True)
+    fmm_tester('elasticRT3', far_only = True, one_cell = True)
 
 def benchmark():
     compare = False
