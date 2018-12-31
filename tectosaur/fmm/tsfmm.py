@@ -52,7 +52,7 @@ class TSFMM:
     def load_gpu_module(self):
         quad = gauss2d_tri(self.cfg['quad_order'])
         self.gpu_module = gpu.load_gpu(
-            'fmm/ts_kernels_' + self.cfg['K_name'] + '.cl',
+            'fmm/ts_kernels.cl',
             tmpl_args = dict(
                 order = self.cfg['order'],
                 gpu_float_type = gpu.np_to_c_type(self.cfg['float_type']),

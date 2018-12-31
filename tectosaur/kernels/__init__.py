@@ -52,7 +52,7 @@ elasticU = Kernel(
     ''',
     co_table_filename = 'elasticU_25_0.010000_16_0.000000_8_13_8_coincidenttable.npy',
     adj_table_filename = 'elasticU_25_0.010000_16_0.000000_7_8_adjacenttable.npy',
-    multipole_dim = 4
+    multipole_dim = 7
 )
 
 TA_const_code = '''

@@ -2,13 +2,179 @@
 def dn(dim):
     return ['x', 'y', 'z'][dim]
 from tectosaur.kernels import kernels
+e = [[[int((i - j) * (j - k) * (k - i) / 2) for k in range(3)]
+    for j in range(3)] for i in range(3)]
 %>
 <%
-ceil = 'ceilf'
-if ocl_backend:
-    ceil = 'ceil'
+    multipole_dim = K.multipole_dim
 %>
 ${cluda_preamble}
+
+<%def name="p2m_core(n, m, real, imag)">
+    %if K.name == "elasticU3":
+        % for dobs in range(3):
+            sumreal[${n}][${m}][${dobs}] += ${real} * invals[${dobs}];
+            sumimag[${n}][${m}][${dobs}] += ${imag} * invals[${dobs}];
+        % endfor
+    % elif K.name == "elasticRT3":
+        % for dobs in range(3):
+            % for dsrc in range(3):
+                % for j in range(3):
+                    sumreal[${n}][${m}][${dobs}] += (
+                        ${e[dobs][dsrc][j]} * ${real} * src_surf_curl[${dsrc}][${j}]
+                    );
+                    sumimag[${n}][${m}][${dobs}] += (
+                        ${e[dobs][dsrc][j]} * ${imag} * src_surf_curl[${dsrc}][${j}]
+                    );
+                % endfor
+            % endfor
+        % endfor
+    % endif
+</%def>
+
+<%def name="p2md_core(dsn, dsm, d_idx, real, imag)">
+{
+    % if K.name == "elasticU3":
+        sumreal[${dsn}][${dsm}][3] += ${real} * invals[${d_idx}];
+        sumimag[${dsn}][${dsm}][3] += ${imag} * invals[${d_idx}];
+        % for dobs in range(3):
+            sumreal[${dsn}][${dsm}][4 + ${dobs}] += (
+                D${dn(dobs)} * ${real} * invals[${d_idx}]
+            );
+            sumimag[${dsn}][${dsm}][4 + ${dobs}] += (
+                D${dn(dobs)} * ${imag} * invals[${d_idx}]
+            );
+        % endfor
+    % elif K.name == "elasticRT3":
+        % for j in range(3):
+            % for k in range(3):
+                sumreal[${dsn}][${dsm}][3] += (
+                    ${e[j][d_idx][k]} * ${real} * src_surf_curl[${k}][${j}]
+                );
+                sumimag[${dsn}][${dsm}][3] += (
+                    ${e[j][d_idx][k]} * ${imag} * src_surf_curl[${k}][${j}]
+                );
+            % endfor
+        % endfor
+        % for dobs in range(3):
+            % for j in range(3):
+                % for k in range(3):
+                    sumreal[${dsn}][${dsm}][4 + ${dobs}] += (
+                        ${e[j][d_idx][k]} * D${dn(dobs)} * ${real} 
+                        * src_surf_curl[${k}][${j}]
+                    );
+                    sumimag[${dsn}][${dsm}][4 + ${dobs}] += (
+                        ${e[j][d_idx][k]} * D${dn(dobs)} * ${imag} 
+                        * src_surf_curl[${k}][${j}]
+                    );
+                % endfor
+            % endfor
+        % endfor
+    % endif
+}
+</%def>
+
+<%def name="m2p_core(n, real, imag)">
+{
+    % if K.name == "elasticU3":
+        Real mult = 1.0;
+        if (mi > 0) {
+            mult = 2.0;
+        }
+
+        {
+            Real C = mult * CsU0;
+            Real real_val = C * (${real});
+            Real imag_val = C * (${imag});
+            for (int d = 0; d < 3; d++) {
+                int idx =
+                    (${n}) * ${multipole_dim * 2 * (order + 1)}
+                    + mi * ${multipole_dim} * 2
+                    + d * 2;
+                Real Rr = sh_multipoles[idx];
+                Real Ri = sh_multipoles[idx + 1];
+                sum[d] += Rr * real_val + Ri * imag_val;
+            }
+        }
+
+        
+        {
+            Real C = mult * CsU1;
+            Real real_val = C * (${real}); 
+            Real imag_val = C * (${imag}); 
+
+            int idx = 
+                (${n}) * ${multipole_dim * 2 * (order + 1)} 
+                + mi * ${multipole_dim * 2} 
+                + 3 * 2;
+            Real Rr = sh_multipoles[idx];
+            Real Ri = sh_multipoles[idx + 1];
+            Real Aval = Rr * real_val + Ri * imag_val;
+            % for d1 in range(3):
+            {
+                int idx = 
+                    (${n}) * ${multipole_dim * 2 * (order + 1)} 
+                    + mi * ${multipole_dim * 2} 
+                    + (4 + ${d1}) * 2;
+                Real Rr = sh_multipoles[idx];
+                Real Ri = sh_multipoles[idx + 1];
+                Real Bval = Rr * real_val + Ri * imag_val;
+
+                sum[${d1}] += D${dn(d1)} * Aval - Bval;
+            }
+            % endfor
+        }
+    % elif K.name == "elasticRT3":
+        Real mult = 1.0;
+        if (mi > 0) {
+            mult = 2.0;
+        }
+
+        {
+            Real C = mult * CsRT1;
+            Real real_val = C * (${real});
+            Real imag_val = C * (${imag});
+            for (int d = 0; d < 3; d++) {
+                int idx =
+                    (${n}) * ${multipole_dim * 2 * (order + 1)}
+                    + mi * ${multipole_dim} * 2
+                    + d * 2;
+                Real Rr = sh_multipoles[idx];
+                Real Ri = sh_multipoles[idx + 1];
+                sum[d] += Rr * real_val + Ri * imag_val;
+            }
+        }
+
+        
+        {
+            Real C = mult * CsRT0;
+            Real real_val = C * (${real}); 
+            Real imag_val = C * (${imag}); 
+
+            int idx = 
+                (${n}) * ${multipole_dim * 2 * (order + 1)} 
+                + mi * ${multipole_dim * 2} 
+                + 3 * 2;
+            Real Rr = sh_multipoles[idx];
+            Real Ri = sh_multipoles[idx + 1];
+            Real Aval = Rr * real_val + Ri * imag_val;
+            % for d1 in range(3):
+            {
+                int idx = 
+                    (${n}) * ${multipole_dim * 2 * (order + 1)} 
+                    + mi * ${multipole_dim * 2} 
+                    + (4 + ${d1}) * 2;
+                Real Rr = sh_multipoles[idx];
+                Real Ri = sh_multipoles[idx + 1];
+                Real Bval = Rr * real_val + Ri * imag_val;
+
+                sum[${d1}] += D${dn(d1)} * Aval - Bval;
+            }
+            % endfor
+        }
+    % endif
+}
+</%def>
 
 #define Real ${gpu_float_type}
 
@@ -19,28 +185,11 @@ ${prim.geometry_fncs()}
 CONSTANT Real quad_pts[${quad_pts.size}] = {${str(quad_pts.flatten().tolist())[1:-1]}};
 CONSTANT Real quad_wts[${quad_wts.size}] = {${str(quad_wts.flatten().tolist())[1:-1]}};
 
-<%def name="multipole_sum(n, m, real, imag)">
-    % for d in range(3):
-        sumreal[${n}][${m}][${d}] += ${real} * invals[${d}];
-        sumimag[${n}][${m}][${d}] += ${imag} * invals[${d}];
-    % endfor
-    sumreal[${n}][${m}][3] += ${real} * in_dot_D;
-    sumimag[${n}][${m}][3] += ${imag} * in_dot_D;
-</%def>
-
-<%def name="finish_multipole_sum()">
-    for (int i = 0; i < ${order + 1}; i++) {
-        for (int j = 0; j < ${order + 1}; j++) {
-            for (int d = 0; d < 4; d++) {
-                int idx = this_obs_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
-                    + i * ${4 * 2 * (order + 1)}
-                    + j * 4 * 2
-                    + d * 2;
-                multipoles[idx] = sumreal[i][j][d];
-                multipoles[idx + 1] = sumimag[i][j][d];
-            }
-        }
-    }
+<%def name="multipole_idx(node_idx, n_idx, m_idx, d_idx)">
+    (${node_idx} * ${multipole_dim * 2 * (order + 1) * (order + 1)}
+    + ${n_idx} * ${multipole_dim * 2 * (order + 1)}
+    + ${m_idx} * ${multipole_dim * 2}
+    + ${d_idx} * 2)
 </%def>
 
 KERNEL void p2p(
@@ -69,11 +218,11 @@ KERNEL void p2p(
     const int this_obs_src_start = obs_src_starts[block_idx];
     const int this_obs_src_end = obs_src_starts[block_idx + 1];
 
-    ${kernels['elasticU3'].constants_code}
+    ${K.constants_code}
 
     const int obs_tri_rot_clicks = 0;
-    ${prim.decl_tri_info("obs", False, False)}
-    ${prim.tri_info("obs", "obs_pts", "obs_tris", False, False)}
+    ${prim.decl_tri_info("obs", K.needs_obsn, K.surf_curl_obs)}
+    ${prim.tri_info("obs", "obs_pts", "obs_tris", K.needs_obsn, K.surf_curl_obs)}
 
     Real sum[9];
     for (int d = 0; d < 9; d++) {
@@ -90,8 +239,8 @@ KERNEL void p2p(
                 src_tri_idx++) 
         {
             const int src_tri_rot_clicks = 0;
-            ${prim.decl_tri_info("src", False, False)}
-            ${prim.tri_info("src", "src_pts", "src_tris", False, False)}
+            ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
+            ${prim.tri_info("src", "src_pts", "src_tris", K.needs_srcn, K.surf_curl_src)}
 
             Real in[9];
             for (int k = 0; k < 9; k++) {
@@ -135,7 +284,7 @@ KERNEL void p2p(
                         }
                     % endfor
 
-                    ${prim.call_vector_code(kernels['elasticU3'])}
+                    ${prim.call_vector_code(K)}
 
                     for (int b_obs = 0; b_obs < 3; b_obs++) {
                         % for d_obs in range(3):
@@ -153,6 +302,75 @@ KERNEL void p2p(
     }
 }
 
+<%def name="multipole_sum(n, m, real, imag)">
+    ${p2m_core(n, m, real, imag)}
+    ${out_sum_dR(n, m, real, imag)}
+    if (mi == 1) {
+        ${out_sum_dR_plus1(
+            "(" + n + ")", "(-1)", "(-" + real + ")", "(" + imag + ")"
+        )}
+    }
+</%def>
+
+<%def name="out_sum_dR(n, m, real, imag)">
+    ${out_sum_dR_minus1(n, m, real, imag)}
+    ${out_sum_dR_plus1(n, m, real, imag)}
+    ${out_sum_dR_0(n, m, real, imag)}
+</%def>
+
+<%def name="out_sum_dR_minus1(n, m, real, imag)">
+{
+    int dRn = (${n}) + 1;
+    int dRmm1 = (${m}) - 1;
+    if (0 <= dRn && dRmm1 >= 0 && dRn <= ${order}) {
+        Real dRr1 = -0.5 * (${real});    
+        Real dRi1 = -0.5 * (${imag});        
+        ${p2md_core("dRn", "dRmm1", 0, "dRr1", "dRi1")}
+        Real dRr2 = -0.5 * (${imag});    
+        Real dRi2 = 0.5 * (${real});        
+        ${p2md_core("dRn", "dRmm1", 1, "dRr2", "dRi2")}
+    }
+}
+</%def>
+
+<%def name="out_sum_dR_plus1(n, m, real, imag)">
+{
+    int dRn = (${n}) + 1;
+    int dRmp1 = (${m}) + 1;
+    if (0 <= dRn && dRmp1 <= dRn && dRn <= ${order}) {
+        Real dRr1 = 0.5 * (${real});
+        Real dRi1 = 0.5 * (${imag});
+        ${p2md_core("dRn", "dRmp1", 0, "dRr1", "dRi1")}
+        Real dRr2 = -0.5 * (${imag});
+        Real dRi2 =  0.5 * (${real});
+        ${p2md_core("dRn", "dRmp1", 1, "dRr2", "dRi2")}
+    }
+}
+</%def>
+
+<%def name="out_sum_dR_0(n, m, real, imag)">
+{
+    int dRn = (${n}) + 1;
+    if (0 <= dRn && ${m} <= dRn && dRn <= ${order}) {
+        Real dRr3 = (${real});
+        Real dRi3 = (${imag});
+        ${p2md_core("dRn", m, 2, "dRr3", "dRi3")}
+    }
+}
+</%def>
+
+<%def name="finish_multipole_sum()">
+    for (int i = 0; i < ${order + 1}; i++) {
+        for (int j = 0; j < ${order + 1}; j++) {
+            for (int d = 0; d < ${multipole_dim}; d++) {
+                int idx = ${multipole_idx("this_obs_n_idx", "i", "j", "d")};
+                multipoles[idx] = sumreal[i][j][d];
+                multipoles[idx + 1] = sumimag[i][j][d];
+            }
+        }
+    }
+</%def>
+
 KERNEL void p2m(
     GLOBAL_MEM Real* multipoles,
     GLOBAL_MEM Real* src_in,
@@ -161,8 +379,8 @@ KERNEL void p2m(
     GLOBAL_MEM Real* n_centers,
     GLOBAL_MEM int* n_starts,
     GLOBAL_MEM int* n_ends,
-    GLOBAL_MEM Real* pts,
-    GLOBAL_MEM int* tris)
+    GLOBAL_MEM Real* src_pts,
+    GLOBAL_MEM int* src_tris)
 {
     const int global_idx = get_global_id(0); 
     const int block_idx = global_idx;
@@ -175,12 +393,12 @@ KERNEL void p2m(
     Real xy = n_centers[this_obs_n_idx * 3 + 1];
     Real xz = n_centers[this_obs_n_idx * 3 + 2];
 
-    Real sumreal[${order + 1}][${order + 1}][4];
-    Real sumimag[${order + 1}][${order + 1}][4];
+    Real sumreal[${order + 1}][${order + 1}][${multipole_dim}];
+    Real sumimag[${order + 1}][${order + 1}][${multipole_dim}];
 
     for (int i = 0; i < ${order + 1}; i++) {
         for (int j = 0; j < ${order + 1}; j++) {
-            for (int d = 0; d < 4; d++) {
+            for (int d = 0; d < ${multipole_dim}; d++) {
                 sumreal[i][j][d] = 0.0;
                 sumimag[i][j][d] = 0.0;
             }
@@ -192,8 +410,13 @@ KERNEL void p2m(
             src_tri_idx++) 
     {
         const int src_tri_rot_clicks = 0;
-        ${prim.decl_tri_info("src", False, False)}
-        ${prim.tri_info("src", "pts", "tris", False, False)}
+        ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
+        ${prim.tri_info("src", "src_pts", "src_tris", K.needs_srcn, K.surf_curl_src)}
+        Real in[9];
+        for (int k = 0; k < 9; k++) {
+            in[k] = src_in[src_tri_idx * 9 + k];
+        }
+
         for (int iq = 0; iq < ${quad_wts.shape[0]}; iq++) {
             Real srcxhat = quad_pts[iq * 2 + 0];
             Real srcyhat = quad_pts[iq * 2 + 1];
@@ -215,11 +438,25 @@ KERNEL void p2m(
             for (int d = 0; d < 3; d++) {
                 invals[d] = 0.0;
                 for (int b_src = 0; b_src < 3; b_src++) {
-                    invals[d] += factor * src_in[src_tri_idx * 9 + b_src * 3 + d] * srcb[b_src];
+                    invals[d] += factor * in[b_src * 3 + d] * srcb[b_src];
                 }
             }
 
-            Real in_dot_D = invals[0] * Dx + invals[1] * Dy + invals[2] * Dz;
+
+            % if K.surf_curl_src:
+                Real src_surf_curl[3][3];
+                for (int d = 0; d < 3; d++) {
+                    for (int Ij = 0; Ij < 3; Ij++) {
+                        src_surf_curl[d][Ij] = 0.0;
+                        for (int b_src = 0; b_src < 3; b_src++) {
+                            src_surf_curl[d][Ij] += 
+                                factor * 
+                                bsrc_surf_curl[b_src][Ij]
+                                * in[b_src * 3 + d];
+                        }
+                    }
+                }
+            % endif
 
             Real Rsr = 1.0;
             Real Rsi = 0.0;
@@ -326,13 +563,13 @@ KERNEL void m2m(
     Real xy = n_centers[this_obs_n_idx * 3 + 1];
     Real xz = n_centers[this_obs_n_idx * 3 + 2];
 
-    //TODO: Kahan summation could be helpful?
-    Real sumreal[${order + 1}][${order + 1}][4];
-    Real sumimag[${order + 1}][${order + 1}][4];
+    //TODO: Could Kahan summation be helpful?
+    Real sumreal[${order + 1}][${order + 1}][${multipole_dim}];
+    Real sumimag[${order + 1}][${order + 1}][${multipole_dim}];
 
     for (int i = 0; i < ${order + 1}; i++) {
         for (int j = 0; j < ${order + 1}; j++) {
-            for (int d = 0; d < 4; d++) {
+            for (int d = 0; d < ${multipole_dim}; d++) {
                 sumreal[i][j][d] = 0.0;
                 sumimag[i][j][d] = 0.0;
             }
@@ -385,105 +622,6 @@ KERNEL void m2m(
     ${finish_multipole_sum()}
 }
 
-<%def name="out_sum_S_U(n, real, imag)">
-{
-    ${out_sum_dS("(" + n + ")", "mi", "(" + real + ")", "(" + imag + ")")}
-
-    Real mult = 1.0;
-    if (mi > 0) {
-        mult = 2.0;
-    }
-    
-    Real C = mult * CsU0;
-    Real real_val = C * (${real}); 
-    Real imag_val = C * (${imag}); 
-    for (int d = 0; d < 3; d++) {
-        int idx = (${n}) * ${4 * 2 * (order + 1)} + mi * 4 * 2 + d * 2;
-        Real Rr = sh_multipoles[idx];
-        Real Ri = sh_multipoles[idx + 1];
-        sum[d] += Rr * real_val + Ri * imag_val;
-    }
-
-    if (mi == 1) {
-        ${out_sum_dS_plus1("(" + n + ")", "(-1)", "(-" + real + ")", "(" + imag + ")")}
-    }
-}
-</%def>
-
-<%def name="out_sum_dS_minus1(n, m, real, imag)">
-{
-    int dSn = (${n}) - 1;
-    int dSmm1 = (${m}) - 1;
-    if (dSmm1 >= 0) {
-        Real dSr1 = -0.5 * (${real});    
-        Real dSi1 = -0.5 * (${imag});        
-        ${dS_sum("dSn", "dSmm1", 0, "dSr1", "dSi1")}
-        Real dSr2 = -0.5 * (${imag});    
-        Real dSi2 = 0.5 * (${real});        
-        ${dS_sum("dSn", "dSmm1", 1, "dSr2", "dSi2")}
-    }
-}
-</%def>
-
-<%def name="out_sum_dS_plus1(n, m, real, imag)">
-{
-    int dSn = (${n}) - 1;
-    int dSmp1 = (${m}) + 1;
-    if (dSmp1 <= dSn) {
-        Real dSr1 = 0.5 * (${real});        
-        Real dSi1 = 0.5 * (${imag});        
-        ${dS_sum("dSn", "dSmp1", 0, "dSr1", "dSi1")}
-        Real dSr2 = -0.5 * (${imag});        
-        Real dSi2 =  0.5 * (${real});        
-        ${dS_sum("dSn", "dSmp1", 1, "dSr2", "dSi2")}
-    }
-}
-</%def>
-
-<%def name="out_sum_dS_0(n, m, real, imag)">
-{
-    int dSn = (${n}) - 1;
-    if (${m} <= dSn) {
-        Real dSr3 = -(${real});
-        Real dSi3 = -(${imag});
-        ${dS_sum("dSn", m, 2, "dSr3", "dSi3")}
-    }
-}
-</%def>
-
-<%def name="out_sum_dS(n, m, real, imag)">
-    ${out_sum_dS_minus1(n, m, real, imag)}
-    ${out_sum_dS_plus1(n, m, real, imag)}
-    ${out_sum_dS_0(n, m, real, imag)}
-</%def>
-
-<%def name="dS_sum(dsn, dsm, d1, real, imag)">
-{
-    Real mult = 1.0;
-    if (${dsm} > 0) {
-        mult = 2.0;
-    }
-    Real C = mult * CsU1;
-    Real real_term = C * ${real};
-    Real imag_term = C * ${imag};
-    int base_idx = (${dsn}) * ${4 * 2 * (order + 1)} + abs(${dsm}) * 4 * 2;
-    % for d2 in range(3):
-    {
-        int idx = base_idx + ${d2} * 2;
-        Real Rr = sh_multipoles[idx];
-        Real Ri = sh_multipoles[idx + 1];
-        Real v = D${dn(d2)} * (Rr * real_term + Ri * imag_term);
-        sum[${d1}] -= v;
-    }
-    % endfor
-    int idx = base_idx + 3 * 2;
-    Real Rr = sh_multipoles[idx];
-    Real Ri = sh_multipoles[idx + 1];
-    Real v =  Rr * real_term + Ri * imag_term;
-    sum[${d1}] += v;
-}
-</%def>
-
 
 KERNEL void m2p_U(
     GLOBAL_MEM Real* out,
@@ -506,15 +644,12 @@ KERNEL void m2p_U(
     const int this_obs_src_start = obs_src_starts[block_idx];
     const int this_obs_src_end = obs_src_starts[block_idx + 1];
 
-    const Real G = params[0];
-    const Real nu = params[1];
-    const Real CsU0 = (3.0-4.0*nu)/(G*16.0*M_PI*(1.0-nu));
-    const Real CsU1 = 1.0/(G*16.0*M_PI*(1.0-nu));
+    ${K.constants_code}
 
     <%
-        n_multipoles = (order + 1) ** 2 * 4 * 2
+        multipoles_per_cell = (order + 1) ** 2 * multipole_dim * 2
     %>
-    LOCAL_MEM Real sh_multipoles[${n_multipoles}];
+    LOCAL_MEM Real sh_multipoles[${multipoles_per_cell}];
 
     int n_start = obs_n_starts[this_obs_n_idx];
     int n_end = obs_n_ends[this_obs_n_idx];
@@ -564,10 +699,10 @@ KERNEL void m2p_U(
             const int this_src_n_idx = src_n_idxs[src_block_idx];
             LOCAL_BARRIER;
             for (int multipole_idx = worker_idx;
-                multipole_idx < ${n_multipoles};
+                multipole_idx < ${multipoles_per_cell};
                 multipole_idx += ${n_workers_per_block}) 
             {
-                int full_arr_idx = this_src_n_idx * ${n_multipoles} + multipole_idx;
+                int full_arr_idx = this_src_n_idx * ${multipoles_per_cell} + multipole_idx;
                 sh_multipoles[multipole_idx] = multipoles[full_arr_idx];
             }
             LOCAL_BARRIER;
@@ -590,7 +725,7 @@ KERNEL void m2p_U(
             Real Ssr = sqrt(invr2);
             Real Ssi = 0.0;
             for (int mi = 0; mi < ${order + 1}; mi++) {
-                ${out_sum_S_U("mi", "Ssr", "Ssi")}
+                ${m2p_core("mi", "Ssr", "Ssi")}
 
                 Real Sm2r = 0.0;
                 Real Sm2i = 0.0;
@@ -601,7 +736,7 @@ KERNEL void m2p_U(
                     Real t2f = ni * ni - mi * mi;
                     Real Svr = invr2 * (t1f * Sm1r - t2f * Sm2r);
                     Real Svi = invr2 * (t1f * Sm1i - t2f * Sm2i);
-                    ${out_sum_S_U("ni + 1", "Svr", "Svi")}
+                    ${m2p_core("ni + 1", "Svr", "Svi")}
 
                     Sm2r = Sm1r;
                     Sm2i = Sm1i;
@@ -622,7 +757,10 @@ KERNEL void m2p_U(
                     % if ocl_backend:
                         out[obs_tri_idx * 9 + d1 * 3 + d2] += obsb[d1] * sum[d2];
                     % else:
-                        atomicAdd(&out[obs_tri_idx * 9 + d1 * 3 + d2], obsb[d1] * sum[d2]);
+                        atomicAdd(
+                            &out[obs_tri_idx * 9 + d1 * 3 + d2],
+                            obsb[d1] * sum[d2]
+                        );
                     % endif
                 }
             }
