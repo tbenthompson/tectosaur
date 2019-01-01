@@ -248,7 +248,8 @@ elasticRA = Kernel(
     ''',
     '', '',
     surf_curl_obs = True,
-    surf_curl_src = False
+    surf_curl_src = False,
+    multipole_dim = 7
 )
 
 elasticRH = Kernel(

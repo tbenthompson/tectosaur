@@ -29,6 +29,11 @@ ${cluda_preamble}
                 % endfor
             % endfor
         % endfor
+    % elif K.name == "elasticRA3":
+        % for dsrc in range(3):
+            sumreal[${n}][${m}][${dsrc}] += ${real} * invals[${dsrc}];
+            sumimag[${n}][${m}][${dsrc}] += ${imag} * invals[${dsrc}];
+        % endfor
     % endif
 </%def>
 
@@ -47,28 +52,39 @@ ${cluda_preamble}
         % endfor
     % elif K.name == "elasticRT3":
         % for j in range(3):
-            % for k in range(3):
+            % for dsrc in range(3):
                 sumreal[${dsn}][${dsm}][3] += (
-                    ${e[j][d_idx][k]} * ${real} * src_surf_curl[${k}][${j}]
+                    ${e[j][d_idx][dsrc]} * ${real} * src_surf_curl[${dsrc}][${j}]
                 );
                 sumimag[${dsn}][${dsm}][3] += (
-                    ${e[j][d_idx][k]} * ${imag} * src_surf_curl[${k}][${j}]
+                    ${e[j][d_idx][dsrc]} * ${imag} * src_surf_curl[${dsrc}][${j}]
                 );
             % endfor
         % endfor
         % for dobs in range(3):
             % for j in range(3):
-                % for k in range(3):
+                % for dsrc in range(3):
                     sumreal[${dsn}][${dsm}][4 + ${dobs}] += (
-                        ${e[j][d_idx][k]} * D${dn(dobs)} * ${real} 
-                        * src_surf_curl[${k}][${j}]
+                        ${e[j][d_idx][dsrc]} * D${dn(dobs)} * ${real} 
+                        * src_surf_curl[${dsrc}][${j}]
                     );
                     sumimag[${dsn}][${dsm}][4 + ${dobs}] += (
-                        ${e[j][d_idx][k]} * D${dn(dobs)} * ${imag} 
-                        * src_surf_curl[${k}][${j}]
+                        ${e[j][d_idx][dsrc]} * D${dn(dobs)} * ${imag} 
+                        * src_surf_curl[${dsrc}][${j}]
                     );
                 % endfor
             % endfor
+        % endfor
+    % elif K.name == "elasticRA3":
+        sumreal[${dsn}][${dsm}][3] += ${real} * invals[${d_idx}];
+        sumimag[${dsn}][${dsm}][3] += ${imag} * invals[${d_idx}];
+        % for p in range(3):
+            sumreal[${dsn}][${dsm}][4 + ${p}] += (
+                D${dn(p)} * ${real} * invals[${d_idx}]
+            );
+            sumimag[${dsn}][${dsm}][4 + ${p}] += (
+                D${dn(p)} * ${imag} * invals[${d_idx}]
+            );
         % endfor
     % endif
 }
@@ -169,6 +185,76 @@ ${cluda_preamble}
                 Real Bval = Rr * real_val + Ri * imag_val;
 
                 sum[${d1}] += D${dn(d1)} * Aval - Bval;
+            }
+            % endfor
+        }
+    % elif K.name == "elasticRA3":
+        Real mult = 1.0;
+        if (mi > 0) {
+            mult = 2.0;
+        }
+
+        {
+            Real C = mult * CsRT1;
+            Real real_val = C * (${real});
+            Real imag_val = C * (${imag});
+            % for dsrc in range(3):
+            {
+                int idx =
+                    (${n}) * ${multipole_dim * 2 * (order + 1)}
+                    + mi * ${multipole_dim} * 2
+                    + ${dsrc} * 2;
+                Real Rr = sh_multipoles[idx];
+                Real Ri = sh_multipoles[idx + 1];
+                Real SR = Rr * real_val + Ri * imag_val;
+                % for dobs in range(3):
+                    % for j in range(3):
+                        for (int bobs = 0; bobs < 3; bobs++) {
+                            Real term = (
+                                ${e[dsrc][dobs][j]}
+                                * bobs_surf_curl[bobs][${j}] 
+                                * SR
+                            );
+                            basissum[bobs][${dobs}] += term;
+                        }
+                    % endfor
+                % endfor
+            }
+            % endfor
+        }
+
+        {
+            Real C = mult * CsRT0;
+            Real real_val = C * (${real}); 
+            Real imag_val = C * (${imag}); 
+
+            int idx = 
+                (${n}) * ${multipole_dim * 2 * (order + 1)} 
+                + mi * ${multipole_dim * 2} 
+                + 3 * 2;
+            Real Rr = sh_multipoles[idx];
+            Real Ri = sh_multipoles[idx + 1];
+            Real Aval = Rr * real_val + Ri * imag_val;
+            % for p in range(3):
+            {
+                int idx = 
+                    (${n}) * ${multipole_dim * 2 * (order + 1)} 
+                    + mi * ${multipole_dim * 2} 
+                    + (4 + ${p}) * 2;
+                Real Rr = sh_multipoles[idx];
+                Real Ri = sh_multipoles[idx + 1];
+                Real Bval = Rr * real_val + Ri * imag_val;
+                % for dobs in range(3):
+                % for j in range(3):
+                    for (int bobs = 0; bobs < 3; bobs++) {
+                        basissum[bobs][${dobs}] += (
+                            ${e[j][p][dobs]} 
+                            * (D${dn(p)} * Aval - Bval) 
+                            * bobs_surf_curl[bobs][${j}]
+                        );
+                    }
+                % endfor
+                % endfor
             }
             % endfor
         }
@@ -669,18 +755,23 @@ KERNEL void m2p_U(
         int obs_tri_idx = n_start + (outer_idx - iq) / ${quad_wts.shape[0]};
 
         Real sum[3];
+        Real basissum[3][3];
         for (int d1 = 0; d1 < 3; d1++) {
             sum[d1] = 0.0;
+            for (int d2 = 0; d2 < 3; d2++) {
+                basissum[d1][d2] = 0.0;
+            }
         }
+
 
         Real obsxhat = quad_pts[iq * 2 + 0];
         Real obsyhat = quad_pts[iq * 2 + 1];
         Real quadw = quad_wts[iq];
 
         const int obs_tri_rot_clicks = 0;
-        ${prim.decl_tri_info("obs", False, False)}
+        ${prim.decl_tri_info("obs", K.needs_obsn, K.surf_curl_obs)}
         if (outer_idx < n_outer_idxs) {
-            ${prim.tri_info("obs", "pts", "tris", False, False)}
+            ${prim.tri_info("obs", "pts", "tris", K.needs_obsn, K.surf_curl_obs)}
         }
         ${prim.basis("obs")}
         ${prim.pts_from_basis(
@@ -688,8 +779,11 @@ KERNEL void m2p_U(
             lambda b, d: "obs_tri[" + str(b) + "][" + str(d) + "]", 3
         )}
 
-        for (int d = 0; d < 3; d++) {
-            obsb[d] *= quadw * obs_jacobian;
+        for (int d1 = 0; d1 < 3; d1++) {
+            obsb[d1] *= quadw * obs_jacobian;
+            for (int d2 = 0; d2 < 3; d2++) {
+                bobs_surf_curl[d1][d2] *= quadw * obs_jacobian;
+            }
         }
 
         for (int src_block_idx = this_obs_src_start;
@@ -751,15 +845,21 @@ KERNEL void m2p_U(
             }
         }
 
+        for (int d1 = 0; d1 < 3; d1++) {
+            for (int d2 = 0; d2 < 3; d2++) {
+                basissum[d1][d2] += obsb[d1] * sum[d2];
+            }
+        }
+
         if (outer_idx < n_outer_idxs) {
             for (int d1 = 0; d1 < 3; d1++) {
                 for (int d2 = 0; d2 < 3; d2++) {
                     % if ocl_backend:
-                        out[obs_tri_idx * 9 + d1 * 3 + d2] += obsb[d1] * sum[d2];
+                        out[obs_tri_idx * 9 + d1 * 3 + d2] += basissum[d1][d2];
                     % else:
                         atomicAdd(
                             &out[obs_tri_idx * 9 + d1 * 3 + d2],
-                            obsb[d1] * sum[d2]
+                            basissum[d1][d2]
                         );
                     % endif
                 }

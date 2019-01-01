@@ -63,6 +63,9 @@ def test_fmmU():
 def test_fmmT():
     fmm_tester('elasticRT3', far_only = True, one_cell = True)
 
+def test_fmmA():
+    fmm_tester('elasticRA3', far_only = True, one_cell = True)
+
 def benchmark():
     compare = False
     np.random.seed(123456)
