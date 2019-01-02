@@ -115,34 +115,49 @@ ${cluda_preamble}
 </%def>
 
 <%def name="m2m_core()">
-% if K.name == "elasticU3" or K.name == "elasticRT3":
-    %for d in range(3):
+% if K.name == "elasticU3" or K.name == "elasticRT3" or K.name == "elasticRA3":
+    %for d in range(7):
+    {
+        ${get_child_multipoles(d)}
+        sumreal[ni][mi][${d}] += realval;
+        sumimag[ni][mi][${d}] += imagval;
+        % if d == 3:
+            % for d2 in range(3):
+            {
+                sumreal[ni][mi][${4 + d2}] += D${dn(d2)} * realval;
+                sumimag[ni][mi][${4 + d2}] += D${dn(d2)} * imagval;
+            }
+            % endfor
+        % endif
+    }
+    % endfor
+% elif K.name == "elasticRH3":
+    % for d in range(10):
     {
         ${get_child_multipoles(d)}
         sumreal[ni][mi][${d}] += realval;
         sumimag[ni][mi][${d}] += imagval;
     }
     % endfor
-
-    ${get_child_multipoles(3)}
-    sumreal[ni][mi][3] += realval;
-    sumimag[ni][mi][3] += imagval;
-    %for d in range(3):
+    % for j in range(3):
     {
-        sumreal[ni][mi][${4 + d}] += D${dn(d)} * realval;
-        sumimag[ni][mi][${4 + d}] += D${dn(d)} * imagval;
+        ${get_child_multipoles(10 + j)}
+        sumreal[ni][mi][${10 + j}] += realval;
+        sumimag[ni][mi][${10 + j}] += imagval;
+        % for dobs in range(3):
+            sumreal[ni][mi][${13 + dobs * 3 + j}] += D${dn(dobs)} * realval;
+            sumimag[ni][mi][${13 + dobs * 3 + j}] += D${dn(dobs)} * imagval;
+        % endfor
+
+        % for dobs in range(3):
+        {
+            ${get_child_multipoles(13 + dobs * 3 + j)}
+            sumreal[ni][mi][${13 + dobs * 3 + j}] += realval;
+            sumimag[ni][mi][${13 + dobs * 3 + j}] += imagval;
+        }
+        % endfor
     }
     % endfor
-
-    %for d in range(3):
-    {
-        ${get_child_multipoles(4 + d)}
-        sumreal[ni][mi][${4 + d}] += realval;
-        sumimag[ni][mi][${4 + d}] += imagval;
-    }
-    % endfor
-% elif K.name == "elasticRA3":
-% elif K.name == "elasticRH3":
 % endif
 </%def>
 

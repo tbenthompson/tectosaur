@@ -11,9 +11,9 @@ import tectosaur.util.gpu as gpu
 
 def fmm_tester(K_name, far_only = False, one_cell = False):
     np.random.seed(123987)
-    for order in range(2, 13):
+    for order in [8]:#range(2, 13):
         float_type = np.float64
-        quad_order = 3
+        quad_order = 2
         K_params = np.array([1.0, 0.25])
 
         n = 20
@@ -55,7 +55,7 @@ def fmm_tester(K_name, far_only = False, one_cell = False):
         y2 = fmm.dot(v)
         print(order, np.linalg.norm((y1 - y2)) / np.linalg.norm(y1))
     print(y1, y2)
-    np.testing.assert_almost_equal(y1, y2)
+    np.testing.assert_almost_equal(y1, y2, 5)
 
 def test_fmmU():
     fmm_tester('elasticU3')
@@ -64,10 +64,10 @@ def test_fmmT():
     fmm_tester('elasticRT3')
 
 def test_fmmA():
-    fmm_tester('elasticRA3', far_only = True, one_cell = True)
+    fmm_tester('elasticRA3')
 
 def test_fmmH():
-    fmm_tester('elasticRH3', far_only = True, one_cell = True)
+    fmm_tester('elasticRH3')
 
 def benchmark():
     compare = False
