@@ -34,6 +34,21 @@ ${cluda_preamble}
             sumreal[${n}][${m}][${dsrc}] += ${real} * invals[${dsrc}];
             sumimag[${n}][${m}][${dsrc}] += ${imag} * invals[${dsrc}];
         % endfor
+    % elif K.name == "elasticRH3":
+        % for dsrc in range(3):
+            sumreal[${n}][${m}][0] += ${real} * src_surf_curl[${dsrc}][${dsrc}];
+            sumimag[${n}][${m}][0] += ${imag} * src_surf_curl[${dsrc}][${dsrc}];
+        % endfor
+        % for dobs in range(3):
+            % for j in range(3):
+                sumreal[${n}][${m}][1 + ${dobs * 3 + j}] += (
+                    ${real} * src_surf_curl[${dobs}][${j}]
+                );
+                sumimag[${n}][${m}][1 + ${dobs * 3 + j}] += (
+                    ${imag} * src_surf_curl[${dobs}][${j}]
+                );
+            % endfor
+        % endfor
     % endif
 </%def>
 
@@ -86,8 +101,49 @@ ${cluda_preamble}
                 D${dn(p)} * ${imag} * invals[${d_idx}]
             );
         % endfor
+    % elif K.name == "elasticRH3":
+        % for j in range(3):
+            sumreal[${dsn}][${dsm}][10 + ${j}] += ${real} * src_surf_curl[${d_idx}][${j}];
+            sumimag[${dsn}][${dsm}][10 + ${j}] += ${imag} * src_surf_curl[${d_idx}][${j}];
+            % for dobs in range(3):
+                sumreal[${dsn}][${dsm}][13 + ${dobs * 3 + j}] += D${dn(dobs)} * ${real} * src_surf_curl[${d_idx}][${j}];
+                sumimag[${dsn}][${dsm}][13 + ${dobs * 3 + j}] += D${dn(dobs)} * ${imag} * src_surf_curl[${d_idx}][${j}];
+            % endfor
+        % endfor
     % endif
 }
+</%def>
+
+<%def name="m2m_core()">
+% if K.name == "elasticU3" or K.name == "elasticRT3":
+    %for d in range(3):
+    {
+        ${get_child_multipoles(d)}
+        sumreal[ni][mi][${d}] += realval;
+        sumimag[ni][mi][${d}] += imagval;
+    }
+    % endfor
+
+    ${get_child_multipoles(3)}
+    sumreal[ni][mi][3] += realval;
+    sumimag[ni][mi][3] += imagval;
+    %for d in range(3):
+    {
+        sumreal[ni][mi][${4 + d}] += D${dn(d)} * realval;
+        sumimag[ni][mi][${4 + d}] += D${dn(d)} * imagval;
+    }
+    % endfor
+
+    %for d in range(3):
+    {
+        ${get_child_multipoles(4 + d)}
+        sumreal[ni][mi][${4 + d}] += realval;
+        sumimag[ni][mi][${4 + d}] += imagval;
+    }
+    % endfor
+% elif K.name == "elasticRA3":
+% elif K.name == "elasticRH3":
+% endif
 </%def>
 
 <%def name="m2p_core(n, real, imag)">
@@ -113,7 +169,6 @@ ${cluda_preamble}
             }
         }
 
-        
         {
             Real C = mult * CsU1;
             Real real_val = C * (${real}); 
@@ -258,6 +313,83 @@ ${cluda_preamble}
             }
             % endfor
         }
+    % elif K.name == "elasticRH3":
+        Real mult = 1.0;
+        if (mi > 0) {
+            mult = 2.0;
+        }
+        {
+            Real C = mult * CsRH0;
+            Real real_val = C * (${real});
+            Real imag_val = C * (${imag});
+            {
+                int idx =
+                    (${n}) * ${multipole_dim * 2 * (order + 1)}
+                    + mi * ${multipole_dim} * 2
+                    + 0 * 2;
+                Real Rr = sh_multipoles[idx];
+                Real Ri = sh_multipoles[idx + 1];
+                Real SR = CsRH1 * (Rr * real_val + Ri * imag_val);
+                % for dobs in range(3):
+                    for (int bobs = 0; bobs < 3; bobs++) {
+                        basissum[bobs][${dobs}] += bobs_surf_curl[bobs][${dobs}] * SR;
+                    }
+                % endfor
+            }
+
+            % for dobs in range(3):
+            % for j in range(3):
+            {
+                int idx =
+                    (${n}) * ${multipole_dim * 2 * (order + 1)}
+                    + mi * ${multipole_dim} * 2
+                    + (1 + ${dobs * 3 + j}) * 2;
+                Real Rr = sh_multipoles[idx];
+                Real Ri = sh_multipoles[idx + 1];
+                Real SR = Rr * real_val + Ri * imag_val;
+                for (int bobs = 0; bobs < 3; bobs++) {
+                    basissum[bobs][${dobs}] -= 2 * bobs_surf_curl[bobs][${j}] * SR;
+                    basissum[bobs][${j}] += CsRH2 * bobs_surf_curl[bobs][${dobs}] * SR;
+                }
+            }
+            % endfor
+            % endfor
+
+            % for j in range(3):
+            {
+                int idx =
+                    (${n}) * ${multipole_dim * 2 * (order + 1)}
+                    + mi * ${multipole_dim} * 2
+                    + (10 + ${j}) * 2;
+                Real Rr = sh_multipoles[idx];
+                Real Ri = sh_multipoles[idx + 1];
+                Real SR = Rr * real_val + Ri * imag_val;
+                % for dobs in range(3):
+                for (int bobs = 0; bobs < 3; bobs++) {
+                    basissum[bobs][${dobs}] -= 2 * D${dn(dobs)} * bobs_surf_curl[bobs][${j}] * SR;
+                }
+                % endfor
+            }
+            % endfor
+
+            % for dobs in range(3):
+            % for j in range(3):
+            {
+                int idx =
+                    (${n}) * ${multipole_dim * 2 * (order + 1)}
+                    + mi * ${multipole_dim} * 2
+                    + (13 + ${dobs * 3 + j}) * 2;
+                Real Rr = sh_multipoles[idx];
+                Real Ri = sh_multipoles[idx + 1];
+                Real SR = Rr * real_val + Ri * imag_val;
+                for (int bobs = 0; bobs < 3; bobs++) {
+                    basissum[bobs][${dobs}] += 2 * bobs_surf_curl[bobs][${j}] * SR;
+                }
+            }
+            % endfor
+            % endfor
+        }
+
     % endif
 }
 </%def>
@@ -606,23 +738,12 @@ for (int ni = (${nip}); ni <= ${order}; ni++) {
 
             int mi_diff = mi - full_mip;
             int pos_mi_diff = abs(mi_diff);
-            int start_idx = this_src_n_idx * ${4 * 2 * (order + 1) * (order + 1)}
-                + (ni_diff) * ${4 * 2 * (order + 1)}
-                + (pos_mi_diff) * 4 * 2;
-            %for d in range(3):
+            int start_idx = this_src_n_idx * ${multipole_dim * 2 * (order + 1) * (order + 1)}
+                + (ni_diff) * ${multipole_dim * 2 * (order + 1)}
+                + (pos_mi_diff) * ${multipole_dim * 2};
             {
-                ${get_child_multipoles(d)}
-                sumreal[ni][mi][${d}] += realval;
-                sumimag[ni][mi][${d}] += imagval;
-
-                sumreal[ni][mi][3] += D${dn(d)} * realval;
-                sumimag[ni][mi][3] += D${dn(d)} * imagval;
+                ${m2m_core()}
             }
-            % endfor
-
-            ${get_child_multipoles(3)}
-            sumreal[ni][mi][3] += realval;
-            sumimag[ni][mi][3] += imagval;
         }
     }
 }
@@ -781,9 +902,11 @@ KERNEL void m2p_U(
 
         for (int d1 = 0; d1 < 3; d1++) {
             obsb[d1] *= quadw * obs_jacobian;
-            for (int d2 = 0; d2 < 3; d2++) {
-                bobs_surf_curl[d1][d2] *= quadw * obs_jacobian;
-            }
+            % if K.surf_curl_obs:
+                for (int d2 = 0; d2 < 3; d2++) {
+                    bobs_surf_curl[d1][d2] *= quadw * obs_jacobian;
+                }
+            % endif
         }
 
         for (int src_block_idx = this_obs_src_start;
