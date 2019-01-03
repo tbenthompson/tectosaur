@@ -71,44 +71,29 @@ class TriToTriDirectFarfieldOp:
 class FMMFarfieldOp:
     mac = attr.ib()
     pts_per_cell = attr.ib()
-    alpha = attr.ib(default = 1e-5)
+    order = attr.ib()
     def __call__(self, nq_far, K_name, params, pts, tris, float_type,
             obs_subset, src_subset):
         return FMMFarfieldOpImpl(
             nq_far, K_name, params, pts, tris, float_type,
-            obs_subset, src_subset, self.mac, self.pts_per_cell, self.alpha
+            obs_subset, src_subset, self.mac, self.pts_per_cell, self.order
         )
 
 class FMMFarfieldOpImpl:
     def __init__(self, nq_far, K_name, params, pts, tris, float_type,
-            obs_subset, src_subset, mac, pts_per_cell, alpha):
-
-        cfg = fmm.make_config(
-            K_name, params, 1.1, mac, 2, nq_far, float_type,
-            alpha = alpha
+            obs_subset, src_subset, mac, pts_per_cell, order):
+        self.fmm = TSFMM(
+            m_obs, m_src, params = params, order = order,
+            quad_order = nq_far, float_type = float_type,
+            K_name = K_name,
+            mac = mac, max_pts_per_cell = pts_per_cell,
+            n_workers_per_block = 128
         )
-
-        m_obs = (pts, tris[obs_subset])
-        m_src = (pts, tris[src_subset])
-        self.obs_tree = fmm.make_tree(m_obs, cfg, pts_per_cell)
-        self.src_tree = fmm.make_tree(m_src, cfg, pts_per_cell)
-        self.fmm_obj = fmm.FMM(
-            self.obs_tree, m_obs,
-            self.src_tree, m_src,
-            cfg
-        )
-        self.evaluator = fmm.FMMEvaluator(self.fmm_obj)
 
     def dot(self, v):
         t = Timer(output_fnc = logger.debug)
-        v_tree = self.fmm_obj.to_tree(v)
-        t.report('to tree space')
-
-        fmm_out = self.evaluator.eval(v_tree)
+        fmm_out = self.fmm.dot(v)
         t.report('fmm eval')
-
-        out = self.fmm_obj.to_orig(fmm_out)
-        t.report('to output space')
         return out
 
     def nearfield_dot(self, v):

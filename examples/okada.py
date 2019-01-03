@@ -345,11 +345,9 @@ def build_and_solve_T_regularized(data):
         8, 8, 8, 2, 5, 2.5,
         'elasticRT3', 'elasticRT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
         data.float_type,
-        # farfield_op_type = TriToTriDirectFarfieldOp
-        farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 100)
+        farfield_op_type = TriToTriDirectFarfieldOp
+        # farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 100)
     )
-    from tectosaur.fmm.builder import report_interactions
-    report_interactions(T_op.farfield.fmm_obj)
     timer.report("Integrals")
 
     mass_op = MultOp(MassOp(3, data.all_mesh[0], data.all_mesh[1]), 0.5)
@@ -379,8 +377,6 @@ def build_and_solve_H_regularized(data):
         # farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 10000)
     )
     iop = SumOp([H_op])
-    # from tectosaur.fmm.builder import report_interactions
-    # report_interactions(H_op.farfield.fmm_obj)
     timer.report("Integrals")
 
     soln = solve.iterative_solve(iop, cs, tol = 1e-5)

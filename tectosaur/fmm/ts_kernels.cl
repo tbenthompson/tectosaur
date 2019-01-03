@@ -878,9 +878,9 @@ KERNEL void m2p_U(
     int n_tris = n_end - n_start;
     int n_outer_idxs = n_tris * ${quad_wts.shape[0]};
     % if ocl_backend:
-    int outer_idx_loop_max = n_outer_idxs;
+        int outer_idx_loop_max = n_outer_idxs;
     % else:
-    int outer_idx_loop_max = ceil(((float)n_outer_idxs) / ((float)${n_workers_per_block}));
+        int outer_idx_loop_max = ceil(((float)n_outer_idxs) / ((float)${n_workers_per_block}));
     % endif
     for (int group_outer_idx = 0;
             group_outer_idx < outer_idx_loop_max;
