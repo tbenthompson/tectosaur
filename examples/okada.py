@@ -346,7 +346,7 @@ def build_and_solve_T_regularized(data):
         'elasticRT3', 'elasticRT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
         data.float_type,
         farfield_op_type = TriToTriDirectFarfieldOp
-        # farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 100)
+        # farfield_op_type = FMMFarfieldOp(mac = 2.5, pts_per_cell = 100, order = 4)
     )
     timer.report("Integrals")
 
@@ -370,11 +370,11 @@ def build_and_solve_H_regularized(data):
     timer.report("Constraints")
 
     H_op = RegularizedSparseIntegralOp(
-        10, 10, 8, 3, 6, 3.0,
+        6, 6, 6, 2, 5, 2.5,
         'elasticRH3', 'elasticRH3',
         data.k_params, data.all_mesh[0], data.all_mesh[1], data.float_type,
-        farfield_op_type = TriToTriDirectFarfieldOp
-        # farfield_op_type = FMMFarfieldOp(mac = 4.5, pts_per_cell = 10000)
+        # farfield_op_type = TriToTriDirectFarfieldOp
+        farfield_op_type = FMMFarfieldOp(mac = 2.5, pts_per_cell = 100, order = 2)
     )
     iop = SumOp([H_op])
     timer.report("Integrals")

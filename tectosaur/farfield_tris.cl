@@ -9,6 +9,9 @@ ${cluda_preamble}
 
 #define Real ${float_type}
 
+CONSTANT Real quad_pts[${quad_pts.size}] = {${str(quad_pts.flatten().tolist())[1:-1]}};
+CONSTANT Real quad_wts[${quad_wts.size}] = {${str(quad_wts.flatten().tolist())[1:-1]}};
+
 <%namespace name="prim" file="integral_primitives.cl"/>
 
 ${prim.geometry_fncs()}
@@ -27,19 +30,18 @@ void farfield_tris${K.name}(
     const int obs_tri_rot_clicks = 0;
     int local_id = get_local_id(0);
 
+    if (obs_tri_idx >= n_obs) {
+        return;
+    }
+
     ${K.constants_code}
 
     ${prim.decl_tri_info("obs", K.needs_obsn, K.surf_curl_obs)}
-    Real sum[${dofs_per_el}];
-    if (obs_tri_idx < n_obs) {
-        ${prim.tri_info("obs", "pts", "obs_tris", K.needs_obsn, K.surf_curl_obs)}
-        for (int k = 0; k < ${dofs_per_el}; k++) {
-            sum[k] = 0.0;
-        }
-    }
+    ${prim.tri_info("obs", "pts", "obs_tris", K.needs_obsn, K.surf_curl_obs)}
 
-    if (obs_tri_idx >= n_obs) {
-        return;
+    Real sum[${dofs_per_el}];
+    for (int k = 0; k < ${dofs_per_el}; k++) {
+        sum[k] = 0.0;
     }
 
     for (int j = 0; j < n_src; j++) {
@@ -53,15 +55,13 @@ void farfield_tris${K.name}(
             in[k] = input[src_tri_idx * ${dofs_per_el} + k];
         }
 
-        % for iq1 in range(quad_wts.shape[0]):
-        {
-            Real obsxhat = ${quad_pts[iq1,0]};
-            Real obsyhat = ${quad_pts[iq1,1]};
-            % for iq2 in range(quad_wts.shape[0]):
-            {
-                Real srcxhat = ${quad_pts[iq2,0]};
-                Real srcyhat = ${quad_pts[iq2,1]};
-                Real quadw = ${quad_wts[iq1] * quad_wts[iq2]};
+        for (int iq1 = 0; iq1 < ${quad_wts.shape[0]}; iq1++) {
+            Real obsxhat = quad_pts[iq1 * 2 + 0];
+            Real obsyhat = quad_pts[iq1 * 2 + 1];
+            for (int iq2 = 0; iq2 < ${quad_wts.shape[0]}; iq2++) {
+                Real srcxhat = quad_pts[iq2 * 2 + 0];
+                Real srcyhat = quad_pts[iq2 * 2 + 1];
+                Real quadw = quad_wts[iq1] * quad_wts[iq2];
 
                 % for which, ptname in [("obs", "x"), ("src", "y")]:
                     ${prim.basis(which)}
@@ -76,11 +76,9 @@ void farfield_tris${K.name}(
                 Real Dz = yz - xz;
                 Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
 
-                % if iq1 == iq2:
-                    if (r2 == 0.0) {
-                        continue;
-                    }
-                % endif
+                if (r2 == 0.0) {
+                    continue;
+                }
 
                 Real factor = obs_jacobian * src_jacobian * quadw;
                 % for d in range(3):
@@ -99,9 +97,7 @@ void farfield_tris${K.name}(
                     % endfor
                 }
             }
-            % endfor
         }
-        % endfor
     }
 
     for (int k = 0; k < ${dofs_per_el}; k++) {

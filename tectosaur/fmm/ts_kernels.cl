@@ -480,15 +480,13 @@ KERNEL void p2p(
                 in[k] = inarr[src_tri_idx * 9 + k];
             }
 
-            % for iq1 in range(quad_wts.shape[0]):
-            {
-                Real obsxhat = ${quad_pts[iq1,0]};
-                Real obsyhat = ${quad_pts[iq1,1]};
-                % for iq2 in range(quad_wts.shape[0]):
-                {
-                    Real srcxhat = ${quad_pts[iq2,0]};
-                    Real srcyhat = ${quad_pts[iq2,1]};
-                    Real quadw = ${quad_wts[iq1] * quad_wts[iq2]};
+            for (int iq1 = 0; iq1 < ${quad_wts.shape[0]}; iq1++) {
+                Real obsxhat = quad_pts[iq1 * 2 + 0];
+                Real obsyhat = quad_pts[iq1 * 2 + 1];
+                for (int iq2 = 0; iq2 < ${quad_wts.shape[0]}; iq2++) {
+                    Real srcxhat = quad_pts[iq2 * 2 + 0];
+                    Real srcyhat = quad_pts[iq2 * 2 + 1];
+                    Real quadw = quad_wts[iq1] * quad_wts[iq2];
                     % for which, ptname in [("obs", "x"), ("src", "y")]:
                         ${prim.basis(which)}
                         ${prim.pts_from_basis(
@@ -525,9 +523,7 @@ KERNEL void p2p(
                         % endfor
                     }
                 }
-                % endfor
             }
-            % endfor
         }
     }
     for (int k = 0; k < 9; k++) {

@@ -88,7 +88,7 @@ class TSFMM:
         return gpu.to_gpu(arr, np.int32)
 
     def params_to_gpu(self):
-        self.gpu_data['params'] = self.float_gpu(self.cfg['params'])
+        self.gpu_data['params'] = self.float_gpu(np.array(self.cfg['params']))
 
     def tree_to_gpu(self):
         gd = self.gpu_data
@@ -240,7 +240,7 @@ class TSFMM:
 
 
     def dot(self, v):
-        self.gpu_in[:] = self.to_tree(v)
+        self.gpu_in[:] = self.to_tree(v.astype(self.cfg['float_type']))
         self.gpu_out.fill(0)
 
         self.p2p()

@@ -2,7 +2,7 @@ import attr
 import numpy as np
 import scipy.sparse
 
-import tectosaur.fmm.fmm as fmm
+from tectosaur.fmm.tsfmm import TSFMM
 import tectosaur.util.geometry as geometry
 import tectosaur.util.gpu as gpu
 from tectosaur.farfield import farfield_pts_direct
@@ -27,7 +27,7 @@ class TriToTriDirectFarfieldOp:
         self.gpu_in = gpu.empty_gpu(in_size, float_type)
         self.gpu_out = gpu.empty_gpu(out_size, float_type)
 
-        q = gauss2d_tri(nq_far)
+        self.q = gauss2d_tri(nq_far)
 
         self.gpu_pts = gpu.to_gpu(pts, float_type)
         self.gpu_obs_tris = gpu.to_gpu(tris[obs_subset], np.int32)
@@ -41,9 +41,10 @@ class TriToTriDirectFarfieldOp:
             tmpl_args = dict(
                 block_size = self.block_size,
                 float_type = gpu.np_to_c_type(float_type),
-                quad_pts = q[0],
-                quad_wts = q[1]
-            )
+                quad_pts = self.q[0],
+                quad_wts = self.q[1]
+            ),
+            save_code = True
         )
         self.fnc = getattr(self.module, "farfield_tris" + K_name)
 
@@ -82,6 +83,10 @@ class FMMFarfieldOp:
 class FMMFarfieldOpImpl:
     def __init__(self, nq_far, K_name, params, pts, tris, float_type,
             obs_subset, src_subset, mac, pts_per_cell, order):
+
+        m_obs = (pts, tris[obs_subset].copy())
+        m_src = (pts, tris[src_subset].copy())
+
         self.fmm = TSFMM(
             m_obs, m_src, params = params, order = order,
             quad_order = nq_far, float_type = float_type,
@@ -92,7 +97,7 @@ class FMMFarfieldOpImpl:
 
     def dot(self, v):
         t = Timer(output_fnc = logger.debug)
-        fmm_out = self.fmm.dot(v)
+        out = self.fmm.dot(v)
         t.report('fmm eval')
         return out
 
