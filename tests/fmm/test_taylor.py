@@ -73,7 +73,8 @@ def benchmark():
     compare = False
     np.random.seed(123456)
     float_type = np.float32
-    n = 200
+    n = 1000
+    K_name = 'elasticRH3'
     corners = [[-1.0, -1.0, 0], [-1.0, 1.0, 0], [1.0, 1.0, 0], [1.0, -1.0, 0]]
     m = tct.make_rect(n, n, corners)
     v = (100000 * np.random.rand(m[1].shape[0] * 9)).astype(float_type)
@@ -82,7 +83,7 @@ def benchmark():
     if compare:
         all_tris = np.arange(m[1].shape[0])
         op = tct.TriToTriDirectFarfieldOp(
-            2, 'elasticU3', [1.0, 0.25], m[0], m[1],
+            2, K_name, [1.0, 0.25], m[0], m[1],
             float_type, all_tris, all_tris
         )
         t.report('build direct')
@@ -92,7 +93,7 @@ def benchmark():
 
         all_tris = np.arange(m[1].shape[0])
         oldfmm = tct.FMMFarfieldOp(4.0, 400, 1e-5)(
-            2, 'elasticU3', [1.0, 0.25], m[0], m[1],
+            2, K_name, [1.0, 0.25], m[0], m[1],
             float_type, all_tris, all_tris
         )
         t.report('build oldfmm')
@@ -101,11 +102,10 @@ def benchmark():
             t.report('op.dot oldfmm')
 
     # TODO: still maybe some room in p2p compared to direct
-    # TODO
     # TODO: maybe do full fmm?
     fmm = TSFMM(
         m, m, params = np.array([1.0, 0.25]), order = 4,
-        quad_order = 2, float_type = float_type,
+        K_name = K_name, quad_order = 2, float_type = float_type,
         mac = 2.5, max_pts_per_cell = 80, n_workers_per_block = 128
     )
     report_interactions(fmm)
