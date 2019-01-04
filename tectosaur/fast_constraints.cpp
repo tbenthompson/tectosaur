@@ -51,6 +51,19 @@ struct IsolatedTermEQ {
     }
 };
 
+using ConstraintMatrix = std::map<size_t,IsolatedTermEQ>;
+
+void print_c(const ConstraintEQ& c, bool recurse, ConstraintMatrix lower_tri_cs) {
+    std::cout << "rhs: " << c.rhs << std::endl;
+    for (size_t i = 0; i < c.terms.size(); i++) {
+        std::cout << " term(" << i << "):" << c.terms[i].dof << " " << c.terms[i].val << std::endl;
+        if (recurse && lower_tri_cs.count(c.terms[i].dof) != 0) {
+            print_c(lower_tri_cs[c.terms[i].dof].c, false, lower_tri_cs);
+        }
+    }
+}
+
+
 IsolatedTermEQ isolate_term_on_lhs(const ConstraintEQ& c, size_t entry_idx) {
     auto lhs = c.terms[entry_idx];
 
@@ -66,7 +79,7 @@ IsolatedTermEQ isolate_term_on_lhs(const ConstraintEQ& c, size_t entry_idx) {
 }
 
 ConstraintEQ substitute(const ConstraintEQ& c_victim, size_t entry_idx,
-    const IsolatedTermEQ& c_in) 
+    const IsolatedTermEQ& c_in, double rhs_factor) 
 {
     assert(c_in.lhs_dof == c_victim.terms[entry_idx].dof);
     double mult_factor = c_victim.terms[entry_idx].val;
@@ -83,8 +96,16 @@ ConstraintEQ substitute(const ConstraintEQ& c_victim, size_t entry_idx,
         out_terms.push_back({c_in.c.terms[i].val * mult_factor, c_in.c.terms[i].dof});
     }
 
-    double out_rhs = c_victim.rhs + mult_factor * c_in.c.rhs;
-    return ConstraintEQ{out_terms, out_rhs};
+    double out_rhs = c_victim.rhs - rhs_factor * mult_factor * c_in.c.rhs;
+    ConstraintEQ out{out_terms, out_rhs};
+    if (c_victim.rhs != 0 || c_in.c.rhs != 0) {
+        std::cout <<  std::endl << "subs" << std::endl;
+        print_c(c_victim, false, ConstraintMatrix{});
+        std::cout << c_in.lhs_dof << std::endl;
+        print_c(c_in.c, false, ConstraintMatrix{});
+        print_c(out, false, ConstraintMatrix{});
+    }
+    return out;
 }
 
 ConstraintEQ combine_terms(const ConstraintEQ& c) {
@@ -129,28 +150,17 @@ std::pair<size_t,size_t> max_dof(const ConstraintEQ& c) {
     return std::make_pair(max_dof, idx);
 }
 
-using ConstraintMatrix = std::map<size_t,IsolatedTermEQ>;
-
-ConstraintEQ make_reduced(const ConstraintEQ& c, const ConstraintMatrix& m) {
+ConstraintEQ make_reduced(const ConstraintEQ& c, const ConstraintMatrix& m, double rhs_factor) {
     for (size_t i = 0; i < c.terms.size(); i++) {
         if (m.count(c.terms[i].dof) > 0) {
-            auto c_subs = substitute(c, i, m.at(c.terms[i].dof));
+            auto existing_c = m.at(c.terms[i].dof);
+            auto c_subs = substitute(c, i, existing_c, rhs_factor);
             auto c_combined = combine_terms(c_subs);
             auto c_filtered = filter_zero_terms(c_combined);
-            return make_reduced(c_filtered, m);
+            return make_reduced(c_filtered, m, rhs_factor);
         }
     }
     return c;
-}
-
-void print_c(const ConstraintEQ& c, bool recurse, ConstraintMatrix lower_tri_cs) {
-    std::cout << "rhs: " << c.rhs << std::endl;
-    for (size_t i = 0; i < c.terms.size(); i++) {
-        std::cout << " term(" << i << "):" << c.terms[i].dof << " " << c.terms[i].val << std::endl;
-        if (recurse && lower_tri_cs.count(c.terms[i].dof) != 0) {
-            print_c(lower_tri_cs[c.terms[i].dof].c, false, lower_tri_cs);
-        }
-    }
 }
 
 
@@ -172,7 +182,7 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
         auto c = cs[i];
         auto c_combined = combine_terms(c);
         auto c_filtered = filter_zero_terms(c_combined);
-        auto c_lower_tri = make_reduced(c_filtered, lower_tri_cs);
+        auto c_lower_tri = make_reduced(c_filtered, lower_tri_cs, 1.0);
         
         if (c_lower_tri.terms.size() == 0) {
             continue;
@@ -180,6 +190,11 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
         
         auto ldi = max_dof(c_lower_tri).second;
         auto separated = isolate_term_on_lhs(c_lower_tri, ldi);
+        if (separated.c.rhs != 0) {
+            std::cout << "insert" << std::endl;
+            std::cout << separated.lhs_dof << " ";
+            print_c(separated.c, false, lower_tri_cs);
+        }
         lower_tri_cs[separated.lhs_dof] = separated;
     }
 
@@ -189,7 +204,7 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
         }
 
         auto before = lower_tri_cs[i].c;
-        lower_tri_cs[i].c = make_reduced(lower_tri_cs[i].c, lower_tri_cs);
+        lower_tri_cs[i].c = make_reduced(lower_tri_cs[i].c, lower_tri_cs, -1.0);
     }
     
     return lower_tri_cs;
