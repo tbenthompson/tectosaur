@@ -98,13 +98,6 @@ ConstraintEQ substitute(const ConstraintEQ& c_victim, size_t entry_idx,
 
     double out_rhs = c_victim.rhs - rhs_factor * mult_factor * c_in.c.rhs;
     ConstraintEQ out{out_terms, out_rhs};
-    if (c_victim.rhs != 0 || c_in.c.rhs != 0) {
-        std::cout <<  std::endl << "subs" << std::endl;
-        print_c(c_victim, false, ConstraintMatrix{});
-        std::cout << c_in.lhs_dof << std::endl;
-        print_c(c_in.c, false, ConstraintMatrix{});
-        print_c(out, false, ConstraintMatrix{});
-    }
     return out;
 }
 
@@ -190,11 +183,6 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
         
         auto ldi = max_dof(c_lower_tri).second;
         auto separated = isolate_term_on_lhs(c_lower_tri, ldi);
-        if (separated.c.rhs != 0) {
-            std::cout << "insert" << std::endl;
-            std::cout << separated.lhs_dof << " ";
-            print_c(separated.c, false, lower_tri_cs);
-        }
         lower_tri_cs[separated.lhs_dof] = separated;
     }
 
