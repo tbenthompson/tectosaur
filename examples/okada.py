@@ -342,12 +342,14 @@ def build_and_solve_T_regularized(data):
     timer.report("Constraints")
 
     T_op = RegularizedSparseIntegralOp(
-        8, 8, 8, 2, 5, 2.5,
+        6, 6, 6, 2, 5, 2.5,
         'elasticRT3', 'elasticRT3', data.k_params, data.all_mesh[0], data.all_mesh[1],
         data.float_type,
-        farfield_op_type = TriToTriDirectFarfieldOp
-        # farfield_op_type = FMMFarfieldOp(mac = 2.5, pts_per_cell = 100, order = 4)
+        # farfield_op_type = TriToTriDirectFarfieldOp
+        farfield_op_type = FMMFarfieldOp(mac = 2.5, pts_per_cell = 100, order = 2)
     )
+    import tectosaur.fmm.tsfmm as tsfmm
+    tsfmm.report_interactions(T_op.farfield.fmm)
     timer.report("Integrals")
 
     mass_op = MultOp(MassOp(3, data.all_mesh[0], data.all_mesh[1]), 0.5)
