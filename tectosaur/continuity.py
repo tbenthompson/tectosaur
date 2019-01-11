@@ -44,28 +44,6 @@ def tri_side(tri1, tri2, threshold = 1e-12):
     else:
         return 2
 
-def get_surf_fault_edges(surf_tris, fault_tris):
-    surf_verts = np.unique(surf_tris)
-    surf_fault_edges = []
-    for i, t in enumerate(fault_tris):
-        in_surf = []
-        for d in range(3):
-            if t[d] in surf_verts:
-                in_surf.append((i, d))
-        if len(in_surf) == 2:
-            surf_fault_edges.append(in_surf)
-    return surf_fault_edges
-
-def get_surf_fault_tips(surf_tris, fault_tris):
-    surf_fault_edges = np.array(get_surf_fault_edges(
-        surf_tris, fault_tris
-    ))
-    if surf_fault_edges.shape[0] == 0:
-        return np.array([])
-    surf_fault_edge_vertices = fault_tris[surf_fault_edges[:,:,0], surf_fault_edges[:,:,1]]
-    verts, counts = np.unique(surf_fault_edge_vertices, return_counts = True)
-    return verts[counts < 2]
-
 def get_side_of_fault(pts, tris, fault_start_idx):
     connectivity = tri_connectivity_graph(tris)
     fault_touching_pair = np.where(np.logical_and(
@@ -75,11 +53,12 @@ def get_side_of_fault(pts, tris, fault_start_idx):
 
     side = np.zeros(tris.shape[0])
     shared_verts = np.zeros(tris.shape[0])
+
+    fault_surf_tris = pts[tris[connectivity.col[fault_touching_pair]]]
     for i in range(fault_touching_pair.shape[0]):
         surf_tri_idx = connectivity.row[fault_touching_pair[i]]
         surf_tri = tris[surf_tri_idx]
-        fault_tri_idx = connectivity.col[fault_touching_pair[i]]
-        fault_tri = tris[fault_tri_idx]
+        fault_tri = tris[connectivity.col[fault_touching_pair[i]]]
         which_side = tri_side(pts[fault_tri], pts[surf_tri])
 
         n_shared_verts = 0
@@ -99,8 +78,6 @@ def continuity_constraints(pts, tris, fault_start_idx, tensor_dim = 3):
     fault_tris = tris[fault_start_idx:]
     touching_pt = find_touching_pts(surface_tris)
     side = get_side_of_fault(pts, tris, fault_start_idx)
-    fault_tips = get_surf_fault_tips(tris[:fault_start_idx], tris[fault_start_idx:])
-
     constraints = []
     for i, tpt in enumerate(touching_pt):
         if len(tpt) == 0:
@@ -121,10 +98,7 @@ def continuity_constraints(pts, tris, fault_start_idx, tensor_dim = 3):
                 # Check for anything that touches across the fault.
                 side1 = side[independent_tri_idx]
                 side2 = side[dependent_tri_idx]
-                crosses = (
-                    (side1 != side2) and (side1 != 0) and (side2 != 0)
-                    and dependent_tri[dependent_corner_idx] not in fault_tips
-                )
+                crosses = (side1 != side2) and (side1 != 0) and (side2 != 0)
                 fault_tri_idx = None
                 if crosses:
                     fault_tri_idxs, fault_corner_idxs = np.where(
