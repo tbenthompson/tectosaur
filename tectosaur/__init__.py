@@ -17,6 +17,7 @@ from tectosaur.util.timer import Timer
 from tectosaur.mesh.mesh_gen import make_rect
 from tectosaur.mesh.combined_mesh import CombinedMesh
 from tectosaur.mesh.modify import concat
+from tectosaur.mesh.refine import refine
 
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.sum_op import SumOp
