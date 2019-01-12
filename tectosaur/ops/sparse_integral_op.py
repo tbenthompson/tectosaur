@@ -49,7 +49,7 @@ class RegularizedSparseIntegralOp:
 
         self.shape = self.nearfield.shape
 
-    def nearfield_dot(self, v):
+    async def nearfield_dot(self, v):
         t = Timer(output_fnc = logger.debug)
         logger.debug("start nearfield_dot")
         out = self.nearfield.dot(v)
@@ -60,11 +60,20 @@ class RegularizedSparseIntegralOp:
         return self.nearfield.nearfield_no_correction_dot(v)
 
     def dot(self, v):
-        return self.farfield_dot(v) + self.nearfield_dot(v)
+        import asyncio
+        loop = asyncio.new_event_loop()
+        async def dot_helper():
+            yfar = asyncio.ensure_future(self.farfield_dot(v))
+            ynear = asyncio.ensure_future(self.nearfield_dot(v))
+            return (await yfar) + (await ynear)
+        out = loop.run_until_complete(dot_helper())
+        loop.close()
 
-    def farfield_dot(self, v):
+        return out
+
+    async def farfield_dot(self, v):
         t = Timer(output_fnc = logger.debug)
         logger.debug("start farfield_dot")
-        out = self.farfield.dot(v)
+        out = await self.farfield.async_dot(v)
         t.report('farfield_dot')
         return out

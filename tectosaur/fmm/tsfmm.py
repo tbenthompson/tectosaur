@@ -238,8 +238,7 @@ class TSFMM:
             block = (self.cfg['n_workers_per_block'], 1, 1)
         )
 
-
-    def dot(self, v):
+    def dot_helper(self, v):
         self.gpu_in[:] = self.to_tree(v.astype(self.cfg['float_type']))
         self.gpu_out.fill(0)
 
@@ -249,7 +248,20 @@ class TSFMM:
             self.m2m(i)
         self.m2p()
 
+    def dot(self, v):
+        self.dot_helper(v)
+
         return self.to_orig(self.gpu_out.get())
+
+    async def async_dot(self, v):
+        t = tct.Timer(output_fnc = logger.debug)
+        self.dot_helper(v)
+        t.report('launch fmm')
+        out_tree = await gpu.async_get(self.gpu_out)
+        t.report('get fmm result')
+        out = self.to_orig(out_tree)
+        t.report('to orig')
+        return out
 
 def report_interactions(fmm_obj):
     def count_interactions(op_name, op):

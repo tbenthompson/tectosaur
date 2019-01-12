@@ -26,9 +26,10 @@ def np_to_c_type(t):
     elif t == np.float64:
         return 'double'
 
-# async def get(tsk_w, arr):
-#     result = await tsk_w.run_in_thread(lambda: threaded_get(arr))
-#     return result
+async def async_get(arr):
+    import asyncio
+    loop = asyncio.get_event_loop()
+    return (await loop.run_in_executor(None, lambda: threaded_get(arr)))
 
 def intervals(length, step_size):
     out = []

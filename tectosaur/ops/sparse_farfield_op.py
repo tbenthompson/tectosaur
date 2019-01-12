@@ -58,6 +58,9 @@ class TriToTriDirectFarfieldOp:
         )
         return self.gpu_out.get()
 
+    async def async_dot(self, v):
+        return self.dot(v)
+
     def nearfield_dot(self, v):
         return self.dot(v)
 
@@ -103,6 +106,9 @@ class FMMFarfieldOpImpl:
         out = self.fmm.dot(v)
         t.report('fmm eval')
         return self.L_factor * out
+
+    async def async_dot(self, v):
+        return self.L_factor * (await self.fmm.async_dot(v))
 
     def nearfield_dot(self, v):
         return self.dot(v)

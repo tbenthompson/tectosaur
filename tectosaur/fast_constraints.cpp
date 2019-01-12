@@ -42,9 +42,18 @@ struct ConstraintEQ {
     }
 };
 
+struct ConstructionConstraintEQ {
+    TermVector terms;
+    TermVector rhs;
+
+    bool operator==(const ConstructionConstraintEQ& b) const {
+        return rhs == b.rhs && terms == b.terms;
+    }
+};
+
 struct IsolatedTermEQ {
     size_t lhs_dof;
-    ConstraintEQ c;
+    ConstructionConstraintEQ c;
 
     bool operator==(const IsolatedTermEQ& b) const {
         return lhs_dof == b.lhs_dof && c == b.c;
@@ -53,8 +62,10 @@ struct IsolatedTermEQ {
 
 using ConstraintMatrix = std::map<size_t,IsolatedTermEQ>;
 
-void print_c(const ConstraintEQ& c, bool recurse, ConstraintMatrix lower_tri_cs) {
-    std::cout << "rhs: " << c.rhs << std::endl;
+void print_c(const ConstructionConstraintEQ& c, bool recurse, ConstraintMatrix lower_tri_cs) {
+    for (size_t i = 0; i < c.rhs.size(); i++) {
+        std::cout << " rhs(" << i << "):" << c.rhs[i].dof << " " << c.rhs[i].val << std::endl;
+    }
     for (size_t i = 0; i < c.terms.size(); i++) {
         std::cout << " term(" << i << "):" << c.terms[i].dof << " " << c.terms[i].val << std::endl;
         if (recurse && lower_tri_cs.count(c.terms[i].dof) != 0) {
@@ -63,8 +74,7 @@ void print_c(const ConstraintEQ& c, bool recurse, ConstraintMatrix lower_tri_cs)
     }
 }
 
-
-IsolatedTermEQ isolate_term_on_lhs(const ConstraintEQ& c, size_t entry_idx) {
+IsolatedTermEQ isolate_term_on_lhs(const ConstructionConstraintEQ& c, size_t entry_idx) {
     auto lhs = c.terms[entry_idx];
 
     TermVector divided_negated_terms;
@@ -74,11 +84,14 @@ IsolatedTermEQ isolate_term_on_lhs(const ConstraintEQ& c, size_t entry_idx) {
         }
         divided_negated_terms.push_back({-c.terms[i].val / lhs.val, c.terms[i].dof});
     }
-    double divided_rhs = c.rhs / lhs.val;
+    TermVector divided_rhs;
+    for (size_t i = 0; i < c.rhs.size(); i++) {
+        divided_rhs.push_back({c.rhs[i].val / lhs.val, c.rhs[i].dof});
+    }
     return IsolatedTermEQ{lhs.dof, divided_negated_terms, divided_rhs};
 }
 
-ConstraintEQ substitute(const ConstraintEQ& c_victim, size_t entry_idx,
+ConstructionConstraintEQ substitute(const ConstructionConstraintEQ& c_victim, size_t entry_idx,
     const IsolatedTermEQ& c_in, double rhs_factor) 
 {
     assert(c_in.lhs_dof == c_victim.terms[entry_idx].dof);
@@ -96,15 +109,18 @@ ConstraintEQ substitute(const ConstraintEQ& c_victim, size_t entry_idx,
         out_terms.push_back({c_in.c.terms[i].val * mult_factor, c_in.c.terms[i].dof});
     }
 
-    double out_rhs = c_victim.rhs - rhs_factor * mult_factor * c_in.c.rhs;
-    ConstraintEQ out{out_terms, out_rhs};
+    TermVector out_rhs = c_victim.rhs;
+    for (size_t i = 0; i < c_in.c.rhs.size(); i++) {
+        out_rhs.push_back({-rhs_factor * mult_factor * c_in.c.rhs[i].val, c_in.c.rhs[i].dof});
+    }
+    ConstructionConstraintEQ out{out_terms, out_rhs};
     return out;
 }
 
-ConstraintEQ combine_terms(const ConstraintEQ& c) {
+TermVector combine_terms_helper(const TermVector& tv) {
     TermVector out_terms;
-    for (size_t i = 0; i < c.terms.size(); i++) {
-        auto& t = c.terms[i];
+    for (size_t i = 0; i < tv.size(); i++) {
+        auto& t = tv[i];
         bool found = false;
         for (size_t j = 0; j < out_terms.size(); j++) {
             if (out_terms[j].dof == t.dof) {
@@ -117,33 +133,47 @@ ConstraintEQ combine_terms(const ConstraintEQ& c) {
             out_terms.push_back(t);
         }
     }
-    return ConstraintEQ{out_terms, c.rhs};
+    return out_terms;
 }
 
-ConstraintEQ filter_zero_terms(const ConstraintEQ& c) {
+ConstructionConstraintEQ combine_terms(const ConstructionConstraintEQ& c) {
+    return ConstructionConstraintEQ{
+        combine_terms_helper(c.terms),
+        combine_terms_helper(c.rhs)
+    };
+}
+
+TermVector filter_zero_helper(const TermVector& tv) {
     TermVector out_terms;
-    for (size_t i = 0; i < c.terms.size(); i++) {
-        if (std::fabs(c.terms[i].val) < 1e-15) {
+    for (size_t i = 0; i < tv.size(); i++) {
+        if (std::fabs(tv[i].val) < 1e-15) {
             continue;
         }
-        out_terms.push_back(c.terms[i]);
+        out_terms.push_back(tv[i]);
     }
-    return ConstraintEQ{out_terms, c.rhs};
+    return out_terms;
 }
 
-std::pair<size_t,size_t> max_dof(const ConstraintEQ& c) {
+ConstructionConstraintEQ filter_zero_terms(const ConstructionConstraintEQ& c) {
+    return ConstructionConstraintEQ{
+        filter_zero_helper(c.terms),
+        filter_zero_helper(c.rhs)
+    };
+}
+
+std::pair<size_t,size_t> max_dof(const TermVector& terms) {
     size_t max_dof = 0;
     size_t idx = 0;
-    for (size_t i = 0; i < c.terms.size(); i++) {
-        if (c.terms[i].dof > max_dof) {
-            max_dof = c.terms[i].dof;
+    for (size_t i = 0; i < terms.size(); i++) {
+        if (terms[i].dof > max_dof) {
+            max_dof = terms[i].dof;
             idx = i;
         }
     }
     return std::make_pair(max_dof, idx);
 }
 
-ConstraintEQ make_reduced(const ConstraintEQ& c, const ConstraintMatrix& m, double rhs_factor) {
+ConstructionConstraintEQ make_reduced(const ConstructionConstraintEQ& c, const ConstraintMatrix& m, double rhs_factor) {
     for (size_t i = 0; i < c.terms.size(); i++) {
         if (m.count(c.terms[i].dof) > 0) {
             auto existing_c = m.at(c.terms[i].dof);
@@ -156,23 +186,34 @@ ConstraintEQ make_reduced(const ConstraintEQ& c, const ConstraintMatrix& m, doub
     return c;
 }
 
+ConstructionConstraintEQ to_construction(const ConstraintEQ& c, size_t i) {
+    ConstructionConstraintEQ out;
+    out.terms = c.terms;
+    out.rhs = {Term{1.0, i}};
+    return out;
+}
 
 ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
     size_t n_total_dofs) 
 {
+    std::vector<size_t> order(cs.size());
+    std::iota(order.begin(), order.end(), 0);
     std::sort(
-        cs.begin(), cs.end(), 
-        [] (const ConstraintEQ& a, const ConstraintEQ& b) {
+        order.begin(), order.end(), 
+        [&] (size_t a_i, size_t b_i) {
+            auto a = cs[a_i];
+            auto b = cs[b_i];
             if (a.terms.size() == b.terms.size()) {
-                return max_dof(a).first < max_dof(b).first;
+                return max_dof(a.terms).first < max_dof(b.terms).first;
             }
             return a.terms.size() < b.terms.size();
         }
     );
 
     ConstraintMatrix lower_tri_cs;
-    for (size_t i = 0; i < cs.size(); i++) {
-        auto c = cs[i];
+    for (size_t o_i = 0; o_i < order.size(); o_i++) {
+        size_t i = order[o_i];
+        auto c = to_construction(cs[i], i);
         auto c_combined = combine_terms(c);
         auto c_filtered = filter_zero_terms(c_combined);
         auto c_lower_tri = make_reduced(c_filtered, lower_tri_cs, 1.0);
@@ -181,7 +222,7 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
             continue;
         }
         
-        auto ldi = max_dof(c_lower_tri).second;
+        auto ldi = max_dof(c_lower_tri.terms).second;
         auto separated = isolate_term_on_lhs(c_lower_tri, ldi);
         lower_tri_cs[separated.lhs_dof] = separated;
     }
@@ -207,17 +248,30 @@ py::tuple build_constraint_matrix(const std::vector<ConstraintEQ>& cs, size_t n_
     std::vector<size_t> rows;    
     std::vector<size_t> cols;    
     std::vector<double> vals;
-    std::vector<double> rhs(n_total_dofs, 0.0);
+
+    std::vector<size_t> rhs_rows;    
+    std::vector<size_t> rhs_cols;    
+    std::vector<double> rhs_vals;
+
+    std::vector<double> rhs_input(cs.size(), 0.0);
+    for (size_t i = 0; i < cs.size(); i++) {
+        rhs_input[i] = cs[i].rhs; 
+    }
+
     size_t next_new_dof = 0;
     std::map<size_t,size_t> new_dofs;
     for (size_t i = 0; i < n_total_dofs; i++) {
         if (lower_tri_cs.count(i) > 0) {
-            rhs[i] = lower_tri_cs[i].c.rhs;
             for (auto& t: lower_tri_cs[i].c.terms) {
                 assert(new_dofs.count(t.dof) > 0);
                 rows.push_back(i);
                 cols.push_back(new_dofs[t.dof]);
                 vals.push_back(t.val);
+            }
+            for (auto& t: lower_tri_cs[i].c.rhs) {
+                rhs_rows.push_back(i);
+                rhs_cols.push_back(t.dof);
+                rhs_vals.push_back(t.val);
             }
         } else {
             rows.push_back(i);
@@ -232,7 +286,10 @@ py::tuple build_constraint_matrix(const std::vector<ConstraintEQ>& cs, size_t n_
         array_from_vector(rows),
         array_from_vector(cols),
         array_from_vector(vals),
-        array_from_vector(rhs),
+        array_from_vector(rhs_rows),
+        array_from_vector(rhs_cols),
+        array_from_vector(rhs_vals),
+        array_from_vector(rhs_input),
         lower_tri_cs.size()
     );
     t.report("make out");
@@ -256,14 +313,28 @@ PYBIND11_MODULE(fast_constraints,m) {
         .def_readonly("rhs", &ConstraintEQ::rhs)
         .def(py::self == py::self);
 
+    py::class_<ConstructionConstraintEQ>(m, "ConstructionConstraintEQ")
+        .def_readonly("terms", &ConstructionConstraintEQ::terms)
+        .def_readonly("rhs", &ConstructionConstraintEQ::rhs)
+        .def(py::self == py::self);
+
     py::class_<IsolatedTermEQ>(m, "IsolatedTermEQ")
         .def_readonly("lhs_dof", &IsolatedTermEQ::lhs_dof)
         .def_readonly("c", &IsolatedTermEQ::c)
         .def(py::self == py::self);
 
-    m.def("isolate_term_on_lhs", &isolate_term_on_lhs);
-    m.def("substitute", &substitute);
-    m.def("combine_terms", &combine_terms);
-    m.def("filter_zero_terms", &filter_zero_terms);
+    m.def("isolate_term_on_lhs", [&] (const ConstraintEQ& c, size_t entry_idx) {
+        return isolate_term_on_lhs(to_construction(c, 0), entry_idx);
+    });
+    m.def("substitute", [&] (const ConstraintEQ& c_victim, size_t entry_idx,
+            const IsolatedTermEQ& c_in, double rhs_factor) {
+        return substitute(to_construction(c_victim, 0), entry_idx, c_in, rhs_factor);
+    });
+    m.def("combine_terms", [&] (const ConstraintEQ& c) {
+        return combine_terms(to_construction(c, 0));
+    });
+    m.def("filter_zero_terms", [&] (const ConstraintEQ& c) {
+        return filter_zero_terms(to_construction(c, 0));
+    });
     m.def("build_constraint_matrix", &build_constraint_matrix);
 }
