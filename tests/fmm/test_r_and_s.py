@@ -42,6 +42,7 @@ def test_transfer_invr():
     order = 5
     src_pts = np.random.rand(n_src, 3) - 0.5
     str = np.random.rand(n_src)
+    # obs_pts = np.random.rand(n_obs, 3)
     obs_pts = np.random.rand(n_obs, 3)
     obs_pts[:,0] += 3
 
