@@ -43,8 +43,7 @@ class TriToTriDirectFarfieldOp:
                 float_type = gpu.np_to_c_type(float_type),
                 quad_pts = self.q[0],
                 quad_wts = self.q[1]
-            ),
-            save_code = True
+            )
         )
         self.fnc = getattr(self.module, "farfield_tris" + K_name)
 
@@ -58,6 +57,9 @@ class TriToTriDirectFarfieldOp:
             grid = (self.n_blocks, 1, 1), block = (self.block_size, 1, 1)
         )
         return self.gpu_out.get()
+
+    async def async_dot(self, v):
+        return self.dot(v)
 
     def nearfield_dot(self, v):
         return self.dot(v)
@@ -84,8 +86,12 @@ class FMMFarfieldOpImpl:
     def __init__(self, nq_far, K_name, params, pts, tris, float_type,
             obs_subset, src_subset, mac, pts_per_cell, order):
 
-        m_obs = (pts, tris[obs_subset].copy())
-        m_src = (pts, tris[src_subset].copy())
+        L_scale = np.max(pts)
+        scaled_pts = pts / L_scale
+        m_obs = (scaled_pts, tris[obs_subset].copy())
+        m_src = (scaled_pts, tris[src_subset].copy())
+
+        self.L_factor = L_scale ** (-kernels[K_name].scale_type)
 
         self.fmm = TSFMM(
             m_obs, m_src, params = params, order = order,
@@ -99,7 +105,10 @@ class FMMFarfieldOpImpl:
         t = Timer(output_fnc = logger.debug)
         out = self.fmm.dot(v)
         t.report('fmm eval')
-        return out
+        return self.L_factor * out
+
+    async def async_dot(self, v):
+        return self.L_factor * (await self.fmm.async_dot(v))
 
     def nearfield_dot(self, v):
         return self.dot(v)
