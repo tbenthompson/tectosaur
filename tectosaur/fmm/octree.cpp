@@ -31,7 +31,6 @@ Octree<dim> build_octree(std::array<double,dim>* in_balls, double* in_R,
     auto balls_idxs = combine_balls_idxs(in_balls, in_R, n_balls);
 
     auto bounds = root_tree_bounds(balls_idxs.data(), n_balls);
-    bounds.R *= std::sqrt(dim);
 
     Octree<dim> out;
     add_node(out, 0, n_balls, n_per_cell, 0, bounds, balls_idxs);
@@ -60,9 +59,10 @@ size_t add_node(Octree<dim>& tree, size_t start, size_t end,
         auto splits = octree_partition(bounds, temp_balls.data() + start, temp_balls.data() + end);
         int max_child_height = 0;
         for (size_t octant = 0; octant < OctreeNode<dim>::split; octant++) {
-            auto child_bounds = get_subbox(bounds, make_child_idx<dim>(octant));
             auto child_start = start + splits[octant];
             auto child_end = start + splits[octant + 1];
+            auto child_n_balls = child_end - child_start;
+            auto child_bounds = child_tree_bounds(&temp_balls[child_start], child_n_balls, bounds);
             auto child_node_idx = add_node(
                 tree, child_start, child_end,
                 n_per_cell, depth + 1, child_bounds, temp_balls
