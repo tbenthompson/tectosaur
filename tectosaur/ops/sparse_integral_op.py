@@ -7,23 +7,6 @@ from tectosaur.util.timer import Timer
 import logging
 logger = logging.getLogger(__name__)
 
-# Handy wrapper for creating an integral op
-def make_integral_op(pts, tris, k_name, k_params, cfg, obs_subset, src_subset):
-    if cfg['use_fmm']:
-        farfield = FMMFarfieldBuilder(
-            cfg['fmm_order'], cfg['fmm_mac'], cfg['pts_per_cell']
-        )
-    else:
-        farfield = None
-    return SparseIntegralOp(
-        cfg['quad_vertadj_order'], cfg['quad_far_order'],
-        cfg['quad_near_order'], cfg['quad_near_threshold'],
-        k_name, k_params, pts, tris, cfg['float_type'],
-        farfield_op_type = farfield,
-        obs_subset = obs_subset,
-        src_subset = src_subset
-    )
-
 class RegularizedSparseIntegralOp:
     def __init__(self, nq_coincident, nq_edge_adj, nq_vert_adjacent,
             nq_far, nq_near, near_threshold,

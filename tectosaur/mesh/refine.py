@@ -88,7 +88,7 @@ def refine_to_size(m, threshold, recurse = True, fields = None):
         out_m = remove_duplicate_pts((np.array(new_pts), np.array(new_tris)))
         np_new_fields = [np.array(new_f) for new_f in new_fields]
         if recurse:
-            return refine_to_size(out_m, threshold, np_new_fields)
+            return refine_to_size(out_m, threshold, fields = np_new_fields)
         return out_m, np_new_fields
 
     return m, fields

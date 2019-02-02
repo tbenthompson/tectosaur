@@ -2,11 +2,43 @@ import attr
 import numpy as np
 from tectosaur.util.quadrature import gauss2d_tri
 import tectosaur.util.gpu as gpu
+import scipy.sparse
 
 import tectosaur.fmm.fmm as fmm
-from tectosaur.ops.sparse_farfield_op import interp_galerkin_mat
 from tectosaur.farfield import farfield_pts_direct
 import tectosaur.mesh.find_near_adj as find_near_adj
+
+def interp_galerkin_mat(tri_pts, quad_rule):
+    import tectosaur.util.geometry as geometry
+    nt = tri_pts.shape[0]
+    qx, qw = quad_rule
+    nq = qx.shape[0]
+
+    rows = np.tile(
+        np.arange(nt * nq * 3).reshape((nt, nq, 3))[:,:,np.newaxis,:], (1,1,3,1)
+    ).flatten()
+    cols = np.tile(
+        np.arange(nt * 9).reshape(nt,3,3)[:,np.newaxis,:,:], (1,nq,1,1)
+    ).flatten()
+
+    basis = geometry.linear_basis_tri_arr(qx)
+
+    unscaled_normals = geometry.unscaled_normals(tri_pts)
+    jacobians = geometry.jacobians(unscaled_normals)
+
+    b_tiled = np.tile((qw[:,np.newaxis] * basis)[np.newaxis,:,:], (nt, 1, 1))
+    J_tiled = np.tile(jacobians[:,np.newaxis,np.newaxis], (1, nq, 3))
+    vals = np.tile((J_tiled * b_tiled)[:,:,:,np.newaxis], (1,1,1,3)).flatten()
+
+    quad_pts = np.zeros((nt * nq, 3))
+    for d in range(3):
+        for b in range(3):
+            quad_pts[:,d] += np.outer(basis[:,b], tri_pts[:,b,d]).T.flatten()
+
+    scaled_normals = unscaled_normals / jacobians[:,np.newaxis]
+    quad_ns = np.tile(scaled_normals[:,np.newaxis,:], (1, nq, 1)).reshape((-1, 3))
+
+    return scipy.sparse.coo_matrix((vals, (rows, cols))), quad_pts, quad_ns
 
 def interior_fmm_farfield(kernel, params, obs_pts, obs_ns, src_pts, src_ns,
     v, float_type,  fmm_params):
@@ -40,7 +72,7 @@ def interior_fmm_farfield(kernel, params, obs_pts, obs_ns, src_pts, src_ns,
 @profile
 def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near,
         params, float_type, fmm_params = None):
-    threshold = 1.0
+    threshold = 0.01
 
     near_pairs = find_near_adj.fast_find_nearfield.get_nearfield(
         obs_pts, np.zeros(obs_pts.shape[0]),

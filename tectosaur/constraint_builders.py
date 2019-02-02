@@ -116,13 +116,15 @@ def plot_free_edges(pts, tris, free_edges, dims = [0,1]):
         plt.plot(edge_pts[:,0], edge_pts[:,1], '*-')
     plt.show()
 
-def free_edge_constraints(tris):
+def free_edge_constraints(tris, field = None):
     free_edges = find_free_edges(tris)
     cs = []
+    if field is None:
+        field = np.zeros(tris.shape[0] * 9)
     for dof in free_edge_dofs(tris, free_edges):
         for d in range(3):
             vec_dof = dof * 3 + d
-            cs.append(ConstraintEQ([Term(1.0, vec_dof)], 0.0))
+            cs.append(ConstraintEQ([Term(1.0, vec_dof)], field[vec_dof]))
     return cs
 
 def jump_constraints(jump, negative):

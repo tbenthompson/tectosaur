@@ -28,10 +28,13 @@ from tectosaur.ops.sparse_farfield_op import (
     TriToTriDirectFarfieldOp,
     FMMFarfieldOp)
 from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
+from tectosaur.interior import interior_integral
 
 from tectosaur.constraints import Term, ConstraintEQ, build_constraint_matrix
 from tectosaur.constraint_builders import (
     free_edge_constraints,
+    find_free_edges,
+    free_edge_dofs,
     build_composite_constraints,
     jump_constraints,
     check_continuity,
