@@ -20,7 +20,7 @@ def get_gpu_config(kernel, float_type):
     )
 
 def get_gpu_module(kernel, float_type):
-    return gpu.load_gpu('nearfield/nearfield.cl', tmpl_args = get_gpu_config(
+    return gpu.load_gpu('assemble.cl', tmpl_args = get_gpu_config(
         kernel, float_type
     ))
 

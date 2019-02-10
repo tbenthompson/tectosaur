@@ -37,7 +37,7 @@ class TriToTriDirectFarfieldOp:
         self.n_blocks = int(np.ceil(self.n_obs / self.block_size))
 
         self.module = gpu.load_gpu(
-            'farfield_tris.cl',
+            'matrix_free.cl',
             tmpl_args = dict(
                 block_size = self.block_size,
                 float_type = gpu.np_to_c_type(float_type),

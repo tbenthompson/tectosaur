@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import matplotlib.tri
 import okada_wrapper
 
-which = 'T'
-SEP = 0.0
+which = 'D'
+SEP = 0.001
 
 corners = [[-1, 0, -1], [1, 0, -1], [1, 0, 1], [-1, 0, 1]]
-n = 2
+n = 10
 src_mesh = tct.make_rect(n, n, corners)
 def gauss_slip_fnc(x, z):
     r2 = x ** 2 + z ** 2
@@ -50,13 +50,13 @@ if which == 'D':
 else:
     K = 'elasticH3'
 params = [1.0, 0.25]
-op = tct.InteriorOp(obs_pts, obs_ns, src_mesh, K, 4, params, np.float32)
+op = tct.InteriorOp(obs_pts, obs_ns, src_mesh, K, 4, 100, params, np.float32)
 out = op.dot(slip.flatten())
 
 sm, pr = 1.0, 0.25
 lam = 2 * sm * pr / (1 - 2 * pr)
 alpha = (lam + sm) / (lam + 2 * sm)
-N = 20
+N = 10
 X_vals = np.linspace(-1.0, 1.0, N + 1)
 Z_vals = np.linspace(-1.0, 1.0, N + 1)
 def okada_pt(pt):

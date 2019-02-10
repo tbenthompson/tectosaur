@@ -8,102 +8,13 @@ import tectosaur.fmm.fmm as fmm
 from tectosaur.farfield import farfield_pts_direct
 import tectosaur.mesh.find_near_adj as find_near_adj
 from tectosaur.kernels import kernels
-
-def interp_galerkin_mat(tri_pts, quad_rule):
-    import tectosaur.util.geometry as geometry
-    nt = tri_pts.shape[0]
-    qx, qw = quad_rule
-    nq = qx.shape[0]
-
-    rows = np.tile(
-        np.arange(nt * nq * 3).reshape((nt, nq, 3))[:,:,np.newaxis,:], (1,1,3,1)
-    ).flatten()
-    cols = np.tile(
-        np.arange(nt * 9).reshape(nt,3,3)[:,np.newaxis,:,:], (1,nq,1,1)
-    ).flatten()
-
-    basis = geometry.linear_basis_tri_arr(qx)
-
-    unscaled_normals = geometry.unscaled_normals(tri_pts)
-    jacobians = geometry.jacobians(unscaled_normals)
-
-    b_tiled = np.tile((qw[:,np.newaxis] * basis)[np.newaxis,:,:], (nt, 1, 1))
-    J_tiled = np.tile(jacobians[:,np.newaxis,np.newaxis], (1, nq, 3))
-    vals = np.tile((J_tiled * b_tiled)[:,:,:,np.newaxis], (1,1,1,3)).flatten()
-
-    quad_pts = np.zeros((nt * nq, 3))
-    for d in range(3):
-        for b in range(3):
-            quad_pts[:,d] += np.outer(basis[:,b], tri_pts[:,b,d]).T.flatten()
-
-    scaled_normals = unscaled_normals / jacobians[:,np.newaxis]
-    quad_ns = np.tile(scaled_normals[:,np.newaxis,:], (1, nq, 1)).reshape((-1, 3))
-
-    return scipy.sparse.coo_matrix((vals, (rows, cols))), quad_pts, quad_ns
-
-def interior_fmm_farfield(kernel, params, obs_pts, obs_ns, src_pts, src_ns,
-    v, float_type,  fmm_params):
-
-    order, mac, obs_pts_per_cell, src_pts_per_cell = fmm_params
-
-    cfg = fmm.make_config(kernel, params, 1.1, mac, order, float_type)
-
-    obs_tree = fmm.make_tree(obs_pts, cfg, obs_pts_per_cell)
-    src_tree = fmm.make_tree(src_pts, cfg, src_pts_per_cell)
-
-    obs_orig_idxs = obs_tree.orig_idxs
-    src_orig_idxs = src_tree.orig_idxs
-
-    obs_ns_tree = obs_ns[obs_orig_idxs].copy()
-    src_ns_tree = src_ns[src_orig_idxs].copy()
-    fmm_obj = fmm.FMM(obs_tree, obs_ns_tree, src_tree, src_ns_tree, cfg)
-
-    fmm.report_interactions(fmm_obj)
-    evaluator = fmm.FMMEvaluator(fmm_obj)
-
-    input_tree = v.reshape((-1,3))[src_orig_idxs,:].reshape(-1)
-
-    fmm_out = fmm.eval(evaluator, input_tree.copy()).reshape((-1, 3))
-
-    to_orig = np.empty_like(fmm_out)
-    to_orig[obs_orig_idxs,:] = fmm_out
-    to_orig = to_orig.flatten()
-    return to_orig
-
-#@profile
-def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near,
-        params, float_type, fmm_params = None):
-    threshold = 0.01
-
-    # near_pairs = find_near_adj.fast_find_nearfield.get_nearfield(
-    #     obs_pts, np.zeros(obs_pts.shape[0]),
-    #     *find_near_adj.get_tri_centroids_rs(*mesh),
-    #     threshold, 50
-    # )
-
-    # 2) perform some higher order quadrature for those pairs
-    # 3) add in the corrections to cancel the FMM for those pairs
-
-    far_quad = gauss2d_tri(nq_far)
-    IGmat, quad_pts, quad_ns = interp_galerkin_mat(
-        mesh[0][mesh[1]], far_quad
-    )
-    interp_v = IGmat.dot(input)
-
-    if fmm_params is None:
-        far = farfield_pts_direct(K, obs_pts, obs_ns, quad_pts, quad_ns, interp_v, params, float_type)
-    else:
-        far = interior_fmm_farfield(
-            K, params, obs_pts, obs_ns, quad_pts, quad_ns, interp_v,
-            float_type, fmm_params
-        )
-    return far
+from tectosaur.nearfield.pairs_integrator import get_gpu_module, block_size
 
 class InteriorOp:
     def __init__(self, obs_pts, obs_ns, src_mesh, K_name, nq_far,
-            params, float_type):
-
-        self.threshold = 1.0
+            nq_near, params, float_type):
+        self.float_type = float_type
+        self.threshold = 4.0
         pairs = find_near_adj.fast_find_nearfield.get_nearfield(
             obs_pts, np.zeros(obs_pts.shape[0]),
             *find_near_adj.get_tri_centroids_rs(*src_mesh),
@@ -120,8 +31,72 @@ class InteriorOp:
             params, float_type
         )
 
+        self.gpu_near_quad = self.quad_to_gpu(gauss2d_tri(nq_near))
+        self.gpu_far_quad = self.quad_to_gpu(gauss2d_tri(nq_far))
+        print(self.near_pairs.shape[0])
+
+        self.gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)
+        self.gpu_obs_ns = gpu.to_gpu(obs_ns, float_type)
+        self.gpu_src_pts = gpu.to_gpu(src_mesh[0], float_type)
+        self.gpu_src_tris = gpu.to_gpu(src_mesh[1], np.int32)
+        self.gpu_params = gpu.to_gpu(np.array(params), float_type)
+        near_mat = interior_pairs_quad(K_name, self.near_pairs,
+            self.gpu_near_quad, self.farfield.gpu_obs_pts, self.farfield.gpu_obs_ns,
+            self.farfield.gpu_src_pts, self.farfield.gpu_src_tris,
+            self.farfield.gpu_params, float_type
+        )
+
+        near_mat_correction = interior_pairs_quad(K_name, self.near_pairs,
+            self.gpu_far_quad, self.farfield.gpu_obs_pts, self.farfield.gpu_obs_ns,
+            self.farfield.gpu_src_pts, self.farfield.gpu_src_tris,
+            self.farfield.gpu_params, float_type
+        )
+
+        rows = np.tile(np.array([
+            self.near_pairs[:,0] * 3 + i
+            for i in range(3)
+        ]).T[:,:, np.newaxis, np.newaxis], (1, 1, 9))
+        cols = np.tile(np.array([
+            self.near_pairs[:,1] * 9 + i
+            for i in range(9)
+        ]).T[:, np.newaxis, :], (1, 3, 1))
+        entries = near_mat - near_mat_correction
+
+        self.near_mat = scipy.sparse.csr_matrix(
+            (entries.flatten(), (rows.flatten(), cols.flatten())),
+            shape = self.farfield.shape
+        )
+
+    #TODO: duplicated with pairs_integrator.py
+    def quad_to_gpu(self, q):
+        return [gpu.to_gpu(arr.copy(), self.float_type) for arr in q]
+
     def dot(self, v):
-        return self.farfield.dot(v)
+        far_out = self.farfield.dot(v)
+        near_out = self.near_mat.dot(v)
+        return far_out + near_out
+
+def interior_pairs_quad(K_name, pairs_list, gpu_quad,
+        gpu_obs_pts, gpu_obs_ns, gpu_src_pts, gpu_src_tris,
+        gpu_params, float_type):
+
+    n_pairs = pairs_list.shape[0]
+    gpu_result = gpu.empty_gpu((n_pairs, 3, 3, 3), float_type)
+    gpu_pairs_list = gpu.to_gpu(pairs_list.copy(), np.int32)
+    module = get_gpu_module(K_name, float_type)
+    n_threads = int(np.ceil(n_pairs / block_size))
+
+    if n_pairs != 0:
+        module.interior_pairs(
+            gpu_result,
+            np.int32(gpu_quad[0].shape[0]), gpu_quad[0], gpu_quad[1],
+            gpu_obs_pts, gpu_obs_ns,
+            gpu_src_pts, gpu_src_tris,
+            gpu_pairs_list, np.int32(0), np.int32(n_pairs),
+            gpu_params,
+            grid = (n_threads, 1, 1), block = (block_size, 1, 1)
+        )
+    return gpu_result.get()
 
 #TODO: A lot of duplication with TriToTriDirectFarfieldOp
 class TriToPtDirectFarfieldOp:
@@ -150,7 +125,7 @@ class TriToPtDirectFarfieldOp:
         self.n_blocks = int(np.ceil(self.n_obs / self.block_size))
 
         self.module = gpu.load_gpu(
-            'farfield_tris.cl',
+            'matrix_free.cl',
             tmpl_args = dict(
                 block_size = self.block_size,
                 float_type = gpu.np_to_c_type(float_type),

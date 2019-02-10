@@ -127,10 +127,6 @@ ${pt_pfx}${dn(dim)} += ${basis_pfx}b[${basis}] * ${tri_name(basis,dim)};
 % endfor
 </%def>
 
-<%def name="temp_result_idx(d_obs, d_src, b_obs, b_src)">
-${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
-</%def>
-
 <%def name="call_vector_code(K)">
 % if hasattr(kernels, K.name + '_vector'):
     ${getattr(kernels, K.name + '_vector')()}
@@ -147,18 +143,19 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
 % endif
 </%def>
 
-<%def name="call_tensor_code(K)">
+<%def name="call_tensor_code(K, obs_basis_dim)">
 % if hasattr(kernels, K.name + '_tensor'):
     ${getattr(kernels, K.name + '_tensor')()}
 % else:
     Real Karr[9];
     ${K.tensor_code}
-    obsb[0] *= quadw;
-    obsb[1] *= quadw;
-    obsb[2] *= quadw;
+
+    % for d in range(obs_basis_dim):
+        obsb[${d}] *= quadw;
+    % endfor
 
     int idx = 0;
-    for (int b_obs = 0; b_obs < 3; b_obs++) {
+    for (int b_obs = 0; b_obs < ${obs_basis_dim}; b_obs++) {
     for (int d_obs = 0; d_obs < 3; d_obs++) {
     for (int b_src = 0; b_src < 3; b_src++) {
     for (int d_src = 0; d_src < 3; d_src++, idx++) {
@@ -211,8 +208,47 @@ ${b_obs} * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src}
         }
         % endif
 
-        ${call_tensor_code(K)}
+        ${call_tensor_code(K, 3)}
     }
 </%def>
 
+//TODO: combine with above?
+<%def name="integrate_pt_tri(K)">
+    Real result_temp[27];
+    Real kahanC[27];
 
+    for (int iresult = 0; iresult < 27; iresult++) {
+        result_temp[iresult] = 0;
+        kahanC[iresult] = 0;
+    }
+
+    % for d in range(K.spatial_dim):
+        Real x${dn(d)} = obs_pts[obs_pt_idx * ${K.spatial_dim} + ${d}];
+        Real nobs${dn(d)} = obs_ns[obs_pt_idx * ${K.spatial_dim} + ${d}];
+    % endfor
+
+    ${K.constants_code}
+    
+    for (int iq = 0; iq < n_quad_pts; iq++) {
+        Real srcxhat = quad_pts[iq * 2 + 0];
+        Real srcyhat = quad_pts[iq * 2 + 1];
+        Real quadw = quad_wts[iq];
+
+        % for which, ptname in [("src", "y")]:
+            ${basis(which)}
+            ${pts_from_basis(
+                ptname, which,
+                lambda b, d: which + "_tri[" + str(b) + "][" + str(d) + "]", 3
+            )}
+        % endfor
+
+        Real Dx = yx - xx;
+        Real Dy = yy - xy; 
+        Real Dz = yz - xz;
+        Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
+
+        Real obsb[1] = {1.0};
+
+        ${call_tensor_code(K, 1)}
+    }
+</%def>

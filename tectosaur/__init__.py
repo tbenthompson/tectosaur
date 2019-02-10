@@ -28,7 +28,7 @@ from tectosaur.ops.sparse_farfield_op import (
     TriToTriDirectFarfieldOp,
     FMMFarfieldOp)
 from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
-from tectosaur.interior import interior_integral, InteriorOp
+from tectosaur.interior import InteriorOp
 
 from tectosaur.constraints import Term, ConstraintEQ, build_constraint_matrix
 from tectosaur.constraint_builders import (

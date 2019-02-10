@@ -11,7 +11,7 @@ ${cluda_preamble}
 
 #define Real ${float_type}
 
-<%namespace name="prim" file="../integral_primitives.cl"/>
+<%namespace name="prim" file="integral_primitives.cl"/>
 
 <%def name="setup_pair()">
     const int i = get_global_id(0);
@@ -138,8 +138,34 @@ void farfield_tris(GLOBAL_MEM Real* result,
 }
 </%def>
 
+<%def name="interior_pairs(K)">
+KERNEL
+void interior_pairs(GLOBAL_MEM Real* result, 
+    int n_quad_pts, GLOBAL_MEM Real* quad_pts, GLOBAL_MEM Real* quad_wts,
+    GLOBAL_MEM Real* obs_pts, GLOBAL_MEM Real* obs_ns,
+    GLOBAL_MEM Real* src_pts, GLOBAL_MEM int* src_tris,
+    GLOBAL_MEM int* pairs_list, int start_idx, int end_idx, 
+    GLOBAL_MEM Real* params)
+{
+    ${setup_pair()}
+
+    const int obs_pt_idx = pairs_list[pair_idx * 2];
+    const int src_tri_idx = pairs_list[pair_idx * 2 + 1];
+    const int src_tri_rot_clicks = 0;
+
+    ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
+    ${prim.tri_info("src", "src_pts", "src_tris", K.needs_srcn, K.surf_curl_src)}
+    ${prim.integrate_pt_tri(K)}
+
+    for (int iresult = 0; iresult < 27; iresult++) {
+        result[i * 27 + iresult] = src_jacobian * result_temp[iresult];
+    }
+}
+</%def>
+
 ${prim.geometry_fncs()}
 ${single_pairs(K, check0 = True)}
 ${single_pairs(K, check0 = False)}
 ${single_pairs_adj(K)}
 ${farfield_tris(K)}
+${interior_pairs(K)}

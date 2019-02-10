@@ -4,6 +4,8 @@ from tectosaur.kernels import elastic_kernels, kernels
 def dn(dim):
     return ['x', 'y', 'z'][dim]
 %>
+//TODO: Move this to matrix_free.cl
+//TODO: make matrix_free and assemble directories
 ${cluda_preamble}
 
 #define Real ${float_type}
