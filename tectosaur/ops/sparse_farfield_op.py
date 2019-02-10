@@ -45,7 +45,7 @@ class TriToTriDirectFarfieldOp:
                 quad_wts = self.q[1]
             )
         )
-        self.fnc = getattr(self.module, "farfield_tris" + K_name)
+        self.fnc = getattr(self.module, "farfield_tris_to_tris" + K_name)
 
     def dot(self, v):
         self.gpu_in[:] = v[:].astype(self.gpu_in.dtype)

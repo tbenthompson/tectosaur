@@ -8,6 +8,7 @@ from tectosaur.util.cpp import imp
 fast_find_nearfield = imp('tectosaur.mesh.fast_find_nearfield')
 
 split_adjacent_close = fast_find_nearfield.split_adjacent_close
+split_vertex_nearfield = fast_find_nearfield.split_vertex_nearfield
 
 def get_tri_centroids_rs(pts, tris):
     tri_pts = pts[tris]

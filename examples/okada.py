@@ -15,7 +15,6 @@ import tectosaur.constraints as constraints
 from tectosaur.continuity import continuity_constraints, get_side_of_fault
 from tectosaur.constraint_builders import all_bc_constraints, free_edge_constraints
 from tectosaur.util.timer import Timer
-# from tectosaur.interior import interior_integral
 from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
 from tectosaur.ops.sparse_integral_op import RegularizedSparseIntegralOp
 from tectosaur.ops.sparse_farfield_op import FMMFarfieldOp, \

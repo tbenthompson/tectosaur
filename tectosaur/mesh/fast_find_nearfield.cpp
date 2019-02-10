@@ -181,6 +181,39 @@ std::array<std::vector<long>,3> split_adjacent_close(long* close_pairs,
     return out;
 }
 
+std::array<std::vector<long>,2> split_vertex_nearfield(long* close_pairs,
+    size_t n_pairs, double* obs_pts, double* src_pts, long* src_tris)
+{
+    std::array<std::vector<long>,2> out;
+    for (size_t i = 0; i < n_pairs; i++) {
+        auto idx1 = close_pairs[i * 2];
+        auto idx2 = close_pairs[i * 2 + 1];
+        std::array<double,3> obs_pt = {
+            obs_pts[idx1 * 3 + 0],
+            obs_pts[idx1 * 3 + 1],
+            obs_pts[idx1 * 3 + 2]
+        };
+        int isvertex = -1;
+        for (int d = 0; d < 3; d++) {
+            std::array<double,3> src_tri_pt = {
+                src_pts[src_tris[idx2 * 3 + d] * 3 + 0],
+                src_pts[src_tris[idx2 * 3 + d] * 3 + 1],
+                src_pts[src_tris[idx2 * 3 + d] * 3 + 2]
+            };
+            //TODO: THRESHOLD!
+            if (dist2(obs_pt, src_tri_pt) < 1e-5) {
+                isvertex = d;
+            }
+        }
+        if (isvertex >= 0) {
+            out[0].insert(out[0].end(), {idx1, idx2, isvertex});
+        } else {
+            out[1].insert(out[1].end(), {idx1, idx2});
+        }
+    }
+    return out;
+}
+
 PYBIND11_MODULE(fast_find_nearfield,m) {
     constexpr static int dim = 3;
 
@@ -251,6 +284,25 @@ PYBIND11_MODULE(fast_find_nearfield,m) {
                 array_from_vector(out[0], {out[0].size() / 2, 2}),
                 array_from_vector(out[1], {out[1].size() / 4, 4}),
                 array_from_vector(out[2], {out[2].size() / 6, 6})
+            );
+        });
+
+    m.def("split_vertex_nearfield",
+        [] (NPArray<long> close_pairs, NPArrayD obs_pts, NPArrayD src_pts,
+            NPArray<long> src_tris) 
+        {
+            auto close_pairs_ptr = as_ptr<long>(close_pairs);
+            auto obs_pts_ptr = as_ptr<double>(obs_pts);
+            auto src_pts_ptr = as_ptr<double>(src_pts);
+            auto src_tris_ptr = as_ptr<long>(src_tris);
+            auto n_pairs = close_pairs.request().shape[0];
+
+            auto out = split_vertex_nearfield(
+                close_pairs_ptr, n_pairs, obs_pts_ptr, src_pts_ptr, src_tris_ptr
+            );
+            return py::make_tuple(
+                array_from_vector(out[0], {out[0].size() / 3, 3}),
+                array_from_vector(out[1], {out[1].size() / 2, 2})
             );
         });
 }

@@ -16,9 +16,9 @@ CONSTANT Real quad_wts[${quad_wts.size}] = {${str(quad_wts.flatten().tolist())[1
 
 ${prim.geometry_fncs()}
 
-<%def name="farfield_tris(K)">
+<%def name="farfield_tris_to_tris(K)">
 KERNEL
-void farfield_tris${K.name}(
+void farfield_tris_to_tris${K.name}(
     GLOBAL_MEM Real* result, GLOBAL_MEM Real* input, 
     GLOBAL_MEM Real* pts, GLOBAL_MEM int* obs_tris, GLOBAL_MEM int* src_tris,
     GLOBAL_MEM Real* params, int n_obs, int n_src)
@@ -106,6 +106,96 @@ void farfield_tris${K.name}(
 }
 </%def>
 
+<%def name="farfield_tris_to_pts(K)">
+KERNEL
+void farfield_tris_to_pts${K.name}(
+    GLOBAL_MEM Real* result, GLOBAL_MEM Real* input, 
+    GLOBAL_MEM Real* obs_pts, GLOBAL_MEM Real* obs_ns,
+    GLOBAL_MEM Real* src_pts, GLOBAL_MEM int* src_tris,
+    GLOBAL_MEM Real* params, int n_obs, int n_src)
+{
+    <%
+        dofs_per_el = K.spatial_dim * K.tensor_dim
+        basis_desc = [("src", "y")]
+    %>
+    const int obs_pt_idx = get_global_id(0);
+    int local_id = get_local_id(0);
+
+    if (obs_pt_idx >= n_obs) {
+        return;
+    }
+
+    % for d in range(K.spatial_dim):
+        Real x${dn(d)} = obs_pts[obs_pt_idx * ${K.spatial_dim} + ${d}];
+        Real nobs${dn(d)} = obs_ns[obs_pt_idx * ${K.spatial_dim} + ${d}];
+    % endfor
+
+    ${K.constants_code}
+
+    Real sum[${K.tensor_dim}];
+    for (int k = 0; k < ${K.tensor_dim}; k++) {
+        sum[k] = 0.0;
+    }
+
+    for (int j = 0; j < n_src; j++) {
+        const int src_tri_idx = j;
+        const int src_tri_rot_clicks = 0;
+        ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
+        ${prim.tri_info("src", "src_pts", "src_tris", K.needs_srcn, K.surf_curl_src)}
+
+        Real in[${dofs_per_el}];
+        for (int k = 0; k < ${dofs_per_el}; k++) {
+            in[k] = input[src_tri_idx * ${dofs_per_el} + k];
+        }
+
+        for (int iq1 = 0; iq1 < ${quad_wts.shape[0]}; iq1++) {
+            Real srcxhat = quad_pts[iq1 * 2 + 0];
+            Real srcyhat = quad_pts[iq1 * 2 + 1];
+            Real quadw = quad_wts[iq1];
+
+            % for which, ptname in basis_desc:
+                ${prim.basis(which)}
+                ${prim.pts_from_basis(
+                    ptname, which,
+                    lambda b, d: which + "_tri[" + str(b) + "][" + str(d) + "]", 3
+                )}
+            % endfor
+
+            Real Dx = yx - xx;
+            Real Dy = yy - xy; 
+            Real Dz = yz - xz;
+            Real r2 = Dx * Dx + Dy * Dy + Dz * Dz;
+
+            if (r2 == 0.0) {
+                continue;
+            }
+
+            Real factor = src_jacobian * quadw;
+            % for d in range(3):
+                Real sum${dn(d)} = 0.0;
+                Real in${dn(d)} = 0.0;
+                for (int b_src = 0; b_src < 3; b_src++) {
+                    in${dn(d)} += in[b_src * 3 + ${d}] * srcb[b_src];
+                }
+            % endfor
+
+            ${prim.call_vector_code(K)}
+
+            % for d_obs in range(K.tensor_dim):
+            sum[${d_obs}] += factor * sum${dn(d_obs)};
+            % endfor
+        }
+    }
+
+    for (int k = 0; k < ${K.tensor_dim}; k++) {
+        result[obs_pt_idx * ${K.tensor_dim} + k] = sum[k];
+    }
+}
+</%def>
+
 % for name,K in kernels.items():
-${farfield_tris(K)}
+    ${farfield_tris_to_tris(K)}
+    % if not K.surf_curl_obs and K.spatial_dim == 3:
+        ${farfield_tris_to_pts(K)}
+    % endif
 % endfor

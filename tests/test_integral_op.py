@@ -2,12 +2,11 @@ import numpy as np
 
 import tectosaur.nearfield.triangle_rules as triangle_rules
 import tectosaur.nearfield.nearfield_op as nearfield_op
-import tectosaur.nearfield.limit as limit
 
 import tectosaur.ops.dense_integral_op as dense_integral_op
 import tectosaur.ops.sparse_integral_op as sparse_integral_op
-from tectosaur.ops.sparse_farfield_op import PtToPtDirectFarfieldOp, \
-    PtToPtFMMFarfieldOp, TriToTriDirectFarfieldOp
+from tectosaur.ops.sparse_farfield_op import TriToTriDirectFarfieldOp, \
+    FMMFarfieldOp
 import tectosaur.ops.mass_op as mass_op
 
 import tectosaur.util.quadrature as quad
@@ -18,6 +17,7 @@ from tectosaur.interior import interior_integral
 
 from tectosaur.util.test_decorators import slow, golden_master, kernel
 from tectosaur.util.timer import Timer
+import tectosaur as tct
 
 from laplace import laplace
 
@@ -196,12 +196,11 @@ def test_mass_tensor_dim():
     y1 = op1.dot(x[:,:,0].flatten())
     np.testing.assert_almost_equal(y1, y3.reshape((-1,3,3))[:,:,0].flatten())
 
-
 @golden_master()
 def test_interior(request):
     np.random.seed(10)
     corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
-    pts, tris = mesh_gen.make_rect(3,3 ,corners)
+    pts, tris = mesh_gen.make_rect(3, 3, corners)
     obs_pts = pts.copy()
     obs_pts[:,2] += 1.0
     obs_ns = np.random.rand(*obs_pts.shape)
@@ -212,9 +211,41 @@ def test_interior(request):
     K = 'elasticH3'
     params = [1.0, 0.25]
 
-    return interior_integral(
-        obs_pts, obs_ns, (pts, tris), input, K, 4, 4, params, float_type
+    op = tct.InteriorOp(
+        obs_pts, obs_ns, (pts, tris), K, 4, params, float_type
     )
+    return op.dot(input)
+
+@golden_master()
+def test_interior_nearfield(request):
+    np.random.seed(10)
+    corners = [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]]
+    src_mesh = mesh_gen.make_rect(30, 30, corners)
+    xs = np.linspace(-3, 3, 50)
+    X, Z = np.meshgrid(xs, xs)
+    Y = np.ones_like(X) * 0.0
+    obs_pts = np.array([e.flatten() for e in [X, Y, Z]]).T.copy()
+    obs_ns = np.zeros(obs_pts.shape)
+    obs_ns[:,2] = 1.0
+
+    input = np.zeros(src_mesh[1].shape[0] * 9)
+    input.reshape((-1,3))[:,0] = 1.0
+
+    K = 'elasticT3'
+    params = [1.0, 0.25]
+
+    op = tct.InteriorOp(
+        obs_pts, obs_ns, src_mesh, K, 4, params, float_type
+    )
+    out = op.dot(input)
+
+    # import matplotlib.pyplot as plt
+    # for d in range(3):
+    #     plt.subplot(1, 3, d + 1)
+    #     plt.contourf(X, Z, out.reshape((-1,3))[:,d].reshape(X.shape))
+    #     plt.colorbar()
+    # plt.show()
+    return out
 
 @profile
 def benchmark_nearfield_construction():

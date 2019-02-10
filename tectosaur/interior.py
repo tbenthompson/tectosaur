@@ -7,6 +7,7 @@ import scipy.sparse
 import tectosaur.fmm.fmm as fmm
 from tectosaur.farfield import farfield_pts_direct
 import tectosaur.mesh.find_near_adj as find_near_adj
+from tectosaur.kernels import kernels
 
 def interp_galerkin_mat(tri_pts, quad_rule):
     import tectosaur.util.geometry as geometry
@@ -69,16 +70,16 @@ def interior_fmm_farfield(kernel, params, obs_pts, obs_ns, src_pts, src_ns,
     to_orig = to_orig.flatten()
     return to_orig
 
-@profile
+#@profile
 def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near,
         params, float_type, fmm_params = None):
     threshold = 0.01
 
-    near_pairs = find_near_adj.fast_find_nearfield.get_nearfield(
-        obs_pts, np.zeros(obs_pts.shape[0]),
-        *find_near_adj.get_tri_centroids_rs(*mesh),
-        threshold, 50
-    )
+    # near_pairs = find_near_adj.fast_find_nearfield.get_nearfield(
+    #     obs_pts, np.zeros(obs_pts.shape[0]),
+    #     *find_near_adj.get_tri_centroids_rs(*mesh),
+    #     threshold, 50
+    # )
 
     # 2) perform some higher order quadrature for those pairs
     # 3) add in the corrections to cancel the FMM for those pairs
@@ -98,3 +99,75 @@ def interior_integral(obs_pts, obs_ns, mesh, input, K, nq_far, nq_near,
         )
     return far
 
+class InteriorOp:
+    def __init__(self, obs_pts, obs_ns, src_mesh, K_name, nq_far,
+            params, float_type):
+
+        self.threshold = 1.0
+        pairs = find_near_adj.fast_find_nearfield.get_nearfield(
+            obs_pts, np.zeros(obs_pts.shape[0]),
+            *find_near_adj.get_tri_centroids_rs(*src_mesh),
+            self.threshold, 50
+        )
+
+        split = find_near_adj.split_vertex_nearfield(
+            pairs, obs_pts, src_mesh[0], src_mesh[1]
+        )
+        self.vertex_pairs, self.near_pairs = split
+
+        self.farfield = TriToPtDirectFarfieldOp(
+            obs_pts, obs_ns, src_mesh, K_name, nq_far,
+            params, float_type
+        )
+
+    def dot(self, v):
+        return self.farfield.dot(v)
+
+#TODO: A lot of duplication with TriToTriDirectFarfieldOp
+class TriToPtDirectFarfieldOp:
+    def __init__(self, obs_pts, obs_ns, src_mesh, K_name, nq,
+            params, float_type):
+
+        self.shape = (obs_pts.shape[0] * 3, src_mesh[1].shape[0] * 9)
+        self.dim = obs_pts.shape[1]
+        self.tensor_dim = kernels[K_name].tensor_dim
+        self.n_obs = obs_pts.shape[0]
+        self.n_src = src_mesh[1].shape[0]
+
+        in_size = self.n_src * self.dim * self.tensor_dim
+        out_size = self.n_obs * self.tensor_dim
+        self.gpu_in = gpu.empty_gpu(in_size, float_type)
+        self.gpu_out = gpu.empty_gpu(out_size, float_type)
+
+        self.q = gauss2d_tri(nq)
+
+        self.gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)
+        self.gpu_obs_ns = gpu.to_gpu(obs_ns, float_type)
+        self.gpu_src_pts = gpu.to_gpu(src_mesh[0], float_type)
+        self.gpu_src_tris = gpu.to_gpu(src_mesh[1], np.int32)
+        self.gpu_params = gpu.to_gpu(np.array(params), float_type)
+        self.block_size = 128
+        self.n_blocks = int(np.ceil(self.n_obs / self.block_size))
+
+        self.module = gpu.load_gpu(
+            'farfield_tris.cl',
+            tmpl_args = dict(
+                block_size = self.block_size,
+                float_type = gpu.np_to_c_type(float_type),
+                quad_pts = self.q[0],
+                quad_wts = self.q[1]
+            )
+        )
+        self.fnc = getattr(self.module, "farfield_tris_to_pts" + K_name)
+
+    def dot(self, v):
+        self.gpu_in[:] = v[:].astype(self.gpu_in.dtype)
+        self.fnc(
+            self.gpu_out, self.gpu_in,
+            self.gpu_obs_pts, self.gpu_obs_ns,
+            self.gpu_src_pts, self.gpu_src_tris,
+            self.gpu_params,
+            np.int32(self.n_obs), np.int32(self.n_src),
+            grid = (self.n_blocks, 1, 1), block = (self.block_size, 1, 1)
+        )
+        return self.gpu_out.get()
