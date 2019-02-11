@@ -26,12 +26,13 @@ def dn(dim):
     Real Gimk = A + Q2 * D${dn(p)} * B;
 </%def>
 
-<%def name="elasticRTA3_tensor(L, R)">
+<%def name="elasticRTA3_tensor(L, R, obs_basis_dim)">
     % for d_obs in range(3):
     % for d_src in range(3):
     <%
         L_d = d_obs if L == 'obs' else d_src
         R_d = d_src if L == 'obs' else d_obs
+        b_L_max = obs_basis_dim if L == 'obs' else 3
     %>
     for (int b_${R} = 0; b_${R} < 3; b_${R}++) {
     {
@@ -45,7 +46,7 @@ def dn(dim):
         % if d_obs == d_src:
             Kval += Q3nD * ${R}b[b_${R}] * ${1 if L == 'obs' else -1};
         % endif
-        for (int b_${L} = 0; b_${L} < 3; b_${L}++) {
+        for (int b_${L} = 0; b_${L} < ${b_L_max}; b_${L}++) {
             Real val = quadw * ${L}b[b_${L}] * Kval;
             int idx = b_obs * 27 + ${d_obs} * 9 + b_src * 3 + ${d_src};
             result_temp[idx] += val;
@@ -56,17 +57,17 @@ def dn(dim):
     % endfor
 </%def>
 
-<%def name="elasticRT3_tensor()">
+<%def name="elasticRT3_tensor(obs_basis_dim)">
     ${elasticRTA3_setup('src')}
-    ${elasticRTA3_tensor('obs', 'src')}
+    ${elasticRTA3_tensor('obs', 'src', obs_basis_dim)}
 </%def>
 
-<%def name="elasticRA3_tensor()">
+<%def name="elasticRA3_tensor(obs_basis_dim)">
     ${elasticRTA3_setup('obs')}
-    ${elasticRTA3_tensor('src', 'obs')}
+    ${elasticRTA3_tensor('src', 'obs', 3)}
 </%def>
 
-<%def name="elasticRH3_tensor()">
+<%def name="elasticRH3_tensor(obs_basis_dim)">
     const Real invr2 = 1.0 / r2;
     const Real invr = sqrt(invr2);
     % for d_obs in range(3):

@@ -46,11 +46,11 @@ obs_ns = np.zeros(obs_pts.shape)
 obs_ns[:,1] = 1.0
 
 if which == 'D':
-    K = 'elasticT3'
+    K = 'elasticRT3'
 else:
     K = 'elasticH3'
 params = [1.0, 0.25]
-op = tct.InteriorOp(obs_pts, obs_ns, src_mesh, K, 4, 100, params, np.float32)
+op = tct.InteriorOp(obs_pts, obs_ns, src_mesh, K, 2, 8, params, np.float32)
 out = op.dot(slip.flatten())
 
 sm, pr = 1.0, 0.25

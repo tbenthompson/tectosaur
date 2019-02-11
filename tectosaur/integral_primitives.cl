@@ -145,7 +145,7 @@ ${pt_pfx}${dn(dim)} += ${basis_pfx}b[${basis}] * ${tri_name(basis,dim)};
 
 <%def name="call_tensor_code(K, obs_basis_dim)">
 % if hasattr(kernels, K.name + '_tensor'):
-    ${getattr(kernels, K.name + '_tensor')()}
+    ${getattr(kernels, K.name + '_tensor')(obs_basis_dim)}
 % else:
     Real Karr[9];
     ${K.tensor_code}

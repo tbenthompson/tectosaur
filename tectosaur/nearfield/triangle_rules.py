@@ -1,6 +1,7 @@
 import tectosaur.util.quadrature as quad
 import numpy as np
 
+
 def vertex_adj_quad(n_theta, n_beta, n_alpha):
     theta_quad = quad.gaussxw(n_theta)
     beta_quad = quad.gaussxw(n_beta)
