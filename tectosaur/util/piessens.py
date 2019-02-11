@@ -69,3 +69,4 @@ def piessen_neg_one_to_one_nodes(N):
     x = gx
     w = gw / gx
     return x, w
+
