@@ -74,7 +74,6 @@ void ${pairs_func_name(check0)}_adj(GLOBAL_MEM Real* result,
     //printf("src3: %f %f %f\n", src_tri[2][0], src_tri[2][1], src_tri[2][2]);
     //printf("obsjac: %f srcjac: %f \n", obs_jacobian, src_jacobian);
     
-    Real derot_factor = -1;
     int obs_derot[3];
     for (size_t i = 0; i < 3; i++) {
         obs_derot[i] = positive_mod(-obs_tri_rot_clicks + i, 3);
@@ -149,16 +148,27 @@ void interior_pairs(GLOBAL_MEM Real* result,
 {
     ${setup_pair()}
 
-    const int obs_pt_idx = pairs_list[pair_idx * 2];
-    const int src_tri_idx = pairs_list[pair_idx * 2 + 1];
-    const int src_tri_rot_clicks = 0;
+    const int obs_pt_idx = pairs_list[pair_idx * 3];
+    const int src_tri_idx = pairs_list[pair_idx * 3 + 1];
+    const int src_tri_rot_clicks = pairs_list[pair_idx * 3 + 2];
 
     ${prim.decl_tri_info("src", K.needs_srcn, K.surf_curl_src)}
     ${prim.tri_info("src", "src_pts", "src_tris", K.needs_srcn, K.surf_curl_src)}
     ${prim.integrate_pt_tri(K)}
 
-    for (int iresult = 0; iresult < 27; iresult++) {
-        result[i * 27 + iresult] = src_jacobian * result_temp[iresult];
+    int src_derot[3];
+    for (size_t i = 0; i < 3; i++) {
+        src_derot[i] = positive_mod(-src_tri_rot_clicks + i, 3);
+    }
+    for (int d1 = 0; d1 < 3; d1++) {
+        for (int b2 = 0; b2 < 3; b2++) {
+            for (int d2 = 0; d2 < 3; d2++) {
+                int out_idx = d1 * 9 + b2 * 3 + d2;
+                int in_idx = d1 * 9 + src_derot[b2] * 3 + d2;
+                Real val = src_jacobian * result_temp[in_idx];
+                result[i * 27 + out_idx] = val;
+            }
+        }
     }
 }
 </%def>

@@ -2,16 +2,24 @@
 # A quadrature rule for finite-part integrals, D.F. Paget
 
 import numpy as np
-from scipy.special import legendre
+from math import factorial
+from scipy.special import legendre, gamma
 from tectosaur.util.quadrature import gaussxw, map_to
 
-def calc_bk(N):
-    ck = -1.0
+def calc_bk(N, a):
+    bk = [-1] * (a - 1)
+    if a == 1:
+        ck = -1.0
+    else:
+        ck = (2 * a - 2) / (1 - a)
     dk = 0.0
-    bk = [0.0]
-    for k in range(1, N):
-        ck = ck * -1.0
-        dk = dk + 2.0 / k
+    for r in range(1, a):
+        dk += 1.0 / (r * (r + a - 1))
+    dk *= -(a - 1)
+    bk.append(ck * dk)
+    for k in range(a, N):
+        ck = -ck * (k + a - 1) / (k - a + 1)
+        dk = dk + (1.0 / (k + a - 1)) + (1.0 / (k - a + 1))
         bk.append(ck * dk)
     return bk
 
@@ -21,10 +29,19 @@ def digamma(k):
         s += 1.0 / i
     return s
 
-def calc_bk2(N):
+def gammaratio(a, k):
+    return gamma(a + k) / gamma(a)
+
+def calc_bk2(N, a):
     bk = []
     for k in range(N):
-        bk.append(((-1) ** (k + 1)) * (digamma(k + 1) + digamma(k + 1) - 2 * digamma(1)))
+        if k < a - 1:
+            bk.append(-1)
+            continue
+        bk.append(
+            ((-1) ** (k + a) * factorial(k + a - 1) / (factorial(k - a + 1) * factorial(a - 1)))
+            * (digamma(k + a) + digamma(k - a + 2) - 2 * digamma(a))
+        )
     return bk
 
 def calc_e(bk, xs):
@@ -50,10 +67,11 @@ def calc_e2(bk, xs):
         es.append(s)
     return es
 
-def paget(N):
+# Note: this returns a quadrature rule for a finite part integral with the
+# singularity at x = -1, integrate(f(x) / (x + 1), x, -1, 1)
+def paget(N, a):
     gx, gw = gaussxw(N)
-    bk = calc_bk(N)
+    bk = calc_bk(N, a)
     es = calc_e(bk, gx)
-    ws = gw * es
-    ys = gx / 2 + 0.5
-    return ys, ws
+    ws = gw * es * 2
+    return gx, ws

@@ -4,15 +4,24 @@ import matplotlib.pyplot as plt
 import matplotlib.tri
 import okada_wrapper
 
-which = 'D'
-SEP = 0.001
+which = 'H'
+TCTN = 50
+SEP = 0.0
+FAR = 4
+NEAR = 8
+VERTEX = 10
+OKADAN = 20
+CURVE = 0.0#1.5
+
+if CURVE != 0:
+    assert(OKADAN == 0)
 
 corners = [[-1, 0, -1], [1, 0, -1], [1, 0, 1], [-1, 0, 1]]
-n = 10
-src_mesh = tct.make_rect(n, n, corners)
+src_mesh = tct.make_rect(TCTN, TCTN, corners)
+src_mesh[0][:,1] = CURVE * src_mesh[0][:,0] ** 2
 def gauss_slip_fnc(x, z):
     r2 = x ** 2 + z ** 2
-    R = 1.0
+    R = 0.5
     out = (np.cos(np.sqrt(r2) * np.pi / R) + 1) / 2.0
     out[np.sqrt(r2) > R] = 0.0
     return out
@@ -45,31 +54,47 @@ obs_pts[:,1] += SEP
 obs_ns = np.zeros(obs_pts.shape)
 obs_ns[:,1] = 1.0
 
-if which == 'D':
-    K = 'elasticRT3'
-else:
+if which == 'T':
+    K = 'elasticT3'
+elif which == 'A':
+    K = 'elasticA3'
+elif which == 'H':
     K = 'elasticH3'
 params = [1.0, 0.25]
-op = tct.InteriorOp(obs_pts, obs_ns, src_mesh, K, 2, 8, params, np.float32)
+op = tct.InteriorOp(obs_pts, obs_ns, src_mesh, K, VERTEX, FAR, NEAR, params, np.float32)
 out = op.dot(slip.flatten())
+
+def plot_fnc(triang, f):
+    levels = np.linspace(np.min(f) - 1e-12, np.max(f) + 1e-12, 21)
+    cntf = plt.tricontourf(triang, f, levels = levels, cmap = 'RdBu')
+    plt.tricontour(triang, f, levels = levels, linestyles = 'solid', colors = 'k', linewidths = 0.5)
+    plt.colorbar(cntf)
+
+triang = matplotlib.tri.Triangulation(obs_pts[:,0], obs_pts[:,2])
+for d in range(3):
+    f = out.reshape((-1,3))[:,d]
+    plt.subplot(2, 3, d + 1)
+    plot_fnc(triang, f)
+
+if OKADAN == 0:
+    plt.show(); import sys; sys.exit()
 
 sm, pr = 1.0, 0.25
 lam = 2 * sm * pr / (1 - 2 * pr)
 alpha = (lam + sm) / (lam + 2 * sm)
-N = 10
-X_vals = np.linspace(-1.0, 1.0, N + 1)
-Z_vals = np.linspace(-1.0, 1.0, N + 1)
+X_vals = np.linspace(-1.0, 1.0, OKADAN + 1)
+Z_vals = np.linspace(-1.0, 1.0, OKADAN + 1)
 def okada_pt(pt):
     disp = np.zeros(3)
     trac = np.zeros(3)
-    D = 10000
+    D = 100000
     pt_copy = pt.copy()
     pt_copy[2] += -D
-    for j in range(N):
+    for j in range(OKADAN):
         X1 = X_vals[j]
         X2 = X_vals[j+1]
         midX = (X1 + X2) / 2.0
-        for k in range(N):
+        for k in range(OKADAN):
             Z1 = Z_vals[k]
             Z2 = Z_vals[k+1]
             midZ = (Z1 + Z2) / 2.0
@@ -86,9 +111,11 @@ def okada_pt(pt):
             stress = lam * strain_trace * kronecker + 2 * sm * strain
             trac += stress.dot(obs_ns[0])
             assert(suc == 0)
-    if which == 'D':
+    if which == 'T':
         return disp
-    else:
+    elif which == 'A':
+        assert(False)
+    elif which == 'H':
         return trac
 Xc = (X_vals[1:] + X_vals[:-1]) / 2.0
 Zc = (Z_vals[1:] + Z_vals[:-1]) / 2.0
@@ -96,15 +123,9 @@ CX, CZ = np.meshgrid(Xc, Zc)
 okada_obs_pts = np.array([CX.flatten(), SEP * np.ones(CX.size), CZ.flatten()]).T.copy()
 okada_out = np.array([okada_pt(okada_obs_pts[i,:]) for i in range(okada_obs_pts.shape[0])])
 
-triang = matplotlib.tri.Triangulation(obs_pts[:,0], obs_pts[:,2])
-for d in range(3):
-    plt.subplot(2, 3, d + 1)
-    plt.tricontourf(triang, out.reshape((-1,3))[:,d])
-    plt.colorbar()
-
 okada_triang = matplotlib.tri.Triangulation(okada_obs_pts[:,0], okada_obs_pts[:,2])
 for d in range(3):
+    f = okada_out[:,d]
     plt.subplot(2, 3, 3 + d + 1)
-    plt.tricontourf(okada_triang, okada_out[:,d])
-    plt.colorbar()
+    plot_fnc(okada_triang, f)
 plt.show()

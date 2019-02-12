@@ -9,10 +9,27 @@ from tectosaur.farfield import farfield_pts_direct
 import tectosaur.mesh.find_near_adj as find_near_adj
 from tectosaur.kernels import kernels
 from tectosaur.nearfield.pairs_integrator import get_gpu_module, block_size
+from tectosaur.nearfield.triangle_rules import vertex_interior_quad
+
+def make_pairs_mat(pairs, entries, shape):
+    rows = np.tile(np.array([
+        pairs[:,0] * 3 + i for i in range(3)
+    ]).T[:,:, np.newaxis, np.newaxis], (1, 1, 9))
+
+    cols = np.tile(np.array([
+        pairs[:,1] * 9 + i for i in range(9)
+    ]).T[:, np.newaxis, :], (1, 3, 1))
+
+    return scipy.sparse.csr_matrix(
+        (entries.flatten(), (rows.flatten(), cols.flatten())),
+        shape = shape
+    )
+
 
 class InteriorOp:
-    def __init__(self, obs_pts, obs_ns, src_mesh, K_name, nq_far,
+    def __init__(self, obs_pts, obs_ns, src_mesh, K_name, nq_vertex, nq_far,
             nq_near, params, float_type):
+        self.K_name = K_name
         self.float_type = float_type
         self.threshold = 4.0
         pairs = find_near_adj.fast_find_nearfield.get_nearfield(
@@ -31,40 +48,40 @@ class InteriorOp:
             params, float_type
         )
 
-        self.gpu_near_quad = self.quad_to_gpu(gauss2d_tri(nq_near))
-        self.gpu_far_quad = self.quad_to_gpu(gauss2d_tri(nq_far))
-        print(self.near_pairs.shape[0])
+        gpu_near_quad = self.quad_to_gpu(gauss2d_tri(nq_near))
+        gpu_far_quad = self.quad_to_gpu(gauss2d_tri(nq_far))
 
-        self.gpu_obs_pts = gpu.to_gpu(obs_pts, float_type)
-        self.gpu_obs_ns = gpu.to_gpu(obs_ns, float_type)
-        self.gpu_src_pts = gpu.to_gpu(src_mesh[0], float_type)
-        self.gpu_src_tris = gpu.to_gpu(src_mesh[1], np.int32)
-        self.gpu_params = gpu.to_gpu(np.array(params), float_type)
-        near_mat = interior_pairs_quad(K_name, self.near_pairs,
-            self.gpu_near_quad, self.farfield.gpu_obs_pts, self.farfield.gpu_obs_ns,
-            self.farfield.gpu_src_pts, self.farfield.gpu_src_tris,
-            self.farfield.gpu_params, float_type
+        near_mat = self.pairs(self.near_pairs, gpu_near_quad)
+        near_mat_correction = self.pairs(self.near_pairs, gpu_far_quad)
+        self.near_mat = make_pairs_mat(
+            self.near_pairs, near_mat - near_mat_correction,
+            self.farfield.shape
         )
 
-        near_mat_correction = interior_pairs_quad(K_name, self.near_pairs,
-            self.gpu_far_quad, self.farfield.gpu_obs_pts, self.farfield.gpu_obs_ns,
-            self.farfield.gpu_src_pts, self.farfield.gpu_src_tris,
-            self.farfield.gpu_params, float_type
+        gpu_vertex_quad = self.quad_to_gpu(vertex_interior_quad(
+            2 * nq_vertex, nq_vertex, 2
+        ))
+        vertex_mat = self.pairs(self.vertex_pairs, gpu_vertex_quad)
+        vertex_mat_correction = self.pairs(self.vertex_pairs, gpu_far_quad)
+        self.vertex_mat = make_pairs_mat(
+            self.vertex_pairs, vertex_mat - vertex_mat_correction,
+            self.farfield.shape
         )
 
-        rows = np.tile(np.array([
-            self.near_pairs[:,0] * 3 + i
-            for i in range(3)
-        ]).T[:,:, np.newaxis, np.newaxis], (1, 1, 9))
-        cols = np.tile(np.array([
-            self.near_pairs[:,1] * 9 + i
-            for i in range(9)
-        ]).T[:, np.newaxis, :], (1, 3, 1))
-        entries = near_mat - near_mat_correction
+        # print(self.near_pairs.shape[0], self.vertex_pairs.shape[0])
+        # A = vertex_mat[0]
+        # B = vertex_mat_correction[0]
+        # C = self.vertex_pairs[0]
+        # print(A-B)
+        # import ipdb
+        # ipdb.set_trace()
 
-        self.near_mat = scipy.sparse.csr_matrix(
-            (entries.flatten(), (rows.flatten(), cols.flatten())),
-            shape = self.farfield.shape
+
+    def pairs(self, pairs, quad):
+        return interior_pairs_quad(self.K_name, pairs,
+            quad, self.farfield.gpu_obs_pts, self.farfield.gpu_obs_ns,
+            self.farfield.gpu_src_pts, self.farfield.gpu_src_tris,
+            self.farfield.gpu_params, self.float_type
         )
 
     #TODO: duplicated with pairs_integrator.py
@@ -74,7 +91,8 @@ class InteriorOp:
     def dot(self, v):
         far_out = self.farfield.dot(v)
         near_out = self.near_mat.dot(v)
-        return far_out + near_out
+        vertex_out = self.vertex_mat.dot(v)
+        return far_out + near_out + vertex_out
 
 def interior_pairs_quad(K_name, pairs_list, gpu_quad,
         gpu_obs_pts, gpu_obs_ns, gpu_src_pts, gpu_src_tris,

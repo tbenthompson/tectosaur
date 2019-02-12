@@ -201,14 +201,14 @@ std::array<std::vector<long>,2> split_vertex_nearfield(long* close_pairs,
                 src_pts[src_tris[idx2 * 3 + d] * 3 + 2]
             };
             //TODO: THRESHOLD!
-            if (dist2(obs_pt, src_tri_pt) < 1e-5) {
+            if (dist(obs_pt, src_tri_pt) < 1e-9) {
                 isvertex = d;
             }
         }
         if (isvertex >= 0) {
             out[0].insert(out[0].end(), {idx1, idx2, isvertex});
         } else {
-            out[1].insert(out[1].end(), {idx1, idx2});
+            out[1].insert(out[1].end(), {idx1, idx2, 0});
         }
     }
     return out;
@@ -302,7 +302,7 @@ PYBIND11_MODULE(fast_find_nearfield,m) {
             );
             return py::make_tuple(
                 array_from_vector(out[0], {out[0].size() / 3, 3}),
-                array_from_vector(out[1], {out[1].size() / 2, 2})
+                array_from_vector(out[1], {out[1].size() / 3, 3})
             );
         });
 }
