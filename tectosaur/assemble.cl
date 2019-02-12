@@ -178,4 +178,6 @@ ${single_pairs(K, check0 = True)}
 ${single_pairs(K, check0 = False)}
 ${single_pairs_adj(K)}
 ${farfield_tris(K)}
-${interior_pairs(K)}
+% if not K.surf_curl_obs:
+    ${interior_pairs(K)}
+% endif

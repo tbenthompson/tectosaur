@@ -1,10 +1,10 @@
 import numpy as np
-from scipy.sparse.linalg import cg
+import tectosaur as tct
 import matplotlib.pyplot as plt
 import matplotlib.tri
 import okada_wrapper
-import tectosaur as tct
 
+which = 'H'
 TCTN = 50
 SEP = 0.0
 FAR = 4
@@ -48,19 +48,21 @@ slip[:,:,0] = gauss_slip_fnc(x, z)
 # X, Y = np.meshgrid(xs, xs)
 # Z = np.ones_like(X) * sep
 # obs_pts = np.array([e.flatten() for e in [X, Y, Z]]).T.copy()
-cs = tct.continuity_constraints(src_mesh[0], src_mesh[1], src_mesh[1].shape[0])
-cs.extend(tct.free_edge_constraints(src_mesh[1]))
-cm, c_rhs, _ = tct.build_constraint_matrix(cs, src_mesh[1].shape[0] * 9)
-H = tct.RegularizedSparseIntegralOp(
-    6, 6, 6, 2, 5, 2.5,
-    'elasticRH3', 'elasticRH3', [1.0, 0.25], src_mesh[0], src_mesh[1], np.float32,
-    farfield_op_type = tct.TriToTriDirectFarfieldOp
-)
-traction_mass_op = tct.MassOp(4, src_mesh[0], src_mesh[1])
-constrained_traction_mass_op = cm.T.dot(traction_mass_op.mat.dot(cm))
-rhs = -H.dot(slip.flatten())
-soln = cg(constrained_traction_mass_op, cm.T.dot(rhs))
-out = cm.dot(soln[0])
+obs_pts = src_mesh[0].copy()
+obs_pts[:,1] += SEP
+
+obs_ns = np.zeros(obs_pts.shape)
+obs_ns[:,1] = 1.0
+
+if which == 'T':
+    K = 'elasticT3'
+elif which == 'A':
+    K = 'elasticA3'
+elif which == 'H':
+    K = 'elasticH3'
+params = [1.0, 0.25]
+op = tct.InteriorOp(obs_pts, obs_ns, src_mesh, K, VERTEX, FAR, NEAR, params, np.float32)
+out = op.dot(slip.flatten())
 
 def plot_fnc(triang, f):
     levels = np.linspace(np.min(f) - 1e-12, np.max(f) + 1e-12, 21)
@@ -68,13 +70,11 @@ def plot_fnc(triang, f):
     plt.tricontour(triang, f, levels = levels, linestyles = 'solid', colors = 'k', linewidths = 0.5)
     plt.colorbar(cntf)
 
-triang = matplotlib.tri.Triangulation(src_mesh[0][:,0], src_mesh[0][:,2], src_mesh[1])
+triang = matplotlib.tri.Triangulation(obs_pts[:,0], obs_pts[:,2])
 for d in range(3):
-    f = out.reshape((-1,3,3))[:,:,d]
-    f_pts = np.zeros(src_mesh[0].shape[0])
-    f_pts[src_mesh[1]] = f
+    f = out.reshape((-1,3))[:,d]
     plt.subplot(2, 3, d + 1)
-    plot_fnc(triang, f_pts)
+    plot_fnc(triang, f)
 
 if OKADAN == 0:
     plt.show(); import sys; sys.exit()
@@ -98,7 +98,7 @@ def okada_pt(pt):
             Z1 = Z_vals[k]
             Z2 = Z_vals[k+1]
             midZ = (Z1 + Z2) / 2.0
-            slip = gauss_slip_fnc(np.array([midX]), np.array([midZ]))[0]
+            slip = -gauss_slip_fnc(np.array([midX]), np.array([midZ]))[0]
 
             [suc, uv, grad_uv] = okada_wrapper.dc3dwrapper(
                 alpha, pt_copy, D, 90.0,
@@ -109,9 +109,14 @@ def okada_pt(pt):
             strain_trace = sum([strain[d,d] for d in [0,1,2]])
             kronecker = np.array([[1,0,0],[0,1,0],[0,0,1]])
             stress = lam * strain_trace * kronecker + 2 * sm * strain
-            trac += stress.dot([0,1,0])
+            trac += stress.dot(obs_ns[0])
             assert(suc == 0)
-    return trac
+    if which == 'T':
+        return disp
+    elif which == 'A':
+        assert(False)
+    elif which == 'H':
+        return trac
 Xc = (X_vals[1:] + X_vals[:-1]) / 2.0
 Zc = (Z_vals[1:] + Z_vals[:-1]) / 2.0
 CX, CZ = np.meshgrid(Xc, Zc)
