@@ -43,8 +43,8 @@ to_cpp_map[sympy.NumberSymbol] = lambda e, c: str(e)
 to_cpp_map[sympy.Function] = lambda e, c: cpp_func(str(e.func))(e, c)
 to_cpp_map[sympy.Pow] = cpp_pow
 
-def to_cpp(expr, cache, no_caching = False):
-    if expr.args != () and not no_caching:
+def to_cpp(expr, cache):
+    if expr.args != () and not cache.get('no_caching', False):
         if not str(expr) in cache:
             idx = cache.get('next_idx', 0)
             cache['next_idx'] = idx + 1

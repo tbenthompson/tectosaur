@@ -146,7 +146,8 @@ ConstructionConstraintEQ combine_terms(const ConstructionConstraintEQ& c) {
 TermVector filter_zero_helper(const TermVector& tv) {
     TermVector out_terms;
     for (size_t i = 0; i < tv.size(); i++) {
-        if (std::fabs(tv[i].val) < 1e-15) {
+        //TODO: THRESHOLD!
+        if (std::fabs(tv[i].val) < 1e-13) {
             continue;
         }
         out_terms.push_back(tv[i]);
@@ -220,6 +221,10 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
         
         if (c_lower_tri.terms.size() == 0) {
             continue;
+        }
+
+        if (c_lower_tri.terms.size() >= 3) {
+            print_c(c_lower_tri, false, lower_tri_cs); 
         }
         
         auto ldi = max_dof(c_lower_tri.terms).second;
