@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.sparse.csgraph
-from tectosaur.util.geometry import tri_normal
+from tectosaur.util.geometry import tri_normal, unscaled_normals, normalize
 from tectosaur.constraints import ConstraintEQ, Term
 
 def find_touching_pts(tris):
@@ -73,6 +73,7 @@ def get_side_of_fault(pts, tris, fault_start_idx):
 
 #TODO: this function needs to know the idxs of the surface_tris and fault_tris, so use
 # idx lists and pass the full tris array, currently using the (n_surf_tris * 9) hack!
+#TODO: refactor and merge this with the traction continuity constraints
 def continuity_constraints(pts, tris, fault_start_idx, tensor_dim = 3):
     surface_tris = tris[:fault_start_idx]
     fault_tris = tris[fault_start_idx:]
@@ -139,3 +140,71 @@ def continuity_constraints(pts, tris, fault_start_idx, tensor_dim = 3):
                     constraints.append(ConstraintEQ(terms, 0.0))
     return constraints
 
+def stress_to_trac(n):
+    nx, ny, nz = n
+    mat = np.array([
+        [nx, 0, 0, ny, nz, 0],
+        [0, ny, 0, nx, 0, nz],
+        [0, 0, nz, 0, nx, ny]
+    ])
+    return mat
+
+def traction_projector(n1, n2):
+    s2t = np.vstack((stress_to_trac(n1), stress_to_trac(n2)))
+    t2s = np.linalg.pinv(s2t)
+    return s2t.dot(t2s)
+
+def traction_admissibility_constraints(pts, tris):
+    touching_pt = find_touching_pts(tris)
+    constraints = []
+    ns = normalize(unscaled_normals(pts[tris]))
+
+    for i, tpt in enumerate(touching_pt):
+        if len(tpt) == 0:
+            continue
+
+        for independent_idx in range(len(tpt)):
+            independent = tpt[independent_idx]
+            independent_tri_idx = independent[0]
+            independent_corner_idx = independent[1]
+            independent_tri = tris[independent_tri_idx]
+            independent_n = ns[independent_tri_idx]
+
+            for dependent_idx in range(independent_idx + 1, len(tpt)):
+                dependent = tpt[dependent_idx]
+                dependent_tri_idx = dependent[0]
+                dependent_corner_idx = dependent[1]
+                dependent_tri = tris[dependent_tri_idx]
+                dependent_n = ns[dependent_tri_idx]
+
+                if dependent_tri_idx <= independent_tri_idx:
+                    continue
+
+                t2t = traction_projector(independent_n, dependent_n)
+                if not np.allclose(independent_n, dependent_n):
+                    from IPython.core.debugger import Tracer
+                    Tracer()()
+
+                def get_dof(row):
+                    if row <= 2:
+                        return (independent_tri_idx * 3 + independent_corner_idx) * 3 + row
+                    else:
+                        return (dependent_tri_idx * 3 + dependent_corner_idx) * 3 + (row - 3)
+
+                for row_idx in range(6):
+                    #TODO: threshold
+                    nonzero_idxs = np.where(np.abs(t2t[row_idx]) > 1e-10)[0]
+                    if nonzero_idxs.shape[0] == 1:
+                        continue
+                    terms = []
+                    for col_idx in nonzero_idxs[::-1]:
+                        weight = t2t[row_idx, col_idx]
+                        if col_idx == row_idx:
+                            weight -= 1.0
+                        if np.abs(weight - 0.5) < 1e-6:
+                            weight = 0.5
+                        if np.abs(weight + 0.5) < 1e-6:
+                            weight = -0.5
+                        terms.append(Term(weight, get_dof(col_idx)))
+                    constraints.append(ConstraintEQ(terms, 0.0))
+    return constraints

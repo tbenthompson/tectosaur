@@ -58,8 +58,9 @@ class InteriorOp:
             self.farfield.shape
         )
 
+        #TODO: broken!
         gpu_vertex_quad = self.quad_to_gpu(vertex_interior_quad(
-            2 * nq_vertex, nq_vertex, 2
+            2 * nq_vertex, nq_vertex, 0
         ))
         vertex_mat = self.pairs(self.vertex_pairs, gpu_vertex_quad)
         vertex_mat_correction = self.pairs(self.vertex_pairs, gpu_far_quad)
@@ -92,7 +93,8 @@ class InteriorOp:
         far_out = self.farfield.dot(v)
         near_out = self.near_mat.dot(v)
         vertex_out = self.vertex_mat.dot(v)
-        return far_out + near_out + vertex_out
+        #TODO: broken!
+        return far_out + 0 * near_out + 0 * vertex_out
 
 def interior_pairs_quad(K_name, pairs_list, gpu_quad,
         gpu_obs_pts, gpu_obs_ns, gpu_src_pts, gpu_src_tris,

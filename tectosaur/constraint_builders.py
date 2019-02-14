@@ -127,6 +127,12 @@ def free_edge_constraints(tris, field = None):
             cs.append(ConstraintEQ([Term(1.0, vec_dof)], field[vec_dof]))
     return cs
 
+def simple_constraints(dofs, vals):
+    cs = []
+    for i in range(dofs.shape[0]):
+        cs.append(ConstraintEQ([Term(1.0, dofs[i])], vals[i]))
+    return cs
+
 def jump_constraints(jump, negative):
     n_dofs_per_side = jump.shape[0]
     cs = []

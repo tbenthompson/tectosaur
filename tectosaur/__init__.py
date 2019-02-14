@@ -33,10 +33,11 @@ from tectosaur.interior import InteriorOp
 from tectosaur.constraints import Term, ConstraintEQ, build_constraint_matrix
 from tectosaur.constraint_builders import (
     free_edge_constraints,
+    simple_constraints,
     find_free_edges,
     free_edge_dofs,
     build_composite_constraints,
     jump_constraints,
     check_continuity,
     all_bc_constraints)
-from tectosaur.continuity import continuity_constraints
+from tectosaur.continuity import continuity_constraints, traction_admissibility_constraints
