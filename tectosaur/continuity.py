@@ -3,9 +3,6 @@ import scipy.sparse.csgraph
 from tectosaur.util.geometry import tri_normal, unscaled_normals, normalize
 from tectosaur.constraints import ConstraintEQ, Term
 
-import cppimport.import_hook
-from tectosaur.traction_admissibility import traction_projector
-
 def find_touching_pts(tris):
     max_pt_idx = np.max(tris)
     out = [[] for i in range(max_pt_idx + 1)]
@@ -143,20 +140,6 @@ def continuity_constraints(pts, tris, fault_start_idx, tensor_dim = 3):
                     constraints.append(ConstraintEQ(terms, 0.0))
     return constraints
 
-# def stress_to_trac(n):
-#     nx, ny, nz = n
-#     mat = np.array([
-#         [nx, 0, 0, ny, nz, 0],
-#         [0, ny, 0, nx, 0, nz],
-#         [0, 0, nz, 0, nx, ny]
-#     ])
-#     return mat
-#
-# def traction_projector(n1, n2):
-#     s2t = np.vstack((stress_to_trac(n1), stress_to_trac(n2)))
-#     t2s = np.linalg.pinv(s2t)
-#     return s2t.dot(t2s)
-#
 def traction_admissibility_constraints(pts, tris):
     touching_pt = find_touching_pts(tris)
     constraints = []
@@ -191,42 +174,11 @@ def traction_admissibility_constraints(pts, tris):
                         constraints.append(ConstraintEQ(terms, 0.0))
                     continue
 
-                t2t = np.empty((6,6))
-                traction_projector(*independent_n, *dependent_n, t2t)
-
-                def get_dof(row):
-                    if row <= 2:
-                        return (independent_tri_idx * 3 + independent_corner_idx) * 3 + row
-                    else:
-                        return (dependent_tri_idx * 3 + dependent_corner_idx) * 3 + (row - 3)
-
-                # keep_rows = []
-                # for row_idx in range(6):
-                #     #TODO: threshold
-                #     nonzero_idxs = np.where(np.abs(t2t[row_idx]) > 1e-10)[0]
-                #     assert(nonzero_idxs.shape[0] > 0)
-                #     if nonzero_idxs.shape[0] == 1:
-                #         continue
-                #     keep_rows.append(row_idx)
-
-                # subset_t2t = t2t[keep_rows,:][:,keep_rows] - np.eye(len(keep_rows))
-                # u, s, vt = np.linalg.svd(subset_t2t)
-                # np.testing.assert_almost_equal(s[0], 1.0)
-                # np.testing.assert_almost_equal(s[1:], 0.0)
-                # u[:,0]
-
-                for row_idx in range(6):
-                    #TODO: threshold
-                    nonzero_idxs = np.where(np.abs(t2t[row_idx]) > 1e-10)[0]
-                    assert(nonzero_idxs.shape[0] > 0)
-                    if nonzero_idxs.shape[0] == 1:
-                        continue
-                    terms = []
-                    for col_idx in nonzero_idxs:
-                        weight = t2t[row_idx, col_idx]
-                        if col_idx == row_idx:
-                            weight -= 1.0
-                        terms.append(Term(weight, get_dof(col_idx)))
-                    constraints.append(ConstraintEQ(terms, 0.0))
-                    break
+                independent_dof_start = independent_tri_idx * 9 + independent_corner_idx * 3
+                dependent_dof_start = dependent_tri_idx * 9 + dependent_corner_idx * 3
+                terms = []
+                for d in range(3):
+                    terms.append(Term(independent_n[d], dependent_dof_start + d))
+                    terms.append(Term(-dependent_n[d], independent_dof_start + d))
+                constraints.append(ConstraintEQ(terms, 0.0))
     return constraints
