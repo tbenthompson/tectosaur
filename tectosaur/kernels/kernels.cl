@@ -204,3 +204,71 @@ def dn(dim):
         % endfor
     }
 </%def>
+
+<%def name="elasticSRH3_tensor(obs_basis_dim)">
+    <%
+    import os
+    import pickle
+    import tectosaur as tct
+    from tectosaur.kernels.sympy_to_cpp import to_cpp
+    filepath = os.path.join(
+        tct.source_dir,
+        'data',
+        'semiregularizedH.pkl'
+    )
+    ks = pickle.load(open(filepath, 'rb'))
+    %>
+    % for d1 in range(3):
+    Real srcb${d1} = srcb[${d1}];
+    % for d2 in range(3):
+    Real bsrc_surf_curl${d1}${d2} = bsrc_surf_curl[${d1}][${d2}];
+    % endfor
+    % endfor
+
+    % for d_obs in range(3):
+    % for d_src in range(3):
+    % for b_src in range(3):
+    {
+        Real Kval = ${to_cpp(ks[d_obs][b_src][d_src])};
+        for (int b_obs = 0; b_obs < ${obs_basis_dim}; b_obs++) {
+            Real val = quadw * obsb[b_obs] * Kval;
+            int idx = b_obs * 27 + ${d_obs} * 9 + ${b_src} * 3 + ${d_src};
+            result_temp[idx] += val;
+        }
+    }
+    % endfor
+    % endfor
+    % endfor
+</%def>
+
+<%def name="elasticSRH3_vector()">
+    <%
+    import os
+    import pickle
+    import tectosaur as tct
+    from tectosaur.kernels.sympy_to_cpp import to_cpp
+    filepath = os.path.join(
+        tct.source_dir,
+        'data',
+        'semiregularizedH.pkl'
+    )
+    ks = pickle.load(open(filepath, 'rb'))
+    %>
+    % for d1 in range(3):
+    Real srcb${d1} = srcb[${d1}];
+    % for d2 in range(3):
+    Real bsrc_surf_curl${d1}${d2} = bsrc_surf_curl[${d1}][${d2}];
+    % endfor
+    % endfor
+
+    % for d_obs in range(3):
+    % for d_src in range(3):
+    % for b_src in range(3):
+    {
+        Real Kval = ${to_cpp(ks[d_obs][b_src][d_src])} * in[${b_src * 3 + d_src}];
+        sum${dn(d_obs)} += Kval;
+    }
+    % endfor
+    % endfor
+    % endfor
+</%def>
