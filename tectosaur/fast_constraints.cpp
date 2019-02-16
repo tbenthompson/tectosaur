@@ -223,9 +223,8 @@ ConstraintMatrix reduce_constraints(std::vector<ConstraintEQ> cs,
             continue;
         }
 
-        if (c_lower_tri.terms.size() >= 3) {
-            print_c(c_lower_tri, false, lower_tri_cs); 
-        }
+        // std::cout << std::endl;
+        // print_c(c_lower_tri, false, lower_tri_cs); 
         
         auto ldi = max_dof(c_lower_tri.terms).second;
         auto separated = isolate_term_on_lhs(c_lower_tri, ldi);

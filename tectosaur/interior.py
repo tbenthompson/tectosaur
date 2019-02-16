@@ -42,66 +42,69 @@ class InteriorOp:
             pairs, obs_pts, src_mesh[0], src_mesh[1]
         )
         self.vertex_pairs, self.near_pairs = split
+        self.all_near_pairs = np.vstack((self.near_pairs, self.vertex_pairs))
+        self.all_near_pairs[:,2] = 0
 
         self.farfield = TriToPtDirectFarfieldOp(
             obs_pts, obs_ns, src_mesh, K_name, nq_far,
             params, float_type
         )
 
-        gpu_near_quad = self.quad_to_gpu(gauss2d_tri(nq_near))
-        gpu_far_quad = self.quad_to_gpu(gauss2d_tri(nq_far))
+        self.gpu_near_quad = self.quad_to_gpu(gauss2d_tri(nq_near))
+        self.gpu_far_quad = self.quad_to_gpu(gauss2d_tri(nq_far))
+        self.near_mat = self.pairs_mat(self.near_pairs, self.gpu_near_quad)
+        self.near_mat_correction = self.pairs_mat(self.all_near_pairs, self.gpu_far_quad)
 
-        near_mat = self.pairs(self.near_pairs, gpu_near_quad)
-        near_mat_correction = self.pairs(self.near_pairs, gpu_far_quad)
-        self.near_mat = make_pairs_mat(
-            self.near_pairs, near_mat - near_mat_correction,
-            self.farfield.shape
-        )
-
-        #TODO: broken!
-        gpu_vertex_quad = self.quad_to_gpu(vertex_interior_quad(
-            2 * nq_vertex, nq_vertex, 0
+        gpu_vertex_quad_fp2 = self.quad_to_gpu(vertex_interior_quad(
+            2 * nq_vertex, nq_vertex, 2
         ))
-        vertex_mat = self.pairs(self.vertex_pairs, gpu_vertex_quad)
-        vertex_mat_correction = self.pairs(self.vertex_pairs, gpu_far_quad)
-        self.vertex_mat = make_pairs_mat(
-            self.vertex_pairs, vertex_mat - vertex_mat_correction,
-            self.farfield.shape
+        self.vertex_mat_fp2 = self.pairs_mat(
+            self.vertex_pairs, gpu_vertex_quad_fp2, finite_part = True
         )
 
-        # print(self.near_pairs.shape[0], self.vertex_pairs.shape[0])
-        # A = vertex_mat[0]
-        # B = vertex_mat_correction[0]
-        # C = self.vertex_pairs[0]
-        # print(A-B)
-        # import ipdb
-        # ipdb.set_trace()
+        gpu_vertex_quad_fp0 = self.quad_to_gpu(vertex_interior_quad(
+            10, 3, 0
+        ))
+        self.vertex_mat_fp0 = self.pairs_mat(
+            self.vertex_pairs, gpu_vertex_quad_fp0, finite_part = False
+        )
+        # gpu_vertex_quad_fp1 = self.quad_to_gpu(vertex_interior_quad(
+        #     2 * nq_vertex, nq_vertex, 1
+        # ))
+        # self.vertex_mat_fp1 = self.pairs_mat(
+        #     self.vertex_pairs, gpu_vertex_quad_fp1, finite_part = False
+        # )
+        # self.vertex_mat_fp2_correction = self.pairs_mat(
+        #     self.vertex_pairs, gpu_vertex_quad_fp1, finite_part = True
+        # )
 
-
-    def pairs(self, pairs, quad):
-        return interior_pairs_quad(self.K_name, pairs,
+    def pairs_mat(self, pairs, quad, finite_part = False):
+        entries = interior_pairs_quad(self.K_name, pairs,
             quad, self.farfield.gpu_obs_pts, self.farfield.gpu_obs_ns,
             self.farfield.gpu_src_pts, self.farfield.gpu_src_tris,
-            self.farfield.gpu_params, self.float_type
+            self.farfield.gpu_params, self.float_type,
+            finite_part
         )
+        return make_pairs_mat(pairs, entries, self.farfield.shape)
 
     #TODO: duplicated with pairs_integrator.py
     def quad_to_gpu(self, q):
         return [gpu.to_gpu(arr.copy(), self.float_type) for arr in q]
 
     def dot(self, v):
-        far_out = self.farfield.dot(v)
-        near_out = self.near_mat.dot(v)
-        vertex_out = self.vertex_mat.dot(v)
-        #TODO: broken!
-        return far_out + 0 * near_out + 0 * vertex_out
+        return (
+            self.farfield.dot(v)
+            + self.near_mat.dot(v)
+            - self.near_mat_correction.dot(v)
+            + self.vertex_mat_fp0.dot(v)
+        )
 
 def interior_pairs_quad(K_name, pairs_list, gpu_quad,
         gpu_obs_pts, gpu_obs_ns, gpu_src_pts, gpu_src_tris,
-        gpu_params, float_type):
+        gpu_params, float_type, finite_part):
 
     n_pairs = pairs_list.shape[0]
-    gpu_result = gpu.empty_gpu((n_pairs, 3, 3, 3), float_type)
+    gpu_result = gpu.zeros_gpu((n_pairs, 3, 3, 3), float_type)
     gpu_pairs_list = gpu.to_gpu(pairs_list.copy(), np.int32)
     module = get_gpu_module(K_name, float_type)
     n_threads = int(np.ceil(n_pairs / block_size))
@@ -113,7 +116,7 @@ def interior_pairs_quad(K_name, pairs_list, gpu_quad,
             gpu_obs_pts, gpu_obs_ns,
             gpu_src_pts, gpu_src_tris,
             gpu_pairs_list, np.int32(0), np.int32(n_pairs),
-            gpu_params,
+            gpu_params, np.int32(1 if finite_part else 0),
             grid = (n_threads, 1, 1), block = (block_size, 1, 1)
         )
     return gpu_result.get()

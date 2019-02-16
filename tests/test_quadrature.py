@@ -1,11 +1,43 @@
 import tectosaur as tct
 from tectosaur.util.quadrature import *
-from tectosaur.nearfield.limit import richardson_quad
 from tectosaur.nearfield.triangle_rules import *
 from tectosaur.util.test_decorators import slow
 from tectosaur.nearfield.nearfield_op import PairsIntegrator
 
 import numpy as np
+
+def test_tanh_sinh():
+    q = map_to(tanh_sinh(3), [0,1])
+    res = quadrature(lambda x: np.log(x), q)
+    np.testing.assert_almost_equal(res, -1.0)
+
+    q = map_to(tanh_sinh(3), [0,1])
+    res = quadrature(lambda x: np.cos(x), q)
+    np.testing.assert_almost_equal(res, np.sin(1) - np.sin(0))
+
+    q = map_to(tanh_sinh(3), [0,1])
+    res = quadrature(lambda x: x ** 2, q)
+    np.testing.assert_almost_equal(res, 1 / 3.0)
+
+def test_telles_singular():
+    #test telles quadrature with the example from the paper (page 964)
+    g = lambda x: np.log(np.abs(0.3 + x))
+    exact = -1.908598917
+    # compare with the result Telles gets for 10 points to make sure
+    # the method is properly implemented.
+    telles_paper_10_pts = -1.90328
+    tx, tw = telles_singular(10, -0.3)
+    est = np.sum(g(tx) * tw)
+    np.testing.assert_almost_equal(telles_paper_10_pts, est, 5)
+
+def test_telles_singular2():
+    #test telles quadrature with the example from the paper (page 964)
+    g = lambda x: np.log(x)
+    for n in range(2, 30):
+        tx, tw = map_to(telles_singular(n, -1), [0, 1])
+        est = np.sum(g(tx) * tw)
+        print(n, est)
+    np.testing.assert_almost_equal(1.0, est, 5)
 
 def test_richardson10():
     h = np.array([1.0, 0.1, 0.01])
@@ -127,6 +159,7 @@ def test_edge_adj_nan_problem_09_24_18():
     ea = get_ea(pts, tris)
     mat = pairs_int.edge_adj(9, ea)
     print(mat)
+
 
 def get_ea(pts, tris):
     import tectosaur.mesh.find_near_adj as find_near_adj

@@ -6,7 +6,9 @@ def vertex_interior_quad(n_theta, n_rho, a):
     # return quad.gauss2d_tri(10)
     theta_quad = quad.map_to(quad.gaussxw(n_theta), [0, np.pi / 2])
     if a == 0:
-        rho_quad = quad.gaussxw(n_rho)
+        # rho_quad = quad.telles_singular(n_rho, -1)
+        # rho_quad = quad.gaussxw(n_rho)
+        rho_quad = quad.tanh_sinh(n_rho)
     else:
         rho_quad = paget(n_rho, a)
     pts = []
@@ -15,15 +17,14 @@ def vertex_interior_quad(n_theta, n_rho, a):
         rho_max = 1.0 / (np.cos(t) + np.sin(t))
         q = quad.map_to(rho_quad, [0, rho_max])
         for r, rw in zip(*q):
+            assert(r > 0)
             srcxhat = r * np.cos(t)
             srcyhat = r * np.sin(t)
             pts.append((srcxhat, srcyhat))
             # The r**2 comes from two factors:
             # 1) The first r comes from the jacobian for the polar transform
             # 2) The second r corrects for the implicit 1/r in the quad rule
-            weight = tw * rw * r
-            if a > 0:
-                weight *= (r ** a)
+            weight = tw * rw * (r ** (a + 1))
             wts.append(weight)
     return np.array(pts), np.array(wts)
 

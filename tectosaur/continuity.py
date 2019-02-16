@@ -140,10 +140,39 @@ def continuity_constraints(pts, tris, fault_start_idx, tensor_dim = 3):
                     constraints.append(ConstraintEQ(terms, 0.0))
     return constraints
 
-def traction_admissibility_constraints(pts, tris):
+basis_gradient = np.array([[-1.0, -1.0], [1.0, 0.0], [0.0, 1.0]]).T
+def inv_jacobian(tri):
+    v1 = tri[1] - tri[0]
+    v2 = tri[2] - tri[0]
+    n = np.cross(v1, v2)
+    jacobian = [v1, v2, n]
+    inv_jacobian = np.linalg.inv(jacobian)
+    return inv_jacobian[:,:2]
+
+def calc_gradient(tri, field):
+    return (inv_jacobian(tri).dot(basis_gradient.dot(field))).T
+
+def calc_shear_stress(tri, disp, t1, t2, sm):
+    G = calc_gradient(tri, disp)
+    return (sm / 2.0) * (G.dot(t1).dot(t2) + G.dot(t2).dot(t1))
+
+def traction_admissibility_constraints(pts, tris, disp, sm):
     touching_pt = find_touching_pts(tris)
     constraints = []
     ns = normalize(unscaled_normals(pts[tris]))
+
+    # for i in range(tris.shape[0]):
+    #     Jinv = inv_jacobian(pts[tris[i]])
+    #     basis_gradient
+    #     terms = []
+    #     for d in range(3):
+    #         for basis_component in range(3):
+    #             dof = i * 9 + basis_component * 3 + d
+    #             val = 0
+    #             for k in range(2):
+    #                 val += Jinv[d,k] * basis_gradient[k,basis_component]
+    #             terms.append(Term(val, dof))
+    #     constraints.append(ConstraintEQ(terms, 0.0))
 
     for i, tpt in enumerate(touching_pt):
         if len(tpt) == 0:
@@ -155,6 +184,7 @@ def traction_admissibility_constraints(pts, tris):
             independent_corner_idx = independent[1]
             independent_tri = tris[independent_tri_idx]
             independent_n = ns[independent_tri_idx]
+            independent_dof_start = independent_tri_idx * 9 + independent_corner_idx * 3
 
             for dependent_idx in range(independent_idx + 1, len(tpt)):
                 dependent = tpt[dependent_idx]
@@ -162,23 +192,56 @@ def traction_admissibility_constraints(pts, tris):
                 dependent_corner_idx = dependent[1]
                 dependent_tri = tris[dependent_tri_idx]
                 dependent_n = ns[dependent_tri_idx]
+                dependent_dof_start = dependent_tri_idx * 9 + dependent_corner_idx * 3
 
                 if dependent_tri_idx <= independent_tri_idx:
                     continue
 
                 if np.allclose(independent_n, dependent_n):
                     for d in range(3):
-                        independent_dof = (independent_tri_idx * 3 + independent_corner_idx) * 3 + d
-                        dependent_dof = (dependent_tri_idx * 3 + dependent_corner_idx) * 3 + d
-                        terms = [Term(1.0, dependent_dof), Term(-1.0, independent_dof)]
+                        terms = [
+                            Term(1.0, dependent_dof_start + d),
+                            Term(-1.0, independent_dof_start + d)
+                        ]
                         constraints.append(ConstraintEQ(terms, 0.0))
                     continue
 
-                independent_dof_start = independent_tri_idx * 9 + independent_corner_idx * 3
-                dependent_dof_start = dependent_tri_idx * 9 + dependent_corner_idx * 3
                 terms = []
                 for d in range(3):
-                    terms.append(Term(independent_n[d], dependent_dof_start + d))
-                    terms.append(Term(-dependent_n[d], independent_dof_start + d))
+                    terms.append(Term(-independent_n[d], dependent_dof_start + d))
+                    terms.append(Term(dependent_n[d], independent_dof_start + d))
                 constraints.append(ConstraintEQ(terms, 0.0))
+
+                # #calculate r vectors
+                # r2 = np.cross(independent_n, dependent_n)
+                # r2 /= np.linalg.norm(r2)
+                # r1 = np.cross(independent_n, r2)
+                # r3 = np.cross(dependent_n, r2)
+
+                # # calculate decomposition factors
+                # a = independent_n.dot(dependent_n)
+                # b = dependent_n.dot(r1)
+                # c = a
+                # d = independent_n.dot(r3)
+
+                # np.testing.assert_almost_equal(independent_n, c * dependent_n + d * r3)
+                # np.testing.assert_almost_equal(dependent_n, a * independent_n + b * r1)
+
+                # # calculate shear stress from slip
+                # independent_disp = disp.reshape((-1,3,3))[independent_tri_idx]
+                # S1 = calc_shear_stress(pts[independent_tri], independent_disp, r1, r2, sm)
+                # dependent_disp = disp.reshape((-1,3,3))[dependent_tri_idx]
+                # S2 = calc_shear_stress(pts[dependent_tri], dependent_disp, r3, r2, sm)
+
+                # terms = []
+                # for d in range(3):
+                #     terms.append(Term(r2[d], independent_dof_start + d))
+                #     terms.append(Term(-c * r2[d], dependent_dof_start + d))
+                # constraints.append(ConstraintEQ(terms, -d * S2))
+
+                # terms = []
+                # for d in range(3):
+                #     terms.append(Term(r2[d], dependent_dof_start + d))
+                #     terms.append(Term(-a * r2[d], independent_dof_start + d))
+                # constraints.append(ConstraintEQ(terms, -b * S1))
     return constraints

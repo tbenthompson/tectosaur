@@ -144,7 +144,7 @@ void interior_pairs(GLOBAL_MEM Real* result,
     GLOBAL_MEM Real* obs_pts, GLOBAL_MEM Real* obs_ns,
     GLOBAL_MEM Real* src_pts, GLOBAL_MEM int* src_tris,
     GLOBAL_MEM int* pairs_list, int start_idx, int end_idx, 
-    GLOBAL_MEM Real* params)
+    GLOBAL_MEM Real* params, int finite_part)
 {
     ${setup_pair()}
 
@@ -160,13 +160,25 @@ void interior_pairs(GLOBAL_MEM Real* result,
     for (size_t i = 0; i < 3; i++) {
         src_derot[i] = positive_mod(-src_tri_rot_clicks + i, 3);
     }
+
+    int max_b2 = 3;
     for (int d1 = 0; d1 < 3; d1++) {
-        for (int b2 = 0; b2 < 3; b2++) {
+        if (finite_part == 1) {
+            int b2 = src_tri_rot_clicks;
             for (int d2 = 0; d2 < 3; d2++) {
                 int out_idx = d1 * 9 + b2 * 3 + d2;
                 int in_idx = d1 * 9 + src_derot[b2] * 3 + d2;
                 Real val = src_jacobian * result_temp[in_idx];
                 result[i * 27 + out_idx] = val;
+            }
+        } else {
+            for (int b2 = 0; b2 < max_b2; b2++) {
+                for (int d2 = 0; d2 < 3; d2++) {
+                    int out_idx = d1 * 9 + b2 * 3 + d2;
+                    int in_idx = d1 * 9 + src_derot[b2] * 3 + d2;
+                    Real val = src_jacobian * result_temp[in_idx];
+                    result[i * 27 + out_idx] = val;
+                }
             }
         }
     }

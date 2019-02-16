@@ -42,11 +42,28 @@ def test_cos_a2():
     np.testing.assert_almost_equal(res, exact)
 
 def test_vertex_interior_quad():
-    q = vertex_interior_quad(5, 5, True)
+    q = vertex_interior_quad(5, 5, 1)
     R = np.linalg.norm(q[0], axis = 1)
     np.testing.assert_almost_equal(np.sum(q[1] / (R ** 2)), 0.0)
 
 def test_vertex_interior_quad2():
-    q = vertex_interior_quad(8, 5, False)
+    q = vertex_interior_quad(8, 5, 0)
     R = np.linalg.norm(q[0], axis = 1)
     np.testing.assert_almost_equal(np.sum(q[1]), 0.5)
+
+def test_modify_paget():
+    qp = map_to(paget(10, 2), [0,1])
+    qg = gaussxw(10)
+    import ipdb
+    ipdb.set_trace()
+    from scipy.special import legendre
+
+    lhs = [legendre(i)(qg[0]) for i in range(10)]
+    rhs = [sum(legendre(i)(qg[0]) * qg[1]) for i in range(10)]
+    wts = np.linalg.solve(lhs, rhs)
+    import ipdb
+    ipdb.set_trace()
+
+
+
+
