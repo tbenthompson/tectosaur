@@ -1,6 +1,6 @@
 import attr
 import numpy as np
-from tectosaur.util.quadrature import gauss2d_tri
+from tectosaur.util.quadrature import gauss2d_tri, gaussxw
 import tectosaur.util.gpu as gpu
 import scipy.sparse
 
@@ -55,30 +55,11 @@ class InteriorOp:
         self.near_mat = self.pairs_mat(self.near_pairs, self.gpu_near_quad)
         self.near_mat_correction = self.pairs_mat(self.all_near_pairs, self.gpu_far_quad)
 
-        gpu_vertex_quad_fp2 = self.quad_to_gpu(vertex_interior_quad(
-            2 * nq_vertex, nq_vertex, 2
-        ))
-        self.vertex_mat_fp2 = self.pairs_mat(
-            self.vertex_pairs, gpu_vertex_quad_fp2, finite_part = True
+        self.vertex_mat = self.build_vertex_mat(
+            self.vertex_pairs, self.quad_to_gpu(gaussxw(nq_vertex))
         )
 
-        gpu_vertex_quad_fp0 = self.quad_to_gpu(vertex_interior_quad(
-            10, 3, 0
-        ))
-        self.vertex_mat_fp0 = self.pairs_mat(
-            self.vertex_pairs, gpu_vertex_quad_fp0, finite_part = False
-        )
-        gpu_vertex_quad_fp1 = self.quad_to_gpu(vertex_interior_quad(
-            2 * nq_vertex, nq_vertex, 1
-        ))
-        self.vertex_mat_fp1 = self.pairs_mat(
-            self.vertex_pairs, gpu_vertex_quad_fp1, finite_part = False
-        )
-        # self.vertex_mat_fp2_correction = self.pairs_mat(
-        #     self.vertex_pairs, gpu_vertex_quad_fp1, finite_part = True
-        # )
-
-    def vertex_mat(self, pairs, quad):
+    def build_vertex_mat(self, pairs, quad):
         block_size = 128
         gpu_cfg = dict(
             block_size = block_size,
@@ -86,22 +67,22 @@ class InteriorOp:
         )
         module = gpu.load_gpu('interior_corners.cl', tmpl_args = gpu_cfg)
 
-        n_pairs = pairs_list.shape[0]
-        gpu_result = gpu.zeros_gpu((n_pairs, 3, 3, 3), float_type)
-        gpu_pairs_list = gpu.to_gpu(pairs_list.copy(), np.int32)
+        n_pairs = pairs.shape[0]
+        gpu_result = gpu.zeros_gpu((n_pairs, 3, 3, 3), self.float_type)
+        gpu_pairs = gpu.to_gpu(pairs.copy(), np.int32)
         n_threads = int(np.ceil(n_pairs / block_size))
 
         if n_pairs != 0:
             module.interior_corners(
                 gpu_result,
-                np.int32(gpu_quad[0].shape[0]), gpu_quad[0], gpu_quad[1],
-                gpu_obs_pts, gpu_obs_ns,
-                gpu_src_pts, gpu_src_tris,
-                gpu_pairs_list, np.int32(0), np.int32(n_pairs),
-                gpu_params,
+                np.int32(quad[0].shape[0]), quad[0], quad[1],
+                self.farfield.gpu_obs_pts, self.farfield.gpu_obs_ns,
+                self.farfield.gpu_src_pts, self.farfield.gpu_src_tris,
+                gpu_pairs, np.int32(0), np.int32(n_pairs),
+                self.farfield.gpu_params,
                 grid = (n_threads, 1, 1), block = (block_size, 1, 1)
             )
-        return gpu_result.get()
+        return make_pairs_mat(pairs, gpu_result.get(), self.farfield.shape)
 
     def pairs_mat(self, pairs, quad, finite_part = False):
         entries = interior_pairs_quad(self.K_name, pairs,
@@ -121,7 +102,7 @@ class InteriorOp:
             self.farfield.dot(v)
             + self.near_mat.dot(v)
             - self.near_mat_correction.dot(v)
-            + 2 * self.vertex_mat_fp2.dot(v)
+            + self.vertex_mat.dot(v)
         )
 
 def interior_pairs_quad(K_name, pairs_list, gpu_quad,
