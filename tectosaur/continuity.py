@@ -156,28 +156,55 @@ def calc_shear_stress(tri, disp, t1, t2, sm):
     G = calc_gradient(tri, disp)
     return (sm / 2.0) * (G.dot(t1).dot(t2) + G.dot(t2).dot(t1))
 
-def traction_admissibility_constraints(pts, tris, disp, sm):
+def equilibrium_constraint(pts, tris, i):
+    tri = pts[tris[i]]
+    v1 = tri[1] - tri[0]
+    v2 = tri[2] - tri[0]
+    n = np.cross(v1, v2)
+    n /= np.linalg.norm(n)
+
+    l1 = np.linalg.norm(v1)
+    l2 = np.linalg.norm(v2)
+    costheta = (1.0 / (l1 * l2)) * (v1.dot(v2))
+    theta = np.arccos(costheta)
+    sintheta = np.sin(theta)
+
+    dhatdortho = np.array([
+        [1.0 / l1, -costheta / (l1 * sintheta)],
+        [0.0, 1.0 / (l2 * sintheta)]
+    ])
+
+    L1 = (1.0 / l1) * v1
+    L2 = np.cross(L1, n)
+    L = np.array([
+        L1, L2
+    ])
+    coeffs = L.T.dot(dhatdortho.dot(basis_gradient))
+
+    terms = []
+    for b in range(3):
+        for d in range(3):
+            dof = i * 9 + b * 3 + d
+            terms.append(Term(coeffs[d,b], dof))
+    return ConstraintEQ(terms, 0.0)
+
+def traction_admissibility_constraints(pts, tris):
     touching_pt = find_touching_pts(tris)
     constraints = []
     ns = normalize(unscaled_normals(pts[tris]))
 
-    # for i in range(tris.shape[0]):
-    #     Jinv = inv_jacobian(pts[tris[i]])
-    #     basis_gradient
-    #     terms = []
-    #     for d in range(3):
-    #         for basis_component in range(3):
-    #             dof = i * 9 + basis_component * 3 + d
-    #             val = 0
-    #             for k in range(2):
-    #                 val += Jinv[d,k] * basis_gradient[k,basis_component]
-    #             terms.append(Term(val, dof))
-    #     constraints.append(ConstraintEQ(terms, 0.0))
+    equi_tri = dict()
 
+    continuity_cs = []
+    admissibility_cs = []
     for i, tpt in enumerate(touching_pt):
         if len(tpt) == 0:
             continue
+        # At each vertex, there should be three remaining degrees of freedom.
+        # Initially, there are n_tris*3 degrees of freedom.
+        # So, we need (n_tris-1)*3 constraints.
 
+        is_corner_edge = False
         for independent_idx in range(len(tpt)):
             independent = tpt[independent_idx]
             independent_tri_idx = independent[0]
@@ -203,45 +230,63 @@ def traction_admissibility_constraints(pts, tris, disp, sm):
                             Term(1.0, dependent_dof_start + d),
                             Term(-1.0, independent_dof_start + d)
                         ]
-                        constraints.append(ConstraintEQ(terms, 0.0))
+                        continuity_cs.append(ConstraintEQ(terms, 0.0))
                     continue
 
-                terms = []
-                for d in range(3):
-                    terms.append(Term(-independent_n[d], dependent_dof_start + d))
-                    terms.append(Term(dependent_n[d], independent_dof_start + d))
-                constraints.append(ConstraintEQ(terms, 0.0))
+                is_corner_edge = True
 
-                # #calculate r vectors
-                # r2 = np.cross(independent_n, dependent_n)
-                # r2 /= np.linalg.norm(r2)
-                # r1 = np.cross(independent_n, r2)
-                # r3 = np.cross(dependent_n, r2)
 
-                # # calculate decomposition factors
-                # a = independent_n.dot(dependent_n)
-                # b = dependent_n.dot(r1)
-                # c = a
-                # d = independent_n.dot(r3)
+        if is_corner_edge:
+            # if pts[tris[tpt[0][0], tpt[0][1]],2] == -1.0 or \
+            #         pts[tris[tpt[0][0], tpt[0][1]],2] == 1.0:
+            #     continue
 
-                # np.testing.assert_almost_equal(independent_n, c * dependent_n + d * r3)
-                # np.testing.assert_almost_equal(dependent_n, a * independent_n + b * r1)
+            n_groups = []
+            for i in range(len(tpt)):
+                tri_idx = tpt[i][0]
+                n = ns[tri_idx]
+                joined = False
+                for j in range(len(n_groups)):
+                    if np.allclose(n_groups[j][0], n):
+                        n_groups[j][1].append(i)
+                        joined = True
+                        break
+                if not joined:
+                    n_groups.append((n, [i]))
 
-                # # calculate shear stress from slip
-                # independent_disp = disp.reshape((-1,3,3))[independent_tri_idx]
-                # S1 = calc_shear_stress(pts[independent_tri], independent_disp, r1, r2, sm)
-                # dependent_disp = disp.reshape((-1,3,3))[dependent_tri_idx]
-                # S2 = calc_shear_stress(pts[dependent_tri], dependent_disp, r3, r2, sm)
+            needed_cs = (len(n_groups) - 1) * 3
 
-                # terms = []
-                # for d in range(3):
-                #     terms.append(Term(r2[d], independent_dof_start + d))
-                #     terms.append(Term(-c * r2[d], dependent_dof_start + d))
-                # constraints.append(ConstraintEQ(terms, -d * S2))
+            for i in range(len(n_groups)):
+                needed_cs -= 1
+                tpt_idx = n_groups[i][1][0]
+                tri_idx = tpt[tpt_idx][0]
+                if equi_tri.get(tri_idx, False):
+                    continue
+                admissibility_cs.append(equilibrium_constraint(pts, tris, tri_idx))
+                equi_tri[tri_idx] = True
 
-                # terms = []
-                # for d in range(3):
-                #     terms.append(Term(r2[d], dependent_dof_start + d))
-                #     terms.append(Term(-a * r2[d], independent_dof_start + d))
-                # constraints.append(ConstraintEQ(terms, -b * S1))
-    return constraints
+            for i in range(len(n_groups)):
+                tpt_idx1 = n_groups[i][1][0]
+                tri_idx1 = tpt[tpt_idx1][0]
+                corner_idx1 = tpt[tpt_idx1][1]
+                done = False
+                for j in range(i + 1, len(n_groups)):
+                    tpt_idx2 = n_groups[j][1][0]
+                    tri_idx2 = tpt[tpt_idx2][0]
+                    corner_idx2 = tpt[tpt_idx2][1]
+                    n1 = ns[tri_idx1]
+                    n2 = ns[tri_idx2]
+                    terms = []
+                    for d in range(3):
+                        terms.append(Term(n1[d], tri_idx2 * 9 + corner_idx2 * 3 + d))
+                        terms.append(Term(-n2[d], tri_idx1 * 9 + corner_idx1 * 3 + d))
+                    admissibility_cs.append(ConstraintEQ(terms, 0.0))
+                    needed_cs -= 1
+                    if needed_cs == 0:
+                        done = True
+                        break
+                if done:
+                    break
+            # print(len(n_groups),n_groups,needed_cs)
+            assert(needed_cs == 0)
+    return continuity_cs, admissibility_cs

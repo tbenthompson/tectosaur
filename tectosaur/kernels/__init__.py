@@ -257,20 +257,20 @@ elasticRH = Kernel(
     multipole_dim = 22
 )
 
-elasticSRH = Kernel(
-    'elasticSRH3', 3, 3, True, True, -1, 1, False,
-    '''
-    const Real sm = params[0];
-    const Real nu = params[1];
-    const Real pr = params[1];
-    const Real CsRT0 = -1.0 / (8.0 * M_PI * (1.0 - nu));
-    const Real CsRT1 = -(1 - 2 * nu) / (8.0 * M_PI * (1.0 - nu));
-    const Real CsRT2 = -1.0 / (4 * M_PI);
-    ''',
-    '', '',
-    surf_curl_obs = False,
-    surf_curl_src = True
-)
+# elasticSRH = Kernel(
+#     'elasticSRH3', 3, 3, True, True, -1, 1, False,
+#     '''
+#     const Real sm = params[0];
+#     const Real nu = params[1];
+#     const Real pr = params[1];
+#     const Real CsRT0 = -1.0 / (8.0 * M_PI * (1.0 - nu));
+#     const Real CsRT1 = -(1 - 2 * nu) / (8.0 * M_PI * (1.0 - nu));
+#     const Real CsRT2 = -1.0 / (4 * M_PI);
+#     ''',
+#     '', '',
+#     surf_curl_obs = False,
+#     surf_curl_src = True
+# )
 
 laplace2S = Kernel(
     'laplaceS2', 2, 1, False, False, 'log', 0, False, '',
@@ -386,7 +386,7 @@ regularized_elastic_kernels = make_kernel_dict([
     elasticRT,
     elasticRA,
     elasticRH,
-    elasticSRH,
+    # elasticSRH,
 ])
 
 etc_kernels = make_kernel_dict([invr3])

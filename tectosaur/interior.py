@@ -1,6 +1,6 @@
 import attr
 import numpy as np
-from tectosaur.util.quadrature import gauss2d_tri, gaussxw
+from tectosaur.util.quadrature import gauss2d_tri, gaussxw, map_to
 import tectosaur.util.gpu as gpu
 import scipy.sparse
 
@@ -45,6 +45,12 @@ class InteriorOp:
         self.all_near_pairs = np.vstack((self.near_pairs, self.vertex_pairs))
         self.all_near_pairs[:,2] = 0
 
+        # for i in range(self.vertex_pairs.shape[0]):
+        #     np.testing.assert_almost_equal(
+        #         obs_pts[self.vertex_pairs[i,0]],
+        #         src_mesh[0][src_mesh[1][self.vertex_pairs[i,1], self.vertex_pairs[i,2]]]
+        #     )
+
         self.farfield = TriToPtDirectFarfieldOp(
             obs_pts, obs_ns, src_mesh, K_name, nq_far,
             params, float_type
@@ -56,7 +62,9 @@ class InteriorOp:
         self.near_mat_correction = self.pairs_mat(self.all_near_pairs, self.gpu_far_quad)
 
         self.vertex_mat = self.build_vertex_mat(
-            self.vertex_pairs, self.quad_to_gpu(gaussxw(nq_vertex))
+            self.vertex_pairs, self.quad_to_gpu(
+                map_to(gaussxw(nq_vertex), [0.0, np.pi/2])
+            )
         )
 
     def build_vertex_mat(self, pairs, quad):
@@ -65,7 +73,7 @@ class InteriorOp:
             block_size = block_size,
             float_type = gpu.np_to_c_type(self.float_type)
         )
-        module = gpu.load_gpu('interior_corners.cl', tmpl_args = gpu_cfg)
+        module = gpu.load_gpu('interior_corners.cl', tmpl_args = gpu_cfg, no_caching = True)
 
         n_pairs = pairs.shape[0]
         gpu_result = gpu.zeros_gpu((n_pairs, 3, 3, 3), self.float_type)
