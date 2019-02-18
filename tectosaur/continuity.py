@@ -2,6 +2,7 @@ import numpy as np
 import scipy.sparse.csgraph
 from tectosaur.util.geometry import tri_normal, unscaled_normals, normalize
 from tectosaur.constraints import ConstraintEQ, Term
+from tectosaur.stress_constraints import stress_constraints, stress_constraints2
 
 def find_touching_pts(tris):
     max_pt_idx = np.max(tris)
@@ -140,89 +141,6 @@ def continuity_constraints(pts, tris, fault_start_idx, tensor_dim = 3):
                     constraints.append(ConstraintEQ(terms, 0.0))
     return constraints
 
-basis_gradient = np.array([[-1.0, -1.0], [1.0, 0.0], [0.0, 1.0]]).T
-def inv_jacobian(tri):
-    v1 = tri[1] - tri[0]
-    v2 = tri[2] - tri[0]
-    n = np.cross(v1, v2)
-    jacobian = [v1, v2, n]
-    inv_jacobian = np.linalg.inv(jacobian)
-    return inv_jacobian[:,:2]
-
-def calc_gradient(tri, field):
-    return (inv_jacobian(tri).dot(basis_gradient.dot(field))).T
-
-def calc_shear_stress(tri, disp, t1, t2, sm):
-    G = calc_gradient(tri, disp)
-    return (sm / 2.0) * (G.dot(t1).dot(t2) + G.dot(t2).dot(t1))
-
-def derivative_fnc(pts, tris, i):
-    tri = pts[tris[i]]
-    v1 = tri[1] - tri[0]
-    v2 = tri[2] - tri[0]
-    n = np.cross(v1, v2)
-    n /= np.linalg.norm(n)
-
-    l1 = np.linalg.norm(v1)
-    l2 = np.linalg.norm(v2)
-    costheta = (1.0 / (l1 * l2)) * (v1.dot(v2))
-    theta = np.arccos(costheta)
-    sintheta = np.sin(theta)
-
-    dhatdortho = np.array([
-        [1.0 / l1, -costheta / (l1 * sintheta)],
-        [0.0, 1.0 / (l2 * sintheta)]
-    ])
-
-    L1 = (1.0 / l1) * v1
-    L2 = np.cross(n, L1)
-    L = np.array([
-        L1, L2, n
-    ])
-    mat = L[:2,:].T.dot(dhatdortho.T.dot(basis_gradient))
-    return mat, (dhatdortho, L, basis_gradient)
-
-def strain_invariant(pts, tris, disp, sm, pr, tri_idx):
-    mat, (dhatdortho, L, basis_gradient) = derivative_fnc(pts, tris, tri_idx)
-    disp_vals = disp.reshape((-1,3,3))[tri_idx]
-    G = mat.dot(disp_vals).T
-    strain_tangential = 0.5 * (G + G.T)
-    e11_e22 = (
-        dhatdortho[0,0] * basis_gradient.dot(disp_vals)[0].dot(L[0])
-        + dhatdortho[0,1] * basis_gradient.dot(disp_vals)[0].dot(L[1])
-        + dhatdortho[1,1] * basis_gradient.dot(disp_vals)[1].dot(L[1])
-    )
-    np.testing.assert_almost_equal(
-        e11_e22,
-        strain_tangential[0,0] + strain_tangential[1,1]
-    )
-
-    E = 2 * sm * (1 + pr)
-    lame_lambda = 2 * sm * pr / (1 - 2 * pr)
-
-    e11 = np.array([strain_tangential[0,0], 0,0,0])
-    e12 = np.array([strain_tangential[0,1], 0,0,0])
-    e13 = np.array([0] + ((0.5 / sm) * L[0]).tolist())
-    e22 = np.array([strain_tangential[1,1], 0,0,0])
-    e23 = np.array([0] + ((0.5 / sm) * L[1]).tolist())
-    e33 = np.array([-pr/(1-pr) * e11_e22] + (((1+pr)*(1-2*pr)/(E*(1-pr))) * L[2]).tolist())
-
-    I1 = e11 + e22 + e33
-
-    s11 = lame_lambda * I1 + 2 * sm * e11
-    s22 = lame_lambda * I1 + 2 * sm * e22
-    s33 = lame_lambda * I1 + 2 * sm * e33
-    s12 = 2 * sm * e12
-    s13 = 2 * sm * e13
-    s23 = 2 * sm * e23
-
-    return (
-        [e11, e22, e33, e12, e13, e23],
-        [s11, s22, s33, s12, s13, s23],
-        L
-    )
-
-
 def traction_admissibility_constraints(pts, tris, disp, sm, pr):
     # At each vertex, there should be three remaining degrees of freedom.
     # Initially, there are n_tris*3 degrees of freedom.
@@ -231,11 +149,9 @@ def traction_admissibility_constraints(pts, tris, disp, sm, pr):
     touching_pt = find_touching_pts(tris)
     ns = normalize(unscaled_normals(pts[tris]))
 
-    equi_tri = dict()
-
     continuity_cs = []
     admissibility_cs = []
-    for i, tpt in enumerate(touching_pt):
+    for tpt in touching_pt:
         if len(tpt) == 0:
             continue
 
@@ -286,34 +202,23 @@ def traction_admissibility_constraints(pts, tris, disp, sm, pr):
             tpt_idx1 = normal_groups[i][1][0]
             tri_idx1 = tpt[tpt_idx1][0]
             corner_idx1 = tpt[tpt_idx1][1]
-            dof_start1 = tri_idx1 * 9 + corner_idx1 * 3
+            tri1 = pts[tris[tri_idx1]]
+            disp1 = disp.reshape((-1,3,3))[tri_idx1]
 
             pt = pts[tris[tri_idx1,corner_idx1]]
             if np.abs(pt[2] - 1) < 1e-8 or np.abs(pt[2] + 1) < 1e-8:
                 continue
 
-            n1 = ns[tri_idx1]
-
-            done = False
             for j in range(i + 1, len(normal_groups)):
                 tpt_idx2 = normal_groups[j][1][0]
                 tri_idx2 = tpt[tpt_idx2][0]
                 corner_idx2 = tpt[tpt_idx2][1]
-                dof_start2 = tri_idx2 * 9 + corner_idx2 * 3
-                n2 = ns[tri_idx2]
+                tri2 = pts[tris[tri_idx2]]
+                disp2 = disp.reshape((-1,3,3))[tri_idx2]
 
-                terms = []
-                for d in range(3):
-                    terms.append(Term(n1[d], dof_start2 + d))
-                    terms.append(Term(-n2[d], dof_start1 + d))
-                admissibility_cs.append(ConstraintEQ(terms, 0.0))
-
-                lhsI1, L_1, s12_1 = strain_invariant(pts, tris, disp, sm, pr, tri_idx1)
-                rhsI1, L_2, s12_2 = strain_invariant(pts, tris, disp, sm, pr, tri_idx2)
-
-                terms = []
-                for d in range(3):
-                    terms.append(Term(lhsI1[1 + d], dof_start1 + d))
-                    terms.append(Term(-rhsI1[1 + d], dof_start2 + d))
-                admissibility_cs.append(ConstraintEQ(terms, -lhsI1[0] + rhsI1[0]))
+                admissibility_cs.extend(stress_constraints2(
+                    (tri1, disp1, tri_idx1, corner_idx1),
+                    (tri2, disp2, tri_idx2, corner_idx2),
+                    sm, pr
+                ))
     return continuity_cs, admissibility_cs
