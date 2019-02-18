@@ -156,7 +156,7 @@ def calc_shear_stress(tri, disp, t1, t2, sm):
     G = calc_gradient(tri, disp)
     return (sm / 2.0) * (G.dot(t1).dot(t2) + G.dot(t2).dot(t1))
 
-def equilibrium_constraint(pts, tris, i):
+def derivative_fnc(pts, tris, i):
     tri = pts[tris[i]]
     v1 = tri[1] - tri[0]
     v2 = tri[2] - tri[0]
@@ -175,12 +175,16 @@ def equilibrium_constraint(pts, tris, i):
     ])
 
     L1 = (1.0 / l1) * v1
-    L2 = np.cross(L1, n)
+    L2 = np.cross(n, L1)
     L = np.array([
-        L1, L2
+        L1, L2, n
     ])
-    coeffs = L.T.dot(dhatdortho.dot(basis_gradient))
+    return dhatdortho, L, basis_gradient
 
+def equilibrium_constraint(pts, tris, i):
+    dhatdortho, L, basis_gradient = derivative_fnc(pts, tris, i)
+    # coeffs = basis_gradient.T.dot(dhatdortho.dot(L))
+    coeffs = L.T.dot(dhatdortho.T.dot(basis_gradient))
     terms = []
     for b in range(3):
         for d in range(3):
@@ -188,9 +192,12 @@ def equilibrium_constraint(pts, tris, i):
             terms.append(Term(coeffs[d,b], dof))
     return ConstraintEQ(terms, 0.0)
 
-def traction_admissibility_constraints(pts, tris):
+def traction_admissibility_constraints(pts, tris, disp, sm, pr):
+    # At each vertex, there should be three remaining degrees of freedom.
+    # Initially, there are n_tris*3 degrees of freedom.
+    # So, we need (n_tris-1)*3 constraints.
+
     touching_pt = find_touching_pts(tris)
-    constraints = []
     ns = normalize(unscaled_normals(pts[tris]))
 
     equi_tri = dict()
@@ -200,93 +207,92 @@ def traction_admissibility_constraints(pts, tris):
     for i, tpt in enumerate(touching_pt):
         if len(tpt) == 0:
             continue
-        # At each vertex, there should be three remaining degrees of freedom.
-        # Initially, there are n_tris*3 degrees of freedom.
-        # So, we need (n_tris-1)*3 constraints.
 
-        is_corner_edge = False
-        for independent_idx in range(len(tpt)):
+        # Separate the triangles touching at the vertex into a groups
+        # by the normal vectors for each triangle.
+        normal_groups = []
+        for i in range(len(tpt)):
+            tri_idx = tpt[i][0]
+            n = ns[tri_idx]
+            joined = False
+            for j in range(len(normal_groups)):
+                if np.allclose(normal_groups[j][0], n):
+                    normal_groups[j][1].append(i)
+                    joined = True
+                    break
+            if not joined:
+                normal_groups.append((n, [i]))
+
+        # Continuity within normal group
+        for i in range(len(normal_groups)):
+            group = normal_groups[i][1]
+            independent_idx = group[0]
             independent = tpt[independent_idx]
             independent_tri_idx = independent[0]
             independent_corner_idx = independent[1]
-            independent_tri = tris[independent_tri_idx]
-            independent_n = ns[independent_tri_idx]
             independent_dof_start = independent_tri_idx * 9 + independent_corner_idx * 3
-
-            for dependent_idx in range(independent_idx + 1, len(tpt)):
+            for j in range(1, len(group)):
+                dependent_idx = group[j]
                 dependent = tpt[dependent_idx]
                 dependent_tri_idx = dependent[0]
                 dependent_corner_idx = dependent[1]
-                dependent_tri = tris[dependent_tri_idx]
-                dependent_n = ns[dependent_tri_idx]
                 dependent_dof_start = dependent_tri_idx * 9 + dependent_corner_idx * 3
+                for d in range(3):
+                    terms = [
+                        Term(1.0, dependent_dof_start + d),
+                        Term(-1.0, independent_dof_start + d)
+                    ]
+                    continuity_cs.append(ConstraintEQ(terms, 0.0))
 
-                if dependent_tri_idx <= independent_tri_idx:
-                    continue
+        if len(normal_groups) == 1:
+            # Only continuity needed!
+            continue
 
-                if np.allclose(independent_n, dependent_n):
-                    for d in range(3):
-                        terms = [
-                            Term(1.0, dependent_dof_start + d),
-                            Term(-1.0, independent_dof_start + d)
-                        ]
-                        continuity_cs.append(ConstraintEQ(terms, 0.0))
-                    continue
+        # Add equilibrium constraints
+        # for i in range(len(normal_groups)):
+        #     tpt_idx = normal_groups[i][1][0]
+        #     tri_idx = tpt[tpt_idx][0]
+        #     if equi_tri.get(tri_idx, False):
+        #         continue
+        #     admissibility_cs.append(equilibrium_constraint(pts, tris, tri_idx))
+        #     equi_tri[tri_idx] = True
 
-                is_corner_edge = True
+        assert(len(normal_groups) == 2)
 
+        # Add constant stress constraints
+        for i in range(len(normal_groups)):
+            tpt_idx1 = normal_groups[i][1][0]
+            tri_idx1 = tpt[tpt_idx1][0]
+            corner_idx1 = tpt[tpt_idx1][1]
+            dof_start1 = tri_idx1 * 9 + corner_idx1 * 3
+            n1 = ns[tri_idx1]
 
-        if is_corner_edge:
-            # if pts[tris[tpt[0][0], tpt[0][1]],2] == -1.0 or \
-            #         pts[tris[tpt[0][0], tpt[0][1]],2] == 1.0:
-            #     continue
+            done = False
+            for j in range(i + 1, len(normal_groups)):
+                tpt_idx2 = normal_groups[j][1][0]
+                tri_idx2 = tpt[tpt_idx2][0]
+                corner_idx2 = tpt[tpt_idx2][1]
+                dof_start2 = tri_idx2 * 9 + corner_idx2 * 3
+                n2 = ns[tri_idx2]
 
-            n_groups = []
-            for i in range(len(tpt)):
-                tri_idx = tpt[i][0]
-                n = ns[tri_idx]
-                joined = False
-                for j in range(len(n_groups)):
-                    if np.allclose(n_groups[j][0], n):
-                        n_groups[j][1].append(i)
-                        joined = True
-                        break
-                if not joined:
-                    n_groups.append((n, [i]))
+                terms = []
+                for d in range(3):
+                    terms.append(Term(n1[d], dof_start2 + d))
+                    terms.append(Term(-n2[d], dof_start1 + d))
+                admissibility_cs.append(ConstraintEQ(terms, 0.0))
 
-            needed_cs = (len(n_groups) - 1) * 3
+                disp1 = disp.reshape((-1,3,3))[tri_idx1]
+                disp2 = disp.reshape((-1,3,3))[tri_idx2]
+                dhatdortho, L, basis_gradient = derivative_fnc(pts, tris, tri_idx1)
+                G = L[:2,:].T.dot(dhatdortho.T.dot(basis_gradient.dot(disp1))).T
+                strain = 0.5 * (G + G.T)
+                e11_e22 = (
+                    dhatdortho[0,0] * basis_gradient.dot(disp1)[0].dot(L[0])
+                    + dhatdortho[0,1] * basis_gradient.dot(disp1)[0].dot(L[1])
+                    + dhatdortho[1,1] * basis_gradient.dot(disp1)[1].dot(L[1])
+                )
+                np.testing.assert_almost_equal(e11_e22, strain[0,0] + strain[1,1])
+                e11_e22_e33_minus_t3 = (1 - pr / (1 - pr)) * e11_e22
 
-            for i in range(len(n_groups)):
-                needed_cs -= 1
-                tpt_idx = n_groups[i][1][0]
-                tri_idx = tpt[tpt_idx][0]
-                if equi_tri.get(tri_idx, False):
-                    continue
-                admissibility_cs.append(equilibrium_constraint(pts, tris, tri_idx))
-                equi_tri[tri_idx] = True
-
-            for i in range(len(n_groups)):
-                tpt_idx1 = n_groups[i][1][0]
-                tri_idx1 = tpt[tpt_idx1][0]
-                corner_idx1 = tpt[tpt_idx1][1]
-                done = False
-                for j in range(i + 1, len(n_groups)):
-                    tpt_idx2 = n_groups[j][1][0]
-                    tri_idx2 = tpt[tpt_idx2][0]
-                    corner_idx2 = tpt[tpt_idx2][1]
-                    n1 = ns[tri_idx1]
-                    n2 = ns[tri_idx2]
-                    terms = []
-                    for d in range(3):
-                        terms.append(Term(n1[d], tri_idx2 * 9 + corner_idx2 * 3 + d))
-                        terms.append(Term(-n2[d], tri_idx1 * 9 + corner_idx1 * 3 + d))
-                    admissibility_cs.append(ConstraintEQ(terms, 0.0))
-                    needed_cs -= 1
-                    if needed_cs == 0:
-                        done = True
-                        break
-                if done:
-                    break
-            # print(len(n_groups),n_groups,needed_cs)
-            assert(needed_cs == 0)
+        # Add strain trace invariance conditions? Gakwaya et al 1984...
     return continuity_cs, admissibility_cs
