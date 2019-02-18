@@ -179,18 +179,49 @@ def derivative_fnc(pts, tris, i):
     L = np.array([
         L1, L2, n
     ])
-    return dhatdortho, L, basis_gradient
+    mat = L[:2,:].T.dot(dhatdortho.T.dot(basis_gradient))
+    return mat, (dhatdortho, L, basis_gradient)
 
-def equilibrium_constraint(pts, tris, i):
-    dhatdortho, L, basis_gradient = derivative_fnc(pts, tris, i)
-    # coeffs = basis_gradient.T.dot(dhatdortho.dot(L))
-    coeffs = L.T.dot(dhatdortho.T.dot(basis_gradient))
-    terms = []
-    for b in range(3):
-        for d in range(3):
-            dof = i * 9 + b * 3 + d
-            terms.append(Term(coeffs[d,b], dof))
-    return ConstraintEQ(terms, 0.0)
+def strain_invariant(pts, tris, disp, sm, pr, tri_idx):
+    mat, (dhatdortho, L, basis_gradient) = derivative_fnc(pts, tris, tri_idx)
+    disp_vals = disp.reshape((-1,3,3))[tri_idx]
+    G = mat.dot(disp_vals).T
+    strain_tangential = 0.5 * (G + G.T)
+    e11_e22 = (
+        dhatdortho[0,0] * basis_gradient.dot(disp_vals)[0].dot(L[0])
+        + dhatdortho[0,1] * basis_gradient.dot(disp_vals)[0].dot(L[1])
+        + dhatdortho[1,1] * basis_gradient.dot(disp_vals)[1].dot(L[1])
+    )
+    np.testing.assert_almost_equal(
+        e11_e22,
+        strain_tangential[0,0] + strain_tangential[1,1]
+    )
+
+    E = 2 * sm * (1 + pr)
+    lame_lambda = 2 * sm * pr / (1 - 2 * pr)
+
+    e11 = np.array([strain_tangential[0,0], 0,0,0])
+    e12 = np.array([strain_tangential[0,1], 0,0,0])
+    e13 = np.array([0] + ((0.5 / sm) * L[0]).tolist())
+    e22 = np.array([strain_tangential[1,1], 0,0,0])
+    e23 = np.array([0] + ((0.5 / sm) * L[1]).tolist())
+    e33 = np.array([-pr/(1-pr) * e11_e22] + (((1+pr)*(1-2*pr)/(E*(1-pr))) * L[2]).tolist())
+
+    I1 = e11 + e22 + e33
+
+    s11 = lame_lambda * I1 + 2 * sm * e11
+    s22 = lame_lambda * I1 + 2 * sm * e22
+    s33 = lame_lambda * I1 + 2 * sm * e33
+    s12 = 2 * sm * e12
+    s13 = 2 * sm * e13
+    s23 = 2 * sm * e23
+
+    return (
+        [e11, e22, e33, e12, e13, e23],
+        [s11, s22, s33, s12, s13, s23],
+        L
+    )
+
 
 def traction_admissibility_constraints(pts, tris, disp, sm, pr):
     # At each vertex, there should be three remaining degrees of freedom.
@@ -248,15 +279,6 @@ def traction_admissibility_constraints(pts, tris, disp, sm, pr):
             # Only continuity needed!
             continue
 
-        # Add equilibrium constraints
-        # for i in range(len(normal_groups)):
-        #     tpt_idx = normal_groups[i][1][0]
-        #     tri_idx = tpt[tpt_idx][0]
-        #     if equi_tri.get(tri_idx, False):
-        #         continue
-        #     admissibility_cs.append(equilibrium_constraint(pts, tris, tri_idx))
-        #     equi_tri[tri_idx] = True
-
         assert(len(normal_groups) == 2)
 
         # Add constant stress constraints
@@ -265,6 +287,11 @@ def traction_admissibility_constraints(pts, tris, disp, sm, pr):
             tri_idx1 = tpt[tpt_idx1][0]
             corner_idx1 = tpt[tpt_idx1][1]
             dof_start1 = tri_idx1 * 9 + corner_idx1 * 3
+
+            pt = pts[tris[tri_idx1,corner_idx1]]
+            if np.abs(pt[2] - 1) < 1e-8 or np.abs(pt[2] + 1) < 1e-8:
+                continue
+
             n1 = ns[tri_idx1]
 
             done = False
@@ -281,18 +308,12 @@ def traction_admissibility_constraints(pts, tris, disp, sm, pr):
                     terms.append(Term(-n2[d], dof_start1 + d))
                 admissibility_cs.append(ConstraintEQ(terms, 0.0))
 
-                disp1 = disp.reshape((-1,3,3))[tri_idx1]
-                disp2 = disp.reshape((-1,3,3))[tri_idx2]
-                dhatdortho, L, basis_gradient = derivative_fnc(pts, tris, tri_idx1)
-                G = L[:2,:].T.dot(dhatdortho.T.dot(basis_gradient.dot(disp1))).T
-                strain = 0.5 * (G + G.T)
-                e11_e22 = (
-                    dhatdortho[0,0] * basis_gradient.dot(disp1)[0].dot(L[0])
-                    + dhatdortho[0,1] * basis_gradient.dot(disp1)[0].dot(L[1])
-                    + dhatdortho[1,1] * basis_gradient.dot(disp1)[1].dot(L[1])
-                )
-                np.testing.assert_almost_equal(e11_e22, strain[0,0] + strain[1,1])
-                e11_e22_e33_minus_t3 = (1 - pr / (1 - pr)) * e11_e22
+                lhsI1, L_1, s12_1 = strain_invariant(pts, tris, disp, sm, pr, tri_idx1)
+                rhsI1, L_2, s12_2 = strain_invariant(pts, tris, disp, sm, pr, tri_idx2)
 
-        # Add strain trace invariance conditions? Gakwaya et al 1984...
+                terms = []
+                for d in range(3):
+                    terms.append(Term(lhsI1[1 + d], dof_start1 + d))
+                    terms.append(Term(-rhsI1[1 + d], dof_start2 + d))
+                admissibility_cs.append(ConstraintEQ(terms, -lhsI1[0] + rhsI1[0]))
     return continuity_cs, admissibility_cs
