@@ -185,29 +185,6 @@ def equilibrium_constraint(tri_data):
             terms.append(Term(vals[b,d], tri_idx * 9 + b * 3 + d))
 
     return ConstraintEQ(terms, 0.0)
-    # map from x to rotated frame
-    x_to_xp = rot_mat(tri)
-    np.testing.assert_almost_equal(x_to_xp.T, np.linalg.inv(x_to_xp))
-
-    # map from triangle reference coords to x
-    x_to_xhat = inv_jacobian(tri)
-
-    # displacement in the rotated frame
-    disp_xp = disp.dot(x_to_xp.T)
-
-    # displacement derivatives with respect to triangle reference coords
-    # disp_xp_dxhat[i,j] = d[u_i]/dxhat_j
-    disp_xp_dxhat = basis_gradient.dot(disp_xp).T
-
-    # displacement derivatives with respect to x
-    # disp_xp_dx[i,j] = d[u_i]/dx_j
-    disp_xp_dx = disp_xp_dxhat.dot(x_to_xhat)
-
-    # displacement derivatives with respect to rotated frame
-    # disp_xp_dxp[i,j] = d[u_i]/dxp_j
-    disp_xp_dxp = disp_xp_dx.dot(x_to_xp.T)
-
-    return disp_xp_dxp, x_to_xp
 
 def stress_constraints2(tri_data1, tri_data2, sm, pr):
     out = []
