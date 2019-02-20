@@ -141,7 +141,7 @@ def continuity_constraints(pts, tris, fault_start_idx, tensor_dim = 3):
                     constraints.append(ConstraintEQ(terms, 0.0))
     return constraints
 
-def traction_admissibility_constraints(pts, tris, disp, sm, pr):
+def traction_admissibility_constraints(pts, tris):
     # At each vertex, there should be three remaining degrees of freedom.
     # Initially, there are n_tris*3 degrees of freedom.
     # So, we need (n_tris-1)*3 constraints.
@@ -203,7 +203,6 @@ def traction_admissibility_constraints(pts, tris, disp, sm, pr):
             tri_idx1 = tpt[tpt_idx1][0]
             corner_idx1 = tpt[tpt_idx1][1]
             tri1 = pts[tris[tri_idx1]]
-            disp1 = disp.reshape((-1,3,3))[tri_idx1]
 
             pt = pts[tris[tri_idx1,corner_idx1]]
             if np.abs(pt[2] - 1) < 1e-8 or np.abs(pt[2] + 1) < 1e-8:
@@ -212,13 +211,15 @@ def traction_admissibility_constraints(pts, tris, disp, sm, pr):
             for j in range(i + 1, len(normal_groups)):
                 tpt_idx2 = normal_groups[j][1][0]
                 tri_idx2 = tpt[tpt_idx2][0]
+                # print(tri_idx1, tri_idx2)
                 corner_idx2 = tpt[tpt_idx2][1]
                 tri2 = pts[tris[tri_idx2]]
-                disp2 = disp.reshape((-1,3,3))[tri_idx2]
 
-                admissibility_cs.extend(stress_constraints2(
-                    (tri1, disp1, tri_idx1, corner_idx1),
-                    (tri2, disp2, tri_idx2, corner_idx2),
-                    sm, pr
-                ))
+                new_cs = stress_constraints2(
+                    (tri1, tri_idx1, corner_idx1),
+                    (tri2, tri_idx2, corner_idx2)
+                )
+                # for c in new_cs:
+                #     print(', '.join(['(' + str(t.val) + ',' + str(t.dof) + ')' for t in c.terms]) + ' rhs: ' + str(c.rhs))
+                admissibility_cs.extend(new_cs)
     return continuity_cs, admissibility_cs

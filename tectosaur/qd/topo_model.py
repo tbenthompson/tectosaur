@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse.linalg import cg
+from scipy.sparse.linalg import cg, lsqr
 import scipy.sparse
 
 import tectosaur as tct
@@ -159,6 +159,14 @@ class TopoModel:
         setup_logging(self.cfg)
         return build_elastic_op(self.m, self.cfg, 'H')
 
+    @remember
+    def H_fault_obs(self):
+        setup_logging(self.cfg)
+        return build_elastic_op(
+            self.m, self.cfg, 'H',
+            obs_subset = np.arange(self.m.n_tris('surf'), self.m.n_tris())
+        )
+
     def setup_mesh(self, m):
         self.m = m
         self.fault_start_idx = m.get_start('fault')
@@ -240,59 +248,98 @@ def get_slip_to_disp(m, cfg, H):
         return out + c_rhs
     return f
 
-def get_disp_slip_to_traction(m, cfg, H):
-    csS = tct.all_bc_constraints(0, m.n_tris('surf'), np.zeros(m.n_dofs('surf')))
-    csS.extend(tct.free_edge_constraints(m.get_tris('surf')))
-    csF = tct.continuity_constraints(m.pts, m.get_tris('fault'), m.get_end('fault'))
-    csF.extend(tct.free_edge_constraints(m.get_tris('fault')))
-    cs = tct.build_composite_constraints((csS, 0), (csF, m.n_dofs('surf')))
-    cm, c_rhs, _ = tct.build_constraint_matrix(cs, m.n_dofs())
+def get_interior_edge_op(m, cfg):
+    dof_pts = m.pts[m.tris]
+    from tectosaur.util.geometry import unscaled_normals
+    ns = unscaled_normals(dof_pts)
+    ns /= np.linalg.norm(ns, axis = 1)[:, np.newaxis]
+    ns = np.repeat(ns, 3, axis = 0)
+    edge_dofs = tct.free_edge_dofs(m.tris, tct.find_free_edges(m.tris))
+    obs_pts = dof_pts.reshape((-1,3))[edge_dofs]
+    obs_ns = ns[edge_dofs]
+    interior_op = tct.InteriorOp(
+        obs_pts.copy(), obs_ns.copy(), (m.pts, m.tris), 'elasticH3',
+        4.0, 11, 7, 7, [1.0, cfg['pr']], cfg['tectosaur_cfg']['float_type']
+    )
+    vec_edge_dofs = np.tile(3 * np.array(edge_dofs)[:,np.newaxis], (1,3))
+    vec_edge_dofs[:,1] += 1
+    vec_edge_dofs[:,2] += 2
+    vec_edge_dofs = vec_edge_dofs.flatten()
+    return edge_dofs, obs_pts, obs_ns, vec_edge_dofs, interior_op
 
-    traction_mass_op = tct.MassOp(cfg['tectosaur_cfg']['quad_mass_order'], m.pts, m.tris)
-    constrained_traction_mass_op = cm.T.dot(traction_mass_op.mat.dot(cm))
+def get_disp_slip_to_traction(m, cfg, H_fault_obs, interior_edge_op):
+    edge_dofs, obs_pts, obs_ns, vec_edge_dofs, interior_op = interior_edge_op
+
+    fault_edge_dof_idxs = np.where(vec_edge_dofs >= m.n_dofs('surf'))[0]
+    fault_edge_dofs = vec_edge_dofs[fault_edge_dof_idxs] - m.n_dofs('surf')
+
+    csU = tct.continuity_constraints(m.pts, m.get_tris('fault'), m.get_end('fault'))
+    csU += tct.simple_constraints(fault_edge_dofs, np.zeros(fault_edge_dofs.shape[0]))
+    cmU, c_rhsU, _ = tct.build_constraint_matrix(csU, m.n_dofs('fault'))
+    np.testing.assert_almost_equal(c_rhsU, 0.0)
+
+    csT_continuity_all, csT_admissibility_all = tct.traction_admissibility_constraints(
+        m.pts, m.tris
+    )
+
+    csT_continuity = []
+    for c in csT_continuity_all:
+        if c.terms[0].dof >= m.n_dofs('surf'):
+            terms = []
+            for t in c.terms:
+                terms.append(Term(t.val, t.dof - m.n_dofs('surf')))
+            csT_continuity.append(ConstraintEQ(terms, c.rhs))
+    print(len(csT_continuity))
+
+    csT_admissibility = []
+    n_zeros = 0
+    for c in csT_admissibility_all:
+        terms = []
+        for t in c.terms:
+            if t.dof < m.n_dofs('surf'):
+                # impose traction = 0 on surface
+                continue
+            terms.append(Term(t.val, t.dof - m.n_dofs('surf')))
+        if len(terms) == 0:
+            n_zeros += 1
+        else:
+            csT_admissibility.append(ConstraintEQ(terms, c.rhs))
+    print(n_zeros, len(csT_admissibility))
+
+    traction_mass_op = tct.MassOp(
+        cfg['tectosaur_cfg']['quad_mass_order'], m.pts, m.get_tris('fault')
+    )
+
+    cm_admissibility, rhs_admissibility = tct.simple_constraint_matrix(
+        csT_admissibility, m.n_dofs('fault')
+    )
 
     def f(disp_slip):
-        np.testing.assert_almost_equal(c_rhs, 0.0)
         def callback(x):
             callback.iter += 1
             print(callback.iter)
         callback.iter = 0
 
-        rhs = -H.dot(disp_slip)
-        constrained_rhs = cm.T.dot(rhs)
-        soln = cg(constrained_traction_mass_op, constrained_rhs)#, callback = callback)
-        out = cfg['sm'] * cm.dot(soln[0])
+        trac_edges = -interior_op.dot(disp_slip.flatten().astype(np.float32))[fault_edge_dof_idxs]
+        # trac_edges[:] = 0
+        # trac_edges.reshape((-1,3))[:,0] = 1.0
+
+        csT = csT_continuity + tct.simple_constraints(fault_edge_dofs, trac_edges)
+        cmT, c_rhs, _ = tct.build_constraint_matrix(csT, m.n_dofs('fault'))
+
+        constrained_traction_mass_op = cmU.T.dot(traction_mass_op.mat.dot(cmT))
+        full_lhs = scipy.sparse.vstack((constrained_traction_mass_op, cm_admissibility.dot(cmT)))
+        rhs = (
+            -cmU.T.dot(H_fault_obs.dot(disp_slip.flatten()))
+            -cmU.T.dot(traction_mass_op.mat.dot(c_rhs))
+        )
+        full_rhs = np.concatenate((rhs, rhs_admissibility - cm_admissibility.dot(c_rhs)))
+
+        # soln = cg(full_lhs, full_rhs)#, callback = callback)
+        soln = lsqr(full_lhs, full_rhs)
+        out = cfg['sm'] * (cmT.dot(soln[0]) + c_rhs)
         return out
     return f
-
-def fault_surf_intersection_traction_constraints(m):
-    surf_tris = m.get_tris('surf')
-    unscaled_ns = tct.util.geometry.unscaled_normals(m.pts[surf_tris])
-    ns = tct.util.geometry.normalize(unscaled_ns)
-    pt_ns = np.zeros((m.pts.shape[0], 3))
-    for i in range(m.n_tris('surf')):
-        for d in range(3):
-            pt_ns[m.tris[i,d]] += ns[i]
-    n_ns = np.ones((m.pts.shape[0]))
-    unique, counts = np.unique(surf_tris, return_counts=True)
-    n_ns[unique] = counts
-    pt_ns /= n_ns[:,np.newaxis]
-    cs = []
-    for i in m.get_tri_idxs('fault'):
-        for d in range(3):
-            n = pt_ns[m.tris[i,d]]
-            if np.all(n == 0):
-                continue
-            assert(np.where(surf_tris == m.tris[i,d])[0].shape[0] > 0)
-            ts = []
-            for d2 in range(3):
-                if n[d2] == 0.0:
-                    continue
-                fault_dof = i * 9 + d * 3 + d2
-                ts.append(Term(n[d2], fault_dof))
-            cs.append(ConstraintEQ(ts, 0))
-    return cs
-
 
 def get_traction_to_slip(m, cfg, H):
     t = cfg['Timer']()

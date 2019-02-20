@@ -163,7 +163,7 @@ def stress_constraints(tri_data1, tri_data2, sm, pr):
     return out
 
 def equilibrium_constraint(tri_data):
-    tri, _, tri_idx, corner_idx = tri_data
+    tri, tri_idx, corner_idx = tri_data
 
     x_to_xp = rot_mat(tri) # map from x to rotated frame
     x_to_xhat = inv_jacobian(tri) # map from triangle reference coords to x
@@ -186,14 +186,14 @@ def equilibrium_constraint(tri_data):
 
     return ConstraintEQ(terms, 0.0)
 
-def stress_constraints2(tri_data1, tri_data2, sm, pr):
+def stress_constraints2(tri_data1, tri_data2):
     out = []
-    tri1, _, tri_idx1, corner_idx1 = tri_data1
+    tri1, tri_idx1, corner_idx1 = tri_data1
     dof_start1 = tri_idx1 * 9 + corner_idx1 * 3
     n1 = np.cross(tri1[1] - tri1[0], tri1[2] - tri1[0])
     n1 /= np.linalg.norm(n1)
 
-    tri2, _, tri_idx2, corner_idx2 = tri_data2
+    tri2, tri_idx2, corner_idx2 = tri_data2
     dof_start2 = tri_idx2 * 9 + corner_idx2 * 3
     n2 = np.cross(tri2[1] - tri2[0], tri2[2] - tri2[0])
     n2 /= np.linalg.norm(n2)
