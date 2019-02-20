@@ -36,6 +36,9 @@ def plot_fields(model, field, which = 'fault', levels = None, cmap = 'seismic',
         if f_levels is None:
             f_levels = get_levels(plot_f[which_pts_idxs,d], symmetric_scale)
 
+        # plt.triplot(
+        #     model.m.pts[:,dims[0]], model.m.pts[:,dims[1]], which_tris
+        # )
         cntf = plt.tricontourf(
             model.m.pts[:,dims[0]], model.m.pts[:,dims[1]], which_tris, plot_f[:,d],
             cmap = cmap, levels = f_levels, extend = 'both'

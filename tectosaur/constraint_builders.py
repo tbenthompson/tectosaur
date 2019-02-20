@@ -1,6 +1,7 @@
 import numpy as np
 
 from tectosaur.constraints import ConstraintEQ, Term
+from tectosaur.continuity import find_touching_pts
 
 def build_composite_constraints(*cs_and_starts):
     all_cs = []
@@ -116,8 +117,10 @@ def plot_free_edges(pts, tris, free_edges, dims = [0,1]):
         plt.plot(edge_pts[:,0], edge_pts[:,1], '*-')
     plt.show()
 
-def free_edge_constraints(tris, field = None):
+def free_edge_constraints(tris, field = None, plus_touching = False):
     free_edges = find_free_edges(tris)
+    if plus_touching:
+        touching_pts = find_touching_pts(tris)
     cs = []
     if field is None:
         field = np.zeros(tris.shape[0] * 9)
@@ -125,6 +128,13 @@ def free_edge_constraints(tris, field = None):
         for d in range(3):
             vec_dof = dof * 3 + d
             cs.append(ConstraintEQ([Term(1.0, vec_dof)], field[vec_dof]))
+        if plus_touching:
+            pt_idx = tris.reshape((-1))[dof]
+            for tri_idx, corner_idx in touching_pts[pt_idx]:
+                for b in range(3):
+                    for d in range(3):
+                        vec_dof = tri_idx * 9 + b * 3 + d
+                        cs.append(ConstraintEQ([Term(1.0, vec_dof)], field[vec_dof]))
     return cs
 
 def simple_constraints(dofs, vals):

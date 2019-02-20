@@ -14,6 +14,7 @@ from .model_helpers import (
     calc_derived_constants, remember, rate_state_solve,
     state_evolution, build_elastic_op)
 from .plotting import plot_fields
+from .topo_traction_solve import get_disp_slip_to_traction2
 
 def check_naninf(x):
     return np.any(np.isnan(x)) or np.any(np.isinf(x))
@@ -268,51 +269,20 @@ def get_interior_edge_op(m, cfg):
     return edge_dofs, obs_pts, obs_ns, vec_edge_dofs, interior_op
 
 def get_disp_slip_to_traction(m, cfg, H_fault_obs, interior_edge_op):
-    edge_dofs, obs_pts, obs_ns, vec_edge_dofs, interior_op = interior_edge_op
-
-    fault_edge_dof_idxs = np.where(vec_edge_dofs >= m.n_dofs('surf'))[0]
-    fault_edge_dofs = vec_edge_dofs[fault_edge_dof_idxs] - m.n_dofs('surf')
-
-    csU = tct.continuity_constraints(m.pts, m.get_tris('fault'), m.get_end('fault'))
-    csU += tct.simple_constraints(fault_edge_dofs, np.zeros(fault_edge_dofs.shape[0]))
-    cmU, c_rhsU, _ = tct.build_constraint_matrix(csU, m.n_dofs('fault'))
-    np.testing.assert_almost_equal(c_rhsU, 0.0)
-
-    csT_continuity_all, csT_admissibility_all = tct.traction_admissibility_constraints(
-        m.pts, m.tris
-    )
-
-    csT_continuity = []
-    for c in csT_continuity_all:
-        if c.terms[0].dof >= m.n_dofs('surf'):
-            terms = []
-            for t in c.terms:
-                terms.append(Term(t.val, t.dof - m.n_dofs('surf')))
-            csT_continuity.append(ConstraintEQ(terms, c.rhs))
-    print(len(csT_continuity))
-
-    csT_admissibility = []
-    n_zeros = 0
-    for c in csT_admissibility_all:
-        terms = []
-        for t in c.terms:
-            if t.dof < m.n_dofs('surf'):
-                # impose traction = 0 on surface
-                continue
-            terms.append(Term(t.val, t.dof - m.n_dofs('surf')))
-        if len(terms) == 0:
-            n_zeros += 1
-        else:
-            csT_admissibility.append(ConstraintEQ(terms, c.rhs))
-    print(n_zeros, len(csT_admissibility))
-
+    csT_continuity = tct.continuity_constraints(m.pts, m.get_tris('fault'), m.get_end('fault'))
     traction_mass_op = tct.MassOp(
         cfg['tectosaur_cfg']['quad_mass_order'], m.pts, m.get_tris('fault')
     )
 
-    cm_admissibility, rhs_admissibility = tct.simple_constraint_matrix(
-        csT_admissibility, m.n_dofs('fault')
-    )
+    dof_pts = m.pts[m.get_tris('fault')].reshape((-1,3))
+    x = dof_pts[:,0].reshape(-1)
+    y = dof_pts[:,1].reshape(-1)
+    r2 = (x - 300000) ** 2 + (0.5 * (y - 5000000)) ** 2
+    R = 150000
+    tracx = (np.cos(np.sqrt(r2) * np.pi / R) + 1) / 2.0
+    tracx[np.sqrt(r2) > R] = 0.0
+    trac = np.zeros((dof_pts.shape[0], 3))
+    trac[:,0] = tracx / cfg['sm']
 
     def f(disp_slip):
         def callback(x):
@@ -320,24 +290,54 @@ def get_disp_slip_to_traction(m, cfg, H_fault_obs, interior_edge_op):
             print(callback.iter)
         callback.iter = 0
 
-        trac_edges = -interior_op.dot(disp_slip.flatten().astype(np.float32))[fault_edge_dof_idxs]
-        # trac_edges[:] = 0
-        # trac_edges.reshape((-1,3))[:,0] = 1.0
 
-        csT = csT_continuity + tct.simple_constraints(fault_edge_dofs, trac_edges)
+        csT = (
+            csT_continuity
+            + tct.free_edge_constraints(
+                m.get_tris('fault'), field = trac.flatten()
+            )
+        )
         cmT, c_rhs, _ = tct.build_constraint_matrix(csT, m.n_dofs('fault'))
 
-        constrained_traction_mass_op = cmU.T.dot(traction_mass_op.mat.dot(cmT))
-        full_lhs = scipy.sparse.vstack((constrained_traction_mass_op, cm_admissibility.dot(cmT)))
+        constrained_traction_mass_op = cmT.T.dot(traction_mass_op.mat.dot(cmT))
+        full_lhs = constrained_traction_mass_op
         rhs = (
-            -cmU.T.dot(H_fault_obs.dot(disp_slip.flatten()))
-            -cmU.T.dot(traction_mass_op.mat.dot(c_rhs))
+            -cmT.T.dot(H_fault_obs.dot(disp_slip.flatten()))
+            -cmT.T.dot(traction_mass_op.mat.dot(c_rhs))
         )
-        full_rhs = np.concatenate((rhs, rhs_admissibility - cm_admissibility.dot(c_rhs)))
+        full_rhs = rhs
 
-        # soln = cg(full_lhs, full_rhs)#, callback = callback)
-        soln = lsqr(full_lhs, full_rhs)
+        soln = cg(full_lhs, full_rhs)#, callback = callback)
         out = cfg['sm'] * (cmT.dot(soln[0]) + c_rhs)
+        return out
+    return f
+
+def get_disp_slip_to_traction3(m, cfg, H, wahoo = False):
+    if wahoo:
+        csS = tct.all_bc_constraints(0, m.n_tris('surf'), np.zeros(m.n_dofs('surf')))
+    else:
+        csS = tct.continuity_constraints(m.pts, m.tris, m.get_start('fault'))
+    # csS.extend(tct.free_edge_constraints(m.get_tris('surf')))
+    csF = tct.continuity_constraints(m.pts, m.get_tris('fault'), m.get_end('fault'))
+    # csF.extend(tct.free_edge_constraints(m.get_tris('fault')))
+    cs = tct.build_composite_constraints((csS, 0), (csF, m.n_dofs('surf')))
+    cs.extend(tct.free_edge_constraints(m.tris))
+    cm, c_rhs, _ = tct.build_constraint_matrix(cs, m.n_dofs())
+
+    traction_mass_op = tct.MassOp(cfg['tectosaur_cfg']['quad_mass_order'], m.pts, m.tris)
+    constrained_traction_mass_op = cm.T.dot(traction_mass_op.mat.dot(cm))
+
+    def f(disp_slip):
+        np.testing.assert_almost_equal(c_rhs, 0.0)
+        def callback(x):
+            callback.iter += 1
+            print(callback.iter)
+        callback.iter = 0
+
+        rhs = -H.dot(disp_slip)
+        constrained_rhs = cm.T.dot(rhs)
+        soln = cg(constrained_traction_mass_op, constrained_rhs)#, callback = callback)
+        out = cfg['sm'] * cm.dot(soln[0])
         return out
     return f
 
@@ -356,25 +356,6 @@ def get_traction_to_slip(m, cfg, H):
     traction_mass_op = tct.MassOp(cfg['tectosaur_cfg']['quad_mass_order'], m.pts, m.tris)
     np.testing.assert_almost_equal(c_rhs, 0.0)
     t.report('t2s -- build massop')
-
-    # nearfield_H = H.nearfield.full_scipy_mat_no_correction()
-    # diag_H = nearfield_H.diagonal()
-    # def prec(x):
-    #     return cm.T.dot(cm.dot(x) / diag_H)
-
-    # nearfield_H = H.nearfield.full_scipy_mat_no_correction()
-    # constrained_nearfield_H = cmT.dot(nearfield_H.dot(cm))
-    # t.report('t2s -- constrained nearfield')
-    # spilu = scipy.sparse.linalg.spilu(constrained_nearfield_H)
-    # t.report('t2s -- spilu')
-    # def prec(x):
-    #     return spilu.solve(x)
-
-    # U = build_elastic_op(m, cfg, 'U')
-    # nearfield_U = U.nearfield.full_scipy_mat_no_correction()
-    # diag_U = nearfield_U.diagonal()
-    # def prec(x):
-    #     return cmT.dot(U.dot(cm.dot(x)))
 
     def prec(x):
         return x
