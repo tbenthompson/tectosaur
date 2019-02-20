@@ -161,6 +161,11 @@ class TopoModel:
         return build_elastic_op(self.m, self.cfg, 'H')
 
     @remember
+    def T(self):
+        setup_logging(self.cfg)
+        return build_elastic_op(self.m, self.cfg, 'T')
+
+    @remember
     def H_fault_obs(self):
         setup_logging(self.cfg)
         return build_elastic_op(
@@ -232,9 +237,12 @@ def get_slip_to_disp_one_jacobi_step(m, cfg, H):
         return m.get_dofs(out, 'surf')
     return f
 
-def get_slip_to_disp(m, cfg, H):
+def get_slip_to_disp(m, cfg, T):
     base_cs = tct.continuity_constraints(m.pts, m.tris, m.get_start('fault'))
-    base_cs.extend(tct.free_edge_constraints(m.tris))
+    # base_cs.extend(tct.free_edge_constraints(m.tris))
+
+    mass_op = tct.MultOp(tct.MassOp(3, m.pts, m.tris), 0.5)
+    iop = tct.SumOp([T, mass_op])
 
     def f(slip):
         cs = base_cs + tct.all_bc_constraints(
@@ -242,9 +250,9 @@ def get_slip_to_disp(m, cfg, H):
         )
         cm, c_rhs, _ = tct.build_constraint_matrix(cs, m.n_dofs())
 
-        rhs = -H.dot(c_rhs)
+        rhs = -iop.dot(c_rhs)
         out = tectosaur_topo.solve.iterative_solve(
-            H, cm, rhs, lambda x: x, dict(solver_tol = 1e-4)
+            iop, cm, rhs, lambda x: x, dict(solver_tol = 1e-6)
         )
         return out + c_rhs
     return f
