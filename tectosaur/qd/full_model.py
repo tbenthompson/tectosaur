@@ -13,7 +13,7 @@ from tectosaur.util.timer import Timer
 from . import siay
 from .model_helpers import (
     calc_derived_constants, remember, build_elastic_op,
-    rate_state_solve, state_evolution)
+    rate_state_solve, state_evolution, check_naninf)
 from .plotting import plot_fields
 
 class FullspaceModel:
@@ -27,7 +27,11 @@ class FullspaceModel:
 
     def make_derivs(self):
         def derivs(t, y):
+            if check_naninf(y):
+                return np.inf * y
             data = self.solve_for_full_state(t, y)
+            if not data:
+                return np.inf * y
             slip, slip_deficit, state, traction, V, dstatedt = data
             return np.concatenate((V, dstatedt))
         return derivs
@@ -45,6 +49,10 @@ class FullspaceModel:
         n_total_dofs = y.shape[0]
         n_slip_dofs = n_total_dofs // 4 * 3
         slip, state = y[:n_slip_dofs], y[n_slip_dofs:]
+        if np.any(state < 0) or np.any(state > 1.2):
+            print("BAD STATE VALUES")
+            print(state)
+            return False
         timer.report('separate_slip_state')
 
         plate_motion = (t * self.cfg['plate_rate']) * self.field_inslipdir
@@ -54,8 +62,18 @@ class FullspaceModel:
         traction = self.slip_to_traction(slip_deficit)
         timer.report('slip_to_traction')
 
+        # print(t)
+        # import matplotlib.pyplot as plt
+        # plt.plot(traction.reshape((-1,3))[:,0])
+        # plt.show()
+        # from IPython.core.debugger import Tracer
+        # Tracer()()
+
         V = rate_state_solve(self, traction, state)
         timer.report('rate_state_solve')
+
+        if check_naninf(V):
+            return False
 
         dstatedt = state_evolution(self.cfg, V, state)
         timer.report('state_evolution')
@@ -142,7 +160,7 @@ def get_slip_to_traction(m, cfg):
         t = cfg['Timer']()
         rhs = -f.H.dot(slip)
         t.report('H.dot')
-        soln = cg(f.constrained_traction_mass_op, f.cm.T.dot(rhs))
+        soln = cg(f.constrained_traction_mass_op, f.cm.T.dot(rhs), atol = 1e-12, tol = 1e-5)
         out = cfg['sm'] * f.cm.dot(soln[0])
         t.report('solve')
 

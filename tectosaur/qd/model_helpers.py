@@ -142,3 +142,6 @@ def init_creep(model):
     init_slip_deficit = model.traction_to_slip(init_traction)
     init_state =  state_i * np.ones((model.m.n_tris('fault') * 3))
     return 0, -init_slip_deficit, init_state
+
+def check_naninf(x):
+    return np.any(np.isnan(x)) or np.any(np.isinf(x))

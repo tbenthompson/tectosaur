@@ -12,11 +12,8 @@ from . import siay
 from .full_model import setup_logging
 from .model_helpers import (
     calc_derived_constants, remember, rate_state_solve,
-    state_evolution, build_elastic_op)
+    state_evolution, build_elastic_op, check_naninf)
 from .plotting import plot_fields
-
-def check_naninf(x):
-    return np.any(np.isnan(x)) or np.any(np.isinf(x))
 
 class TopoModel:
     def __init__(self, m, cfg):#, which_side):
@@ -69,6 +66,7 @@ class TopoModel:
         if np.any(state < 0) or np.any(state > 1.2):
             print("BAD STATE VALUES")
             print(state)
+            return False
 
         do_fast_step = self.do_fast_step()
         if do_fast_step:
@@ -84,11 +82,11 @@ class TopoModel:
         fault_V = rate_state_solve(self, fault_traction, state)
         timer.report('fault_V')
 
-        dstatedt = state_evolution(self.cfg, fault_V, state)
-        timer.report('dstatedt')
-
         if check_naninf(fault_V):
             return False
+
+        dstatedt = state_evolution(self.cfg, fault_V, state)
+        timer.report('dstatedt')
 
         out = deficit, state, traction, fault_V, dstatedt
         return out
