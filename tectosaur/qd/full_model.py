@@ -1,10 +1,9 @@
 import logging
 import numpy as np
 
-from scipy.sparse.linalg import cg
+from scipy.sparse.linalg import cg, gmres, LinearOperator
 
 import tectosaur as tct
-import tectosaur_topo
 from tectosaur.mesh.combined_mesh import CombinedMesh
 from tectosaur.util.geometry import unscaled_normals
 from tectosaur.constraint_builders import free_edge_constraints
@@ -131,7 +130,6 @@ def setup_slip_traction(m, cfg):
 
 def setup_logging(cfg):
     tct.logger.setLevel(cfg['tectosaur_cfg']['log_level'])
-    tectosaur_topo.logger.setLevel(cfg['tectosaur_cfg']['log_level'])
 
 def build_continuity(m, cfg):
     cs = tct.continuity_constraints(m.pts, m.tris, m.tris.shape[0])
@@ -163,9 +161,19 @@ def get_slip_to_traction(m, cfg):
 def get_traction_to_slip(m, cfg):
     def f(traction):
         rhs = -f.traction_mass_op.dot(traction / cfg['sm'])
-        out = tectosaur_topo.solve.iterative_solve(
-            f.H, f.cm, rhs, lambda x: x, dict(solver_tol = 1e-8)
+        rhs_constrained = f.cm.T.dot(rhs)
+        n = rhs_constrained.shape[0]
+
+        def mv(v):
+            return f.cm.T.dot(f.H.dot(f.cm.dot(v)))
+        A = LinearOperator((n, n), matvec = mv)
+
+        soln = gmres(
+            A, rhs_constrained, M = M, tol = cfg['solver_tol'],
+            callback = report_res, restart = 500
         )
+        out = f.cm.dot(soln[0])
         return out
+
     f.H, f.traction_mass_op, f.cm = setup_slip_traction(m, cfg)
     return f

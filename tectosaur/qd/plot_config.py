@@ -2,22 +2,27 @@ import os
 from IPython import get_ipython
 import matplotlib.pyplot as plt
 
-def configure(gpu_idx = 0, fast_plot = True, n_omp_threads = None):
+def configure_meade03(idx):
+    configure(gpu_idx = idx, fast_plot = True, socket = idx)
+
+def configure(gpu_idx = 0, fast_plot = True, socket = None):
     set_gpu(gpu_idx)
     if fast_plot:
         configure_mpl_fast()
     else:
         configure_mpl_pretty()
-    configure_omp(n_omp_threads)
+    configure_omp(socket)
 
-def configure_omp(n_omp_threads):
-    var = 'OMP_NUM_THREADS'
-    if n_omp_threads is None:
-        if var in os.environ:
-            del os.environ[var]
+def configure_omp(socket):
+    if socket is None:
+        if 'OMP_NUM_THREADS' in os.environ:
+            del os.environ['OMP_NUM_THREADS']
     else:
-        os.environ[var] = str(n_omp_threads)
-
+        first_core = socket * 20
+        last_core = (socket + 1) * 20
+        OMP_PLACES='{' + str(first_core) + ':' + str(last_core) + ':1}'
+        os.environ['OMP_NUM_THREADS'] = str(20)
+        os.environ['OMP_PLACES']=OMP_PLACES
 
 def set_gpu(idx):
     os.environ['CUDA_DEVICE'] = str(idx)

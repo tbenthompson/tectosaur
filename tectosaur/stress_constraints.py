@@ -186,8 +186,7 @@ def equilibrium_constraint(tri_data):
 
     return ConstraintEQ(terms, 0.0)
 
-def stress_constraints2(tri_data1, tri_data2):
-    out = []
+def constant_stress_constraint(tri_data1, tri_data2):
     tri1, tri_idx1, corner_idx1 = tri_data1
     dof_start1 = tri_idx1 * 9 + corner_idx1 * 3
     n1 = np.cross(tri1[1] - tri1[0], tri1[2] - tri1[0])
@@ -202,7 +201,19 @@ def stress_constraints2(tri_data1, tri_data2):
     for d in range(3):
         terms.append(Term(n1[d], dof_start2 + d))
         terms.append(Term(-n2[d], dof_start1 + d))
-    out.append(ConstraintEQ(terms, 0.0))
+    return ConstraintEQ(terms, 0.0)
+
+def stress_constraints2(tri_data1, tri_data2):
+    out = []
+    tri1, tri_idx1, corner_idx1 = tri_data1
+    dof_start1 = tri_idx1 * 9 + corner_idx1 * 3
+    n1 = np.cross(tri1[1] - tri1[0], tri1[2] - tri1[0])
+    n1 /= np.linalg.norm(n1)
+
+    tri2, tri_idx2, corner_idx2 = tri_data2
+    dof_start2 = tri_idx2 * 9 + corner_idx2 * 3
+    n2 = np.cross(tri2[1] - tri2[0], tri2[2] - tri2[0])
+    n2 /= np.linalg.norm(n2)
 
     out.append(equilibrium_constraint(tri_data1))
     out.append(equilibrium_constraint(tri_data2))

@@ -2,7 +2,8 @@ import numpy as np
 import scipy.sparse.csgraph
 from tectosaur.util.geometry import tri_normal, unscaled_normals, normalize
 from tectosaur.constraints import ConstraintEQ, Term
-from tectosaur.stress_constraints import stress_constraints, stress_constraints2
+from tectosaur.stress_constraints import stress_constraints, stress_constraints2, \
+    equilibrium_constraint, constant_stress_constraint
 
 def find_touching_pts(tris):
     max_pt_idx = np.max(tris)
@@ -141,13 +142,14 @@ def continuity_constraints(pts, tris, fault_start_idx, tensor_dim = 3):
                     constraints.append(ConstraintEQ(terms, 0.0))
     return constraints
 
-def traction_admissibility_constraints(pts, tris):
+def traction_admissibility_constraints(pts, tris, fault_start_idx):
     # At each vertex, there should be three remaining degrees of freedom.
     # Initially, there are n_tris*3 degrees of freedom.
     # So, we need (n_tris-1)*3 constraints.
 
     touching_pt = find_touching_pts(tris)
     ns = normalize(unscaled_normals(pts[tris]))
+    side = get_side_of_fault(pts, tris, fault_start_idx)
 
     continuity_cs = []
     admissibility_cs = []
@@ -164,6 +166,13 @@ def traction_admissibility_constraints(pts, tris):
             joined = False
             for j in range(len(normal_groups)):
                 if np.allclose(normal_groups[j][0], n):
+                    tri_idx2 = tpt[normal_groups[j][1][0]][0]
+                    side1 = side[tri_idx]
+                    side2 = side[tri_idx2]
+                    crosses = (side1 != side2) and (side1 != 0) and (side2 != 0)
+                    fault_tri_idx = None
+                    # if crosses:
+                    #     continue
                     normal_groups[j][1].append(i)
                     joined = True
                     break
@@ -195,7 +204,7 @@ def traction_admissibility_constraints(pts, tris):
             # Only continuity needed!
             continue
 
-        assert(len(normal_groups) == 2)
+        # assert(len(normal_groups) == 2)
 
         # Add constant stress constraints
         for i in range(len(normal_groups)):
@@ -203,10 +212,7 @@ def traction_admissibility_constraints(pts, tris):
             tri_idx1 = tpt[tpt_idx1][0]
             corner_idx1 = tpt[tpt_idx1][1]
             tri1 = pts[tris[tri_idx1]]
-
-            pt = pts[tris[tri_idx1,corner_idx1]]
-            if np.abs(pt[2] - 1) < 1e-8 or np.abs(pt[2] + 1) < 1e-8:
-                continue
+            tri_data1 = (tri1, tri_idx1, corner_idx1)
 
             for j in range(i + 1, len(normal_groups)):
                 tpt_idx2 = normal_groups[j][1][0]
@@ -214,12 +220,11 @@ def traction_admissibility_constraints(pts, tris):
                 # print(tri_idx1, tri_idx2)
                 corner_idx2 = tpt[tpt_idx2][1]
                 tri2 = pts[tris[tri_idx2]]
+                tri_data2 = (tri2, tri_idx2, corner_idx2)
 
-                new_cs = stress_constraints2(
-                    (tri1, tri_idx1, corner_idx1),
-                    (tri2, tri_idx2, corner_idx2)
-                )
                 # for c in new_cs:
                 #     print(', '.join(['(' + str(t.val) + ',' + str(t.dof) + ')' for t in c.terms]) + ' rhs: ' + str(c.rhs))
-                admissibility_cs.extend(new_cs)
+                admissibility_cs.append(constant_stress_constraint(tri_data1, tri_data2))
+                admissibility_cs.append(equilibrium_constraint(tri_data1))
+                admissibility_cs.append(equilibrium_constraint(tri_data2))
     return continuity_cs, admissibility_cs

@@ -162,24 +162,26 @@ class QDPlotData:
         which_pts = self.model.m.pts[which_pts_idxs]
 
 
-        triang = matplotlib.tri.Triangulation(
-            self.model.m.pts[:,dim[0]], self.model.m.pts[:,dim[1]], which_tris
-        )
-        refiner = matplotlib.tri.UniformTriRefiner(triang)
-        tri_refi, z_test_refi = refiner.refine_field(
-            pt_field, subdiv = subdiv,
-            triinterpolator = matplotlib.tri.LinearTriInterpolator(triang, pt_field)
-        )
+        # triang = matplotlib.tri.Triangulation(
+        #     self.model.m.pts[:,dim[0]], self.model.m.pts[:,dim[1]], which_tris
+        # )
+        # refiner = matplotlib.tri.UniformTriRefiner(triang)
+        # tri_refi, z_test_refi = refiner.refine_field(
+        #     pt_field, subdiv = subdiv,
+        #     triinterpolator = matplotlib.tri.LinearTriInterpolator(triang, pt_field)
+        # )
 
         color_plot = ax.tricontourf(
-            tri_refi, z_test_refi,
+            self.model.m.pts[:,dim[0]], self.model.m.pts[:,dim[1]], which_tris,
+            pt_field,
             cmap = cmap, levels = levels, extend = 'both'
         )
         ax.tricontour(
-            tri_refi, z_test_refi,
+            self.model.m.pts[:,dim[0]], self.model.m.pts[:,dim[1]], which_tris,
+            pt_field,
             levels = contour_levels, extend = 'both',
             linestyles = 'solid', linewidths = 0.5,
-            colors = ['k'] * contour_levels.shape[0]
+            colors = 'w'
         )
 
         minpt = np.min(which_pts, axis = 0)
@@ -205,11 +207,11 @@ class QDPlotData:
         ax.set_ylabel(ylabel)
         ax.set_aspect('equal', adjustable='box')
 
-        text_pos = (
-            minpt[dim[0]],
-            maxpt[dim[1]] + (maxpt[dim[1]] - minpt[dim[1]]) * 0.003
-        )
         if t_years is not None:
+            text_pos = (
+                minpt[dim[0]],
+                maxpt[dim[1]] + (maxpt[dim[1]] - minpt[dim[1]]) * 0.003
+            )
             ax.text(text_pos[0], text_pos[1], '%.9f' % t_years)
 
         if xticks is not None:

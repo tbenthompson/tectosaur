@@ -110,7 +110,7 @@ def rate_state_solve(model, traction, state):
 
     inslipdir_speed = np.sum(ptavg_V.reshape((-1,3)) * model.field_inslipdir_interior.reshape((-1,3)), axis = 1)
     inslipdir_speed /= np.linalg.norm(model.field_inslipdir_interior.reshape((-1,3)), axis = 1)
-    if model.cfg.get('no_backslip', True):
+    if model.cfg.get('no_backslip', False):
         ptavg_V.reshape((-1,3))[inslipdir_speed < 0,:] = 0.0
         ptavg_V.reshape((-1,3))[np.isnan(inslipdir_speed)] = 0.0
 
