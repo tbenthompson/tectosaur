@@ -88,12 +88,13 @@ def remember(f):
 def rate_state_solve(model, traction, state):
     timer = model.cfg['Timer']()
     V = np.empty_like(model.field_inslipdir)
+    normal_stress = np.ones((model.tri_normals.shape[0] * 3))
+    normal_stress *= model.cfg['additional_normal_stress']
     newton.rate_state_solver(
         model.tri_normals, traction, state, V,
         model.cfg['a'], model.cfg['eta'],
         model.cfg['V0'], model.cfg.get('C', 0.0),
-        model.cfg['additional_normal_stress'],
-        1e-12, 50, int(model.n_dofs / model.n_tris),
+        normal_stress, 1e-12, 50, int(model.n_dofs / model.n_tris),
         model.cfg.get('rs_separate_dims', False)
     )
     timer.report('newton')

@@ -2,7 +2,11 @@ import os
 from IPython import get_ipython
 import matplotlib.pyplot as plt
 
+meade03_socket_idx = 0
+
 def configure_meade03(idx):
+    global meade03_socket_idx
+    meade03_socket_idx = idx
     configure(gpu_idx = idx, fast_plot = True, socket = idx)
 
 def configure(gpu_idx = 0, fast_plot = True, socket = None):

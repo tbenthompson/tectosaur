@@ -306,76 +306,17 @@ def surface_fault_admissibility(m):
                 # cs.append(equilibrium_constraint(tri_data2))
     return cs
 
-def get_interior_edge_op(m, cfg):
-    dof_pts = m.pts[m.tris]
-    from tectosaur.util.geometry import unscaled_normals
-    ns = unscaled_normals(dof_pts)
-    ns /= np.linalg.norm(ns, axis = 1)[:, np.newaxis]
-    ns = np.repeat(ns, 3, axis = 0)
-    edge_dofs = tct.free_edge_dofs(m.tris, tct.find_free_edges(m.tris))
-    obs_pts = dof_pts.reshape((-1,3))[edge_dofs]
-    obs_ns = ns[edge_dofs]
-    interior_op = tct.InteriorOp(
-        obs_pts.copy(), obs_ns.copy(), (m.pts, m.tris), 'elasticH3',
-        4.0, 11, 7, 7, [1.0, cfg['pr']], cfg['tectosaur_cfg']['float_type']
-    )
-    vec_edge_dofs = np.tile(3 * np.array(edge_dofs)[:,np.newaxis], (1,3))
-    vec_edge_dofs[:,1] += 1
-    vec_edge_dofs[:,2] += 2
-    vec_edge_dofs = vec_edge_dofs.flatten()
-    return edge_dofs, obs_pts, obs_ns, vec_edge_dofs, interior_op
-
 
 def get_disp_slip_to_traction(m, cfg, H):
-    # csUS = tct.continuity_constraints(m.pts, m.tris, m.get_start('fault'))
-    # csUF = tct.continuity_constraints(m.pts, m.get_tris('fault'), m.get_end('fault'))
-    # csU = tct.build_composite_constraints((csUS, 0), (csUF, m.n_dofs('surf')))
-    # csU.extend(tct.free_edge_constraints(m.tris))
-    # cmU, c_rhsU, _ = tct.build_constraint_matrix(csU, m.n_dofs())
-    # np.testing.assert_almost_equal(c_rhsU, 0.0)
-
-    edge_dofs, obs_pts, obs_ns, vec_edge_dofs, interior_op = get_interior_edge_op(m, cfg)
-
-    fault_edge_dof_idxs = np.where(vec_edge_dofs >= m.n_dofs('surf'))[0]
-    fault_edge_dofs = vec_edge_dofs[fault_edge_dof_idxs] - m.n_dofs('surf')
-
-    tct.simple_constraints(fault_edge_dofs, np.zeros(fault_edge_dofs.shape[0]))
-
-    obs_pts = m.pts[m.get_tris('fault')].reshape((-1,3))
-    tct.InteriorOp(
-
     csTS = tct.continuity_constraints(m.pts, m.get_tris('surf'), int(1e9))
     # csTS = tct.all_bc_constraints(0, m.n_tris('surf'), np.zeros(m.n_dofs('surf')))
     csTF = tct.continuity_constraints(m.pts, m.get_tris('fault'), int(1e9))
     csT = tct.build_composite_constraints((csTS, 0), (csTF, m.n_dofs('surf')))
     csT.extend(tct.free_edge_constraints(m.tris))
     cmT, c_rhsT, _ = tct.build_constraint_matrix(csT, m.n_dofs())
+    np.testing.assert_almost_equal(c_rhsT, 0.0)
 
     cmU = cmT
-
-    # csUS = tct.continuity_constraints(m.pts, m.tris, m.get_start('fault'))
-    # csUS = tct.all_bc_constraints(0, m.n_tris('surf'), np.zeros(m.n_dofs('surf')))
-    # csUF = tct.continuity_constraints(m.pts, m.get_tris('fault'), m.get_end('fault'))
-    # csU = tct.build_composite_constraints((csUS, 0), (csUF, m.n_dofs('surf')))
-    # csU.extend(tct.free_edge_constraints(m.tris))
-    # cmU, c_rhsU, _ = tct.build_constraint_matrix(csU, m.n_dofs())
-    # np.testing.assert_almost_equal(c_rhsU, 0.0)
-
-    # csTS = tct.all_bc_constraints(0, m.n_tris('surf'), np.zeros(m.n_dofs('surf')))
-    # csTS = tct.continuity_constraints(m.pts, m.tris, m.get_start('fault'))
-    # csTF = tct.continuity_constraints(m.pts, m.get_tris('fault'), int(1e9))
-    # if cfg.get('depth_traction_constraint', False):
-    #     dt_pairs = depth_traction_constraints(m)
-    #     # csTF.extend(tct.free_edge_constraints(m.get_tris('fault')))
-#
-#     csT = tct.build_composite_constraints((csTS, 0), (csTF, m.n_dofs('surf')))
-#     csT.extend(tct.free_edge_constraints(m.tris))
-#     csT.extend(surface_fault_admissibility(m))
-#     # csTc, csTa = tct.traction_admissibility_constraints(m.pts, m.tris, int(1e9))#m.get_start('fault'))
-#     # csT.extend(csTa)
-#     cmT, c_rhsT, _ = tct.build_constraint_matrix(csT, m.n_dofs())
-#     cmU = cmT
-    np.testing.assert_almost_equal(c_rhsT, 0.0)
 
     traction_mass_op = tct.MassOp(
         cfg['tectosaur_cfg']['quad_mass_order'], m.pts, m.tris

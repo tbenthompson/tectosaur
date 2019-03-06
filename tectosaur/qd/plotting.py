@@ -16,7 +16,7 @@ from .basis_convert import dofs_to_pts
 
 def plot_fields(model, field, which = 'fault', levels = None, cmap = 'seismic',
         symmetric_scale = False, ds = None, figsize = None, dims = [0,2],
-        xlim = None, ylim = None, figscale = (6,5)):
+        xlim = None, ylim = None, figscale = (6,5), filepath = None):
 
     field_reshape = field.reshape((model.m.n_tris(which) * 3, -1))
     n_fields = field_reshape.shape[1]
@@ -53,6 +53,8 @@ def plot_fields(model, field, which = 'fault', levels = None, cmap = 'seismic',
             plt.ylim(ylim)
         plt.colorbar(cntf)
     plt.tight_layout()
+    if filepath is not None:
+        plt.savefig(filepath, bbox_inches = 'tight')
     plt.show()
 
 def get_levels(f, symmetric_scale):
@@ -96,13 +98,13 @@ class QDPlotData:
     def simple_data_file(self, filename):
         slip_at_pts = []
         state_at_pts = []
-        for i in range(len(qdp.slip)):
+        for i in range(len(self.slip)):
             slip_at_pts.append(qd.dofs_to_pts(
-                self.model.m.pts, self.model.m.tris, self.model.basis_dim,
+                self.model.m.pts, self.model.m.get_tris('fault'), self.model.basis_dim,
                 self.slip[i].reshape((-1,3))
             ))
             state_at_pts.append(qd.dofs_to_pts(
-                self.model.m.pts, self.model.m.tris, self.model.basis_dim,
+                self.model.m.pts, self.model.m.get_tris('fault'), self.model.basis_dim,
                 self.state[i].reshape((-1,1))
             ))
         slip_at_pts = np.array(slip_at_pts)
@@ -110,7 +112,7 @@ class QDPlotData:
         np.save(
             filename,
             (
-                self.model.m.pts, self.model.m.tris,
+                self.model.m.pts, self.model.m.get_tris('fault'),
                 self.t, slip_at_pts, state_at_pts
             )
         )
