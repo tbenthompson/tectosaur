@@ -16,7 +16,7 @@ from .basis_convert import dofs_to_pts
 
 def plot_fields(model, field, which = 'fault', levels = None, cmap = 'seismic',
         symmetric_scale = False, ds = None, figsize = None, dims = [0,2],
-        xlim = None, ylim = None, figscale = (6,5)):
+        xlim = None, ylim = None, figscale = (6,5), filepath = None):
 
     field_reshape = field.reshape((model.m.n_tris(which) * 3, -1))
     n_fields = field_reshape.shape[1]
@@ -36,6 +36,9 @@ def plot_fields(model, field, which = 'fault', levels = None, cmap = 'seismic',
         if f_levels is None:
             f_levels = get_levels(plot_f[which_pts_idxs,d], symmetric_scale)
 
+        # plt.triplot(
+        #     model.m.pts[:,dims[0]], model.m.pts[:,dims[1]], which_tris
+        # )
         cntf = plt.tricontourf(
             model.m.pts[:,dims[0]], model.m.pts[:,dims[1]], which_tris, plot_f[:,d],
             cmap = cmap, levels = f_levels, extend = 'both'
@@ -50,6 +53,8 @@ def plot_fields(model, field, which = 'fault', levels = None, cmap = 'seismic',
             plt.ylim(ylim)
         plt.colorbar(cntf)
     plt.tight_layout()
+    if filepath is not None:
+        plt.savefig(filepath, bbox_inches = 'tight')
     plt.show()
 
 def get_levels(f, symmetric_scale):
@@ -93,13 +98,13 @@ class QDPlotData:
     def simple_data_file(self, filename):
         slip_at_pts = []
         state_at_pts = []
-        for i in range(len(qdp.slip)):
+        for i in range(len(self.slip)):
             slip_at_pts.append(qd.dofs_to_pts(
-                self.model.m.pts, self.model.m.tris, self.model.basis_dim,
+                self.model.m.pts, self.model.m.get_tris('fault'), self.model.basis_dim,
                 self.slip[i].reshape((-1,3))
             ))
             state_at_pts.append(qd.dofs_to_pts(
-                self.model.m.pts, self.model.m.tris, self.model.basis_dim,
+                self.model.m.pts, self.model.m.get_tris('fault'), self.model.basis_dim,
                 self.state[i].reshape((-1,1))
             ))
         slip_at_pts = np.array(slip_at_pts)
@@ -107,7 +112,7 @@ class QDPlotData:
         np.save(
             filename,
             (
-                self.model.m.pts, self.model.m.tris,
+                self.model.m.pts, self.model.m.get_tris('fault'),
                 self.t, slip_at_pts, state_at_pts
             )
         )
@@ -159,24 +164,26 @@ class QDPlotData:
         which_pts = self.model.m.pts[which_pts_idxs]
 
 
-        triang = matplotlib.tri.Triangulation(
-            self.model.m.pts[:,dim[0]], self.model.m.pts[:,dim[1]], which_tris
-        )
-        refiner = matplotlib.tri.UniformTriRefiner(triang)
-        tri_refi, z_test_refi = refiner.refine_field(
-            pt_field, subdiv = subdiv,
-            triinterpolator = matplotlib.tri.LinearTriInterpolator(triang, pt_field)
-        )
+        # triang = matplotlib.tri.Triangulation(
+        #     self.model.m.pts[:,dim[0]], self.model.m.pts[:,dim[1]], which_tris
+        # )
+        # refiner = matplotlib.tri.UniformTriRefiner(triang)
+        # tri_refi, z_test_refi = refiner.refine_field(
+        #     pt_field, subdiv = subdiv,
+        #     triinterpolator = matplotlib.tri.LinearTriInterpolator(triang, pt_field)
+        # )
 
         color_plot = ax.tricontourf(
-            tri_refi, z_test_refi,
+            self.model.m.pts[:,dim[0]], self.model.m.pts[:,dim[1]], which_tris,
+            pt_field,
             cmap = cmap, levels = levels, extend = 'both'
         )
         ax.tricontour(
-            tri_refi, z_test_refi,
+            self.model.m.pts[:,dim[0]], self.model.m.pts[:,dim[1]], which_tris,
+            pt_field,
             levels = contour_levels, extend = 'both',
             linestyles = 'solid', linewidths = 0.5,
-            colors = ['k'] * contour_levels.shape[0]
+            colors = 'w'
         )
 
         minpt = np.min(which_pts, axis = 0)
@@ -202,11 +209,11 @@ class QDPlotData:
         ax.set_ylabel(ylabel)
         ax.set_aspect('equal', adjustable='box')
 
-        text_pos = (
-            minpt[dim[0]],
-            maxpt[dim[1]] + (maxpt[dim[1]] - minpt[dim[1]]) * 0.003
-        )
         if t_years is not None:
+            text_pos = (
+                minpt[dim[0]],
+                maxpt[dim[1]] + (maxpt[dim[1]] - minpt[dim[1]]) * 0.003
+            )
             ax.text(text_pos[0], text_pos[1], '%.9f' % t_years)
 
         if xticks is not None:

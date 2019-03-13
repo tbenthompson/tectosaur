@@ -153,28 +153,6 @@ def test_redundant_continuity():
     cm, c_rhs, _ = build_constraint_matrix(cs, n_total_dofs)
     assert(cm.shape[1] == 3 * n ** 2)
 
-def test_calc_shear_stress():
-    tri = np.array([[0,0,0],[1,0,0],[0,0,1]])
-    slip = np.array([[0,0,0],[1,0,0],[1,0,1]])
-    tangent1 = np.array([1,0,0])
-    tangent2 = np.array([0,0,1])
-    gradient = calc_gradient(tri, slip)
-    np.testing.assert_almost_equal(gradient, [[1,0,1],[0,0,0],[0,0,1]])
-    print(calc_shear_stress(tri, slip, tangent1, tangent2, 1.0))
-
-def test_gradient_in_plane():
-    for i in range(10):
-        tri = np.random.rand(3,3)
-        n = tct.util.geometry.tri_normal(tri, normalize = True)
-        slip = np.random.rand(3,3)
-        gradient = calc_gradient(tri, slip)
-        for d in range(2):
-            np.testing.assert_almost_equal(
-                gradient.dot(tri[d] - tri[0]),
-                slip[d] - slip[0]
-            )
-        np.testing.assert_almost_equal(gradient.dot(n), 0.0)
-
 # def test_faulted_continuity():
 #     n = 3
 #     m = simple_rect_mesh(n)

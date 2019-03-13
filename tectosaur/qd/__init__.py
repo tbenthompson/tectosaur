@@ -1,6 +1,6 @@
 siay = 60 * 60 * 24 * 365.25
 
-from .plot_config import configure
+from .plot_config import configure, configure_meade03
 from .model_helpers import print_length_scales, init_creep
 from .full_model import FullspaceModel
 from .topo_model import TopoModel

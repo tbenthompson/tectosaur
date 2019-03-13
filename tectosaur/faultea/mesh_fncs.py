@@ -30,7 +30,7 @@ def get_surf_fault_pts(surf_tris, fault_tris):
     for e in get_surf_fault_edges(surf_tris, fault_tris):
         for j in range(2):
             t_idx, d = e[j]
-            surf_fault_pts.append(fault_tris[1][t_idx, d])
+            surf_fault_pts.append(fault_tris[t_idx, d])
     surf_fault_pts = np.unique(surf_fault_pts)
     return surf_fault_pts
 

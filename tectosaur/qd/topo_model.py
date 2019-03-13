@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse.linalg import cg
+from scipy.sparse.linalg import cg, lsmr, gmres
 import scipy.sparse
 
 import tectosaur as tct
@@ -12,11 +12,8 @@ from . import siay
 from .full_model import setup_logging
 from .model_helpers import (
     calc_derived_constants, remember, rate_state_solve,
-    state_evolution, build_elastic_op)
+    state_evolution, build_elastic_op, check_naninf)
 from .plotting import plot_fields
-
-def check_naninf(x):
-    return np.any(np.isnan(x)) or np.any(np.isinf(x))
 
 class TopoModel:
     def __init__(self, m, cfg):#, which_side):
@@ -69,6 +66,7 @@ class TopoModel:
         if np.any(state < 0) or np.any(state > 1.2):
             print("BAD STATE VALUES")
             print(state)
+            return False
 
         do_fast_step = self.do_fast_step()
         if do_fast_step:
@@ -84,11 +82,11 @@ class TopoModel:
         fault_V = rate_state_solve(self, fault_traction, state)
         timer.report('fault_V')
 
-        dstatedt = state_evolution(self.cfg, fault_V, state)
-        timer.report('dstatedt')
-
         if check_naninf(fault_V):
             return False
+
+        dstatedt = state_evolution(self.cfg, fault_V, state)
+        timer.report('dstatedt')
 
         out = deficit, state, traction, fault_V, dstatedt
         return out
@@ -159,6 +157,11 @@ class TopoModel:
         setup_logging(self.cfg)
         return build_elastic_op(self.m, self.cfg, 'H')
 
+    @remember
+    def T(self):
+        setup_logging(self.cfg)
+        return build_elastic_op(self.m, self.cfg, 'T')
+
     def setup_mesh(self, m):
         self.m = m
         self.fault_start_idx = m.get_start('fault')
@@ -180,10 +183,16 @@ class TopoModel:
 
         self.field_inslipdir_interior = self.ones_interior.copy()
         self.field_inslipdir = self.ones_interior.copy()
-        for d in range(3):
-            val = self.cfg['slipdir'][d]
-            self.field_inslipdir_interior.reshape((-1,3))[:,d] *= val
-            self.field_inslipdir.reshape((-1,3))[:,d] = val
+        slipdir = self.cfg['slipdir']
+        if type(slipdir) is tuple:
+            for d in range(3):
+                val = self.cfg['slipdir'][d]
+                self.field_inslipdir_interior.reshape((-1,3))[:,d] *= val
+                self.field_inslipdir.reshape((-1,3))[:,d] = val
+        else:
+            assert(slipdir.shape[0] == self.field_inslipdir.shape[0])
+            self.field_inslipdir = slipdir
+            self.field_inslipdir_interior *= slipdir
 
         self.field_inslipdir_edges = self.field_inslipdir - self.field_inslipdir_interior
 
@@ -223,9 +232,12 @@ def get_slip_to_disp_one_jacobi_step(m, cfg, H):
         return m.get_dofs(out, 'surf')
     return f
 
-def get_slip_to_disp(m, cfg, H):
+def get_slip_to_disp(m, cfg, T):
     base_cs = tct.continuity_constraints(m.pts, m.tris, m.get_start('fault'))
-    base_cs.extend(tct.free_edge_constraints(m.tris))
+    # base_cs.extend(tct.free_edge_constraints(m.tris))
+
+    mass_op = tct.MultOp(tct.MassOp(3, m.pts, m.tris), 0.5)
+    iop = tct.SumOp([T, mass_op])
 
     def f(slip):
         cs = base_cs + tct.all_bc_constraints(
@@ -233,66 +245,108 @@ def get_slip_to_disp(m, cfg, H):
         )
         cm, c_rhs, _ = tct.build_constraint_matrix(cs, m.n_dofs())
 
-        rhs = -H.dot(c_rhs)
+        rhs = -iop.dot(c_rhs)
         out = tectosaur_topo.solve.iterative_solve(
-            H, cm, rhs, lambda x: x, dict(solver_tol = 1e-4)
+            iop, cm, rhs, lambda x: x, dict(solver_tol = 1e-6)
         )
         return out + c_rhs
     return f
 
-def get_disp_slip_to_traction(m, cfg, H):
-    csS = tct.all_bc_constraints(0, m.n_tris('surf'), np.zeros(m.n_dofs('surf')))
-    csS.extend(tct.free_edge_constraints(m.get_tris('surf')))
-    csF = tct.continuity_constraints(m.pts, m.get_tris('fault'), m.get_end('fault'))
-    csF.extend(tct.free_edge_constraints(m.get_tris('fault')))
-    cs = tct.build_composite_constraints((csS, 0), (csF, m.n_dofs('surf')))
-    cm, c_rhs, _ = tct.build_constraint_matrix(cs, m.n_dofs())
+def depth_traction_constraints(m):
+    from tectosaur.faultea.mesh_fncs import get_surf_fault_edges, get_surf_fault_pts
+    from tectosaur.continuity import find_touching_pts
+    from tectosaur.constraint_builders import find_free_edges,free_edge_dofs
+    fe_dofs = free_edge_dofs(m.tris, find_free_edges(m.tris))
+    sf_pts = get_surf_fault_pts(m.get_tris('surf'), m.get_tris('fault'))
+    touching_pts = find_touching_pts(m.get_tris('fault'))
 
-    traction_mass_op = tct.MassOp(cfg['tectosaur_cfg']['quad_mass_order'], m.pts, m.tris)
-    constrained_traction_mass_op = cm.T.dot(traction_mass_op.mat.dot(cm))
+    pairs = []
+    for p in sf_pts:
+        tri_idx1, corner_idx1 = touching_pts[p][0]
+        dof1 = m.n_tris('surf') * 3 + tri_idx1 * 3 + corner_idx1
+        if dof1 in fe_dofs:
+            continue
+
+        connected_pts = []
+        for tri_idx, corner_idx in touching_pts[p]:
+            connected_pts.extend(m.get_tris('fault')[tri_idx].tolist())
+        connected_pts = list(set(connected_pts) - {p})
+        vs = m.pts[p] - m.pts[connected_pts]
+        max_depth_idx = np.argmax(vs[:,2])
+        tri_idx2, corner_idx2 = touching_pts[connected_pts[max_depth_idx]][0]
+        for i in range(vs.shape[0]):
+            dof2 = m.n_tris('surf') * 3 + tri_idx2 * 3 + corner_idx2
+            if dof2 not in fe_dofs:
+                break
+            max_depth_idx = (max_depth_idx + 1) % vs.shape[0]
+            tri_idx2, corner_idx2 = touching_pts[connected_pts[max_depth_idx]][0]
+
+        for d in range(3):
+            terms = [
+                m.n_dofs('surf') + tri_idx1 * 9 + corner_idx1 * 3 + d,
+                m.n_dofs('surf') + tri_idx2 * 9 + corner_idx2 * 3 + d
+            ]
+            pairs.append(terms)
+    return pairs
+
+def surface_fault_admissibility(m):
+    from tectosaur.faultea.mesh_fncs import get_surf_fault_edges, get_surf_fault_pts
+    from tectosaur.continuity import (
+        find_touching_pts, constant_stress_constraint, equilibrium_constraint
+    )
+    from tectosaur.constraint_builders import find_free_edges,free_edge_dofs
+    fe_dofs = free_edge_dofs(m.tris, find_free_edges(m.tris))
+    sf_pts = get_surf_fault_pts(m.get_tris('surf'), m.get_tris('fault'))
+    touching_pts = find_touching_pts(m.tris)
+
+    cs = []
+    for p in sf_pts:
+        surf_idxs = [t for t in touching_pts[p] if t[0] < m.n_tris('surf')]
+        fault_idxs = [t for t in touching_pts[p] if t[0] >= m.n_tris('surf')]
+        for f in fault_idxs:
+            tri_data1 = (m.pts[m.tris[f[0]]], f[0], f[1])
+            for s in surf_idxs:
+                tri_data2 = (m.pts[m.tris[s[0]]], s[0], s[1])
+                cs.append(constant_stress_constraint(tri_data1, tri_data2))
+                # cs.append(equilibrium_constraint(tri_data1))
+                # cs.append(equilibrium_constraint(tri_data2))
+    return cs
+
+
+def get_disp_slip_to_traction(m, cfg, H):
+    csTS = tct.continuity_constraints(m.pts, m.get_tris('surf'), int(1e9))
+    # csTS = tct.all_bc_constraints(0, m.n_tris('surf'), np.zeros(m.n_dofs('surf')))
+    csTF = tct.continuity_constraints(m.pts, m.get_tris('fault'), int(1e9))
+    csT = tct.build_composite_constraints((csTS, 0), (csTF, m.n_dofs('surf')))
+    csT.extend(tct.free_edge_constraints(m.tris))
+    cmT, c_rhsT, _ = tct.build_constraint_matrix(csT, m.n_dofs())
+    np.testing.assert_almost_equal(c_rhsT, 0.0)
+
+    cmU = cmT
+
+    traction_mass_op = tct.MassOp(
+        cfg['tectosaur_cfg']['quad_mass_order'], m.pts, m.tris
+    )
+    constrained_traction_mass_op = cmU.T.dot(traction_mass_op.mat.dot(cmT))
 
     def f(disp_slip):
-        np.testing.assert_almost_equal(c_rhs, 0.0)
+        t = cfg['Timer']()
         def callback(x):
             callback.iter += 1
             print(callback.iter)
         callback.iter = 0
 
-        rhs = -H.dot(disp_slip)
-        constrained_rhs = cm.T.dot(rhs)
-        soln = cg(constrained_traction_mass_op, constrained_rhs)#, callback = callback)
-        out = cfg['sm'] * cm.dot(soln[0])
+        rhs = -cmU.T.dot(H.dot(disp_slip.flatten()))
+        t.report('rhs')
+
+        soln = cg(constrained_traction_mass_op, rhs)
+        #soln = lsmr(constrained_traction_mass_op, rhs)#, callback = callback)
+        t.report('lsmr')
+
+        out = cfg['sm'] * (cmT.dot(soln[0]) + c_rhsT)
+        t.report('out')
         return out
     return f
-
-def fault_surf_intersection_traction_constraints(m):
-    surf_tris = m.get_tris('surf')
-    unscaled_ns = tct.util.geometry.unscaled_normals(m.pts[surf_tris])
-    ns = tct.util.geometry.normalize(unscaled_ns)
-    pt_ns = np.zeros((m.pts.shape[0], 3))
-    for i in range(m.n_tris('surf')):
-        for d in range(3):
-            pt_ns[m.tris[i,d]] += ns[i]
-    n_ns = np.ones((m.pts.shape[0]))
-    unique, counts = np.unique(surf_tris, return_counts=True)
-    n_ns[unique] = counts
-    pt_ns /= n_ns[:,np.newaxis]
-    cs = []
-    for i in m.get_tri_idxs('fault'):
-        for d in range(3):
-            n = pt_ns[m.tris[i,d]]
-            if np.all(n == 0):
-                continue
-            assert(np.where(surf_tris == m.tris[i,d])[0].shape[0] > 0)
-            ts = []
-            for d2 in range(3):
-                if n[d2] == 0.0:
-                    continue
-                fault_dof = i * 9 + d * 3 + d2
-                ts.append(Term(n[d2], fault_dof))
-            cs.append(ConstraintEQ(ts, 0))
-    return cs
-
 
 def get_traction_to_slip(m, cfg, H):
     t = cfg['Timer']()
@@ -309,25 +363,6 @@ def get_traction_to_slip(m, cfg, H):
     traction_mass_op = tct.MassOp(cfg['tectosaur_cfg']['quad_mass_order'], m.pts, m.tris)
     np.testing.assert_almost_equal(c_rhs, 0.0)
     t.report('t2s -- build massop')
-
-    # nearfield_H = H.nearfield.full_scipy_mat_no_correction()
-    # diag_H = nearfield_H.diagonal()
-    # def prec(x):
-    #     return cm.T.dot(cm.dot(x) / diag_H)
-
-    # nearfield_H = H.nearfield.full_scipy_mat_no_correction()
-    # constrained_nearfield_H = cmT.dot(nearfield_H.dot(cm))
-    # t.report('t2s -- constrained nearfield')
-    # spilu = scipy.sparse.linalg.spilu(constrained_nearfield_H)
-    # t.report('t2s -- spilu')
-    # def prec(x):
-    #     return spilu.solve(x)
-
-    # U = build_elastic_op(m, cfg, 'U')
-    # nearfield_U = U.nearfield.full_scipy_mat_no_correction()
-    # diag_U = nearfield_U.diagonal()
-    # def prec(x):
-    #     return cmT.dot(U.dot(cm.dot(x)))
 
     def prec(x):
         return x

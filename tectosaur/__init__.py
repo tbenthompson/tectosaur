@@ -30,7 +30,8 @@ from tectosaur.ops.sparse_farfield_op import (
 from tectosaur.ops.dense_integral_op import RegularizedDenseIntegralOp
 from tectosaur.interior import InteriorOp
 
-from tectosaur.constraints import Term, ConstraintEQ, build_constraint_matrix
+from tectosaur.constraints import Term, ConstraintEQ, build_constraint_matrix, \
+    simple_constraint_matrix
 from tectosaur.constraint_builders import (
     free_edge_constraints,
     simple_constraints,

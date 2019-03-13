@@ -15,3 +15,22 @@ def build_constraint_matrix(cs, n_total_dofs):
     cm = scipy.sparse.csr_matrix((vals, (rows, cols)), shape = (n_rows, n_cols))
     rhs_mat = scipy.sparse.csr_matrix((rhs_vals, (rhs_rows, rhs_cols)), shape = (n_rows, len(cs)))
     return cm, rhs_mat.dot(rhs_in), rhs_mat
+
+def simple_constraint_matrix(cs, n_cols):
+    rows = []
+    cols = []
+    data = []
+    rhs = np.zeros((len(cs)))
+    for i in range(len(cs)):
+        c = cs[i]
+        for j in range(len(c.terms)):
+            rows.append(i)
+            cols.append(c.terms[j].dof)
+            data.append(c.terms[j].val)
+        rhs[i] = c.rhs
+    return (
+        scipy.sparse.csr_matrix((data, (rows, cols)), shape = (len(cs), n_cols)),
+        rhs
+    )
+
+

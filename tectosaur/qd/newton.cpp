@@ -112,7 +112,7 @@ Vec3 solve_for_dof_separate_dims(const Vec3& traction_vec,
 void rate_state_solver(NPArray<double> tri_normals, NPArray<double> traction,
         NPArray<double> state, NPArray<double> velocity, NPArray<double> a,
         double eta, double V0, double C,
-        double additional_normal_stress,
+        NPArray<double> additional_normal_stress,
         double tol, double maxiter, int basis_dim, bool separate_dims)
 {
     auto* tri_normals_ptr = as_ptr<Vec3>(tri_normals);
@@ -120,6 +120,7 @@ void rate_state_solver(NPArray<double> tri_normals, NPArray<double> traction,
     auto* velocity_ptr = as_ptr<Vec3>(velocity);
     auto* traction_ptr = as_ptr<Vec3>(traction);
     auto* a_ptr = as_ptr<double>(a);
+    auto* normal_stress_ptr = as_ptr<double>(additional_normal_stress);
 
     size_t n_tris = tri_normals.request().shape[0];
 
@@ -134,7 +135,7 @@ void rate_state_solver(NPArray<double> tri_normals, NPArray<double> traction,
             
             auto rs_solver_fnc = [&] (double shear_mag, double normal_mag) {
                 auto solve_result = newton_rs(
-                    shear_mag, eta, normal_mag + additional_normal_stress, 
+                    shear_mag, eta, normal_mag + normal_stress_ptr[dof], 
                     state, a_ptr[dof], V0, C, 0.0, tol, maxiter
                 );
                 assert(solve_result.second);

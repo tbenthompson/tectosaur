@@ -1,10 +1,9 @@
 import logging
 import numpy as np
 
-from scipy.sparse.linalg import cg
+from scipy.sparse.linalg import cg, gmres, LinearOperator
 
 import tectosaur as tct
-import tectosaur_topo
 from tectosaur.mesh.combined_mesh import CombinedMesh
 from tectosaur.util.geometry import unscaled_normals
 from tectosaur.constraint_builders import free_edge_constraints
@@ -14,7 +13,7 @@ from tectosaur.util.timer import Timer
 from . import siay
 from .model_helpers import (
     calc_derived_constants, remember, build_elastic_op,
-    rate_state_solve, state_evolution)
+    rate_state_solve, state_evolution, check_naninf)
 from .plotting import plot_fields
 
 class FullspaceModel:
@@ -28,7 +27,11 @@ class FullspaceModel:
 
     def make_derivs(self):
         def derivs(t, y):
+            if check_naninf(y):
+                return np.inf * y
             data = self.solve_for_full_state(t, y)
+            if not data:
+                return np.inf * y
             slip, slip_deficit, state, traction, V, dstatedt = data
             return np.concatenate((V, dstatedt))
         return derivs
@@ -46,6 +49,10 @@ class FullspaceModel:
         n_total_dofs = y.shape[0]
         n_slip_dofs = n_total_dofs // 4 * 3
         slip, state = y[:n_slip_dofs], y[n_slip_dofs:]
+        if np.any(state < 0) or np.any(state > 1.2):
+            print("BAD STATE VALUES")
+            print(state)
+            return False
         timer.report('separate_slip_state')
 
         plate_motion = (t * self.cfg['plate_rate']) * self.field_inslipdir
@@ -55,8 +62,18 @@ class FullspaceModel:
         traction = self.slip_to_traction(slip_deficit)
         timer.report('slip_to_traction')
 
+        # print(t)
+        # import matplotlib.pyplot as plt
+        # plt.plot(traction.reshape((-1,3))[:,0])
+        # plt.show()
+        # from IPython.core.debugger import Tracer
+        # Tracer()()
+
         V = rate_state_solve(self, traction, state)
         timer.report('rate_state_solve')
+
+        if check_naninf(V):
+            return False
 
         dstatedt = state_evolution(self.cfg, V, state)
         timer.report('state_evolution')
@@ -131,7 +148,6 @@ def setup_slip_traction(m, cfg):
 
 def setup_logging(cfg):
     tct.logger.setLevel(cfg['tectosaur_cfg']['log_level'])
-    tectosaur_topo.logger.setLevel(cfg['tectosaur_cfg']['log_level'])
 
 def build_continuity(m, cfg):
     cs = tct.continuity_constraints(m.pts, m.tris, m.tris.shape[0])
@@ -144,7 +160,7 @@ def get_slip_to_traction(m, cfg):
         t = cfg['Timer']()
         rhs = -f.H.dot(slip)
         t.report('H.dot')
-        soln = cg(f.constrained_traction_mass_op, f.cm.T.dot(rhs))
+        soln = cg(f.constrained_traction_mass_op, f.cm.T.dot(rhs), atol = 1e-12, tol = 1e-5)
         out = cfg['sm'] * f.cm.dot(soln[0])
         t.report('solve')
 
@@ -163,9 +179,19 @@ def get_slip_to_traction(m, cfg):
 def get_traction_to_slip(m, cfg):
     def f(traction):
         rhs = -f.traction_mass_op.dot(traction / cfg['sm'])
-        out = tectosaur_topo.solve.iterative_solve(
-            f.H, f.cm, rhs, lambda x: x, dict(solver_tol = 1e-8)
+        rhs_constrained = f.cm.T.dot(rhs)
+        n = rhs_constrained.shape[0]
+
+        def mv(v):
+            return f.cm.T.dot(f.H.dot(f.cm.dot(v)))
+        A = LinearOperator((n, n), matvec = mv)
+
+        soln = gmres(
+            A, rhs_constrained, M = M, tol = cfg['solver_tol'],
+            callback = report_res, restart = 500
         )
+        out = f.cm.dot(soln[0])
         return out
+
     f.H, f.traction_mass_op, f.cm = setup_slip_traction(m, cfg)
     return f
