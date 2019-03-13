@@ -30,35 +30,34 @@ def init(queue):
     idx = queue.get()
 
 def process(plotting_data):
-    plot_fnc, datadir, start_step, steps_paths = plotting_data
+    fnc, datadir, start_step, steps_paths = plotting_data
 
     global idx
     psutil.Process().cpu_affinity([idx])
 
     which = start_step + (idx + 1) * 100
-    data = DataChunk(datadir, which)
-    if data.ts is None:
-        return
-
-    qdp  = qd.plotting.QDPlotData(data)
-
-    for step_idx, filepath in steps_paths:
+    go = False
+    for step_idx, args in steps_paths:
         local_step_idx = step_idx - which + 100
         if not (0 <= local_step_idx < 100):
             continue
-        # print(step_idx, filepath)
-        success = False
-        retries = 1000
-        while not success:
-            try:
-                plot_fnc(qdp, local_step_idx, filepath)
-                success = True
-            except matplotlib.cbook.Locked.TimeoutError:
-                print("Latex lock, retry.")
-                plt.close()
-                retries -= 1
-                if retries == 0:
-                    raise
+        go = True
+    if not go:
+        return dict()
+
+    data = DataChunk(datadir, which)
+    if data.ts is None:
+        return dict()
+
+    qdp  = qd.plotting.QDPlotData(data)
+
+    out = dict()
+    for step_idx, args in steps_paths:
+        local_step_idx = step_idx - which + 100
+        if not (0 <= local_step_idx < 100):
+            continue
+        out[step_idx] = fnc(qdp, local_step_idx, *args)
+    return out
 
 
 def get_frame_name(frame_idx, n_frames):
@@ -83,7 +82,7 @@ def parallel_video(plot_fnc, datadir, n_cores, steps_to_plot, video_prefix):
         step = steps_to_plot[frame_idx]
         frame_name = get_frame_name(frame_idx, n_frames)
         filepath = None if video_prefix is None else f'{video_name}/{frame_name}.png'
-        steps_paths.append((step, filepath))
+        steps_paths.append((step, [filepath]))
 
     ids = list(range(n_cores))
     manager = multiprocessing.Manager()
@@ -100,3 +99,22 @@ def parallel_video(plot_fnc, datadir, n_cores, steps_to_plot, video_prefix):
         p.map(process, [(plot_fnc, datadir, start_step, steps_paths)] * n_cores)
 
     return video_name
+
+def parallel_analysis(fnc, datadir, n_cores, steps_to_analyze):
+    steps_args = [(s, []) for s in steps_to_analyze]
+
+    ids = list(range(n_cores))
+    manager = multiprocessing.Manager()
+    idQueue = manager.Queue()
+    for i in ids:
+        idQueue.put(i)
+
+    p = multiprocessing.Pool(n_cores, init, (idQueue,))
+    loops = int(np.ceil(np.max(steps_to_analyze) / (n_cores * 100)))
+    out = dict()
+    for i in range(loops):
+        start_step = n_cores * 100 * i
+        results = p.map(process, [(fnc, datadir, start_step, steps_args)] * n_cores)
+        for r in results:
+            out.update(r)
+    return out

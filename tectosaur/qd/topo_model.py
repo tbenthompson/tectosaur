@@ -183,10 +183,16 @@ class TopoModel:
 
         self.field_inslipdir_interior = self.ones_interior.copy()
         self.field_inslipdir = self.ones_interior.copy()
-        for d in range(3):
-            val = self.cfg['slipdir'][d]
-            self.field_inslipdir_interior.reshape((-1,3))[:,d] *= val
-            self.field_inslipdir.reshape((-1,3))[:,d] = val
+        slipdir = self.cfg['slipdir']
+        if type(slipdir) is tuple:
+            for d in range(3):
+                val = self.cfg['slipdir'][d]
+                self.field_inslipdir_interior.reshape((-1,3))[:,d] *= val
+                self.field_inslipdir.reshape((-1,3))[:,d] = val
+        else:
+            assert(slipdir.shape[0] == self.field_inslipdir.shape[0])
+            self.field_inslipdir = slipdir
+            self.field_inslipdir_interior *= slipdir
 
         self.field_inslipdir_edges = self.field_inslipdir - self.field_inslipdir_interior
 
