@@ -3,10 +3,10 @@ from scipy.sparse.linalg import cg, lsmr, gmres
 import scipy.sparse
 
 import tectosaur as tct
-import tectosaur_topo
 from tectosaur.util.geometry import unscaled_normals
 from tectosaur.util.timer import Timer
 from tectosaur.constraints import ConstraintEQ, Term
+from tectosaur.simple_solver import iterative_solve
 
 from . import siay
 from .full_model import setup_logging
@@ -246,7 +246,7 @@ def get_slip_to_disp(m, cfg, T):
         cm, c_rhs, _ = tct.build_constraint_matrix(cs, m.n_dofs())
 
         rhs = -iop.dot(c_rhs)
-        out = tectosaur_topo.solve.iterative_solve(
+        out = iterative_solve(
             iop, cm, rhs, lambda x: x, dict(solver_tol = 1e-6)
         )
         return out + c_rhs
@@ -369,7 +369,7 @@ def get_traction_to_slip(m, cfg, H):
 
     def f(traction):
         rhs = -traction_mass_op.dot(traction / cfg['sm'])
-        out = tectosaur_topo.solve.iterative_solve(
+        out = iterative_solve(
             H, cm, rhs, prec, dict(solver_tol = 1e-4)
         )
         return out
