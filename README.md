@@ -21,6 +21,7 @@ Further documentation and examples will absolutely be available in the future! U
 2. You will need to have either PyCUDA or PyOpenCL installed. If you have an NVidia GPU, install PyCUDA for best performance. Try running `pip install pycuda`. If that fails, you can follow the [more detailed instructions on the PyCUDA wiki](https://wiki.tiker.net/PyCuda/Installation). And [here are detailed instructions for installing PyOpenCL](https://documen.tician.de/pyopencl/misc.html).
 3. Install numpy: `pip install numpy`
 4. `git clone https://github.com/tbenthompson/tectosaur.git`
+5. `git checkout dissertation_stable` if you want the somewhat stable version used for my dissertation.
 5. Enter that directory and run `pip install .`
 
 # Running the examples
