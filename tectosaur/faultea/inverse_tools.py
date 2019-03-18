@@ -12,9 +12,9 @@ import tectosaur.util.geometry
 import tectosaur.nearfield.edge_adj_setup as edge_adj_setup
 import tectosaur_topo as tt
 
-import mesh_fncs
-import slip_vectors
-import collect_dem
+import .mesh_fncs
+import .slip_vectors
+import .collect_dem
 
 
 def tri_side(tri1, tri2, threshold = 1e-12):
@@ -119,9 +119,9 @@ def plot_surf_disp(m, side, field, name, vmin = None, vmax = None, filename = No
 
     cbar = plt.colorbar(cntf)
     cbar.set_label('$\\text{displacement (m)}$')
-    
+
     map_axis(fC, R, view_R, proj, latlon_step)
-    
+
     plt.title(name)
     if filename is not None:
         plt.savefig(filename)
@@ -200,7 +200,7 @@ def map_axis(fC, R, view_R, proj, latlon_step):
         latlon_axis(plt.gca(), xbounds, ybounds, proj, latlon_step)
     plt.xlim(xbounds)
     plt.ylim(ybounds)
-    
+
 def plot_situation(m, data, proj = None, modeled = None, view_R = 2.0, filename = None, min_elevation = None, max_elevation = None, latlon_step = 0.5, figsize = (13,13)):
     fault_pts = m.get_tri_pts('fault').reshape((-1,3))
     fC = np.mean(fault_pts, axis = 0)
@@ -226,7 +226,7 @@ def plot_situation(m, data, proj = None, modeled = None, view_R = 2.0, filename 
         plt.quiver(data['X'], data['Y'], modeled[:,0], modeled[:,1], color = 'w')
     cbar = plt.colorbar(cntf)
     cbar.set_label('elevation (km)')
-    
+
     map_axis(fC, R, view_R, proj, latlon_step)
 
     if filename is not None:
@@ -283,7 +283,7 @@ def build_interp_matrix(m, obs_pts, containing_tris, which_dims):
         xyhat = edge_adj_setup.xyhat_from_pt(o_pt, tri_pts.tolist())
         basis_coeffs = tectosaur.util.geometry.linear_basis_tri(*xyhat)
         np.testing.assert_almost_equal(np.sum(basis_coeffs), 1.0)
-        
+
         for b in range(3):
             for d in which_dims:
                 soln_to_obs[i * len(which_dims) + d, tri_idx * 9 + b * 3 + d] = basis_coeffs[b]
