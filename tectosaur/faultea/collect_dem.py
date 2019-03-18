@@ -56,7 +56,7 @@ def get_dem_bounds(lonlat_pts):
         maxlat + latrange * 0.1,
         maxlon + lonrange * 0.1,
     ]
-    
+
     assert(-180 < bounds[1] < 180)
     assert(-180 < bounds[3] < 180)
 
@@ -164,7 +164,7 @@ def project(inx, iny, dem, proj_name, inverse = False):
         proj = pyproj.Proj('+proj=geocent +datum=WGS84 +units=m +no_defs')
     elif proj_name.startswith('utm'):
         zone = proj_name[3:]
-        print(zone)
+        # print(zone)
         proj = pyproj.Proj("+proj=utm +zone=" + zone + ", +north +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
     if inverse:
         x,y,z = pyproj.transform(proj, wgs84, inx, iny, dem)

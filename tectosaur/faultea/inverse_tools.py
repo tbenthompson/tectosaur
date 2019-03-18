@@ -12,9 +12,9 @@ import tectosaur.util.geometry
 import tectosaur.nearfield.edge_adj_setup as edge_adj_setup
 import tectosaur_topo as tt
 
-import mesh_fncs
-import slip_vectors
-import collect_dem
+from . import mesh_fncs
+from . import slip_vectors
+from . import collect_dem
 
 
 def tri_side(tri1, tri2, threshold = 1e-12):
@@ -119,9 +119,9 @@ def plot_surf_disp(m, side, field, name, vmin = None, vmax = None, filename = No
 
     cbar = plt.colorbar(cntf)
     cbar.set_label('$\\text{displacement (m)}$')
-    
+
     map_axis(fC, R, view_R, proj, latlon_step)
-    
+
     plt.title(name)
     if filename is not None:
         plt.savefig(filename)
@@ -176,8 +176,10 @@ def latlon_axis(ax, xbounds, ybounds, proj, latlon_step):
     lon_edges = collect_dem.project(xbounds, [ybounds[0]] * 2, [0,0], proj, inverse = True)
     min_lon = int(np.floor(lon_edges[0][0]))
     max_lon = int(np.ceil(lon_edges[1][0]))
+    print(min_lon, max_lon)
     lon = np.linspace(min_lon, max_lon, inv_latlon_step * (max_lon - min_lon) + 1)
     lon_proj = collect_dem.project(lon, [lon_edges[0][1]] * len(lon), [0] * len(lon), proj)
+    print(lon_proj)
 
     ax.set_xticks(lon_proj[:,0])
     ax.set_xticklabels(['$\\mathrm{' + str(x) + '}^{\circ} ~ \mathrm{E}$' for x in lon])
@@ -188,6 +190,7 @@ def latlon_axis(ax, xbounds, ybounds, proj, latlon_step):
     max_lat = int(np.ceil(lat_edges[1][1]))
     lat = np.linspace(min_lat, max_lat, inv_latlon_step * (max_lat - min_lat) + 1)
     lat_proj = collect_dem.project([lat_edges[0][0]] * len(lat), lat, [0] * len(lat), proj)
+    print(lat_proj)
 
     ax.set_yticks(lat_proj[:,1])
     ax.set_yticklabels(['$\\mathrm{' + str(y) + '}^{\circ} ~ \mathrm{N}$' for y in lat])
@@ -200,7 +203,7 @@ def map_axis(fC, R, view_R, proj, latlon_step):
         latlon_axis(plt.gca(), xbounds, ybounds, proj, latlon_step)
     plt.xlim(xbounds)
     plt.ylim(ybounds)
-    
+
 def plot_situation(m, data, proj = None, modeled = None, view_R = 2.0, filename = None, min_elevation = None, max_elevation = None, latlon_step = 0.5, figsize = (13,13)):
     fault_pts = m.get_tri_pts('fault').reshape((-1,3))
     fC = np.mean(fault_pts, axis = 0)
@@ -226,7 +229,7 @@ def plot_situation(m, data, proj = None, modeled = None, view_R = 2.0, filename 
         plt.quiver(data['X'], data['Y'], modeled[:,0], modeled[:,1], color = 'w')
     cbar = plt.colorbar(cntf)
     cbar.set_label('elevation (km)')
-    
+
     map_axis(fC, R, view_R, proj, latlon_step)
 
     if filename is not None:
@@ -283,7 +286,7 @@ def build_interp_matrix(m, obs_pts, containing_tris, which_dims):
         xyhat = edge_adj_setup.xyhat_from_pt(o_pt, tri_pts.tolist())
         basis_coeffs = tectosaur.util.geometry.linear_basis_tri(*xyhat)
         np.testing.assert_almost_equal(np.sum(basis_coeffs), 1.0)
-        
+
         for b in range(3):
             for d in which_dims:
                 soln_to_obs[i * len(which_dims) + d, tri_idx * 9 + b * 3 + d] = basis_coeffs[b]
