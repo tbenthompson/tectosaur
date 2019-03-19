@@ -11,7 +11,6 @@ import cppimport.import_hook
 import tectosaur.util.geometry
 import tectosaur.nearfield.edge_adj_setup as edge_adj_setup
 import tectosaur_topo as tt
-
 from . import mesh_fncs
 from . import slip_vectors
 from . import collect_dem
