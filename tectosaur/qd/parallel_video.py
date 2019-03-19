@@ -64,11 +64,15 @@ def get_frame_name(frame_idx, n_frames):
     digits = len(str(n_frames))
     return '%0*d' % (digits, frame_idx)
 
-def video_test(plot_fnc, datadir, step_idx):
+def chunk_qdp(datadir, step_idx):
     which = 100 * (int(np.ceil(step_idx // 100)) + 1)
     local_step_idx = step_idx - which + 100
     data = DataChunk(datadir, which)
     qdp  = qd.plotting.QDPlotData(data)
+    return qdp, local_step_idx
+
+def video_test(plot_fnc, datadir, step_idx):
+    qdp, local_step_idx = chunk_qdp(datadir, step_idx)
     plot_fnc(qdp, local_step_idx, None)
 
 def parallel_video(plot_fnc, datadir, n_cores, steps_to_plot, video_prefix):

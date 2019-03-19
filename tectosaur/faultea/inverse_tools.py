@@ -12,9 +12,9 @@ import tectosaur.util.geometry
 import tectosaur.nearfield.edge_adj_setup as edge_adj_setup
 import tectosaur_topo as tt
 
-import .mesh_fncs
-import .slip_vectors
-import .collect_dem
+from . import mesh_fncs
+from . import slip_vectors
+from . import collect_dem
 
 
 def tri_side(tri1, tri2, threshold = 1e-12):
@@ -176,8 +176,10 @@ def latlon_axis(ax, xbounds, ybounds, proj, latlon_step):
     lon_edges = collect_dem.project(xbounds, [ybounds[0]] * 2, [0,0], proj, inverse = True)
     min_lon = int(np.floor(lon_edges[0][0]))
     max_lon = int(np.ceil(lon_edges[1][0]))
+    print(min_lon, max_lon)
     lon = np.linspace(min_lon, max_lon, inv_latlon_step * (max_lon - min_lon) + 1)
     lon_proj = collect_dem.project(lon, [lon_edges[0][1]] * len(lon), [0] * len(lon), proj)
+    print(lon_proj)
 
     ax.set_xticks(lon_proj[:,0])
     ax.set_xticklabels(['$\\mathrm{' + str(x) + '}^{\circ} ~ \mathrm{E}$' for x in lon])
@@ -188,6 +190,7 @@ def latlon_axis(ax, xbounds, ybounds, proj, latlon_step):
     max_lat = int(np.ceil(lat_edges[1][1]))
     lat = np.linspace(min_lat, max_lat, inv_latlon_step * (max_lat - min_lat) + 1)
     lat_proj = collect_dem.project([lat_edges[0][0]] * len(lat), lat, [0] * len(lat), proj)
+    print(lat_proj)
 
     ax.set_yticks(lat_proj[:,1])
     ax.set_yticklabels(['$\\mathrm{' + str(y) + '}^{\circ} ~ \mathrm{N}$' for y in lat])
