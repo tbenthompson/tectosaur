@@ -1,5 +1,4 @@
-(NOTE: Unmaintained)
-
+# TECTOSAUR IS UNMAINTAINED AND UNSUPPORTED.
 
 Observe the tectonosaurus and the elastosaurus romp pleasantly through the fields of stress.
 
