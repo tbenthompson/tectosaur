@@ -1,4 +1,4 @@
-# TECTOSAUR IS UNMAINTAINED AND UNSUPPORTED.
+# Tectosaur is unmaintained and unsupported. Please [email me](mailto:t.ben.thompson@gmail.com) if you'd like to chat about boundary integral methods!
 
 Observe the tectonosaurus and the elastosaurus romp pleasantly through the fields of stress.
 
